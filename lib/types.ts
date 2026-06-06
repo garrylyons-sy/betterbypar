@@ -4,6 +4,8 @@ export type TeamContext = {
   id: string;
   name: string;
   club: string;
+  logoPath: string;
+  primaryColor: string;
   league: "A League" | "B League" | "C League";
   season: string;
   role: Role;
@@ -42,5 +44,7 @@ export type PlayerStat = {
 
 export type ClubTeamStructure = {
   club: string;
+  logoPath: string;
+  primaryColor: string;
   teams: string[];
 };

@@ -27,4 +27,6 @@ Apply [supabase/schema.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supa
 
 Then apply [supabase/seed.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/seed.sql) to create the initial 2026/27 season, leagues, clubs and team entries.
 
-Scoring is modelled at frame level. Each `game` row is one frame: singles frames award 1 league point to the winning team, and the doubles frame awards 2 league points. `league_table_view` calculates standings from those frame-level points through `match_points_view`.
+Scoring is modelled at frame level. Each `game` row is one frame: singles frames award 1 league point to the winning team, and the doubles frame awards 2 league points. `league_table_view` calculates standings from those frame-level points through `match_points_view`. Historical aggregate imports can store only `match.home_team_score` and `match.away_team_score`; `match_points_view` falls back to those totals until frame-level detail is added.
+
+Apply [supabase/a_league_2025_26_results.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/a_league_2025_26_results.sql) to import last season's A League regular-season results from `Snooker A League 25-26.xlsx`. The two semi-finals and final are intentionally excluded.

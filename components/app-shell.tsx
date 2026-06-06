@@ -16,7 +16,7 @@ import {
   Users,
   Zap
 } from "lucide-react";
-import { adminModules, clubTeamStructure, playerStats, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
+import { adminModules, clubTeamStructure, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
 import type { TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -147,13 +147,20 @@ function DesktopRail({ activeTeam }: { activeTeam: TeamContext }) {
 
 function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
   const manager = activeTeam.role === "Manager";
+  const panelStyle = {
+    background: `linear-gradient(135deg, ${activeTeam.primaryColor} 0%, #37003c 52%, #e90052 100%)`
+  };
 
   return (
     <section className="overflow-hidden rounded-[18px] text-white shadow-live">
-      <div className="matchday-gradient relative p-4 sm:p-6">
+      <div className="relative p-4 sm:p-6" style={panelStyle}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         <div className="relative grid gap-5 sm:grid-cols-[1fr_auto] sm:items-end">
-          <div>
+          <div className="flex items-start gap-3">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white p-2 shadow-card ring-1 ring-white/40 sm:h-20 sm:w-20">
+              <img src={activeTeam.logoPath} alt={`${activeTeam.club} logo`} className="max-h-full max-w-full object-contain" />
+            </div>
+            <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="cyan">{activeTeam.role}</Badge>
               <Badge variant="muted">{activeTeam.league}</Badge>
@@ -166,11 +173,12 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
             </p>
             <h2 className="mt-1 text-4xl font-black leading-none sm:text-5xl">{activeTeam.name}</h2>
             <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-2 sm:w-[310px]">
-            <HeroMetric label="Played" value="8" />
-            <HeroMetric label="Won" value="6" />
-            <HeroMetric label="Pts" value={manager ? "39" : "37"} />
+            <HeroMetric label="Played" value="16" />
+            <HeroMetric label="Won" value="10" />
+            <HeroMetric label="Pts" value="56" />
           </div>
         </div>
         <div className="relative mt-5 grid grid-cols-2 gap-2">
@@ -214,7 +222,7 @@ function PlayerHome({ activeTeam }: { activeTeam: TeamContext }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <PlayerStatCard />
-      <FixtureCard action="View match" />
+      <SeasonCompleteCard action="View results" />
       <RecentResults />
       <TeamPositionStrip activeTeam={activeTeam} />
     </section>
@@ -225,9 +233,9 @@ function ManagerHome() {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <ManagerActionCard />
-      <FixtureCard action="Manage team" />
+      <SeasonCompleteCard action="Review season" />
       <ScoreCard />
-      <PlayerPerformance />
+      <ManagerSeasonSnapshot />
     </section>
   );
 }
@@ -236,17 +244,17 @@ function PlayerStatCard() {
   return (
     <Card className="overflow-hidden">
       <CardHeader>
-        <CardTitle>Top Break</CardTitle>
-        <Badge variant="green">W W L W W</Badge>
+        <CardTitle>Castle Season</CardTitle>
+        <Badge variant="green">W W W L L</Badge>
       </CardHeader>
       <CardContent>
         <div className="rounded-[18px] bg-[#37003c] p-4 text-white">
-          <p className="text-xs font-extrabold uppercase text-white/65">Highest break</p>
-          <p className="mt-1 text-6xl font-black leading-none">62</p>
+          <p className="text-xs font-extrabold uppercase text-white/65">Points won</p>
+          <p className="mt-1 text-6xl font-black leading-none">56</p>
           <div className="mt-4 grid grid-cols-3 gap-2">
-            <MiniStat label="Win rate" value="75%" dark />
-            <MiniStat label="Played" value="8" dark />
-            <MiniStat label="Pts won" value="31" dark />
+            <MiniStat label="Win rate" value="63%" dark />
+            <MiniStat label="Played" value="16" dark />
+            <MiniStat label="Pts against" value="56" dark />
           </div>
         </div>
       </CardContent>
@@ -254,12 +262,12 @@ function PlayerStatCard() {
   );
 }
 
-function FixtureCard({ action }: { action: string }) {
+function SeasonCompleteCard({ action }: { action: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Next Match</CardTitle>
-        <Badge variant="muted">{upcomingFixture.homeAway}</Badge>
+        <CardTitle>Season Complete</CardTitle>
+        <Badge variant="green">Qualified</Badge>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-[18px] bg-[#f7f5fa] p-4">
@@ -267,10 +275,10 @@ function FixtureCard({ action }: { action: string }) {
             <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Castle</p>
             <p className="mt-1 text-lg font-black">A</p>
           </div>
-          <span className="rounded-full bg-[#37003c] px-3 py-1 text-xs font-black text-white">v</span>
+          <span className="rounded-full bg-[#37003c] px-3 py-1 text-xs font-black text-white">4th</span>
           <div className="text-right">
-            <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{upcomingFixture.opponent}</p>
-            <p className="mt-1 text-lg font-black">Away</p>
+            <p className="text-xs font-extrabold uppercase text-[#6c5a73]">A League</p>
+            <p className="mt-1 text-lg font-black">56 pts</p>
           </div>
         </div>
         <p className="mt-3 text-sm font-semibold text-[#6c5a73]">{upcomingFixture.date}</p>
@@ -338,11 +346,11 @@ function ManagerActionCard() {
       <CardContent className="grid gap-2">
         <Button className="w-full">
           <ClipboardCheck className="h-4 w-4" />
-          Confirm lineup
+          Review results
         </Button>
         <Button variant="dark" className="w-full">
           <Mail className="h-4 w-4" />
-          Message team
+          Message squad
         </Button>
       </CardContent>
     </Card>
@@ -358,8 +366,8 @@ function ScoreCard() {
       </CardHeader>
       <CardContent>
         <div className="rounded-[18px] bg-[#37003c] p-4 text-white">
-          <ScoreRow team="Castle B" score="5" winner />
-          <ScoreRow team="Grange B" score="2" />
+          <ScoreRow team="Castle A" score="4" winner />
+          <ScoreRow team="Elm Park A" score="3" />
         </div>
       </CardContent>
     </Card>
@@ -375,24 +383,24 @@ function ScoreRow({ team, score, winner = false }: { team: string; score: string
   );
 }
 
-function PlayerPerformance() {
+function ManagerSeasonSnapshot() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Players</CardTitle>
-        <Badge variant="muted">Tap rows</Badge>
+        <CardTitle>Manager Snapshot</CardTitle>
+        <Badge variant="muted">Regular season</Badge>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {playerStats.map((player) => (
-          <button key={player.name} className="grid min-h-16 w-full grid-cols-[1fr_auto_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left">
-            <div>
-              <p className="font-black">{player.name}</p>
-              <p className="text-xs font-semibold text-[#6c5a73]">{player.played} played</p>
-            </div>
-            <span className="text-sm font-black text-[#00a85a]">{player.winPercentage}%</span>
-            <Badge variant="muted">HB {player.highestBreak}</Badge>
-          </button>
-        ))}
+      <CardContent>
+        <div className="grid grid-cols-2 gap-2">
+          <MiniStat label="Won" value="10" />
+          <MiniStat label="Lost" value="6" />
+          <MiniStat label="Points for" value="56" />
+          <MiniStat label="Points against" value="56" />
+        </div>
+        <div className="mt-3 rounded-xl bg-[#f7f5fa] p-3">
+          <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Playoff line</p>
+          <p className="mt-1 font-black">Castle finished 4th, inside the A League semi-final places.</p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -501,9 +509,15 @@ function ClubTeamStructureCard() {
         {clubTeamStructure.map((club) => (
           <div key={club.club} className="rounded-xl bg-[#f7f5fa] p-3">
             <div className="flex items-start justify-between gap-3">
-              <p className="font-black leading-tight">{club.club}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white p-1.5 ring-1 ring-[#eeeaf2]">
+                  <img src={club.logoPath} alt={`${club.club} logo`} className="max-h-full max-w-full object-contain" />
+                </span>
+                <p className="font-black leading-tight">{club.club}</p>
+              </div>
               <Badge variant="muted">{club.teams.length}</Badge>
             </div>
+            <div className="mt-2 h-1.5 rounded-full" style={{ backgroundColor: club.primaryColor }} />
             <div className="mt-2 flex flex-wrap gap-1.5">
               {club.teams.map((team) => (
                 <span key={team} className="rounded-full bg-white px-2 py-1 text-xs font-extrabold text-[#37003c] ring-1 ring-[#eeeaf2]">

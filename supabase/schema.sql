@@ -31,6 +31,8 @@ create table public.club (
   name text not null unique,
   venue text,
   address text,
+  logo_path text,
+  primary_color text check (primary_color is null or primary_color ~ '^#[0-9A-Fa-f]{6}$'),
   active boolean not null default true
 );
 
@@ -138,11 +140,22 @@ create table public.match_lineup (
 
 create table public.break (
   id uuid primary key default gen_random_uuid(),
-  game_id uuid not null references public.game(id) on delete cascade,
+  game_id uuid references public.game(id) on delete cascade,
+  season_id uuid references public.season(id) on delete cascade,
+  league_id uuid references public.league(id) on delete restrict,
   player_id uuid not null references public.person(id) on delete cascade,
   break_value integer not null check (break_value between 1 and 147),
-  recorded_at timestamptz not null default now()
+  source_label text,
+  source_key text unique,
+  recorded_at timestamptz not null default now(),
+  check (game_id is not null or (season_id is not null and league_id is not null))
 );
+
+comment on table public.break is 'Individual player breaks. Live scoring rows link to a game; historical imports without frame detail link to a season and league with a source key.';
+comment on column public.break.game_id is 'Set when the exact frame/game is known.';
+comment on column public.break.season_id is 'Set for imported historical breaks when the exact game is unknown.';
+comment on column public.break.league_id is 'Set for imported historical breaks when the exact game is unknown.';
+comment on column public.break.source_key is 'Stable idempotency key for imported break rows.';
 
 create table public.conversation (
   id uuid primary key default gen_random_uuid(),
@@ -174,8 +187,14 @@ select
   f.league_id,
   f.home_team_id,
   f.away_team_id,
-  coalesce(sum(g.points_awarded) filter (where g.winner_team_id = f.home_team_id), 0) as home_team_points,
-  coalesce(sum(g.points_awarded) filter (where g.winner_team_id = f.away_team_id), 0) as away_team_points
+  case
+    when count(g.id) = 0 then m.home_team_score
+    else coalesce(sum(g.points_awarded) filter (where g.winner_team_id = f.home_team_id), 0)
+  end as home_team_points,
+  case
+    when count(g.id) = 0 then m.away_team_score
+    else coalesce(sum(g.points_awarded) filter (where g.winner_team_id = f.away_team_id), 0)
+  end as away_team_points
 from public.match m
 join public.fixture f on f.id = m.fixture_id
 left join public.game g on g.match_id = m.id
@@ -283,6 +302,32 @@ from public.person p
 left join appearances a on a.person_id = p.id
 left join public.break b on b.player_id = p.id
 group by p.id;
+
+create or replace view public.player_break_leaderboard_view as
+select
+  row_number() over (
+    partition by coalesce(b.season_id, f.season_id), coalesce(b.league_id, f.league_id)
+    order by b.break_value desc, p.last_name, p.first_name, b.recorded_at
+  ) as position,
+  b.id as break_id,
+  coalesce(b.season_id, f.season_id) as season_id,
+  s.name as season_name,
+  coalesce(b.league_id, f.league_id) as league_id,
+  l.name as league_name,
+  b.player_id,
+  p.first_name,
+  p.last_name,
+  b.break_value,
+  b.game_id,
+  b.source_label,
+  b.recorded_at
+from public.break b
+join public.person p on p.id = b.player_id
+left join public.game g on g.id = b.game_id
+left join public.match m on m.id = g.match_id
+left join public.fixture f on f.id = m.fixture_id
+left join public.season s on s.id = coalesce(b.season_id, f.season_id)
+left join public.league l on l.id = coalesce(b.league_id, f.league_id);
 
 create or replace view public.club_team_structure_view as
 select

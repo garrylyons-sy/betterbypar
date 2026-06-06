@@ -12,19 +12,21 @@ values
   ('C League', 'Monday')
 on conflict (name) do update set playing_day = excluded.playing_day;
 
-insert into public.club (name, venue, active)
+insert into public.club (name, venue, logo_path, primary_color, active)
 values
-  ('Castle Golf Club', 'Castle Golf Club', true),
-  ('Grange Golf Club', 'Grange Golf Club', true),
-  ('Milltown Golf Club', 'Milltown Golf Club', true),
-  ('Elm Park Golf Club', 'Elm Park Golf Club', true),
-  ('Stackstown Golf Club', 'Stackstown Golf Club', true),
-  ('Woodbrook Golf Club', 'Woodbrook Golf Club', true),
-  ('Newlands Golf Club', 'Newlands Golf Club', true),
-  ('Dun Laoghaire Golf Club', 'Dun Laoghaire Golf Club', true),
-  ('Fitzwilliam Lawn Tennis Club', 'Fitzwilliam Lawn Tennis Club', true)
+  ('Castle Golf Club', 'Castle Golf Club', '/club-logos/castle.png', '#030E66', true),
+  ('Grange Golf Club', 'Grange Golf Club', '/club-logos/grange.png', '#006B3F', true),
+  ('Milltown Golf Club', 'Milltown Golf Club', '/club-logos/milltown.png', '#1B5E3A', true),
+  ('Elm Park Golf Club', 'Elm Park Golf Club', '/club-logos/elm-park.png', '#B43C2B', true),
+  ('Stackstown Golf Club', 'Stackstown Golf Club', '/club-logos/stackstown.png', '#1D7A43', true),
+  ('Woodbrook Golf Club', 'Woodbrook Golf Club', '/club-logos/woodbrook.jpg', '#193C64', true),
+  ('Newlands Golf Club', 'Newlands Golf Club', '/club-logos/newlands.png', '#008E3A', true),
+  ('Dun Laoghaire Golf Club', 'Dun Laoghaire Golf Club', '/club-logos/dun-laoghaire.png', '#7A4A24', true),
+  ('Fitzwilliam Lawn Tennis Club', 'Fitzwilliam Lawn Tennis Club', '/club-logos/fitzwilliam.png', '#6F4A1F', true)
 on conflict (name) do update
 set venue = excluded.venue,
+    logo_path = excluded.logo_path,
+    primary_color = excluded.primary_color,
     active = excluded.active;
 
 with requested_teams (club_name, team_suffix, league_name) as (

@@ -5,47 +5,55 @@ export const teamContexts: TeamContext[] = [
     id: "castle-a-player",
     name: "Castle A",
     club: "Castle Golf Club",
+    logoPath: "/club-logos/castle.png",
+    primaryColor: "#030E66",
     league: "A League",
-    season: "2026/27",
+    season: "2025/26",
     role: "Player",
-    leaguePosition: 2
+    leaguePosition: 4
   },
   {
-    id: "castle-b-manager",
-    name: "Castle B",
+    id: "castle-a-manager",
+    name: "Castle A",
     club: "Castle Golf Club",
-    league: "B League",
-    season: "2026/27",
+    logoPath: "/club-logos/castle.png",
+    primaryColor: "#030E66",
+    league: "A League",
+    season: "2025/26",
     role: "Manager",
-    leaguePosition: 1
+    leaguePosition: 4
   }
 ];
 
 export const recentResults: Fixture[] = [
-  { id: "1", opponent: "Grange A", date: "Thu 28 May", venue: "Castle Golf Club", homeAway: "Home", status: "Completed", score: "5-2", result: "Won" },
-  { id: "2", opponent: "Milltown A", date: "Thu 21 May", venue: "Milltown Golf Club", homeAway: "Away", status: "Completed", score: "3-4", result: "Lost" },
-  { id: "3", opponent: "Elm Park A", date: "Thu 14 May", venue: "Castle Golf Club", homeAway: "Home", status: "Completed", score: "6-1", result: "Won" }
+  { id: "18", opponent: "Elm Park A", date: "Thu 05 Mar", venue: "Elm Park Golf Club", homeAway: "Away", status: "Completed", score: "4-3", result: "Won" },
+  { id: "17", opponent: "Dun Laoghaire A", date: "Thu 26 Feb", venue: "Castle Golf Club", homeAway: "Home", status: "Completed", score: "4-3", result: "Won" },
+  { id: "16", opponent: "Milltown A", date: "Thu 19 Feb", venue: "Milltown Golf Club", homeAway: "Away", status: "Completed", score: "4-3", result: "Won" },
+  { id: "15", opponent: "Grange A", date: "Thu 05 Feb", venue: "Castle Golf Club", homeAway: "Home", status: "Completed", score: "2-5", result: "Lost" },
+  { id: "13", opponent: "Stackstown A", date: "Thu 15 Jan", venue: "Stackstown Golf Club", homeAway: "Away", status: "Completed", score: "0-7", result: "Lost" }
 ];
 
 export const upcomingFixture: Fixture = {
-  id: "4",
-  opponent: "Woodbrook A",
-  date: "Thu 04 Jun, 19:30",
-  venue: "Woodbrook Golf Club",
-  homeAway: "Away",
-  status: "Scheduled"
+  id: "season-complete",
+  opponent: "2025/26 regular season",
+  date: "Completed Thu 05 Mar",
+  venue: "Castle finished 4th and qualified for the semi-finals",
+  homeAway: "Home",
+  status: "Completed",
+  score: "56-56",
+  result: "Won"
 };
 
 export const standings: Standing[] = [
-  { position: 1, team: "Grange A", played: 8, won: 6, lost: 2, pointsFor: 41, pointsAgainst: 15, leaguePoints: 41 },
-  { position: 2, team: "Castle A", played: 8, won: 6, lost: 2, pointsFor: 37, pointsAgainst: 19, leaguePoints: 37 },
-  { position: 3, team: "Milltown A", played: 8, won: 5, lost: 3, pointsFor: 34, pointsAgainst: 22, leaguePoints: 34 },
-  { position: 4, team: "Elm Park A", played: 8, won: 4, lost: 4, pointsFor: 29, pointsAgainst: 27, leaguePoints: 29 },
-  { position: 5, team: "Stackstown A", played: 8, won: 4, lost: 4, pointsFor: 27, pointsAgainst: 29, leaguePoints: 27 },
-  { position: 6, team: "Newlands A", played: 8, won: 3, lost: 5, pointsFor: 23, pointsAgainst: 33, leaguePoints: 23 },
-  { position: 7, team: "Woodbrook A", played: 8, won: 3, lost: 5, pointsFor: 21, pointsAgainst: 35, leaguePoints: 21 },
-  { position: 8, team: "Dun Laoghaire A", played: 8, won: 2, lost: 6, pointsFor: 18, pointsAgainst: 38, leaguePoints: 18 },
-  { position: 9, team: "Fitzwilliam A", played: 8, won: 1, lost: 7, pointsFor: 14, pointsAgainst: 42, leaguePoints: 14 }
+  { position: 1, team: "Grange A", played: 16, won: 14, lost: 2, pointsFor: 84, pointsAgainst: 28, leaguePoints: 84 },
+  { position: 2, team: "Stackstown A", played: 16, won: 11, lost: 5, pointsFor: 71, pointsAgainst: 41, leaguePoints: 71 },
+  { position: 3, team: "Elm Park A", played: 16, won: 11, lost: 5, pointsFor: 62, pointsAgainst: 50, leaguePoints: 62 },
+  { position: 4, team: "Castle A", played: 16, won: 10, lost: 6, pointsFor: 56, pointsAgainst: 56, leaguePoints: 56 },
+  { position: 5, team: "Milltown A", played: 16, won: 4, lost: 12, pointsFor: 53, pointsAgainst: 59, leaguePoints: 53 },
+  { position: 6, team: "Newlands A", played: 16, won: 6, lost: 10, pointsFor: 50, pointsAgainst: 62, leaguePoints: 50 },
+  { position: 7, team: "Dun Laoghaire A", played: 16, won: 7, lost: 9, pointsFor: 47, pointsAgainst: 65, leaguePoints: 47 },
+  { position: 8, team: "Woodbrook A", played: 16, won: 5, lost: 11, pointsFor: 44, pointsAgainst: 68, leaguePoints: 44 },
+  { position: 9, team: "Fitzwilliam A", played: 16, won: 4, lost: 12, pointsFor: 37, pointsAgainst: 75, leaguePoints: 37 }
 ];
 
 export const playerStats: PlayerStat[] = [
@@ -63,13 +71,13 @@ export const adminModules = [
 ];
 
 export const clubTeamStructure: ClubTeamStructure[] = [
-  { club: "Castle Golf Club", teams: ["Castle A", "Castle B", "Castle C"] },
-  { club: "Grange Golf Club", teams: ["Grange A", "Grange B", "Grange C"] },
-  { club: "Milltown Golf Club", teams: ["Milltown A", "Milltown B"] },
-  { club: "Elm Park Golf Club", teams: ["Elm Park A", "Elm Park B", "Elm Park C"] },
-  { club: "Stackstown Golf Club", teams: ["Stackstown A", "Stackstown B", "Stackstown C"] },
-  { club: "Woodbrook Golf Club", teams: ["Woodbrook A"] },
-  { club: "Newlands Golf Club", teams: ["Newlands A", "Newlands B", "Newlands C"] },
-  { club: "Dun Laoghaire Golf Club", teams: ["Dun Laoghaire A"] },
-  { club: "Fitzwilliam Lawn Tennis Club", teams: ["Fitzwilliam A", "Fitzwilliam B"] }
+  { club: "Castle Golf Club", logoPath: "/club-logos/castle.png", primaryColor: "#030E66", teams: ["Castle A", "Castle B", "Castle C"] },
+  { club: "Grange Golf Club", logoPath: "/club-logos/grange.png", primaryColor: "#006B3F", teams: ["Grange A", "Grange B", "Grange C"] },
+  { club: "Milltown Golf Club", logoPath: "/club-logos/milltown.png", primaryColor: "#1B5E3A", teams: ["Milltown A", "Milltown B"] },
+  { club: "Elm Park Golf Club", logoPath: "/club-logos/elm-park.png", primaryColor: "#B43C2B", teams: ["Elm Park A", "Elm Park B", "Elm Park C"] },
+  { club: "Stackstown Golf Club", logoPath: "/club-logos/stackstown.png", primaryColor: "#1D7A43", teams: ["Stackstown A", "Stackstown B", "Stackstown C"] },
+  { club: "Woodbrook Golf Club", logoPath: "/club-logos/woodbrook.jpg", primaryColor: "#193C64", teams: ["Woodbrook A"] },
+  { club: "Newlands Golf Club", logoPath: "/club-logos/newlands.png", primaryColor: "#008E3A", teams: ["Newlands A", "Newlands B", "Newlands C"] },
+  { club: "Dun Laoghaire Golf Club", logoPath: "/club-logos/dun-laoghaire.png", primaryColor: "#7A4A24", teams: ["Dun Laoghaire A"] },
+  { club: "Fitzwilliam Lawn Tennis Club", logoPath: "/club-logos/fitzwilliam.png", primaryColor: "#6F4A1F", teams: ["Fitzwilliam A", "Fitzwilliam B"] }
 ];
