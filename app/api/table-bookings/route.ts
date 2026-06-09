@@ -33,13 +33,23 @@ type BookingRow = {
 
 async function castleClubForPerson(personId: string) {
   const { rows } = await dbQuery<CastleAccessRow>(
-    `select c.id as club_id
-     from public.team_membership tm
-     join public.team t on t.id = tm.team_id and t.active = true
-     join public.club c on c.id = t.club_id and c.active = true
-     where tm.person_id = $1
-       and tm.active = true
-       and c.name = $2
+    `select club_id
+     from (
+       select c.id as club_id
+       from public.team_membership tm
+       join public.team t on t.id = tm.team_id and t.active = true
+       join public.club c on c.id = t.club_id and c.active = true
+       where tm.person_id = $1
+         and tm.active = true
+         and c.name = $2
+       union
+       select c.id as club_id
+       from public.club_membership cm
+       join public.club c on c.id = cm.club_id and c.active = true
+       where cm.person_id = $1
+         and cm.active = true
+         and c.name = $2
+     ) access
      limit 1`,
     [personId, castleClubName]
   );

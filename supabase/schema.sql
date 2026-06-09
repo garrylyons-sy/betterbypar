@@ -109,6 +109,19 @@ create table public.team_membership (
   unique (team_id, person_id, role)
 );
 
+create table public.club_membership (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.club(id) on delete cascade,
+  person_id uuid not null references public.person(id) on delete cascade,
+  role text not null default 'Club Member' check (role = 'Club Member'),
+  joined_date date not null default current_date,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (club_id, person_id, role)
+);
+
+comment on table public.club_membership is 'Club-level membership for people who can receive club messages and book club tables without belonging to a league team.';
+
 create table public.invitation (
   id uuid primary key default gen_random_uuid(),
   email text not null,
@@ -1112,6 +1125,7 @@ alter table public.season enable row level security;
 alter table public.league enable row level security;
 alter table public.team enable row level security;
 alter table public.team_membership enable row level security;
+alter table public.club_membership enable row level security;
 alter table public.invitation enable row level security;
 alter table public.invitation_membership enable row level security;
 alter table public.invitation_request enable row level security;
@@ -1181,6 +1195,8 @@ create policy "authenticated users can read leagues" on public.league for select
 create policy "authenticated users can read teams" on public.team for select to authenticated using (active = true);
 create policy "members can read memberships" on public.team_membership for select to authenticated using (active = true);
 create policy "operators can read all memberships" on public.team_membership for select to authenticated using (public.is_app_operator());
+create policy "members can read club memberships" on public.club_membership for select to authenticated using (active = true);
+create policy "operators can read all club memberships" on public.club_membership for select to authenticated using (public.is_app_operator());
 create policy "operators can read invitations" on public.invitation for select to authenticated using (public.is_app_operator());
 create policy "operators can read invitation memberships" on public.invitation_membership for select to authenticated using (public.is_app_operator());
 create policy "operators can read invite requests" on public.invitation_request for select to authenticated using (public.is_app_operator());

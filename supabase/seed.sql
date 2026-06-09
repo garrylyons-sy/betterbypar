@@ -121,3 +121,11 @@ join public.season s on s.name = '2026/27'
 join public.league l on l.name = sm.league_name
 join public.team t on t.name = sm.team_name and t.league_id = l.id and t.season_id = s.id
 on conflict (invitation_id, team_id, role) do nothing;
+
+insert into public.club_membership (club_id, person_id, role, active)
+select c.id, p.id, 'Club Member', true
+from public.club c
+join public.person p on lower(p.email) = lower('garlyons@gmail.com')
+where c.name = 'Castle Golf Club'
+on conflict (club_id, person_id, role) do update
+set active = excluded.active;

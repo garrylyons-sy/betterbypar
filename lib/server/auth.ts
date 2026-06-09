@@ -353,6 +353,23 @@ export async function claimInvitationForAccount({
          set active = true`,
         [membership.team_id, person.id, membership.role]
       );
+
+      if (membership.role === "Player") {
+        await client.query(
+          `insert into public.team_membership (team_id, person_id, role, active)
+           select historical_team.id, $2, $3, true
+           from public.team invited_team
+           join public.team historical_team
+             on historical_team.name = invited_team.name
+            and historical_team.club_id = invited_team.club_id
+            and historical_team.league_id = invited_team.league_id
+            and historical_team.active = true
+           where invited_team.id = $1
+           on conflict (team_id, person_id, role) do update
+           set active = true`,
+          [membership.team_id, person.id, membership.role]
+        );
+      }
     }
 
     await client.query(
@@ -446,7 +463,7 @@ export async function loadTeamOptions() {
 }
 
 export async function loadSessionPayload(user: AppUser) {
-  const contexts = (await dbQuery<{
+  const teamContexts = (await dbQuery<{
     membership_id: string;
     role: Role;
     team_name: string;
@@ -477,7 +494,7 @@ export async function loadSessionPayload(user: AppUser) {
      left join public.league_table_view ltv on ltv.team_id = t.id
      where tm.person_id = $1
        and tm.active = true
-     order by s.name desc, l.name, t.name`,
+     order by coalesce(ltv.matches_played, 0) desc, s.name desc, l.name, t.name`,
     [user.personId]
   )).rows.map((row) => ({
     id: row.membership_id,
@@ -492,6 +509,47 @@ export async function loadSessionPayload(user: AppUser) {
     leaguePosition: row.league_position ?? 0,
     leagueMatchesPlayed: Number(row.matches_played ?? 0)
   } satisfies TeamContext));
+
+  const clubContexts = (await dbQuery<{
+    membership_id: string;
+    club_name: string;
+    logo_path: string;
+    primary_color: string;
+  }>(
+    `select
+       cm.id as membership_id,
+       c.name as club_name,
+       c.logo_path,
+       c.primary_color
+     from public.club_membership cm
+     join public.club c on c.id = cm.club_id and c.active = true
+     where cm.person_id = $1
+       and cm.active = true
+       and not exists (
+         select 1
+         from public.team_membership tm
+         join public.team t on t.id = tm.team_id
+         where tm.person_id = cm.person_id
+           and tm.active = true
+           and t.club_id = cm.club_id
+       )
+     order by c.name`,
+    [user.personId]
+  )).rows.map((row) => ({
+    id: row.membership_id,
+    personId: user.personId,
+    name: row.club_name,
+    club: row.club_name,
+    logoPath: row.logo_path,
+    primaryColor: row.primary_color,
+    league: "A League",
+    season: "Club",
+    role: "Club Member",
+    leaguePosition: 0,
+    leagueMatchesPlayed: 0
+  } satisfies TeamContext));
+
+  const contexts = [...teamContexts, ...clubContexts];
 
   const playerGameResults = (await dbQuery<{
     game_id: string;

@@ -1,4 +1,4 @@
-export type Role = "Player" | "Manager" | "Assistant Manager";
+export type Role = "Player" | "Manager" | "Assistant Manager" | "Club Member";
 
 export type TeamContext = {
   id: string;

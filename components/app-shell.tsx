@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Clock3,
   Home,
+  LogOut,
   Mail,
   MessageCircle,
   PlusCircle,
@@ -78,13 +79,7 @@ export function AppShell({
         <div className="grid gap-4">
           <MatchdayHero activeTeam={activeTeam} />
           <QuickTabs activePage={activePage} onNavigate={setActivePage} />
-          {activePage === "Bookings" ? (
-            <TableBookings activeTeam={activeTeam} />
-          ) : activeTeam.role === "Manager" ? (
-            <ManagerHome />
-          ) : (
-            <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />
-          )}
+          <PageContent activePage={activePage} activeTeam={activeTeam} playerGameResults={playerGameResults} />
         </div>
         <aside className="grid gap-4 lg:content-start">
           <LeagueTable activeTeam={activeTeam} />
@@ -95,6 +90,27 @@ export function AppShell({
       <BottomNav activePage={activePage} onNavigate={setActivePage} />
     </main>
   );
+}
+
+function PageContent({
+  activePage,
+  activeTeam,
+  playerGameResults
+}: {
+  activePage: AppPage;
+  activeTeam: TeamContext;
+  playerGameResults: PlayerGameResult[];
+}) {
+  if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
+  if (activePage === "Fixtures") return <FixturesPage />;
+  if (activePage === "Results") return <ResultsPage playerGameResults={playerGameResults} />;
+  if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} />;
+  if (activePage === "Players") return <PlayersPage playerGameResults={playerGameResults} />;
+  if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
+  if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} />;
+  if (activeTeam.role === "Manager") return <ManagerHome />;
+  if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} />;
+  return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />;
 }
 
 function Header({
@@ -126,13 +142,23 @@ function Header({
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <ContextSwitcher activeTeam={activeTeam} contexts={contexts} onTeamChange={onTeamChange} />
-          <button
-            className="hidden h-11 w-11 place-items-center rounded-full bg-white/10 text-white sm:grid"
-            aria-label={onSignOut ? `Sign out ${userLabel ?? "user"}` : "Open profile"}
-            onClick={onSignOut}
-          >
-            <UserCircle className="h-6 w-6" />
-          </button>
+          {onSignOut ? (
+            <button
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/15"
+              aria-label={`Sign out ${userLabel ?? "user"}`}
+              title="Sign out"
+              onClick={onSignOut}
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          ) : (
+            <button
+              className="hidden h-11 w-11 place-items-center rounded-full bg-white/10 text-white sm:grid"
+              aria-label="Open profile"
+            >
+              <UserCircle className="h-6 w-6" />
+            </button>
+          )}
         </div>
       </div>
     </header>
@@ -196,6 +222,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamC
 
 function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
   const manager = activeTeam.role === "Manager";
+  const clubMember = activeTeam.role === "Club Member";
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
   const panelStyle = {
     background: `linear-gradient(135deg, ${activeTeam.primaryColor} 0%, #37003c 52%, #e90052 100%)`
@@ -219,7 +246,7 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
               </Badge>
             </div>
             <p className="mt-5 text-xs font-extrabold uppercase tracking-wide text-white/70">
-              {manager ? "Manager home" : "Player home"}
+              {clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
             </p>
             <h2 className="mt-1 text-4xl font-black leading-none sm:text-5xl">{activeTeam.name}</h2>
             <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
@@ -234,7 +261,7 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
         <div className="relative mt-5 grid grid-cols-2 gap-2">
           <Button className="w-full">
             <PlusCircle className="h-4 w-4" />
-            {manager ? "Enter result" : "View stats"}
+            {clubMember ? "Book table" : manager ? "Enter result" : "View stats"}
           </Button>
           <Button variant="secondary" className="w-full">
             <MessageCircle className="h-4 w-4" />
@@ -406,20 +433,23 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
                 <CalendarPlus className="h-6 w-6" />
               </span>
             </div>
-            <div className="mt-4 grid grid-cols-[44px_1fr_44px] gap-2">
-              <Button variant="secondary" size="icon" onClick={() => setBookingDate(isoDateFromOffset(bookingDate, -1))} aria-label="Previous day">
+            <div className="mt-4 flex items-center gap-3">
+              <Button variant="secondary" size="icon" className="h-14 w-14 shrink-0" onClick={() => setBookingDate(isoDateFromOffset(bookingDate, -1))} aria-label="Previous day">
                 <ChevronLeft className="h-5 w-5" />
               </Button>
-              <label className="block">
+              <label className="relative block min-w-0 flex-1">
                 <span className="sr-only">Booking date</span>
+                <span className="grid min-h-14 place-items-center rounded-full bg-white px-4 text-center text-base font-black text-[#25002b]">
+                  {new Intl.DateTimeFormat("en-IE", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${bookingDate}T12:00:00`))}
+                </span>
                 <input
                   type="date"
                   value={bookingDate}
                   onChange={(event) => setBookingDate(event.target.value)}
-                  className="min-h-11 w-full rounded-full border border-white/20 bg-white px-4 text-center text-sm font-black text-[#25002b] outline-none"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
               </label>
-              <Button variant="secondary" size="icon" onClick={() => setBookingDate(isoDateFromOffset(bookingDate, 1))} aria-label="Next day">
+              <Button variant="secondary" size="icon" className="h-14 w-14 shrink-0" onClick={() => setBookingDate(isoDateFromOffset(bookingDate, 1))} aria-label="Next day">
                 <ChevronRight className="h-5 w-5" />
               </Button>
             </div>
@@ -534,6 +564,96 @@ function PlayerHome({ activeTeam, playerGameResults }: { activeTeam: TeamContext
       <PlayerGameResultsCard results={playerGameResults} />
       <TeamPositionStrip activeTeam={activeTeam} />
     </section>
+  );
+}
+
+function ClubMemberHome({ activeTeam }: { activeTeam: TeamContext }) {
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Club Access</CardTitle>
+          <Badge variant="cyan">Member</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-2">
+          <MiniStat label="Club" value={activeTeam.club.replace(" Golf Club", "")} />
+          <MiniStat label="Access" value="Tables" />
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            Club members can receive club messages and book tables at their club.
+          </p>
+        </CardContent>
+      </Card>
+      <MessagesPage activeTeam={activeTeam} compact />
+    </section>
+  );
+}
+
+function FixturesPage() {
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <SeasonCompleteCard action="View match" />
+      <RecentResults />
+    </section>
+  );
+}
+
+function ResultsPage({ playerGameResults }: { playerGameResults: PlayerGameResult[] }) {
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <ScoreCard />
+      <RecentResults />
+      <PlayerGameResultsCard results={playerGameResults} />
+    </section>
+  );
+}
+
+function PlayersPage({ playerGameResults }: { playerGameResults: PlayerGameResult[] }) {
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <PlayerGameResultsCard results={playerGameResults} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Players</CardTitle>
+          <Badge variant="muted">Team</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-2">
+          {["Garry Lyons", "Eric Goodwin", "Mark Byrne", "Karl Ward"].map((name) => (
+            <div key={name} className="rounded-xl bg-[#f7f5fa] p-3 font-black">{name}</div>
+          ))}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function StatsPage({ activeTeam, playerGameResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[] }) {
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <PlayerStatCard />
+      <TeamPositionStrip activeTeam={activeTeam} />
+      <PlayerGameResultsCard results={playerGameResults} />
+    </section>
+  );
+}
+
+function MessagesPage({ activeTeam, compact = false }: { activeTeam: TeamContext; compact?: boolean }) {
+  return (
+    <Card className={compact ? "" : "md:max-w-xl"}>
+      <CardHeader>
+        <CardTitle>Messages</CardTitle>
+        <Badge variant="muted">{activeTeam.club}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="rounded-xl bg-[#f7f5fa] p-3">
+          <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Club notice</p>
+          <p className="mt-1 font-black">Table booking messages will appear here.</p>
+        </div>
+        <div className="rounded-xl bg-[#f7f5fa] p-3">
+          <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Team notice</p>
+          <p className="mt-1 font-black">Manager and club messages are coming next.</p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
