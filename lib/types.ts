@@ -11,6 +11,7 @@ export type TeamContext = {
   season: string;
   role: Role;
   leaguePosition: number;
+  leagueMatchesPlayed?: number;
 };
 
 export type PlayerGameResult = {

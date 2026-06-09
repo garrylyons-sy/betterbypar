@@ -455,6 +455,8 @@ export async function loadSessionPayload(user: AppUser) {
     primary_color: string;
     league_name: TeamContext["league"];
     season_name: string;
+    league_position: number | null;
+    matches_played: number | null;
   }>(
     `select
        tm.id as membership_id,
@@ -464,12 +466,15 @@ export async function loadSessionPayload(user: AppUser) {
        c.logo_path,
        c.primary_color,
        l.name as league_name,
-       s.name as season_name
+       s.name as season_name,
+       ltv.position as league_position,
+       ltv.matches_played
      from public.team_membership tm
      join public.team t on t.id = tm.team_id and t.active = true
      join public.club c on c.id = t.club_id and c.active = true
      join public.league l on l.id = t.league_id
      join public.season s on s.id = t.season_id
+     left join public.league_table_view ltv on ltv.team_id = t.id
      where tm.person_id = $1
        and tm.active = true
      order by s.name desc, l.name, t.name`,
@@ -484,7 +489,8 @@ export async function loadSessionPayload(user: AppUser) {
     league: row.league_name,
     season: row.season_name,
     role: row.role,
-    leaguePosition: 0
+    leaguePosition: row.league_position ?? 0,
+    leagueMatchesPlayed: Number(row.matches_played ?? 0)
   } satisfies TeamContext));
 
   const playerGameResults = (await dbQuery<{
@@ -521,7 +527,7 @@ export async function loadSessionPayload(user: AppUser) {
      from public.player_game_result_view
      where player_1_id = $1 or player_2_id = $1
      order by source_fixture_index desc, game_ordinal
-     limit 30`,
+     limit 120`,
     [user.personId]
   )).rows.map((row) => {
     const isPlayerOne = row.player_1_id === user.personId;

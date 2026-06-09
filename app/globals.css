@@ -63,6 +63,13 @@ body {
     linear-gradient(135deg, #37003c 0%, #963cff 54%, #e90052 100%);
 }
 
+.splash-navy-gradient {
+  background:
+    radial-gradient(circle at 76% 18%, rgba(123, 199, 214, 0.18), transparent 9rem),
+    radial-gradient(circle at 20% 82%, rgba(27, 138, 114, 0.18), transparent 10rem),
+    linear-gradient(145deg, #071426 0%, #10233f 56%, #071b24 100%);
+}
+
 .table-line-pattern {
   background-image:
     linear-gradient(90deg, rgba(255, 255, 255, 0.15) 1px, transparent 1px),

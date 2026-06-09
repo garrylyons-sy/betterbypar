@@ -196,6 +196,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamC
 
 function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
   const manager = activeTeam.role === "Manager";
+  const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
   const panelStyle = {
     background: `linear-gradient(135deg, ${activeTeam.primaryColor} 0%, #37003c 52%, #e90052 100%)`
   };
@@ -213,8 +214,8 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="cyan">{activeTeam.role}</Badge>
               <Badge variant="muted">{activeTeam.league}</Badge>
-              <Badge variant={activeTeam.leaguePosition === 1 ? "gold" : "green"}>
-                Position {activeTeam.leaguePosition}
+              <Badge variant={hasLeagueTable && activeTeam.leaguePosition === 1 ? "gold" : hasLeagueTable ? "green" : "muted"}>
+                {hasLeagueTable ? `Position ${activeTeam.leaguePosition}` : "Table pending"}
               </Badge>
             </div>
             <p className="mt-5 text-xs font-extrabold uppercase tracking-wide text-white/70">
@@ -297,11 +298,14 @@ type BookingPayload = {
 function isoDateFromOffset(date: string, offsetDays: number) {
   const next = new Date(`${date}T12:00:00`);
   next.setDate(next.getDate() + offsetDays);
-  return next.toISOString().slice(0, 10);
+  return localIsoDate(next);
 }
 
-function todayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
+function localIsoDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function formatBookingDate(date: string) {
@@ -313,11 +317,12 @@ function formatBookingDate(date: string) {
 }
 
 function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
-  const [bookingDate, setBookingDate] = useState(todayIsoDate());
+  const [bookingDate, setBookingDate] = useState(localIsoDate());
   const [payload, setPayload] = useState<BookingPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [busySlot, setBusySlot] = useState("");
+  const currentLocalDate = localIsoDate();
 
   const loadBookings = async () => {
     setLoading(true);
@@ -418,6 +423,11 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
                 <ChevronRight className="h-5 w-5" />
               </Button>
             </div>
+            {bookingDate !== currentLocalDate ? (
+              <Button variant="secondary" className="mt-3 w-full" onClick={() => setBookingDate(currentLocalDate)}>
+                Today
+              </Button>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -613,21 +623,23 @@ function RecentResults() {
 }
 
 function PlayerGameResultsCard({ results }: { results: PlayerGameResult[] }) {
+  const [showAll, setShowAll] = useState(false);
   const wins = results.filter((result) => result.result === "Won").length;
   const losses = results.filter((result) => result.result === "Lost").length;
   const winRate = results.length ? Math.round((wins / results.length) * 100) : 0;
+  const visibleResults = showAll ? results : results.slice(0, 6);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Player Games</CardTitle>
+        <CardTitle>My Individual Games</CardTitle>
         <Badge variant="cyan">{results.length ? `${winRate}% win rate` : "No games yet"}</Badge>
       </CardHeader>
       <CardContent className="space-y-2">
-        {results.slice(0, 6).map((game) => (
+        {visibleResults.map((game) => (
           <div key={game.gameId} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3">
             <div className="min-w-0">
-              <p className="truncate font-black">{game.opponentName}</p>
+              <p className="truncate font-black">v {game.opponentName}</p>
               <p className="truncate text-xs font-semibold text-[#6c5a73]">
                 {game.sourceWeek} - Game {game.gameNumber} - {game.homeTeamName} {game.matchScore} {game.awayTeamName}
               </p>
@@ -647,23 +659,30 @@ function PlayerGameResultsCard({ results }: { results: PlayerGameResult[] }) {
             <MiniStat label="Lost" value={String(losses)} />
           </div>
         ) : null}
+        {results.length > 6 ? (
+          <Button variant="secondary" className="w-full" onClick={() => setShowAll((current) => !current)}>
+            {showAll ? "Show fewer games" : `Show all ${results.length} games`}
+          </Button>
+        ) : null}
       </CardContent>
     </Card>
   );
 }
 
 function TeamPositionStrip({ activeTeam }: { activeTeam: TeamContext }) {
+  const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
+
   return (
     <Card className="md:self-start">
       <CardContent className="pt-4">
         <div className="flex items-center justify-between rounded-[18px] bg-[var(--gradient-success)] p-4 text-[#25002b]">
           <div>
-            <p className="text-xs font-extrabold uppercase">Team position</p>
+            <p className="text-xs font-extrabold uppercase">{hasLeagueTable ? "Team position" : "Table pending"}</p>
             <p className="text-lg font-black">{activeTeam.name}</p>
           </div>
           <div className="text-right">
-            <p className="text-5xl font-black leading-none">{activeTeam.leaguePosition}</p>
-            <p className="text-xs font-extrabold uppercase">Place</p>
+            <p className="text-5xl font-black leading-none">{hasLeagueTable ? activeTeam.leaguePosition : "-"}</p>
+            <p className="text-xs font-extrabold uppercase">{hasLeagueTable ? "Place" : "No matches yet"}</p>
           </div>
         </div>
       </CardContent>
@@ -898,9 +917,10 @@ function BottomNav({ activePage, onNavigate }: { activePage: AppPage; onNavigate
             <button
               key={item.label}
               onClick={() => onNavigate(item.label)}
+              aria-current={activePage === item.label ? "page" : undefined}
               className={cn(
                 "flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs font-extrabold text-[#6c5a73]",
-                activePage === item.label && "bg-[var(--gradient-primary)] text-white"
+                activePage === item.label && "bg-[#37003c] text-white shadow-card"
               )}
             >
               <Icon className="h-5 w-5" />

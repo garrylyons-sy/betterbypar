@@ -50,8 +50,17 @@ on conflict (league_id, season_id, name) do update
 set club_id = excluded.club_id,
     active = excluded.active;
 
-with source_fixtures (round_number, fixture_date, home_team_name, home_points, away_team_name, away_points) as (
-  values
+create temporary table source_fixtures (
+  round_number integer not null,
+  fixture_date date not null,
+  home_team_name text not null,
+  home_points integer not null,
+  away_team_name text not null,
+  away_points integer not null
+) on commit drop;
+
+insert into source_fixtures (round_number, fixture_date, home_team_name, home_points, away_team_name, away_points)
+values
     (1, '2025-10-02', 'Castle A', 6, 'Fitzwilliam A', 1),
     (1, '2025-10-02', 'Elm Park A', 6, 'Woodbrook A', 1),
     (1, '2025-10-02', 'Dun Laoghaire A', 5, 'Newlands A', 2),
@@ -123,8 +132,9 @@ with source_fixtures (round_number, fixture_date, home_team_name, home_points, a
     (18, '2026-03-05', 'Elm Park A', 3, 'Castle A', 4),
     (18, '2026-03-05', 'Fitzwilliam A', 4, 'Dun Laoghaire A', 3),
     (18, '2026-03-05', 'Milltown A', 5, 'Woodbrook A', 2),
-    (18, '2026-03-05', 'Grange A', 6, 'Newlands A', 1)
-),
+    (18, '2026-03-05', 'Grange A', 6, 'Newlands A', 1);
+
+with
 resolved as (
   select sf.*, s.id as season_id, l.id as league_id, ht.id as home_team_id, at.id as away_team_id
   from source_fixtures sf
@@ -132,28 +142,34 @@ resolved as (
   join public.league l on l.name = 'A League'
   join public.team ht on ht.name = sf.home_team_name and ht.season_id = s.id and ht.league_id = l.id
   join public.team at on at.name = sf.away_team_name and at.season_id = s.id and at.league_id = l.id
-),
-inserted_fixtures as (
-  insert into public.fixture (season_id, league_id, fixture_date, home_team_id, away_team_id, status)
-  select season_id, league_id, fixture_date::date::timestamptz, home_team_id, away_team_id, 'Completed'::fixture_status
-  from resolved r
-  where not exists (
-    select 1
-    from public.fixture f
-    where f.season_id = r.season_id
-      and f.league_id = r.league_id
-      and f.fixture_date = r.fixture_date::date::timestamptz
-      and f.home_team_id = r.home_team_id
-      and f.away_team_id = r.away_team_id
-  )
-  returning id
+)
+insert into public.fixture (season_id, league_id, fixture_date, home_team_id, away_team_id, status)
+select season_id, league_id, fixture_date::timestamptz, home_team_id, away_team_id, 'Completed'::fixture_status
+from resolved r
+where not exists (
+  select 1
+  from public.fixture f
+  where f.season_id = r.season_id
+    and f.league_id = r.league_id
+    and f.fixture_date = r.fixture_date::timestamptz
+    and f.home_team_id = r.home_team_id
+    and f.away_team_id = r.away_team_id
+);
+
+with resolved as (
+  select sf.*, s.id as season_id, l.id as league_id, ht.id as home_team_id, at.id as away_team_id
+  from source_fixtures sf
+  join public.season s on s.name = '2025/26'
+  join public.league l on l.name = 'A League'
+  join public.team ht on ht.name = sf.home_team_name and ht.season_id = s.id and ht.league_id = l.id
+  join public.team at on at.name = sf.away_team_name and at.season_id = s.id and at.league_id = l.id
 )
 insert into public.match (fixture_id, home_team_score, away_team_score, entered_at)
 select f.id, r.home_points, r.away_points, now()
 from resolved r
 join public.fixture f on f.season_id = r.season_id
   and f.league_id = r.league_id
-  and f.fixture_date = r.fixture_date::date::timestamptz
+  and f.fixture_date = r.fixture_date::timestamptz
   and f.home_team_id = r.home_team_id
   and f.away_team_id = r.away_team_id
 on conflict (fixture_id) do update
