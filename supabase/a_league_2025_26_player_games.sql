@@ -10,8 +10,14 @@ on conflict (name) do update
 set starts_on = excluded.starts_on,
     ends_on = excluded.ends_on;
 
-with source_players (full_name, first_name, last_name) as (
-  values
+create temporary table source_players (
+  full_name text not null,
+  first_name text not null,
+  last_name text not null
+) on commit drop;
+
+insert into source_players (full_name, first_name, last_name)
+values
     ('Aidan Claffey', 'Aidan', 'Claffey'),
     ('Aidan Farrell', 'Aidan', 'Farrell'),
     ('Aidan Maher', 'Aidan', 'Maher'),
@@ -139,8 +145,8 @@ with source_players (full_name, first_name, last_name) as (
     ('Stephen Finlan', 'Stephen', 'Finlan'),
     ('Stephen Hughes', 'Stephen', 'Hughes'),
     ('Stephen Maher', 'Stephen', 'Maher'),
-    ('Steve Cooke', 'Steve', 'Cooke')
-)
+    ('Steve Cooke', 'Steve', 'Cooke');
+
 insert into public.person (first_name, last_name, active)
 select sp.first_name, sp.last_name, true
 from source_players sp
@@ -658,7 +664,7 @@ with source_games (
 player_lookup as (
   select
     lower(sp.full_name) as full_name_key,
-    min(p.id) as person_id
+    min(p.id::text)::uuid as person_id
   from source_players sp
   join public.person p
     on lower(p.first_name) = lower(sp.first_name)
