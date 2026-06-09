@@ -63,7 +63,7 @@ export const playerStats: PlayerStat[] = [
   { name: "Noel Dunne", played: 6, winPercentage: 50, highestBreak: 36, streak: "W2" }
 ];
 
-export const adminModules = [
+export const managementModules = [
   { label: "Invitations", value: "14 pending", detail: "Code-based activation only" },
   { label: "Clubs", value: "9 active", detail: "Golf and tennis club venues" },
   { label: "Teams", value: "21 teams", detail: "A, B and C league entries" },

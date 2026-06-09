@@ -74,3 +74,35 @@ from team_rows
 on conflict (league_id, season_id, name) do update
 set club_id = excluded.club_id,
     active = excluded.active;
+
+with source_invitations (email, invitation_code, invited_person_name, invited_club_name, invited_role) as (
+  values
+    ('castle.player@example.com', 'CASTLE-A-PLAYER-2026', 'Castle Player', 'Castle Golf Club', 'Player'::membership_role),
+    ('castle.dual@example.com', 'CASTLE-A-PLAYER-B-MANAGER-2026', 'Castle Dual Role', 'Castle Golf Club', 'Player'::membership_role)
+)
+insert into public.invitation (email, invitation_code, invited_person_name, invited_club_id, invited_role, expires_at, status)
+select si.email, si.invitation_code, si.invited_person_name, c.id, si.invited_role, '2027-05-31 23:59:59+00'::timestamptz, 'Pending'
+from source_invitations si
+join public.club c on c.name = si.invited_club_name
+on conflict (invitation_code) do update
+set email = excluded.email,
+    invited_person_name = excluded.invited_person_name,
+    invited_club_id = excluded.invited_club_id,
+    invited_role = excluded.invited_role,
+    expires_at = excluded.expires_at,
+    status = case when public.invitation.status = 'Accepted' then public.invitation.status else excluded.status end;
+
+with source_memberships (invitation_code, team_name, league_name, role) as (
+  values
+    ('CASTLE-A-PLAYER-2026', 'Castle A', 'A League', 'Player'::membership_role),
+    ('CASTLE-A-PLAYER-B-MANAGER-2026', 'Castle A', 'A League', 'Player'::membership_role),
+    ('CASTLE-A-PLAYER-B-MANAGER-2026', 'Castle B', 'B League', 'Manager'::membership_role)
+)
+insert into public.invitation_membership (invitation_id, team_id, role)
+select i.id, t.id, sm.role
+from source_memberships sm
+join public.invitation i on i.invitation_code = sm.invitation_code
+join public.season s on s.name = '2026/27'
+join public.league l on l.name = sm.league_name
+join public.team t on t.name = sm.team_name and t.league_id = l.id and t.season_id = s.id
+on conflict (invitation_id, team_id, role) do nothing;

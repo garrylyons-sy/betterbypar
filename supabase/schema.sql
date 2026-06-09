@@ -4,6 +4,8 @@ create type invitation_status as enum ('Pending', 'Accepted', 'Expired', 'Revoke
 create type membership_role as enum ('Player', 'Manager', 'Assistant Manager');
 create type fixture_status as enum ('Scheduled', 'Completed', 'Cancelled');
 create type game_type as enum ('Singles', 'Doubles');
+create type invitation_request_status as enum ('Pending', 'Approved', 'Rejected', 'Cancelled');
+create type user_activity_type as enum ('Login', 'Page Visit');
 
 create table public.person (
   id uuid primary key default gen_random_uuid(),
@@ -25,6 +27,14 @@ create table public.user_account (
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+create table public.app_operator (
+  person_id uuid primary key references public.person(id) on delete cascade,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+comment on table public.app_operator is 'Private backend/operator access for league operations such as invitations, permissions and audit logs. This is not a player or manager role.';
 
 create table public.club (
   id uuid primary key default gen_random_uuid(),
@@ -84,6 +94,50 @@ create table public.invitation (
   revoked_at timestamptz,
   created_by uuid references public.person(id) on delete set null
 );
+
+create table public.invitation_membership (
+  id uuid primary key default gen_random_uuid(),
+  invitation_id uuid not null references public.invitation(id) on delete cascade,
+  team_id uuid not null references public.team(id) on delete cascade,
+  role membership_role not null,
+  unique (invitation_id, team_id, role)
+);
+
+comment on table public.invitation_membership is 'Team-role grants attached to an account invitation. A single person can be invited as a player in one team and manager or assistant manager in another.';
+
+create table public.invitation_request (
+  id uuid primary key default gen_random_uuid(),
+  requested_person_name text not null,
+  email text not null,
+  club_id uuid not null references public.club(id) on delete restrict,
+  team_id uuid not null references public.team(id) on delete restrict,
+  requested_role membership_role not null default 'Player' check (requested_role = 'Player'),
+  status invitation_request_status not null default 'Pending',
+  message text,
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid references public.person(id) on delete set null,
+  check (position('@' in email) > 1)
+);
+
+comment on table public.invitation_request is 'Public player-only invite requests. Manager and assistant manager invitations are handled through backend invitation membership management.';
+
+create table public.user_activity_log (
+  id uuid primary key default gen_random_uuid(),
+  auth_user_id uuid references auth.users(id) on delete set null,
+  person_id uuid references public.person(id) on delete set null,
+  activity_type user_activity_type not null,
+  page_path text,
+  page_label text,
+  user_agent text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index user_activity_log_auth_user_id_created_at_idx on public.user_activity_log (auth_user_id, created_at desc);
+create index user_activity_log_person_id_created_at_idx on public.user_activity_log (person_id, created_at desc);
+
+comment on table public.user_activity_log is 'Audit log for authenticated user logins and page visits.';
 
 create table public.fixture (
   id uuid primary key default gen_random_uuid(),
@@ -345,19 +399,544 @@ left join public.league l on l.id = t.league_id
 where c.active = true
 group by c.id, c.name, s.id, s.name;
 
+create or replace view public.user_team_context_view
+with (security_invoker = true) as
+select
+  ua.id as auth_user_id,
+  p.id as person_id,
+  p.first_name,
+  p.last_name,
+  ua.username,
+  tm.id as membership_id,
+  tm.role,
+  t.id as team_id,
+  t.name as team_name,
+  c.id as club_id,
+  c.name as club_name,
+  c.logo_path,
+  c.primary_color,
+  l.id as league_id,
+  l.name as league_name,
+  s.id as season_id,
+  s.name as season_name
+from public.user_account ua
+join public.person p on p.id = ua.person_id
+join public.team_membership tm on tm.person_id = p.id and tm.active = true
+join public.team t on t.id = tm.team_id and t.active = true
+join public.club c on c.id = t.club_id and c.active = true
+join public.league l on l.id = t.league_id
+join public.season s on s.id = t.season_id
+where ua.active = true;
+
+create or replace view public.membership_management_view as
+select
+  p.id as person_id,
+  p.first_name,
+  p.last_name,
+  p.email,
+  p.phone,
+  p.active as person_active,
+  tm.id as membership_id,
+  tm.role,
+  tm.joined_date,
+  tm.active as membership_active,
+  t.id as team_id,
+  t.name as team_name,
+  c.id as club_id,
+  c.name as club_name,
+  l.id as league_id,
+  l.name as league_name,
+  s.id as season_id,
+  s.name as season_name
+from public.person p
+left join public.team_membership tm on tm.person_id = p.id
+left join public.team t on t.id = tm.team_id
+left join public.club c on c.id = t.club_id
+left join public.league l on l.id = t.league_id
+left join public.season s on s.id = t.season_id;
+
+comment on view public.membership_management_view is 'Backend management view for people and their Player, Manager and Assistant Manager team memberships.';
+
+create or replace function public.resolve_login_identifier(login_identifier text)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when position('@' in login_identifier) > 1 then lower(trim(login_identifier))
+    else (
+      select lower(p.email)
+      from public.user_account ua
+      join public.person p on p.id = ua.person_id
+      where lower(ua.username) = lower(trim(login_identifier))
+        and ua.active = true
+        and p.active = true
+      limit 1
+    )
+  end
+$$;
+
+create or replace function public.accept_invitation_for_current_user(invitation_code_input text, username_input text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_auth_user uuid := auth.uid();
+  current_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  invitation_record public.invitation%rowtype;
+  target_person_id uuid;
+  first_name_input text;
+  last_name_input text;
+begin
+  if current_auth_user is null then
+    raise exception 'You must be signed in before activating an invitation.';
+  end if;
+
+  if trim(coalesce(username_input, '')) = '' then
+    raise exception 'User ID is required.';
+  end if;
+
+  select *
+  into invitation_record
+  from public.invitation
+  where invitation_code = trim(invitation_code_input)
+  for update;
+
+  if not found then
+    raise exception 'Invitation code not found.';
+  end if;
+
+  if invitation_record.status <> 'Pending' then
+    raise exception 'Invitation is not pending.';
+  end if;
+
+  if invitation_record.expires_at <= now() then
+    update public.invitation
+    set status = 'Expired'
+    where id = invitation_record.id;
+    raise exception 'Invitation has expired.';
+  end if;
+
+  if current_email = '' or lower(invitation_record.email) <> current_email then
+    raise exception 'Signed-in email does not match this invitation.';
+  end if;
+
+  if not exists (
+    select 1
+    from public.invitation_membership
+    where invitation_id = invitation_record.id
+  ) then
+    raise exception 'Invitation has no team role attached.';
+  end if;
+
+  if exists (
+    select 1
+    from public.user_account
+    where lower(username) = lower(trim(username_input))
+      and id <> current_auth_user
+  ) then
+    raise exception 'User ID is already taken.';
+  end if;
+
+  first_name_input := split_part(trim(invitation_record.invited_person_name), ' ', 1);
+  last_name_input := nullif(trim(substr(trim(invitation_record.invited_person_name), length(first_name_input) + 1)), '');
+
+  select id
+  into target_person_id
+  from public.person
+  where lower(email) = current_email
+  limit 1;
+
+  if target_person_id is null then
+    select id
+    into target_person_id
+    from public.person
+    where email is null
+      and lower(first_name) = lower(first_name_input)
+      and lower(last_name) = lower(coalesce(last_name_input, ''))
+    limit 1;
+  end if;
+
+  if target_person_id is null then
+    insert into public.person (first_name, last_name, email, active)
+    values (first_name_input, coalesce(last_name_input, ''), current_email, true)
+    returning id into target_person_id;
+  else
+    update public.person
+    set email = coalesce(email, current_email),
+        active = true
+    where id = target_person_id;
+  end if;
+
+  insert into public.user_account (id, person_id, username, last_login, active)
+  values (current_auth_user, target_person_id, trim(username_input), now(), true)
+  on conflict (id) do update
+  set person_id = excluded.person_id,
+      username = excluded.username,
+      last_login = now(),
+      active = true;
+
+  insert into public.team_membership (team_id, person_id, role, active)
+  select im.team_id, target_person_id, im.role, true
+  from public.invitation_membership im
+  where im.invitation_id = invitation_record.id
+  on conflict (team_id, person_id, role) do update
+  set active = true;
+
+  update public.invitation
+  set status = 'Accepted',
+      accepted_at = now()
+  where id = invitation_record.id;
+
+  return target_person_id;
+end;
+$$;
+
+create or replace function public.player_invite_team_options()
+returns table (
+  club_id uuid,
+  club_name text,
+  team_id uuid,
+  team_name text,
+  league_name text,
+  season_name text
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    c.id as club_id,
+    c.name as club_name,
+    t.id as team_id,
+    t.name as team_name,
+    l.name as league_name,
+    s.name as season_name
+  from public.team t
+  join public.club c on c.id = t.club_id
+  join public.league l on l.id = t.league_id
+  join public.season s on s.id = t.season_id
+  where t.active = true
+    and c.active = true
+    and s.active = true
+  order by c.name, l.name, t.name;
+$$;
+
+create or replace function public.request_player_invitation(
+  requested_person_name_input text,
+  email_input text,
+  team_id_input uuid,
+  message_input text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  request_id uuid;
+  target_club_id uuid;
+begin
+  if trim(coalesce(requested_person_name_input, '')) = '' then
+    raise exception 'Name is required.';
+  end if;
+
+  if position('@' in coalesce(email_input, '')) <= 1 then
+    raise exception 'A valid email is required.';
+  end if;
+
+  select club_id
+  into target_club_id
+  from public.team
+  where id = team_id_input
+    and active = true;
+
+  if target_club_id is null then
+    raise exception 'Team not found.';
+  end if;
+
+  insert into public.invitation_request (
+    requested_person_name,
+    email,
+    club_id,
+    team_id,
+    requested_role,
+    message
+  )
+  values (
+    trim(requested_person_name_input),
+    lower(trim(email_input)),
+    target_club_id,
+    team_id_input,
+    'Player',
+    nullif(trim(coalesce(message_input, '')), '')
+  )
+  returning id into request_id;
+
+  return request_id;
+end;
+$$;
+
+create or replace function public.record_user_login(user_agent_input text default null, metadata_input jsonb default '{}'::jsonb)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_auth_user uuid := auth.uid();
+  current_person_id uuid;
+  log_id uuid;
+begin
+  if current_auth_user is null then
+    raise exception 'You must be signed in to record activity.';
+  end if;
+
+  select person_id
+  into current_person_id
+  from public.user_account
+  where id = current_auth_user
+    and active = true;
+
+  update public.user_account
+  set last_login = now()
+  where id = current_auth_user;
+
+  insert into public.user_activity_log (
+    auth_user_id,
+    person_id,
+    activity_type,
+    page_path,
+    page_label,
+    user_agent,
+    metadata
+  )
+  values (
+    current_auth_user,
+    current_person_id,
+    'Login',
+    null,
+    null,
+    user_agent_input,
+    coalesce(metadata_input, '{}'::jsonb)
+  )
+  returning id into log_id;
+
+  return log_id;
+end;
+$$;
+
+create or replace function public.record_page_visit(
+  page_path_input text,
+  page_label_input text default null,
+  user_agent_input text default null,
+  metadata_input jsonb default '{}'::jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_auth_user uuid := auth.uid();
+  current_person_id uuid;
+  log_id uuid;
+begin
+  if current_auth_user is null then
+    raise exception 'You must be signed in to record activity.';
+  end if;
+
+  select person_id
+  into current_person_id
+  from public.user_account
+  where id = current_auth_user
+    and active = true;
+
+  insert into public.user_activity_log (
+    auth_user_id,
+    person_id,
+    activity_type,
+    page_path,
+    page_label,
+    user_agent,
+    metadata
+  )
+  values (
+    current_auth_user,
+    current_person_id,
+    'Page Visit',
+    left(trim(coalesce(page_path_input, '/')), 500),
+    nullif(left(trim(coalesce(page_label_input, '')), 120), ''),
+    user_agent_input,
+    coalesce(metadata_input, '{}'::jsonb)
+  )
+  returning id into log_id;
+
+  return log_id;
+end;
+$$;
+
+create or replace function public.operator_create_invitation(
+  email_input text,
+  invited_person_name_input text,
+  expires_at_input timestamptz,
+  memberships_input jsonb
+)
+returns table (invitation_id uuid, invitation_code text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  operator_person_id uuid := public.current_person_id();
+  new_invitation_id uuid;
+  new_code text;
+  membership_item jsonb;
+  membership_team_id uuid;
+  membership_role membership_role;
+  invited_club uuid;
+begin
+  if not public.is_app_operator() then
+    raise exception 'Operator access is required.';
+  end if;
+
+  if position('@' in coalesce(email_input, '')) <= 1 then
+    raise exception 'A valid email is required.';
+  end if;
+
+  if trim(coalesce(invited_person_name_input, '')) = '' then
+    raise exception 'Invited person name is required.';
+  end if;
+
+  if jsonb_typeof(memberships_input) <> 'array' or jsonb_array_length(memberships_input) = 0 then
+    raise exception 'At least one team role is required.';
+  end if;
+
+  select t.club_id
+  into invited_club
+  from jsonb_array_elements(memberships_input) item
+  join public.team t on t.id = (item ->> 'team_id')::uuid
+  limit 1;
+
+  loop
+    new_code := upper(encode(gen_random_bytes(5), 'hex'));
+    exit when not exists (select 1 from public.invitation where invitation_code = new_code);
+  end loop;
+
+  insert into public.invitation (
+    email,
+    invitation_code,
+    invited_person_name,
+    invited_club_id,
+    invited_role,
+    expires_at,
+    created_by
+  )
+  values (
+    lower(trim(email_input)),
+    new_code,
+    trim(invited_person_name_input),
+    invited_club,
+    coalesce((memberships_input -> 0 ->> 'role')::membership_role, 'Player'),
+    coalesce(expires_at_input, now() + interval '30 days'),
+    operator_person_id
+  )
+  returning id into new_invitation_id;
+
+  for membership_item in select * from jsonb_array_elements(memberships_input)
+  loop
+    membership_team_id := (membership_item ->> 'team_id')::uuid;
+    membership_role := (membership_item ->> 'role')::membership_role;
+
+    if membership_role not in ('Player', 'Manager', 'Assistant Manager') then
+      raise exception 'Invalid membership role.';
+    end if;
+
+    insert into public.invitation_membership (invitation_id, team_id, role)
+    values (new_invitation_id, membership_team_id, membership_role)
+    on conflict (invitation_id, team_id, role) do nothing;
+  end loop;
+
+  invitation_id := new_invitation_id;
+  invitation_code := new_code;
+  return next;
+end;
+$$;
+
+create or replace function public.operator_set_team_membership(
+  person_id_input uuid,
+  team_id_input uuid,
+  role_input membership_role,
+  active_input boolean default true
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  membership_id uuid;
+begin
+  if not public.is_app_operator() then
+    raise exception 'Operator access is required.';
+  end if;
+
+  insert into public.team_membership (person_id, team_id, role, active)
+  values (person_id_input, team_id_input, role_input, coalesce(active_input, true))
+  on conflict (team_id, person_id, role) do update
+  set active = excluded.active
+  returning id into membership_id;
+
+  return membership_id;
+end;
+$$;
+
+create or replace function public.operator_update_invitation_request_status(
+  request_id_input uuid,
+  status_input invitation_request_status
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_app_operator() then
+    raise exception 'Operator access is required.';
+  end if;
+
+  update public.invitation_request
+  set status = status_input,
+      reviewed_at = now(),
+      reviewed_by = public.current_person_id()
+  where id = request_id_input;
+
+  return request_id_input;
+end;
+$$;
+
 alter table public.person enable row level security;
 alter table public.user_account enable row level security;
+alter table public.app_operator enable row level security;
 alter table public.club enable row level security;
 alter table public.season enable row level security;
 alter table public.league enable row level security;
 alter table public.team enable row level security;
 alter table public.team_membership enable row level security;
 alter table public.invitation enable row level security;
+alter table public.invitation_membership enable row level security;
+alter table public.invitation_request enable row level security;
 alter table public.fixture enable row level security;
 alter table public.match enable row level security;
 alter table public.game enable row level security;
 alter table public.match_lineup enable row level security;
 alter table public.break enable row level security;
+alter table public.user_activity_log enable row level security;
 alter table public.conversation enable row level security;
 alter table public.conversation_participant enable row level security;
 alter table public.message enable row level security;
@@ -370,6 +949,21 @@ security definer
 set search_path = public
 as $$
   select person_id from public.user_account where id = auth.uid() and active = true
+$$;
+
+create or replace function public.is_app_operator()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.app_operator ao
+    where ao.person_id = public.current_person_id()
+      and ao.active = true
+  )
 $$;
 
 create or replace function public.is_manager_for_team(team_uuid uuid)
@@ -389,16 +983,25 @@ as $$
 $$;
 
 create policy "people can read active league people" on public.person for select to authenticated using (active = true);
+create policy "operators can read all people" on public.person for select to authenticated using (public.is_app_operator());
 create policy "users can read their account" on public.user_account for select to authenticated using (id = auth.uid());
+create policy "operators can read user accounts" on public.user_account for select to authenticated using (public.is_app_operator());
+create policy "operators can read operator markers" on public.app_operator for select to authenticated using (public.is_app_operator() or person_id = public.current_person_id());
 create policy "authenticated users can read clubs" on public.club for select to authenticated using (active = true);
 create policy "authenticated users can read seasons" on public.season for select to authenticated using (true);
 create policy "authenticated users can read leagues" on public.league for select to authenticated using (true);
 create policy "authenticated users can read teams" on public.team for select to authenticated using (active = true);
 create policy "members can read memberships" on public.team_membership for select to authenticated using (active = true);
+create policy "operators can read all memberships" on public.team_membership for select to authenticated using (public.is_app_operator());
+create policy "operators can read invitations" on public.invitation for select to authenticated using (public.is_app_operator());
+create policy "operators can read invitation memberships" on public.invitation_membership for select to authenticated using (public.is_app_operator());
+create policy "operators can read invite requests" on public.invitation_request for select to authenticated using (public.is_app_operator());
 create policy "members can read fixtures" on public.fixture for select to authenticated using (true);
 create policy "members can read matches" on public.match for select to authenticated using (true);
 create policy "members can read games" on public.game for select to authenticated using (true);
 create policy "members can read breaks" on public.break for select to authenticated using (true);
+create policy "users can read their own activity" on public.user_activity_log for select to authenticated using (auth_user_id = auth.uid());
+create policy "operators can read activity" on public.user_activity_log for select to authenticated using (public.is_app_operator());
 
 create policy "managers can create fixtures" on public.fixture for insert to authenticated
 with check (public.is_manager_for_team(home_team_id) or public.is_manager_for_team(away_team_id));

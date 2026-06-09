@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   CalendarDays,
@@ -16,7 +16,7 @@ import {
   Users,
   Zap
 } from "lucide-react";
-import { adminModules, clubTeamStructure, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
+import { clubTeamStructure, managementModules, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
 import type { TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,16 +33,36 @@ const navItems = [
 
 const quickTabs = ["Fixtures", "Results", "Table", "Players", "Stats"];
 
-export function AppShell() {
-  const [selectedId, setSelectedId] = useState(teamContexts[0].id);
+export function AppShell({
+  contexts = teamContexts,
+  userLabel,
+  onSignOut,
+  onPageVisit
+}: {
+  contexts?: TeamContext[];
+  userLabel?: string;
+  onSignOut?: () => void;
+  onPageVisit?: (pageLabel: string, activeTeam: TeamContext) => void;
+}) {
+  const [selectedId, setSelectedId] = useState(contexts[0]?.id ?? teamContexts[0].id);
+  useEffect(() => {
+    if (!contexts.some((team) => team.id === selectedId)) {
+      setSelectedId(contexts[0]?.id ?? teamContexts[0].id);
+    }
+  }, [contexts, selectedId]);
+
   const activeTeam = useMemo(
-    () => teamContexts.find((team) => team.id === selectedId) ?? teamContexts[0],
-    [selectedId]
+    () => contexts.find((team) => team.id === selectedId) ?? contexts[0] ?? teamContexts[0],
+    [contexts, selectedId]
   );
+
+  useEffect(() => {
+    onPageVisit?.("Home", activeTeam);
+  }, [activeTeam, onPageVisit]);
 
   return (
     <main className="min-h-screen app-bg pb-24 text-[#25002b]">
-      <Header activeTeam={activeTeam} onTeamChange={setSelectedId} />
+      <Header activeTeam={activeTeam} contexts={contexts} onTeamChange={setSelectedId} userLabel={userLabel} onSignOut={onSignOut} />
       <section className="mx-auto flex w-full max-w-[1180px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:grid-cols-[260px_minmax(0,1fr)_340px] lg:gap-5 lg:px-10">
         <DesktopRail activeTeam={activeTeam} />
         <div className="grid gap-4">
@@ -53,7 +73,7 @@ export function AppShell() {
         <aside className="grid gap-4 lg:content-start">
           <LeagueTable activeTeam={activeTeam} />
           <ClubTeamStructureCard />
-          <AdminFoundation />
+          <MembershipManagement />
         </aside>
       </section>
       <BottomNav />
@@ -63,9 +83,15 @@ export function AppShell() {
 
 function Header({
   activeTeam,
+  contexts,
+  userLabel,
+  onSignOut,
   onTeamChange
 }: {
   activeTeam: TeamContext;
+  contexts: TeamContext[];
+  userLabel?: string;
+  onSignOut?: () => void;
   onTeamChange: (id: string) => void;
 }) {
   return (
@@ -83,8 +109,12 @@ function Header({
           </div>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
-          <ContextSwitcher activeTeam={activeTeam} onTeamChange={onTeamChange} />
-          <button className="hidden h-11 w-11 place-items-center rounded-full bg-white/10 text-white sm:grid" aria-label="Open profile">
+          <ContextSwitcher activeTeam={activeTeam} contexts={contexts} onTeamChange={onTeamChange} />
+          <button
+            className="hidden h-11 w-11 place-items-center rounded-full bg-white/10 text-white sm:grid"
+            aria-label={onSignOut ? `Sign out ${userLabel ?? "user"}` : "Open profile"}
+            onClick={onSignOut}
+          >
             <UserCircle className="h-6 w-6" />
           </button>
         </div>
@@ -95,9 +125,11 @@ function Header({
 
 function ContextSwitcher({
   activeTeam,
+  contexts,
   onTeamChange
 }: {
   activeTeam: TeamContext;
+  contexts: TeamContext[];
   onTeamChange: (id: string) => void;
 }) {
   return (
@@ -108,7 +140,7 @@ function ContextSwitcher({
         onChange={(event) => onTeamChange(event.target.value)}
         className="h-11 w-full appearance-none rounded-full border border-white/15 bg-white px-4 pr-9 text-sm font-extrabold text-[#25002b] shadow-card outline-none sm:min-w-[220px]"
       >
-        {teamContexts.map((team) => (
+        {contexts.map((team) => (
           <option key={team.id} value={team.id}>
             {team.name} - {team.role}
           </option>
@@ -475,18 +507,18 @@ function LeagueTable({ activeTeam }: { activeTeam: TeamContext }) {
   );
 }
 
-function AdminFoundation() {
+function MembershipManagement() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Admin</CardTitle>
+        <CardTitle>Membership</CardTitle>
         <Badge variant="muted">
           <ShieldCheck className="mr-1 h-3 w-3" />
           Supabase
         </Badge>
       </CardHeader>
       <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-        {adminModules.map((module) => (
+        {managementModules.map((module) => (
           <div key={module.label} className="rounded-xl bg-[#f7f5fa] p-3">
             <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{module.label}</p>
             <p className="mt-1 text-xl font-black">{module.value}</p>
