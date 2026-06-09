@@ -21,48 +21,42 @@ pnpm dev -- -p 3500
 
 Open `http://localhost:3500`.
 
-Without Supabase environment variables the app runs in demo mode. To enable real accounts, create `.env.local`:
+To enable real accounts, create `.env.local`:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-project-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+DATABASE_URL=postgresql://...
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:3500/auth/google/callback
+SESSION_SECRET=replace-with-a-long-random-string
 ```
 
-Enable Email/Password and Google in Supabase Auth. Set the local app URL during development and the production domain for live use:
-
-```text
-http://localhost:3500
-https://www.interclubsnooker.com
-```
+The app owns login sessions directly and uses Supabase/Postgres as the database. Supabase Auth providers are not used for application sign-in.
 
 ## Google Login
 
-The app uses Supabase Auth for Google login. The existing golf app credentials can be reused, but they must be entered in Supabase, not committed to this repo and not exposed as `NEXT_PUBLIC_*` secrets.
+The app handles Google OAuth directly, like the golf app. The existing golf app credentials can be reused, but they must be entered in Vercel/local environment variables, not in Supabase Auth.
 
 1. Open `/Users/garrylyons/Documents/Golf project/.env` locally.
 2. Copy `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-3. In Supabase Dashboard, go to Authentication, Providers, Google.
-4. Enable Google and paste the client ID and secret.
-5. In Google Cloud Console, add the Supabase Google callback URL shown by Supabase. It normally looks like:
+3. Add the app callback URLs in Google Cloud Console:
 
 ```text
-https://your-project-ref.supabase.co/auth/v1/callback
+http://localhost:3500/auth/google/callback
+https://www.interclubsnooker.com/auth/google/callback
 ```
 
-6. In Supabase URL Configuration, set the production site URL and allow both local and production redirect URLs:
+4. In Vercel, set:
 
 ```text
-https://www.interclubsnooker.com
-http://localhost:3500
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+GOOGLE_REDIRECT_URI=https://www.interclubsnooker.com/auth/google/callback
+SESSION_SECRET
+DATABASE_URL
 ```
 
-For production, set the Supabase **Site URL** to:
-
-```text
-https://www.interclubsnooker.com
-```
-
-After that, the app's `Continue with Google` button uses `supabase.auth.signInWithOAuth({ provider: "google" })` and returns the user to the app. When a Google email has one pending invitation, the app automatically claims that invitation and creates the linked player profile.
+After that, the app's `Continue with Google` button redirects to `/auth/google`, the app exchanges the Google code itself, sets an HTTP-only app session cookie, and uses Supabase/Postgres only for data storage. When a Google email has one pending invitation, the app automatically claims that invitation and creates the linked player profile.
 
 The seed data includes a real Castle A player invitation for:
 
@@ -78,23 +72,27 @@ Apply [supabase/schema.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supa
 
 Then apply [supabase/seed.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/seed.sql) to create the initial 2026/27 season, leagues, clubs and team entries.
 
+If upgrading an existing database that was created while Supabase Auth was still the login layer, apply [supabase/app_managed_auth_migration.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/app_managed_auth_migration.sql) before testing app-owned login.
+
+Apply [supabase/table_bookings.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/table_bookings.sql) to add Castle table booking support. It creates `club_table`, `table_booking`, the Castle Table 1/Table 2 seed rows and the unique active slot constraint.
+
 Historical imports live in separate SQL files so they can be applied deliberately:
 
 - [supabase/a_league_2025_26_results.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/a_league_2025_26_results.sql) imports A League 2025/26 team fixtures and match points.
 - [supabase/a_league_2025_26_player_games.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/a_league_2025_26_player_games.sql) imports A League 2025/26 player-v-player game results from `match results 25-26.xlsx`.
 
-Historical player imports create `person.id` records for everyone who appears in match data. They do not create `user_account` rows. A person only gets login access after invitation acceptance or the approved registration flow links that person to a Supabase Auth user.
+Historical player imports create `person.id` records for everyone who appears in match data. They do not create `user_account` rows. A person only gets login access after invitation acceptance or the approved registration flow links that person to an app-owned login account.
 
-The account flow is invitation-only. Supabase Auth owns password and Google login, while application identity lives in:
+The account flow is invitation-only. The Interclub Snooker app owns password and Google login, while application identity lives in:
 
 - `person` for the human record
-- `user_account` for username and Auth user linkage
+- `user_account` for username, password hash and Google ID linkage
 - `team_membership` for Player, Manager and Assistant Manager roles
 - `invitation_membership` for the team roles granted by an invite
 - `invitation_request` for public player-only invite requests
 - `user_activity_log` for login and page-visit audit events
 
-Use `accept_invitation_for_current_user(invitation_code_input, username_input)` after a user signs up or returns from Google OAuth with a code. Use `accept_pending_invitation_for_current_user(username_input)` for Google users who match one pending invite by email. Seed data includes Garry Lyons as a Castle A player, example Castle A player access and a dual role where one person is Player in Castle A and Manager in Castle B.
+The app-owned API routes create or link `user_account` rows after a valid invitation match. Seed data includes Garry Lyons as a Castle A player, example Castle A player access and a dual role where one person is Player in Castle A and Manager in Castle B.
 
 The public home page supports three paths:
 
@@ -115,7 +113,7 @@ values ('person-uuid-here');
 
 The admin console can create invitation codes, attach Player/Manager/Assistant Manager permissions to teams, and view `user_activity_log`.
 
-When Supabase is configured, the app records login events through `record_user_login(...)` and dashboard visits through `record_page_visit(...)`. Users can read their own activity rows; backend service access can review the complete audit log.
+When the database is configured, the app records login events and dashboard visits in `user_activity_log`. Users can read their own activity rows; backend service access can review the complete audit log.
 
 Scoring is modelled at frame level. Each `game` row is one frame: singles frames award 1 league point to the winning team, and the doubles frame awards 2 league points. `league_table_view` calculates standings from those frame-level points through `match_points_view`. Historical aggregate imports can store only `match.home_team_score` and `match.away_team_score`; `match_points_view` falls back to those totals until frame-level detail is added.
 

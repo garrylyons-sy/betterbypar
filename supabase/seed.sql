@@ -29,6 +29,19 @@ set venue = excluded.venue,
     primary_color = excluded.primary_color,
     active = excluded.active;
 
+insert into public.club_table (club_id, table_name, table_description, active)
+select c.id, table_name, table_description, true
+from public.club c
+cross join (
+  values
+    ('Table 1', 'Beside window'),
+    ('Table 2', 'Near door')
+) as castle_tables(table_name, table_description)
+where c.name = 'Castle Golf Club'
+on conflict (club_id, table_name) do update
+set table_description = excluded.table_description,
+    active = excluded.active;
+
 with requested_teams (club_name, team_suffix, league_name) as (
   values
     ('Castle Golf Club', 'A', 'A League'),

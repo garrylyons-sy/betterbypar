@@ -4,8 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   CalendarDays,
+  CalendarPlus,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ClipboardCheck,
+  Clock3,
   Home,
   Mail,
   MessageCircle,
@@ -14,6 +18,7 @@ import {
   Trophy,
   UserCircle,
   Users,
+  XCircle,
   Zap
 } from "lucide-react";
 import { clubTeamStructure, managementModules, playerGameResults as demoPlayerGameResults, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
@@ -27,11 +32,13 @@ const navItems = [
   { label: "Home", icon: Home },
   { label: "Fixtures", icon: CalendarDays },
   { label: "Table", icon: Trophy },
-  { label: "Players", icon: Users },
+  { label: "Bookings", icon: CalendarPlus },
   { label: "Messages", icon: Mail }
-];
+] as const;
 
-const quickTabs = ["Fixtures", "Results", "Table", "Players", "Stats"];
+type AppPage = typeof navItems[number]["label"] | "Results" | "Players" | "Stats";
+
+const quickTabs: AppPage[] = ["Fixtures", "Results", "Table", "Bookings", "Players", "Stats"];
 
 export function AppShell({
   contexts = teamContexts,
@@ -47,6 +54,7 @@ export function AppShell({
   onPageVisit?: (pageLabel: string, activeTeam: TeamContext) => void;
 }) {
   const [selectedId, setSelectedId] = useState(contexts[0]?.id ?? teamContexts[0].id);
+  const [activePage, setActivePage] = useState<AppPage>("Home");
   useEffect(() => {
     if (!contexts.some((team) => team.id === selectedId)) {
       setSelectedId(contexts[0]?.id ?? teamContexts[0].id);
@@ -59,18 +67,24 @@ export function AppShell({
   );
 
   useEffect(() => {
-    onPageVisit?.("Home", activeTeam);
-  }, [activeTeam, onPageVisit]);
+    onPageVisit?.(activePage, activeTeam);
+  }, [activePage, activeTeam, onPageVisit]);
 
   return (
     <main className="min-h-screen app-bg pb-24 text-[#25002b]">
       <Header activeTeam={activeTeam} contexts={contexts} onTeamChange={setSelectedId} userLabel={userLabel} onSignOut={onSignOut} />
       <section className="mx-auto flex w-full max-w-[1180px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:grid-cols-[260px_minmax(0,1fr)_340px] lg:gap-5 lg:px-10">
-        <DesktopRail activeTeam={activeTeam} />
+        <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} />
         <div className="grid gap-4">
           <MatchdayHero activeTeam={activeTeam} />
-          <QuickTabs />
-          {activeTeam.role === "Manager" ? <ManagerHome /> : <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />}
+          <QuickTabs activePage={activePage} onNavigate={setActivePage} />
+          {activePage === "Bookings" ? (
+            <TableBookings activeTeam={activeTeam} />
+          ) : activeTeam.role === "Manager" ? (
+            <ManagerHome />
+          ) : (
+            <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />
+          )}
         </div>
         <aside className="grid gap-4 lg:content-start">
           <LeagueTable activeTeam={activeTeam} />
@@ -78,7 +92,7 @@ export function AppShell({
           <MembershipManagement />
         </aside>
       </section>
-      <BottomNav />
+      <BottomNav activePage={activePage} onNavigate={setActivePage} />
     </main>
   );
 }
@@ -153,7 +167,7 @@ function ContextSwitcher({
   );
 }
 
-function DesktopRail({ activeTeam }: { activeTeam: TeamContext }) {
+function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamContext; activePage: AppPage; onNavigate: (page: AppPage) => void }) {
   return (
     <aside className="hidden rounded-[18px] bg-[#37003c] p-4 text-white shadow-elevated lg:block">
       <p className="text-xs font-extrabold uppercase text-white/60">Competition</p>
@@ -164,9 +178,10 @@ function DesktopRail({ activeTeam }: { activeTeam: TeamContext }) {
           return (
             <button
               key={item.label}
+              onClick={() => onNavigate(item.label)}
               className={cn(
                 "flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-sm font-extrabold text-white/80",
-                index === 0 && "bg-white text-[#37003c]"
+                activePage === item.label && "bg-white text-[#37003c]"
               )}
             >
               <Icon className="h-5 w-5" />
@@ -230,16 +245,17 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
   );
 }
 
-function QuickTabs() {
+function QuickTabs({ activePage, onNavigate }: { activePage: AppPage; onNavigate: (page: AppPage) => void }) {
   return (
     <div className="w-full max-w-full overflow-x-auto">
       <div className="flex min-w-max gap-2">
-        {quickTabs.map((tab, index) => (
+        {quickTabs.map((tab) => (
           <button
             key={tab}
+            onClick={() => onNavigate(tab)}
             className={cn(
               "min-h-11 rounded-full px-5 text-sm font-extrabold",
-              index === 0
+              activePage === tab
                 ? "bg-[#37003c] text-white shadow-card"
                 : "bg-[#eeeaf2] text-[#25002b]"
             )}
@@ -248,6 +264,253 @@ function QuickTabs() {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+type BookingSlot = {
+  id: string;
+  tableId: string;
+  personId: string;
+  bookedBy: string;
+  bookingDate: string;
+  startTime: string;
+  endTime: string;
+  canCancel: boolean;
+  createdAt: string;
+};
+
+type BookingTable = {
+  tableId: string;
+  tableName: string;
+  tableDescription: string;
+};
+
+type BookingPayload = {
+  clubName: string;
+  bookingDate: string;
+  slotHours: number[];
+  tables: BookingTable[];
+  bookings: BookingSlot[];
+};
+
+function isoDateFromOffset(date: string, offsetDays: number) {
+  const next = new Date(`${date}T12:00:00`);
+  next.setDate(next.getDate() + offsetDays);
+  return next.toISOString().slice(0, 10);
+}
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatBookingDate(date: string) {
+  return new Intl.DateTimeFormat("en-IE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short"
+  }).format(new Date(`${date}T12:00:00`));
+}
+
+function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
+  const [bookingDate, setBookingDate] = useState(todayIsoDate());
+  const [payload, setPayload] = useState<BookingPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [busySlot, setBusySlot] = useState("");
+
+  const loadBookings = async () => {
+    setLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/table-bookings?date=${bookingDate}`, { credentials: "same-origin" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Bookings unavailable.");
+      setPayload(data);
+    } catch (error) {
+      setPayload(null);
+      setMessage(error instanceof Error ? error.message : "Bookings unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadBookings();
+  }, [bookingDate]);
+
+  const bookingBySlot = useMemo(() => {
+    const map = new Map<string, BookingSlot>();
+    payload?.bookings.forEach((booking) => {
+      map.set(`${booking.tableId}-${booking.startTime}`, booking);
+    });
+    return map;
+  }, [payload]);
+
+  const bookSlot = async (tableId: string, startHour: number) => {
+    const key = `${tableId}-${startHour}`;
+    setBusySlot(key);
+    setMessage("");
+    try {
+      const response = await fetch("/api/table-bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ tableId, bookingDate, startHour })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Booking failed.");
+      await loadBookings();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Booking failed.");
+    } finally {
+      setBusySlot("");
+    }
+  };
+
+  const cancelBooking = async (booking: BookingSlot) => {
+    setBusySlot(booking.id);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/table-bookings/${booking.id}`, {
+        method: "DELETE",
+        credentials: "same-origin"
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Cancellation failed.");
+      await loadBookings();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Cancellation failed.");
+    } finally {
+      setBusySlot("");
+    }
+  };
+
+  return (
+    <section className="grid gap-4">
+      <Card className="overflow-hidden">
+        <CardContent className="pt-4">
+          <div className="rounded-[18px] bg-[#10233f] p-4 text-white">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-extrabold uppercase text-white/65">Table bookings</p>
+                <h2 className="mt-1 text-3xl font-black leading-none">{activeTeam.club}</h2>
+                <p className="mt-2 text-sm font-semibold text-white/75">Book hourly slots from 11:00 to 23:00.</p>
+              </div>
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
+                <CalendarPlus className="h-6 w-6" />
+              </span>
+            </div>
+            <div className="mt-4 grid grid-cols-[44px_1fr_44px] gap-2">
+              <Button variant="secondary" size="icon" onClick={() => setBookingDate(isoDateFromOffset(bookingDate, -1))} aria-label="Previous day">
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <label className="block">
+                <span className="sr-only">Booking date</span>
+                <input
+                  type="date"
+                  value={bookingDate}
+                  onChange={(event) => setBookingDate(event.target.value)}
+                  className="min-h-11 w-full rounded-full border border-white/20 bg-white px-4 text-center text-sm font-black text-[#25002b] outline-none"
+                />
+              </label>
+              <Button variant="secondary" size="icon" onClick={() => setBookingDate(isoDateFromOffset(bookingDate, 1))} aria-label="Next day">
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {message ? (
+        <div className="rounded-[18px] bg-white p-4 text-sm font-extrabold text-[#e90052] shadow-card">
+          {message}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <BookingsSkeleton />
+      ) : payload ? (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {payload.tables.map((table) => (
+            <Card key={table.tableId} className="overflow-hidden">
+              <CardHeader>
+                <div>
+                  <CardTitle>{table.tableName}</CardTitle>
+                  <p className="mt-1 text-xs font-bold uppercase text-[#6c5a73]">{table.tableDescription}</p>
+                </div>
+                <Badge variant="cyan">{formatBookingDate(payload.bookingDate)}</Badge>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {payload.slotHours.map((hour) => {
+                  const startTime = `${String(hour).padStart(2, "0")}:00`;
+                  const booking = bookingBySlot.get(`${table.tableId}-${startTime}`);
+                  const busy = busySlot === `${table.tableId}-${hour}` || busySlot === booking?.id;
+
+                  return (
+                    <div
+                      key={`${table.tableId}-${hour}`}
+                      className={cn(
+                        "grid min-h-[72px] grid-cols-[72px_1fr] items-center gap-3 rounded-xl p-3 ring-1",
+                        booking ? "bg-[#f7f5fa] ring-[#eeeaf2]" : "bg-white ring-[#eeeaf2]"
+                      )}
+                    >
+                      <div className="text-center">
+                        <p className="text-xl font-black leading-none">{startTime}</p>
+                        <p className="mt-1 text-[11px] font-extrabold uppercase text-[#6c5a73]">{String(hour + 1).padStart(2, "0")}:00</p>
+                      </div>
+                      {booking ? (
+                        <div className="flex min-w-0 items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <Badge variant={booking.canCancel ? "green" : "muted"}>{booking.canCancel ? "Your booking" : "Booked"}</Badge>
+                            <p className="mt-1 truncate text-sm font-black">{booking.bookedBy}</p>
+                          </div>
+                          {booking.canCancel ? (
+                            <Button variant="ghost" size="icon" onClick={() => cancelBooking(booking)} disabled={busy} aria-label={`Cancel ${table.tableName} at ${startTime}`}>
+                              <XCircle className="h-5 w-5 text-[#e90052]" />
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <Button variant="dark" className="justify-self-end" onClick={() => bookSlot(table.tableId, hour)} disabled={busy}>
+                          <Clock3 className="h-4 w-4" />
+                          Book
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-sm font-semibold text-[#6c5a73]">Castle table bookings will appear here for signed-in Castle members.</p>
+          </CardContent>
+        </Card>
+      )}
+    </section>
+  );
+}
+
+function BookingsSkeleton() {
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {[1, 2].map((table) => (
+        <Card key={table}>
+          <CardHeader>
+            <div className="h-6 w-28 animate-pulse rounded-full bg-[#eeeaf2]" />
+            <div className="h-6 w-20 animate-pulse rounded-full bg-[#eeeaf2]" />
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {[1, 2, 3, 4].map((slot) => (
+              <div key={slot} className="h-[72px] animate-pulse rounded-xl bg-[#f7f5fa]" />
+            ))}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -625,18 +888,19 @@ function MiniStat({ label, value, dark = false }: { label: string; value: string
   );
 }
 
-function BottomNav() {
+function BottomNav({ activePage, onNavigate }: { activePage: AppPage; onNavigate: (page: AppPage) => void }) {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#eeeaf2] bg-white px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-elevated lg:hidden">
       <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
-        {navItems.map((item, index) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
           return (
             <button
               key={item.label}
+              onClick={() => onNavigate(item.label)}
               className={cn(
                 "flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs font-extrabold text-[#6c5a73]",
-                index === 0 && "bg-[var(--gradient-primary)] text-white"
+                activePage === item.label && "bg-[var(--gradient-primary)] text-white"
               )}
             >
               <Icon className="h-5 w-5" />

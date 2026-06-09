@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
+import { useEffect, useState } from "react";
 import { Activity, KeyRound, ListChecks, LogIn, PlusCircle, ShieldCheck, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { clubTeamStructure } from "@/lib/demo-data";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 
 type AdminTab = "invites" | "permissions" | "logs";
 type Role = "Player" | "Manager" | "Assistant Manager";
@@ -77,9 +75,9 @@ const demoLogs: ActivityRow[] = [
 
 export function AdminConsole() {
   const [tab, setTab] = useState<AdminTab>("invites");
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(isSupabaseConfigured);
-  const [operator, setOperator] = useState(!isSupabaseConfigured);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [operator, setOperator] = useState(false);
   const [message, setMessage] = useState("");
   const [teams, setTeams] = useState<TeamOption[]>(demoTeams);
   const [people, setPeople] = useState<PersonOption[]>(demoPeople);
@@ -87,84 +85,50 @@ export function AdminConsole() {
   const [requests, setRequests] = useState<InviteRequestRow[]>([]);
 
   useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-    });
-
-    return () => data.subscription.unsubscribe();
+    refreshAdminData();
   }, []);
 
-  useEffect(() => {
-    if (!supabase || !session) return;
-
-    supabase.rpc("is_app_operator").then(({ data }) => {
-      setOperator(Boolean(data));
-    });
-  }, [session]);
-
-  useEffect(() => {
-    if (!supabase || !session || !operator) return;
-
-    refreshAdminData();
-  }, [session, operator]);
-
   async function refreshAdminData() {
-    if (!supabase) return;
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin", { credentials: "same-origin" });
+      const data = await response.json().catch(() => ({}));
+      setAuthenticated(Boolean(data.authenticated));
+      setOperator(Boolean(data.operator));
 
-    const [teamResult, personResult, logResult, requestResult] = await Promise.all([
-      supabase.rpc("player_invite_team_options"),
-      supabase.from("membership_management_view").select("person_id, first_name, last_name, email").order("last_name"),
-      supabase.from("user_activity_log").select("id, activity_type, page_label, page_path, created_at, metadata, person:person_id(first_name,last_name,email)").order("created_at", { ascending: false }).limit(50),
-      supabase.from("invitation_request").select("id, requested_person_name, email, status, message, created_at").order("created_at", { ascending: false }).limit(25)
-    ]);
+      if (response.ok) {
+        setTeams((data.teams ?? []).map((team: { team_id: string; team_name: string; club_name: string; league_name: string }) => ({
+          teamId: team.team_id,
+          teamName: team.team_name,
+          clubName: team.club_name,
+          leagueName: team.league_name
+        })));
 
-    if (teamResult.data) {
-      setTeams((teamResult.data as Array<{ team_id: string; team_name: string; club_name: string; league_name: string }>).map((team) => ({
-        teamId: team.team_id,
-        teamName: team.team_name,
-        clubName: team.club_name,
-        leagueName: team.league_name
-      })));
-    }
-
-    if (personResult.data) {
-      const seen = new Map<string, PersonOption>();
-      for (const person of personResult.data as Array<{ person_id: string; first_name: string; last_name: string; email: string | null }>) {
-        seen.set(person.person_id, {
-          personId: person.person_id,
-          name: `${person.first_name} ${person.last_name}`.trim(),
-          email: person.email ?? ""
-        });
+        const seen = new Map<string, PersonOption>();
+        for (const person of data.people ?? []) {
+          seen.set(person.person_id, {
+            personId: person.person_id,
+            name: `${person.first_name} ${person.last_name}`.trim(),
+            email: person.email ?? ""
+          });
+        }
+        setPeople(Array.from(seen.values()));
+        setLogs(data.logs ?? []);
+        setRequests(data.requests ?? []);
       }
-      setPeople(Array.from(seen.values()));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Admin data unavailable.");
+    } finally {
+      setLoading(false);
     }
-
-    if (logResult.data) setLogs(logResult.data as unknown as ActivityRow[]);
-    if (requestResult.data) setRequests(requestResult.data as InviteRequestRow[]);
-  }
-
-  if (!isSupabaseConfigured) {
-    return <AdminLayout tab={tab} setTab={setTab} message="Demo mode: connect Supabase to manage real invites, permissions and logs.">
-      <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} onMessage={setMessage} onRefresh={refreshAdminData} demo />
-    </AdminLayout>;
   }
 
   if (loading) {
     return <AdminShell title="Loading admin" subtitle="Checking your session." />;
   }
 
-  if (!session) {
-    return <AdminLogin />;
+  if (!authenticated) {
+    return <AdminLogin onSignedIn={refreshAdminData} />;
   }
 
   if (!operator) {
@@ -264,26 +228,25 @@ function InvitesPanel({
   const [expiresAt, setExpiresAt] = useState("");
 
   async function createInvite() {
-    if (demo || !supabase) {
+    if (demo) {
       onMessage("Demo invite created: CASTLE-DEMO-2026");
       return;
     }
 
-    const { data, error } = await supabase.rpc("operator_create_invitation", {
-      email_input: email,
-      invited_person_name_input: name,
-      expires_at_input: expiresAt ? new Date(expiresAt).toISOString() : null,
-      memberships_input: [{ team_id: teamId, role }]
-    });
-
-    if (error) {
-      onMessage(error.message);
-      return;
+    try {
+      const response = await fetch("/api/admin/invites", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, name, teamId, role, expiresAt })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not create invite.");
+      onMessage(data.invitation_code ? `Invite created: ${data.invitation_code}` : "Invite created.");
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not create invite.");
     }
-
-    const row = Array.isArray(data) ? data[0] : null;
-    onMessage(row?.invitation_code ? `Invite created: ${row.invitation_code}` : "Invite created.");
-    onRefresh();
   }
 
   return (
@@ -342,20 +305,25 @@ function PermissionsPanel({
   const [role, setRole] = useState<Role>("Player");
 
   async function setPermission(active: boolean) {
-    if (demo || !supabase) {
+    if (demo) {
       onMessage(active ? "Demo permission added." : "Demo permission disabled.");
       return;
     }
 
-    const { error } = await supabase.rpc("operator_set_team_membership", {
-      person_id_input: personId,
-      team_id_input: teamId,
-      role_input: role,
-      active_input: active
-    });
-
-    onMessage(error ? error.message : active ? "Permission saved." : "Permission disabled.");
-    onRefresh();
+    try {
+      const response = await fetch("/api/admin/permissions", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ personId, teamId, role, active })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not save permission.");
+      onMessage(active ? "Permission saved." : "Permission disabled.");
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not save permission.");
+    }
   }
 
   return (
@@ -410,15 +378,26 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
   );
 }
 
-function AdminLogin() {
+function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
   async function signIn() {
-    if (!supabase) return;
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setMessage(error.message);
+    setMessage("");
+    try {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ identifier: email, password })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Sign in failed.");
+      onSignedIn();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Sign in failed.");
+    }
   }
 
   return (

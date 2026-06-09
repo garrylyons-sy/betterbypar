@@ -19,9 +19,10 @@ create table public.person (
 );
 
 create table public.user_account (
-  id uuid primary key references auth.users(id) on delete cascade,
+  id uuid primary key default gen_random_uuid(),
   person_id uuid not null references public.person(id) on delete cascade,
   username text unique not null,
+  password_hash text,
   google_id text unique,
   last_login timestamptz,
   active boolean not null default true,
@@ -30,6 +31,18 @@ create table public.user_account (
 
 comment on table public.person is 'Human/player identity. Historical imports create person ids for players who appear in matches, even when they do not have app login access.';
 comment on table public.user_account is 'Authentication linkage only. Rows are created when a person activates an invitation or completes the approved registration flow, not by historical match imports.';
+
+create table public.app_session (
+  id text primary key,
+  user_account_id uuid not null references public.user_account(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+
+create index app_session_user_account_id_idx on public.app_session (user_account_id);
+create index app_session_expires_at_idx on public.app_session (expires_at);
+
+comment on table public.app_session is 'App-owned login sessions. The browser stores only this id in an HTTP-only cookie; Supabase Auth is not used for application login.';
 
 create table public.app_operator (
   person_id uuid primary key references public.person(id) on delete cascade,
@@ -48,6 +61,19 @@ create table public.club (
   primary_color text check (primary_color is null or primary_color ~ '^#[0-9A-Fa-f]{6}$'),
   active boolean not null default true
 );
+
+create table public.club_table (
+  table_id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.club(id) on delete cascade,
+  table_name text not null,
+  table_description text,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (club_id, table_name),
+  unique (table_id, club_id)
+);
+
+comment on table public.club_table is 'Snooker tables available for member booking at a club.';
 
 create table public.season (
   id uuid primary key default gen_random_uuid(),
@@ -141,6 +167,32 @@ create index user_activity_log_auth_user_id_created_at_idx on public.user_activi
 create index user_activity_log_person_id_created_at_idx on public.user_activity_log (person_id, created_at desc);
 
 comment on table public.user_activity_log is 'Audit log for authenticated user logins and page visits.';
+
+create table public.table_booking (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.club(id) on delete cascade,
+  table_id uuid not null,
+  person_id uuid not null references public.person(id) on delete cascade,
+  booking_date date not null,
+  start_time time not null,
+  end_time time not null,
+  created_at timestamptz not null default now(),
+  cancelled_at timestamptz,
+  cancelled_by uuid references public.person(id) on delete set null,
+  foreign key (table_id, club_id) references public.club_table(table_id, club_id) on delete cascade,
+  check (start_time >= time '11:00' and start_time < time '23:00'),
+  check (end_time = start_time + interval '1 hour'),
+  check (cancelled_at is null or cancelled_by is not null)
+);
+
+create unique index table_booking_active_slot_idx
+on public.table_booking (table_id, booking_date, start_time)
+where cancelled_at is null;
+
+create index table_booking_club_date_idx on public.table_booking (club_id, booking_date, start_time);
+create index table_booking_person_date_idx on public.table_booking (person_id, booking_date desc);
+
+comment on table public.table_booking is 'One-hour member snooker table bookings. Active bookings are unique per table, date and start time.';
 
 create table public.fixture (
   id uuid primary key default gen_random_uuid(),
@@ -1052,8 +1104,10 @@ $$;
 
 alter table public.person enable row level security;
 alter table public.user_account enable row level security;
+alter table public.app_session enable row level security;
 alter table public.app_operator enable row level security;
 alter table public.club enable row level security;
+alter table public.club_table enable row level security;
 alter table public.season enable row level security;
 alter table public.league enable row level security;
 alter table public.team enable row level security;
@@ -1068,6 +1122,7 @@ alter table public.player_game_result enable row level security;
 alter table public.match_lineup enable row level security;
 alter table public.break enable row level security;
 alter table public.user_activity_log enable row level security;
+alter table public.table_booking enable row level security;
 alter table public.conversation enable row level security;
 alter table public.conversation_participant enable row level security;
 alter table public.message enable row level security;
@@ -1117,8 +1172,10 @@ create policy "people can read active league people" on public.person for select
 create policy "operators can read all people" on public.person for select to authenticated using (public.is_app_operator());
 create policy "users can read their account" on public.user_account for select to authenticated using (id = auth.uid());
 create policy "operators can read user accounts" on public.user_account for select to authenticated using (public.is_app_operator());
+create policy "no client session access" on public.app_session for all to authenticated using (false) with check (false);
 create policy "operators can read operator markers" on public.app_operator for select to authenticated using (public.is_app_operator() or person_id = public.current_person_id());
 create policy "authenticated users can read clubs" on public.club for select to authenticated using (active = true);
+create policy "authenticated users can read club tables" on public.club_table for select to authenticated using (active = true);
 create policy "authenticated users can read seasons" on public.season for select to authenticated using (true);
 create policy "authenticated users can read leagues" on public.league for select to authenticated using (true);
 create policy "authenticated users can read teams" on public.team for select to authenticated using (active = true);
@@ -1134,6 +1191,7 @@ create policy "members can read player game results" on public.player_game_resul
 create policy "members can read breaks" on public.break for select to authenticated using (true);
 create policy "users can read their own activity" on public.user_activity_log for select to authenticated using (auth_user_id = auth.uid());
 create policy "operators can read activity" on public.user_activity_log for select to authenticated using (public.is_app_operator());
+create policy "members can read table bookings" on public.table_booking for select to authenticated using (cancelled_at is null);
 
 create policy "managers can create fixtures" on public.fixture for insert to authenticated
 with check (public.is_manager_for_team(home_team_id) or public.is_manager_for_team(away_team_id));
