@@ -77,6 +77,7 @@ set club_id = excluded.club_id,
 
 with source_invitations (email, invitation_code, invited_person_name, invited_club_name, invited_role) as (
   values
+    ('garlyons@gmail.com', 'GARLYONS-CASTLE-A-2026', 'Garry Lyons', 'Castle Golf Club', 'Player'::membership_role),
     ('castle.player@example.com', 'CASTLE-A-PLAYER-2026', 'Castle Player', 'Castle Golf Club', 'Player'::membership_role),
     ('castle.dual@example.com', 'CASTLE-A-PLAYER-B-MANAGER-2026', 'Castle Dual Role', 'Castle Golf Club', 'Player'::membership_role)
 )
@@ -94,6 +95,7 @@ set email = excluded.email,
 
 with source_memberships (invitation_code, team_name, league_name, role) as (
   values
+    ('GARLYONS-CASTLE-A-2026', 'Castle A', 'A League', 'Player'::membership_role),
     ('CASTLE-A-PLAYER-2026', 'Castle A', 'A League', 'Player'::membership_role),
     ('CASTLE-A-PLAYER-B-MANAGER-2026', 'Castle A', 'A League', 'Player'::membership_role),
     ('CASTLE-A-PLAYER-B-MANAGER-2026', 'Castle B', 'B League', 'Manager'::membership_role)

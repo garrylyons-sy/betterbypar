@@ -28,6 +28,9 @@ create table public.user_account (
   created_at timestamptz not null default now()
 );
 
+comment on table public.person is 'Human/player identity. Historical imports create person ids for players who appear in matches, even when they do not have app login access.';
+comment on table public.user_account is 'Authentication linkage only. Rows are created when a person activates an invitation or completes the approved registration flow, not by historical match imports.';
+
 create table public.app_operator (
   person_id uuid primary key references public.person(id) on delete cascade,
   active boolean not null default true,
@@ -181,6 +184,37 @@ comment on table public.game is 'Each row is one snooker frame. Singles frames a
 comment on column public.game.home_score is 'Snooker points scored by the home side/player(s) in this single frame.';
 comment on column public.game.away_score is 'Snooker points scored by the away side/player(s) in this single frame.';
 comment on column public.game.points_awarded is 'League points awarded for winning this frame: 1 for singles, 2 for doubles.';
+
+create table public.player_game_result (
+  game_id uuid primary key default gen_random_uuid(),
+  season_id uuid not null references public.season(id) on delete cascade,
+  league_id uuid not null references public.league(id) on delete restrict,
+  source_fixture_index integer,
+  source_week text,
+  home_team_name text,
+  home_team_score integer check (home_team_score between 0 and 7),
+  away_team_name text,
+  away_team_score integer check (away_team_score between 0 and 7),
+  game_number integer check (game_number between 1 and 6),
+  game_ordinal integer check (game_ordinal between 1 and 7),
+  is_doubles_partner_row boolean not null default false,
+  player_1_id uuid not null references public.person(id) on delete restrict,
+  player_2_id uuid not null references public.person(id) on delete restrict,
+  result integer not null check (result in (0, 1)),
+  source_key text not null unique,
+  created_at timestamptz not null default now(),
+  check (player_1_id <> player_2_id)
+);
+
+create index player_game_result_player_1_id_idx on public.player_game_result (player_1_id);
+create index player_game_result_player_2_id_idx on public.player_game_result (player_2_id);
+create index player_game_result_season_league_idx on public.player_game_result (season_id, league_id);
+
+comment on table public.player_game_result is 'One imported player-v-player game result. result is from player_1_id perspective: 1 = player_1 won, 0 = player_1 lost.';
+comment on column public.player_game_result.game_id is 'Unique imported game id for a single player-v-player result row.';
+comment on column public.player_game_result.player_1_id is 'First player in the source row. The result column belongs to this player.';
+comment on column public.player_game_result.player_2_id is 'Opponent player in the source row.';
+comment on column public.player_game_result.result is 'Player 1 result: 1 means player_1_id won; 0 means player_1_id lost.';
 
 create table public.match_lineup (
   id uuid primary key default gen_random_uuid(),
@@ -382,6 +416,39 @@ left join public.match m on m.id = g.match_id
 left join public.fixture f on f.id = m.fixture_id
 left join public.season s on s.id = coalesce(b.season_id, f.season_id)
 left join public.league l on l.id = coalesce(b.league_id, f.league_id);
+
+create or replace view public.player_game_result_view
+with (security_invoker = true) as
+select
+  pgr.game_id,
+  pgr.season_id,
+  s.name as season_name,
+  pgr.league_id,
+  l.name as league_name,
+  pgr.source_fixture_index,
+  pgr.source_week,
+  pgr.home_team_name,
+  pgr.home_team_score,
+  pgr.away_team_name,
+  pgr.away_team_score,
+  pgr.game_number,
+  pgr.game_ordinal,
+  pgr.is_doubles_partner_row,
+  pgr.player_1_id,
+  p1.first_name || ' ' || p1.last_name as player_1_name,
+  pgr.player_2_id,
+  p2.first_name || ' ' || p2.last_name as player_2_name,
+  pgr.result,
+  case when pgr.result = 1 then pgr.player_1_id else pgr.player_2_id end as winner_player_id,
+  case when pgr.result = 1 then pgr.player_2_id else pgr.player_1_id end as loser_player_id,
+  case when pgr.result = 1 then p1.first_name || ' ' || p1.last_name else p2.first_name || ' ' || p2.last_name end as winner_name,
+  case when pgr.result = 1 then p2.first_name || ' ' || p2.last_name else p1.first_name || ' ' || p1.last_name end as loser_name,
+  pgr.source_key
+from public.player_game_result pgr
+join public.season s on s.id = pgr.season_id
+join public.league l on l.id = pgr.league_id
+join public.person p1 on p1.id = pgr.player_1_id
+join public.person p2 on p2.id = pgr.player_2_id;
 
 create or replace view public.club_team_structure_view as
 select
@@ -593,6 +660,69 @@ begin
   where id = invitation_record.id;
 
   return target_person_id;
+end;
+$$;
+
+create or replace function public.accept_pending_invitation_for_current_user(username_input text default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_auth_user uuid := auth.uid();
+  current_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
+  invitation_record public.invitation%rowtype;
+  base_username text;
+  next_username text;
+  suffix_number integer := 1;
+begin
+  if current_auth_user is null then
+    raise exception 'You must be signed in before activating an invitation.';
+  end if;
+
+  if current_email = '' then
+    return null;
+  end if;
+
+  select *
+  into invitation_record
+  from public.invitation
+  where lower(email) = current_email
+    and status = 'Pending'
+  order by created_at desc
+  limit 1;
+
+  if not found then
+    return null;
+  end if;
+
+  if invitation_record.expires_at <= now() then
+    update public.invitation
+    set status = 'Expired'
+    where id = invitation_record.id;
+    return null;
+  end if;
+
+  base_username := lower(regexp_replace(coalesce(nullif(trim(username_input), ''), split_part(current_email, '@', 1)), '[^a-z0-9_]+', '', 'g'));
+
+  if base_username = '' then
+    base_username := 'player';
+  end if;
+
+  next_username := base_username;
+
+  while exists (
+    select 1
+    from public.user_account
+    where lower(username) = lower(next_username)
+      and id <> current_auth_user
+  ) loop
+    suffix_number := suffix_number + 1;
+    next_username := left(base_username, 20) || '_' || suffix_number::text;
+  end loop;
+
+  return public.accept_invitation_for_current_user(invitation_record.invitation_code, next_username);
 end;
 $$;
 
@@ -934,6 +1064,7 @@ alter table public.invitation_request enable row level security;
 alter table public.fixture enable row level security;
 alter table public.match enable row level security;
 alter table public.game enable row level security;
+alter table public.player_game_result enable row level security;
 alter table public.match_lineup enable row level security;
 alter table public.break enable row level security;
 alter table public.user_activity_log enable row level security;
@@ -999,6 +1130,7 @@ create policy "operators can read invite requests" on public.invitation_request 
 create policy "members can read fixtures" on public.fixture for select to authenticated using (true);
 create policy "members can read matches" on public.match for select to authenticated using (true);
 create policy "members can read games" on public.game for select to authenticated using (true);
+create policy "members can read player game results" on public.player_game_result for select to authenticated using (true);
 create policy "members can read breaks" on public.break for select to authenticated using (true);
 create policy "users can read their own activity" on public.user_activity_log for select to authenticated using (auth_user_id = auth.uid());
 create policy "operators can read activity" on public.user_activity_log for select to authenticated using (public.is_app_operator());

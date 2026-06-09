@@ -2,6 +2,7 @@ export type Role = "Player" | "Manager" | "Assistant Manager";
 
 export type TeamContext = {
   id: string;
+  personId?: string;
   name: string;
   club: string;
   logoPath: string;
@@ -10,6 +11,21 @@ export type TeamContext = {
   season: string;
   role: Role;
   leaguePosition: number;
+};
+
+export type PlayerGameResult = {
+  gameId: string;
+  playerId: string;
+  opponentId: string;
+  opponentName: string;
+  result: "Won" | "Lost";
+  sourceWeek: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  matchScore: string;
+  gameNumber: number;
+  gameOrdinal: number;
+  isDoublesPartnerRow: boolean;
 };
 
 export type Fixture = {

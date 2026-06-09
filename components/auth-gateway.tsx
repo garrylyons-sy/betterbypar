@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { clubTeamStructure } from "@/lib/demo-data";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
-import type { Role, TeamContext } from "@/lib/types";
+import type { PlayerGameResult, Role, TeamContext } from "@/lib/types";
 
 type AuthMode = "signin" | "activate" | "request";
 type TeamOption = {
@@ -30,6 +30,7 @@ type TeamOptionRow = {
   season_name: string;
 };
 type UserContextRow = {
+  person_id: string;
   membership_id: string;
   role: string;
   team_name: string;
@@ -38,6 +39,22 @@ type UserContextRow = {
   primary_color: string;
   league_name: TeamContext["league"];
   season_name: string;
+};
+type PlayerGameResultRow = {
+  game_id: string;
+  player_1_id: string;
+  player_1_name: string;
+  player_2_id: string;
+  player_2_name: string;
+  result: number;
+  source_week: string | null;
+  home_team_name: string | null;
+  home_team_score: number | null;
+  away_team_name: string | null;
+  away_team_score: number | null;
+  game_number: number | null;
+  game_ordinal: number | null;
+  is_doubles_partner_row: boolean;
 };
 
 const pendingInviteKey = "interclub-pending-invitation";
@@ -52,6 +69,11 @@ const demoTeamOptions: TeamOption[] = clubTeamStructure.flatMap((club) =>
   }))
 );
 
+function usernameFromEmail(email?: string | null) {
+  const fallback = email?.split("@")[0] ?? "player";
+  return fallback.toLowerCase().replace(/[^a-z0-9_]+/g, "") || "player";
+}
+
 export function AuthGateway() {
   const [mode, setMode] = useState<AuthMode>("signin");
   const [previewDashboard, setPreviewDashboard] = useState(false);
@@ -59,11 +81,13 @@ export function AuthGateway() {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [message, setMessage] = useState("");
   const [contexts, setContexts] = useState<TeamContext[]>([]);
+  const [playerGameResults, setPlayerGameResults] = useState<PlayerGameResult[]>([]);
   const [contextsLoading, setContextsLoading] = useState(false);
   const [contextsRefreshKey, setContextsRefreshKey] = useState(0);
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>(demoTeamOptions);
   const loggedSessionIdRef = useRef<string | null>(null);
   const loggedVisitKeyRef = useRef<string | null>(null);
+  const attemptedAutoInviteRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -129,11 +153,14 @@ export function AuthGateway() {
   useEffect(() => {
     if (!supabase || !session) {
       setContexts([]);
+      setPlayerGameResults([]);
+      attemptedAutoInviteRef.current = null;
       return;
     }
 
+    const client = supabase;
     setContextsLoading(true);
-    supabase
+    client
       .from("user_team_context_view")
       .select("membership_id, role, team_name, club_name, logo_path, primary_color, league_name, season_name")
       .eq("auth_user_id", session.user.id)
@@ -145,8 +172,31 @@ export function AuthGateway() {
           return;
         }
 
-        setContexts((data as UserContextRow[]).map((row) => ({
+        const rows = data as UserContextRow[];
+
+        if (rows.length === 0 && attemptedAutoInviteRef.current !== session.user.id) {
+          attemptedAutoInviteRef.current = session.user.id;
+          setContextsLoading(true);
+          client
+            .rpc("accept_pending_invitation_for_current_user", {
+              username_input: usernameFromEmail(session.user.email)
+            })
+            .then(({ data: acceptedPersonId, error: autoInviteError }) => {
+              if (acceptedPersonId && !autoInviteError) {
+                setMessage("Google login connected. Castle A player access is ready.");
+                setContextsRefreshKey((key) => key + 1);
+                return;
+              }
+
+              setContextsLoading(false);
+              setContexts([]);
+            });
+          return;
+        }
+
+        setContexts(rows.map((row) => ({
           id: row.membership_id,
+          personId: row.person_id,
           name: row.team_name,
           club: row.club_name,
           logoPath: row.logo_path,
@@ -158,6 +208,52 @@ export function AuthGateway() {
         } as TeamContext)));
       });
   }, [session, contextsRefreshKey]);
+
+  useEffect(() => {
+    if (!supabase || !session || contexts.length === 0) {
+      setPlayerGameResults([]);
+      return;
+    }
+
+    const personId = contexts[0]?.personId;
+    if (!personId) {
+      setPlayerGameResults([]);
+      return;
+    }
+
+    supabase
+      .from("player_game_result_view")
+      .select("game_id, player_1_id, player_1_name, player_2_id, player_2_name, result, source_week, home_team_name, home_team_score, away_team_name, away_team_score, game_number, game_ordinal, is_doubles_partner_row")
+      .or(`player_1_id.eq.${personId},player_2_id.eq.${personId}`)
+      .order("source_fixture_index", { ascending: false })
+      .order("game_ordinal", { ascending: true })
+      .limit(30)
+      .then(({ data, error }) => {
+        if (error || !data) {
+          setPlayerGameResults([]);
+          return;
+        }
+
+        setPlayerGameResults((data as PlayerGameResultRow[]).map((row) => {
+          const isPlayerOne = row.player_1_id === personId;
+          const won = isPlayerOne ? row.result === 1 : row.result === 0;
+          return {
+            gameId: row.game_id,
+            playerId: personId,
+            opponentId: isPlayerOne ? row.player_2_id : row.player_1_id,
+            opponentName: isPlayerOne ? row.player_2_name : row.player_1_name,
+            result: won ? "Won" : "Lost",
+            sourceWeek: row.source_week ?? "2025/26",
+            homeTeamName: row.home_team_name ?? "Home",
+            awayTeamName: row.away_team_name ?? "Away",
+            matchScore: `${row.home_team_score ?? "-"}-${row.away_team_score ?? "-"}`,
+            gameNumber: row.game_number ?? row.game_ordinal ?? 0,
+            gameOrdinal: row.game_ordinal ?? 0,
+            isDoublesPartnerRow: row.is_doubles_partner_row
+          };
+        }));
+      });
+  }, [session, contexts]);
 
   useEffect(() => {
     if (!supabase || !session || loggedSessionIdRef.current === session.access_token) return;
@@ -208,6 +304,7 @@ export function AuthGateway() {
         {contexts.length > 0 ? (
           <AppShell
             contexts={contexts}
+            playerGameResults={playerGameResults}
             userLabel={signedInLabel}
             onSignOut={() => supabase?.auth.signOut()}
             onPageVisit={recordPageVisit}

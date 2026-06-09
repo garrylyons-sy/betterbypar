@@ -16,8 +16,8 @@ import {
   Users,
   Zap
 } from "lucide-react";
-import { clubTeamStructure, managementModules, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
-import type { TeamContext } from "@/lib/types";
+import { clubTeamStructure, managementModules, playerGameResults as demoPlayerGameResults, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
+import type { PlayerGameResult, TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,11 +35,13 @@ const quickTabs = ["Fixtures", "Results", "Table", "Players", "Stats"];
 
 export function AppShell({
   contexts = teamContexts,
+  playerGameResults = demoPlayerGameResults,
   userLabel,
   onSignOut,
   onPageVisit
 }: {
   contexts?: TeamContext[];
+  playerGameResults?: PlayerGameResult[];
   userLabel?: string;
   onSignOut?: () => void;
   onPageVisit?: (pageLabel: string, activeTeam: TeamContext) => void;
@@ -68,7 +70,7 @@ export function AppShell({
         <div className="grid gap-4">
           <MatchdayHero activeTeam={activeTeam} />
           <QuickTabs />
-          {activeTeam.role === "Manager" ? <ManagerHome /> : <PlayerHome activeTeam={activeTeam} />}
+          {activeTeam.role === "Manager" ? <ManagerHome /> : <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />}
         </div>
         <aside className="grid gap-4 lg:content-start">
           <LeagueTable activeTeam={activeTeam} />
@@ -250,12 +252,13 @@ function QuickTabs() {
   );
 }
 
-function PlayerHome({ activeTeam }: { activeTeam: TeamContext }) {
+function PlayerHome({ activeTeam, playerGameResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[] }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <PlayerStatCard />
       <SeasonCompleteCard action="View results" />
       <RecentResults />
+      <PlayerGameResultsCard results={playerGameResults} />
       <TeamPositionStrip activeTeam={activeTeam} />
     </section>
   );
@@ -341,6 +344,46 @@ function RecentResults() {
             </div>
           </div>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlayerGameResultsCard({ results }: { results: PlayerGameResult[] }) {
+  const wins = results.filter((result) => result.result === "Won").length;
+  const losses = results.filter((result) => result.result === "Lost").length;
+  const winRate = results.length ? Math.round((wins / results.length) * 100) : 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Player Games</CardTitle>
+        <Badge variant="cyan">{results.length ? `${winRate}% win rate` : "No games yet"}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {results.slice(0, 6).map((game) => (
+          <div key={game.gameId} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3">
+            <div className="min-w-0">
+              <p className="truncate font-black">{game.opponentName}</p>
+              <p className="truncate text-xs font-semibold text-[#6c5a73]">
+                {game.sourceWeek} - Game {game.gameNumber} - {game.homeTeamName} {game.matchScore} {game.awayTeamName}
+              </p>
+            </div>
+            <Badge variant={game.result === "Won" ? "green" : "red"}>{game.result}</Badge>
+          </div>
+        ))}
+        {results.length === 0 ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            Imported player game results will appear here once this account is linked to player history.
+          </p>
+        ) : null}
+        {results.length ? (
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            <MiniStat label="Played" value={String(results.length)} />
+            <MiniStat label="Won" value={String(wins)} />
+            <MiniStat label="Lost" value={String(losses)} />
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

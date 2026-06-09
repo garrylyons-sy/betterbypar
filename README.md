@@ -28,7 +28,12 @@ NEXT_PUBLIC_SUPABASE_URL=your-supabase-project-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```
 
-Enable Email/Password and Google in Supabase Auth. Set the Google redirect URL to your local app URL during development, for example `http://localhost:3500`.
+Enable Email/Password and Google in Supabase Auth. Set the local app URL during development and the production domain for live use:
+
+```text
+http://localhost:3500
+https://www.interclubsnooker.com
+```
 
 ## Google Login
 
@@ -44,19 +49,41 @@ The app uses Supabase Auth for Google login. The existing golf app credentials c
 https://your-project-ref.supabase.co/auth/v1/callback
 ```
 
-6. In Supabase URL Configuration, allow the app URL:
+6. In Supabase URL Configuration, set the production site URL and allow both local and production redirect URLs:
 
 ```text
+https://www.interclubsnooker.com
 http://localhost:3500
 ```
 
-After that, the app's `Continue with Google` button uses `supabase.auth.signInWithOAuth({ provider: "google" })` and returns the user to the app.
+For production, set the Supabase **Site URL** to:
+
+```text
+https://www.interclubsnooker.com
+```
+
+After that, the app's `Continue with Google` button uses `supabase.auth.signInWithOAuth({ provider: "google" })` and returns the user to the app. When a Google email has one pending invitation, the app automatically claims that invitation and creates the linked player profile.
+
+The seed data includes a real Castle A player invitation for:
+
+```text
+garlyons@gmail.com
+```
+
+That invite grants `Player` access to `Castle A` in `A League`.
 
 ## Database
 
 Apply [supabase/schema.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/schema.sql) to a Supabase project SQL editor or migration pipeline. The schema intentionally keeps roles on `team_membership`, not on `person`, so one person can be a player, manager or assistant manager across different teams and leagues.
 
 Then apply [supabase/seed.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/seed.sql) to create the initial 2026/27 season, leagues, clubs and team entries.
+
+Historical imports live in separate SQL files so they can be applied deliberately:
+
+- [supabase/a_league_2025_26_results.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/a_league_2025_26_results.sql) imports A League 2025/26 team fixtures and match points.
+- [supabase/a_league_2025_26_player_games.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/a_league_2025_26_player_games.sql) imports A League 2025/26 player-v-player game results from `match results 25-26.xlsx`.
+
+Historical player imports create `person.id` records for everyone who appears in match data. They do not create `user_account` rows. A person only gets login access after invitation acceptance or the approved registration flow links that person to a Supabase Auth user.
 
 The account flow is invitation-only. Supabase Auth owns password and Google login, while application identity lives in:
 
@@ -67,7 +94,7 @@ The account flow is invitation-only. Supabase Auth owns password and Google logi
 - `invitation_request` for public player-only invite requests
 - `user_activity_log` for login and page-visit audit events
 
-Use `accept_invitation_for_current_user(invitation_code_input, username_input)` after a user signs up or returns from Google OAuth. Seed data includes example invite structures for Castle A player access and a dual role where one person is Player in Castle A and Manager in Castle B.
+Use `accept_invitation_for_current_user(invitation_code_input, username_input)` after a user signs up or returns from Google OAuth with a code. Use `accept_pending_invitation_for_current_user(username_input)` for Google users who match one pending invite by email. Seed data includes Garry Lyons as a Castle A player, example Castle A player access and a dual role where one person is Player in Castle A and Manager in Castle B.
 
 The public home page supports three paths:
 

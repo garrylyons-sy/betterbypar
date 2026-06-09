@@ -1,4 +1,4 @@
-import type { ClubTeamStructure, Fixture, PlayerStat, Standing, TeamContext } from "@/lib/types";
+import type { ClubTeamStructure, Fixture, PlayerGameResult, PlayerStat, Standing, TeamContext } from "@/lib/types";
 
 export const teamContexts: TeamContext[] = [
   {
@@ -31,6 +31,51 @@ export const recentResults: Fixture[] = [
   { id: "16", opponent: "Milltown A", date: "Thu 19 Feb", venue: "Milltown Golf Club", homeAway: "Away", status: "Completed", score: "4-3", result: "Won" },
   { id: "15", opponent: "Grange A", date: "Thu 05 Feb", venue: "Castle Golf Club", homeAway: "Home", status: "Completed", score: "2-5", result: "Lost" },
   { id: "13", opponent: "Stackstown A", date: "Thu 15 Jan", venue: "Stackstown Golf Club", homeAway: "Away", status: "Completed", score: "0-7", result: "Lost" }
+];
+
+export const playerGameResults: PlayerGameResult[] = [
+  {
+    gameId: "garry-v-john-flavin",
+    playerId: "garry-lyons",
+    opponentId: "john-flavin",
+    opponentName: "John Flavin",
+    result: "Won",
+    sourceWeek: "Week 1",
+    homeTeamName: "Castle A",
+    awayTeamName: "Fitzwilliam A",
+    matchScore: "6-1",
+    gameNumber: 4,
+    gameOrdinal: 5,
+    isDoublesPartnerRow: false
+  },
+  {
+    gameId: "jimmy-harlow-v-garry",
+    playerId: "garry-lyons",
+    opponentId: "jimmy-harlow",
+    opponentName: "Jimmy Harlow",
+    result: "Lost",
+    sourceWeek: "Week 2",
+    homeTeamName: "Newlands A",
+    awayTeamName: "Castle A",
+    matchScore: "2-5",
+    gameNumber: 4,
+    gameOrdinal: 5,
+    isDoublesPartnerRow: false
+  },
+  {
+    gameId: "garry-v-aidan-maher",
+    playerId: "garry-lyons",
+    opponentId: "aidan-maher",
+    opponentName: "Aidan Maher",
+    result: "Won",
+    sourceWeek: "Week 5",
+    homeTeamName: "Castle A",
+    awayTeamName: "Elm Park A",
+    matchScore: "4-3",
+    gameNumber: 4,
+    gameOrdinal: 5,
+    isDoublesPartnerRow: false
+  }
 ];
 
 export const upcomingFixture: Fixture = {
