@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Eye, KeyRound, LogIn, Mail, Send, ShieldCheck, UserPlus } from "lucide-react";
+import { CheckCircle2, Eye, KeyRound, Mail, Send, ShieldCheck, UserPlus } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
+import { AuthSelectField, AuthSignInForm, AuthTextAreaField, AuthTextField, authJsonFetch } from "@/components/auth-controls";
 import { SplashScreen } from "@/components/splash-screen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,17 +52,6 @@ const demoTeamOptions: TeamOption[] = clubTeamStructure.flatMap((club) =>
   }))
 );
 
-async function jsonFetch<T>(url: string, init?: RequestInit) {
-  const response = await fetch(url, {
-    credentials: "same-origin",
-    headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
-    ...init
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || data.message || "Request failed");
-  return data as T;
-}
-
 export function AuthGateway() {
   const [mode, setMode] = useState<AuthMode>("signin");
   const [previewDashboard, setPreviewDashboard] = useState(false);
@@ -74,7 +64,7 @@ export function AuthGateway() {
   const refreshSession = useCallback(async () => {
     setLoading(true);
     try {
-      const payload = await jsonFetch<SessionPayload>("/api/session");
+      const payload = await authJsonFetch<SessionPayload>("/api/session");
       setSession(payload);
       setMessage(payload.error ?? "");
     } catch (error) {
@@ -95,12 +85,12 @@ export function AuthGateway() {
     }
     if (inviteCode) {
       setMode("activate");
-      jsonFetch<{ invitation: ActivationInvite }>(`/api/invitation?code=${encodeURIComponent(inviteCode)}`)
+      authJsonFetch<{ invitation: ActivationInvite }>(`/api/invitation?code=${encodeURIComponent(inviteCode)}`)
         .then(({ invitation }) => setActivationInvite(invitation))
         .catch((error) => setMessage(error instanceof Error ? error.message : "Invitation unavailable."));
     }
 
-    jsonFetch<{ teams: Array<{
+    authJsonFetch<{ teams: Array<{
       club_id: string;
       club_name: string;
       team_id: string;
@@ -254,7 +244,7 @@ function AuthHome({
               ))}
             </div>
             {mode === "signin" ? (
-              <SignInForm onSignedIn={onSignedIn} />
+              <AuthSignInForm onSignedIn={onSignedIn} />
             ) : mode === "activate" ? (
               <ActivateForm invite={activationInvite} onSignedIn={onSignedIn} />
             ) : (
@@ -276,45 +266,6 @@ function AuthFeature({ icon: Icon, label }: { icon: typeof ShieldCheck; label: s
   );
 }
 
-function SignInForm({ onSignedIn }: { onSignedIn: () => void }) {
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  async function signInWithPassword() {
-    setBusy(true);
-    setMessage("");
-    try {
-      await jsonFetch("/api/login", {
-        method: "POST",
-        body: JSON.stringify({ identifier, password })
-      });
-      await onSignedIn();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Login failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="grid gap-3">
-      <TextField label="User ID or email" value={identifier} onChange={setIdentifier} autoComplete="username" />
-      <TextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="current-password" />
-      {message ? <p className="text-sm font-bold text-[#1b8a72]">{message}</p> : null}
-      <Button onClick={signInWithPassword} disabled={busy || !identifier || !password}>
-        <LogIn className="h-4 w-4" />
-        Sign in
-      </Button>
-      <Button variant="secondary" onClick={() => window.location.assign("/auth/google")}>
-        <Mail className="h-4 w-4" />
-        Continue with Google
-      </Button>
-    </div>
-  );
-}
-
 function ActivateForm({ invite, onSignedIn }: { invite: ActivationInvite | null; onSignedIn: () => void }) {
   const [email, setEmail] = useState(invite?.email ?? "");
   const [username, setUsername] = useState("");
@@ -332,7 +283,7 @@ function ActivateForm({ invite, onSignedIn }: { invite: ActivationInvite | null;
     setBusy(true);
     setMessage("");
     try {
-      await jsonFetch("/api/activate", {
+      await authJsonFetch("/api/activate", {
         method: "POST",
         body: JSON.stringify({ email, username, password, invitationCode: invite?.code })
       });
@@ -361,9 +312,9 @@ function ActivateForm({ invite, onSignedIn }: { invite: ActivationInvite | null;
           </div>
         </div>
       ) : null}
-      <TextField label="Email" value={email} onChange={setEmail} type="email" autoComplete="email" disabled={Boolean(invite)} />
-      <TextField label="User ID" value={username} onChange={setUsername} autoComplete="username" />
-      <TextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
+      <AuthTextField label="Email" value={email} onChange={setEmail} type="email" autoComplete="email" disabled={Boolean(invite)} />
+      <AuthTextField label="User ID" value={username} onChange={setUsername} autoComplete="username" />
+      <AuthTextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
       {message ? <p className="text-sm font-bold text-[#10233f]">{message}</p> : null}
       <Button onClick={activateWithPassword} disabled={busy || !email || !username || !password}>
         <UserPlus className="h-4 w-4" />
@@ -405,7 +356,7 @@ function RequestInviteForm({ teamOptions }: { teamOptions: TeamOption[] }) {
     setBusy(true);
     setStatus("");
     try {
-      await jsonFetch("/api/request-invite", {
+      await authJsonFetch("/api/request-invite", {
         method: "POST",
         body: JSON.stringify({ name, email, teamId, message })
       });
@@ -419,10 +370,10 @@ function RequestInviteForm({ teamOptions }: { teamOptions: TeamOption[] }) {
 
   return (
     <div className="grid gap-3">
-      <TextField label="Full name" value={name} onChange={setName} autoComplete="name" />
-      <TextField label="Email" value={email} onChange={setEmail} type="email" autoComplete="email" />
-      <SelectField label="Club" value={clubName} onChange={setClubName} options={clubNames.map((club) => ({ value: club, label: club }))} />
-      <SelectField
+      <AuthTextField label="Full name" value={name} onChange={setName} autoComplete="name" />
+      <AuthTextField label="Email" value={email} onChange={setEmail} type="email" autoComplete="email" />
+      <AuthSelectField label="Club" value={clubName} onChange={setClubName} options={clubNames.map((club) => ({ value: club, label: club }))} />
+      <AuthSelectField
         label="Team"
         value={teamId}
         onChange={setTeamId}
@@ -438,93 +389,13 @@ function RequestInviteForm({ teamOptions }: { teamOptions: TeamOption[] }) {
           Manager access is assigned through backend membership management after verification.
         </p>
       </div>
-      <TextAreaField label="Note to league" value={message} onChange={setMessage} />
+      <AuthTextAreaField label="Note to league" value={message} onChange={setMessage} />
       {status ? <p className="text-sm font-bold text-[#10233f]">{status}</p> : null}
       <Button onClick={submitRequest} disabled={busy || !name || !email || !teamId}>
         <Send className="h-4 w-4" />
         Request player invite
       </Button>
     </div>
-  );
-}
-
-function TextField({
-  label,
-  value,
-  onChange,
-  type = "text",
-  autoComplete,
-  disabled = false
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  autoComplete?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="grid gap-1.5">
-      <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{label}</span>
-      <input
-        className="min-h-11 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        type={type}
-        autoComplete={autoComplete}
-        disabled={disabled}
-      />
-    </label>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  options
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
-}) {
-  return (
-    <label className="grid gap-1.5">
-      <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{label}</span>
-      <select
-        className="min-h-11 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function TextAreaField({
-  label,
-  value,
-  onChange
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid gap-1.5">
-      <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{label}</span>
-      <textarea
-        className="min-h-24 rounded-2xl border border-[#eeeaf2] bg-white px-4 py-3 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
   );
 }
 

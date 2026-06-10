@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, KeyRound, ListChecks, LogIn, PlusCircle, ShieldCheck, Users } from "lucide-react";
+import { Activity, KeyRound, ListChecks, PlusCircle, ShieldCheck, Users } from "lucide-react";
+import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -439,38 +440,9 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
 }
 
 function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
-
-  async function signIn() {
-    setMessage("");
-    try {
-      const response = await fetch("/api/login", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ identifier: email, password })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Sign in failed.");
-      onSignedIn();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Sign in failed.");
-    }
-  }
-
   return (
     <AdminShell title="Admin sign in" subtitle="Use an account that has been granted administrator access.">
-      <div className="grid gap-3">
-        <AdminInput label="Email" value={email} onChange={setEmail} type="email" />
-        <AdminInput label="Password" value={password} onChange={setPassword} type="password" />
-        {message ? <p className="text-sm font-bold text-[#1b8a72]">{message}</p> : null}
-        <Button onClick={signIn}>
-          <LogIn className="h-4 w-4" />
-          Sign in
-        </Button>
-      </div>
+      <AuthSignInForm onSignedIn={onSignedIn} googleNext="/admin" />
     </AdminShell>
   );
 }
