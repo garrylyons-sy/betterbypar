@@ -5,17 +5,17 @@ import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
-async function assertOperator() {
+async function assertAdministrator() {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated.");
   const { rowCount } = await dbQuery("select 1 from public.app_operator where person_id = $1 and active = true limit 1", [user.personId]);
-  if (!rowCount) throw new Error("Operator access is required.");
+  if (!rowCount) throw new Error("Administrator access is required.");
   return user;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const operator = await assertOperator();
+    const administrator = await assertAdministrator();
     const body = await request.json();
     const email = String(body.email ?? "").trim().toLowerCase();
     const name = String(body.name ?? "").trim();
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         `insert into public.invitation (email, invitation_code, invited_person_name, invited_club_id, invited_role, expires_at, status, created_by)
          values ($1, $2, $3, $4, $5, $6, 'Pending', $7)
          returning id, invitation_code`,
-        [email, code, name, clubId, role, expiresAt.toISOString(), operator.personId]
+        [email, code, name, clubId, role, expiresAt.toISOString(), administrator.personId]
       );
 
       await client.query(

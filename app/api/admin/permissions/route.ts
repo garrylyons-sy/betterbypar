@@ -5,16 +5,16 @@ import { dbQuery } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
-async function assertOperator() {
+async function assertAdministrator() {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated.");
   const { rowCount } = await dbQuery("select 1 from public.app_operator where person_id = $1 and active = true limit 1", [user.personId]);
-  if (!rowCount) throw new Error("Operator access is required.");
+  if (!rowCount) throw new Error("Administrator access is required.");
 }
 
 export async function POST(request: Request) {
   try {
-    await assertOperator();
+    await assertAdministrator();
     const body = await request.json();
     const personId = String(body.personId ?? "").trim();
     const teamId = String(body.teamId ?? "").trim();

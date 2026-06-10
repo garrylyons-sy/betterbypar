@@ -148,16 +148,21 @@ function Header({
               Interclub Snooker
             </p>
             <h1 className="truncate text-lg font-black leading-tight">{activeTeam.season}</h1>
+            {userLabel ? (
+              <p className="truncate text-xs font-bold text-white/70 sm:hidden">
+                {userLabel}
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <ContextSwitcher activeTeam={activeTeam} contexts={contexts} onTeamChange={onTeamChange} />
-          <button
-            className="hidden h-11 w-11 place-items-center rounded-full bg-white/10 text-white sm:grid"
-            aria-label={userLabel ? `Signed in as ${userLabel}` : "Open profile"}
-          >
-            <UserCircle className="h-6 w-6" />
-          </button>
+          {userLabel ? (
+            <div className="hidden min-h-11 items-center gap-2 rounded-full bg-white/10 px-3 text-white sm:flex">
+              <UserCircle className="h-5 w-5 shrink-0" />
+              <span className="max-w-[180px] truncate text-sm font-extrabold">{userLabel}</span>
+            </div>
+          ) : null}
         </div>
       </div>
     </header>

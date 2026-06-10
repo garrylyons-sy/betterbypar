@@ -5,21 +5,21 @@ import { dbQuery } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
-async function requireOperator() {
+async function requireAdministrator() {
   const user = await currentUser();
-  if (!user) return { user: null, operator: false };
+  if (!user) return { user: null, administrator: false };
   const { rowCount } = await dbQuery(
     "select 1 from public.app_operator where person_id = $1 and active = true limit 1",
     [user.personId]
   );
-  return { user, operator: Boolean(rowCount) };
+  return { user, administrator: Boolean(rowCount) };
 }
 
 export async function GET() {
   try {
-    const { user, operator } = await requireOperator();
-    if (!user) return NextResponse.json({ authenticated: false, operator: false }, { status: 401 });
-    if (!operator) return NextResponse.json({ authenticated: true, operator: false }, { status: 403 });
+    const { user, administrator } = await requireAdministrator();
+    if (!user) return NextResponse.json({ authenticated: false, administrator: false }, { status: 401 });
+    if (!administrator) return NextResponse.json({ authenticated: true, administrator: false, user }, { status: 403 });
 
     const [teams, peopleResult, logsResult, requestsResult] = await Promise.all([
       loadTeamOptions(),
@@ -56,7 +56,8 @@ export async function GET() {
 
     return NextResponse.json({
       authenticated: true,
-      operator: true,
+      administrator: true,
+      user,
       teams,
       people: peopleResult.rows,
       logs: logsResult.rows.map((row) => ({

@@ -38,6 +38,10 @@ type InviteRequestRow = {
   message: string | null;
   created_at: string;
 };
+type AdminUser = {
+  email: string;
+  name: string;
+};
 
 const roles: Role[] = ["Player", "Manager", "Assistant Manager"];
 const demoTeams: TeamOption[] = clubTeamStructure.flatMap((club) =>
@@ -78,7 +82,8 @@ export function AdminConsole() {
   const [tab, setTab] = useState<AdminTab>("invites");
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [operator, setOperator] = useState(false);
+  const [administrator, setAdministrator] = useState(false);
+  const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [message, setMessage] = useState("");
   const [teams, setTeams] = useState<TeamOption[]>(demoTeams);
   const [people, setPeople] = useState<PersonOption[]>(demoPeople);
@@ -95,7 +100,11 @@ export function AdminConsole() {
       const response = await fetch("/api/admin", { credentials: "same-origin" });
       const data = await response.json().catch(() => ({}));
       setAuthenticated(Boolean(data.authenticated));
-      setOperator(Boolean(data.operator));
+      setAdministrator(Boolean(data.administrator));
+      setAdminUser(data.user ? {
+        email: data.user.email ?? "",
+        name: data.user.name ?? data.user.email ?? "Signed in"
+      } : null);
 
       if (response.ok) {
         setTeams((data.teams ?? []).map((team: { team_id: string; team_name: string; club_name: string; league_name: string }) => ({
@@ -133,12 +142,12 @@ export function AdminConsole() {
     return <AdminLogin onSignedIn={refreshAdminData} />;
   }
 
-  if (!operator) {
-    return <AdminShell title="No operator access" subtitle="Your account is signed in, but it has not been marked for league operations in app_operator." />;
+  if (!administrator) {
+    return <AdminShell title="No administrator access" subtitle="Your account is signed in, but it has not been granted administrator access." />;
   }
 
   return (
-    <AdminLayout tab={tab} setTab={setTab} message={message}>
+    <AdminLayout tab={tab} setTab={setTab} message={message} adminUser={adminUser}>
       <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} onMessage={setMessage} onRefresh={refreshAdminData} />
     </AdminLayout>
   );
@@ -148,11 +157,13 @@ function AdminLayout({
   tab,
   setTab,
   message,
+  adminUser,
   children
 }: {
   tab: AdminTab;
   setTab: (tab: AdminTab) => void;
   message: string;
+  adminUser: AdminUser | null;
   children: React.ReactNode;
 }) {
   return (
@@ -163,7 +174,10 @@ function AdminLayout({
             <p className="text-xs font-extrabold uppercase text-white/65">League operations</p>
             <h1 className="text-2xl font-black leading-tight">Admin console</h1>
           </div>
-          <Badge variant="cyan">Private</Badge>
+          <div className="flex flex-col items-end gap-1">
+            <Badge variant="cyan">Administrator</Badge>
+            {adminUser ? <p className="max-w-[220px] truncate text-sm font-extrabold text-white/80">{adminUser.name}</p> : null}
+          </div>
         </div>
       </header>
       <section className="mx-auto grid w-full max-w-[1180px] min-w-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:px-10">
@@ -345,7 +359,7 @@ function PermissionsPanel({
       <Card className="min-w-0">
         <CardHeader>
           <CardTitle>Admin access</CardTitle>
-          <Badge variant="cyan">Operators</Badge>
+          <Badge variant="cyan">Administrators</Badge>
         </CardHeader>
         <CardContent className="grid gap-3">
           <AdminSelect
@@ -358,7 +372,7 @@ function PermissionsPanel({
             }))}
           />
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-            Admin access lets a logged-in player open the admin console, create invites, set permissions and view logs.
+            Administrator access lets any logged-in person open the admin console, create invites, set permissions and view logs.
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             <Button onClick={() => savePermission({ permissionType: "admin", personId: adminPersonId, active: true }, "Admin access granted.")}>
@@ -447,7 +461,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   }
 
   return (
-    <AdminShell title="Admin sign in" subtitle="Use an operator-marked account.">
+    <AdminShell title="Admin sign in" subtitle="Use an account that has been granted administrator access.">
       <div className="grid gap-3">
         <AdminInput label="Email" value={email} onChange={setEmail} type="email" />
         <AdminInput label="Password" value={password} onChange={setPassword} type="password" />

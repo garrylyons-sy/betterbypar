@@ -161,12 +161,12 @@ export function AuthGateway() {
     if (contexts.length > 0) {
       return (
         <>
-          {message ? <SessionBanner message={message} label={session.user?.email ?? "Signed in"} /> : null}
+          {message ? <SessionBanner message={message} label={session.user?.name ?? session.user?.email ?? "Signed in"} /> : null}
           <AppShell
             contexts={contexts}
             standingsData={session.standings ?? []}
             playerGameResults={session.playerGameResults ?? []}
-            userLabel={session.user?.email ?? "Signed in"}
+            userLabel={session.user?.name ?? session.user?.email ?? "Signed in"}
             onSignOut={signOut}
             onPageVisit={recordPageVisit}
           />
@@ -174,7 +174,7 @@ export function AuthGateway() {
       );
     }
 
-    return <NoMemberships email={session.user?.email ?? "Signed in"} onSignOut={signOut} />;
+    return <NoMemberships email={session.user?.name ?? session.user?.email ?? "Signed in"} onSignOut={signOut} />;
   }
 
   return (
