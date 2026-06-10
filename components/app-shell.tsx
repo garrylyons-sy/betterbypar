@@ -252,7 +252,7 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
               <p className="mt-5 text-xs font-extrabold uppercase tracking-wide text-white/70">
                 {clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
               </p>
-              <h2 className="mt-1 truncate text-4xl font-black leading-none sm:text-5xl xl:text-6xl">{activeTeam.name}</h2>
+              <h2 className="mt-1 text-4xl font-black leading-none sm:text-5xl xl:text-6xl">{activeTeam.name}</h2>
               <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
             </div>
           </div>
@@ -919,8 +919,8 @@ function LeagueTable({ activeTeam, standingsData = standings }: { activeTeam: Te
         </div>
       </CardHeader>
       <CardContent>
-        <div className="max-h-[520px] overflow-auto">
-          <table className="w-full border-separate border-spacing-0 text-left text-sm lg:text-[13px] xl:text-sm">
+        <div className="-mx-2 overflow-x-auto px-2">
+          <table className="w-full min-w-[420px] border-separate border-spacing-0 text-left text-sm lg:min-w-0 lg:text-[13px] xl:text-sm">
             <thead className="sticky top-0 z-10 bg-white text-xs uppercase text-[#6c5a73]">
               <tr>
                 <th className="py-2 pr-2">Pos</th>
