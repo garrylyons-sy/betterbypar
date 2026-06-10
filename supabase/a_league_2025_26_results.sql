@@ -2,7 +2,7 @@
 -- Regular season only; the two semi-finals and final are intentionally excluded.
 
 insert into public.season (name, starts_on, ends_on, active)
-values ('2025/26', '2025-10-01', '2026-03-31', false)
+values ('2025/26', '2025-09-01', '2026-03-31', false)
 on conflict (name) do update
 set starts_on = excluded.starts_on,
     ends_on = excluded.ends_on;

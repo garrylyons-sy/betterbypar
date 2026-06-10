@@ -48,7 +48,7 @@ const demoTeamOptions: TeamOption[] = clubTeamStructure.flatMap((club) =>
     teamId: team,
     teamName: team,
     leagueName: team.endsWith("B") ? "B League" : team.endsWith("C") ? "C League" : "A League",
-    seasonName: "2026/27"
+    seasonName: "Club setup"
   }))
 );
 

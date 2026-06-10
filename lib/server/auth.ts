@@ -618,6 +618,7 @@ export async function loadSessionPayload(user: AppUser) {
      join public.league l on l.id = ltv.league_id
      join public.season s on s.id = ltv.season_id
      join relevant_competitions rc on rc.league_id = ltv.league_id and rc.season_id = ltv.season_id
+     where ltv.matches_played > 0
      order by s.name desc, l.name, ltv.position`,
     [user.personId]
   )).rows.map((row) => ({

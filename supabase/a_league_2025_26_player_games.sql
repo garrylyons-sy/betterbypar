@@ -5,7 +5,7 @@
 -- It deliberately does not create user_account rows; logins are only created through invitation activation or approved registration.
 
 insert into public.season (name, starts_on, ends_on, active)
-values ('2025/26', '2025-09-01', '2026-05-31', false)
+values ('2025/26', '2025-09-01', '2026-03-31', false)
 on conflict (name) do update
 set starts_on = excluded.starts_on,
     ends_on = excluded.ends_on;

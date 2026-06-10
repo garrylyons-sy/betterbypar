@@ -87,7 +87,7 @@ export function AppShell({
   );
   const activeStandings = useMemo(() => {
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
-    return filtered.length ? filtered : standings;
+    return filtered.length ? filtered : standingsData === standings ? standings : [];
   }, [activeTeam.league, activeTeam.season, standingsData]);
 
   useEffect(() => {
@@ -951,8 +951,8 @@ function ManagerSeasonSnapshot({ activeTeam = teamContexts[0] }: { activeTeam?: 
   );
 }
 
-function LeagueTable({ activeTeam, standingsData = standings }: { activeTeam: TeamContext; standingsData?: Standing[] }) {
-  const tableRows = standingsData.length ? standingsData : standings;
+function LeagueTable({ activeTeam, standingsData }: { activeTeam: TeamContext; standingsData?: Standing[] }) {
+  const tableRows = standingsData ?? standings;
 
   return (
     <Card className="min-w-0">
@@ -964,6 +964,14 @@ function LeagueTable({ activeTeam, standingsData = standings }: { activeTeam: Te
         </div>
       </CardHeader>
       <CardContent>
+        {tableRows.length === 0 ? (
+          <div className="rounded-2xl bg-[#f7f5fa] p-4">
+            <p className="text-sm font-black text-[#10233f]">No league table yet</p>
+            <p className="mt-1 text-sm font-semibold text-[#6c5a73]">
+              {activeTeam.season} has no results or standings data yet.
+            </p>
+          </div>
+        ) : (
         <div className="w-full overflow-visible">
           <table className="w-full border-separate border-spacing-0 text-left text-sm lg:text-[13px] xl:text-sm">
             <thead className="sticky top-0 z-10 bg-white text-xs uppercase text-[#6c5a73]">
@@ -1017,6 +1025,7 @@ function LeagueTable({ activeTeam, standingsData = standings }: { activeTeam: Te
             </tbody>
           </table>
         </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1050,7 +1059,7 @@ function ClubTeamStructureCard() {
     <Card>
       <CardHeader>
         <CardTitle>Club Teams</CardTitle>
-        <Badge variant="cyan">2026/27</Badge>
+        <Badge variant="cyan">Setup</Badge>
       </CardHeader>
       <CardContent className="space-y-2">
         {clubTeamStructure.map((club) => (
