@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { createToken, currentUser } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
@@ -13,7 +13,7 @@ async function assertOperator() {
   return user;
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const operator = await assertOperator();
     const body = await request.json();
@@ -48,7 +48,12 @@ export async function POST(request: Request) {
       return invitationResult.rows[0];
     });
 
-    return NextResponse.json({ ok: true, invitation_code: invitation.invitation_code });
+    const activationUrl = new URL(`/activate?invite=${encodeURIComponent(invitation.invitation_code)}`, request.url);
+    return NextResponse.json({
+      ok: true,
+      invitation_code: invitation.invitation_code,
+      activation_url: activationUrl.toString()
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not create invite." },

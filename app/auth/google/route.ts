@@ -12,7 +12,11 @@ export async function GET(request: NextRequest) {
 
   const state = createToken(24);
   const nextPath = request.nextUrl.searchParams.get("next") || "/";
-  await setOAuthCookies(state, nextPath);
+  const inviteFromNext = nextPath.startsWith("/")
+    ? new URL(nextPath, request.url).searchParams.get("invite")
+    : null;
+  const invitationCode = request.nextUrl.searchParams.get("invite") || inviteFromNext;
+  await setOAuthCookies(state, nextPath, invitationCode);
 
   const params = new URLSearchParams({
     client_id: clientId,

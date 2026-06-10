@@ -72,14 +72,14 @@ export function AppShell({
   }, [activePage, activeTeam, onPageVisit]);
 
   return (
-    <main className="min-h-screen app-bg pb-24 text-[#25002b]">
-      <Header activeTeam={activeTeam} contexts={contexts} onTeamChange={setSelectedId} userLabel={userLabel} onSignOut={onSignOut} />
-      <section className="mx-auto flex w-full max-w-[1180px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:grid-cols-[260px_minmax(0,1fr)_340px] lg:gap-5 lg:px-10">
+    <main className="min-h-screen app-bg pb-24 text-[#10233f]">
+      <Header activeTeam={activeTeam} contexts={contexts} onTeamChange={setSelectedId} userLabel={userLabel} />
+      <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)_380px] lg:items-start lg:gap-6 lg:px-8 xl:grid-cols-[230px_minmax(0,1fr)_400px] xl:px-10">
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} />
         <div className="grid gap-4">
           <MatchdayHero activeTeam={activeTeam} />
           <QuickTabs activePage={activePage} onNavigate={setActivePage} />
-          <PageContent activePage={activePage} activeTeam={activeTeam} playerGameResults={playerGameResults} />
+          <PageContent activePage={activePage} activeTeam={activeTeam} playerGameResults={playerGameResults} onSignOut={onSignOut} userLabel={userLabel} />
         </div>
         <aside className="grid gap-4 lg:content-start">
           <LeagueTable activeTeam={activeTeam} />
@@ -95,11 +95,15 @@ export function AppShell({
 function PageContent({
   activePage,
   activeTeam,
-  playerGameResults
+  playerGameResults,
+  onSignOut,
+  userLabel
 }: {
   activePage: AppPage;
   activeTeam: TeamContext;
   playerGameResults: PlayerGameResult[];
+  onSignOut?: () => void;
+  userLabel?: string;
 }) {
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Fixtures") return <FixturesPage />;
@@ -107,7 +111,7 @@ function PageContent({
   if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} />;
   if (activePage === "Players") return <PlayersPage playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
-  if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} />;
+  if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activeTeam.role === "Manager") return <ManagerHome />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />;
@@ -117,20 +121,18 @@ function Header({
   activeTeam,
   contexts,
   userLabel,
-  onSignOut,
   onTeamChange
 }: {
   activeTeam: TeamContext;
   contexts: TeamContext[];
   userLabel?: string;
-  onSignOut?: () => void;
   onTeamChange: (id: string) => void;
 }) {
   return (
-    <header className="sticky top-0 z-30 bg-[#37003c] px-4 py-3 text-white shadow-elevated sm:px-6 lg:px-10">
-      <div className="mx-auto flex max-w-[1180px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <header className="sticky top-0 z-30 bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6 lg:px-10">
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-base font-black text-[#37003c]">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-base font-black text-[#10233f]">
             IS
           </div>
           <div className="min-w-0">
@@ -142,23 +144,12 @@ function Header({
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           <ContextSwitcher activeTeam={activeTeam} contexts={contexts} onTeamChange={onTeamChange} />
-          {onSignOut ? (
-            <button
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10 text-white ring-1 ring-white/15"
-              aria-label={`Sign out ${userLabel ?? "user"}`}
-              title="Sign out"
-              onClick={onSignOut}
-            >
-              <LogOut className="h-5 w-5" />
-            </button>
-          ) : (
-            <button
-              className="hidden h-11 w-11 place-items-center rounded-full bg-white/10 text-white sm:grid"
-              aria-label="Open profile"
-            >
-              <UserCircle className="h-6 w-6" />
-            </button>
-          )}
+          <button
+            className="hidden h-11 w-11 place-items-center rounded-full bg-white/10 text-white sm:grid"
+            aria-label={userLabel ? `Signed in as ${userLabel}` : "Open profile"}
+          >
+            <UserCircle className="h-6 w-6" />
+          </button>
         </div>
       </div>
     </header>
@@ -188,17 +179,17 @@ function ContextSwitcher({
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-[#37003c]" />
+      <ChevronDown className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-[#10233f]" />
     </label>
   );
 }
 
 function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamContext; activePage: AppPage; onNavigate: (page: AppPage) => void }) {
   return (
-    <aside className="hidden rounded-[18px] bg-[#37003c] p-4 text-white shadow-elevated lg:block">
+    <aside className="hidden self-start rounded-[18px] bg-[#10233f] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block">
       <p className="text-xs font-extrabold uppercase text-white/60">Competition</p>
       <h2 className="mt-1 text-2xl font-black">{activeTeam.league}</h2>
-      <div className="mt-4 space-y-2">
+      <div className="mt-5 space-y-1.5">
         {navItems.map((item, index) => {
           const Icon = item.icon;
           return (
@@ -206,8 +197,8 @@ function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamC
               key={item.label}
               onClick={() => onNavigate(item.label)}
               className={cn(
-                "flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-sm font-extrabold text-white/80",
-                activePage === item.label && "bg-white text-[#37003c]"
+                "flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-extrabold text-white/80 transition-colors hover:bg-white/10",
+                activePage === item.label && "bg-white text-[#10233f]"
               )}
             >
               <Icon className="h-5 w-5" />
@@ -225,40 +216,42 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
   const clubMember = activeTeam.role === "Club Member";
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
   const panelStyle = {
-    background: `linear-gradient(135deg, ${activeTeam.primaryColor} 0%, #37003c 52%, #e90052 100%)`
+    background:
+      `radial-gradient(circle at 16% 20%, ${activeTeam.primaryColor}55, transparent 11rem), ` +
+      "linear-gradient(135deg, #071426 0%, #10233f 62%, #071b24 100%)"
   };
 
   return (
-    <section className="overflow-hidden rounded-[18px] text-white shadow-live">
-      <div className="relative p-4 sm:p-6" style={panelStyle}>
+    <section className="overflow-hidden rounded-[18px] text-white shadow-card">
+      <div className="relative p-4 sm:p-5 xl:p-6" style={panelStyle}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
-        <div className="relative grid gap-5 sm:grid-cols-[1fr_auto] sm:items-end">
-          <div className="flex items-start gap-3">
+        <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] xl:items-end">
+          <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white p-2 shadow-card ring-1 ring-white/40 sm:h-20 sm:w-20">
               <img src={activeTeam.logoPath} alt={`${activeTeam.club} logo`} className="max-h-full max-w-full object-contain" />
             </div>
             <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="cyan">{activeTeam.role}</Badge>
-              <Badge variant="muted">{activeTeam.league}</Badge>
-              <Badge variant={hasLeagueTable && activeTeam.leaguePosition === 1 ? "gold" : hasLeagueTable ? "green" : "muted"}>
-                {hasLeagueTable ? `Position ${activeTeam.leaguePosition}` : "Table pending"}
-              </Badge>
-            </div>
-            <p className="mt-5 text-xs font-extrabold uppercase tracking-wide text-white/70">
-              {clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
-            </p>
-            <h2 className="mt-1 text-4xl font-black leading-none sm:text-5xl">{activeTeam.name}</h2>
-            <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="cyan">{activeTeam.role}</Badge>
+                <Badge variant="muted">{activeTeam.league}</Badge>
+                <Badge variant={hasLeagueTable && activeTeam.leaguePosition === 1 ? "gold" : hasLeagueTable ? "green" : "muted"}>
+                  {hasLeagueTable ? `Position ${activeTeam.leaguePosition}` : "Table pending"}
+                </Badge>
+              </div>
+              <p className="mt-5 text-xs font-extrabold uppercase tracking-wide text-white/70">
+                {clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
+              </p>
+              <h2 className="mt-1 truncate text-4xl font-black leading-none sm:text-5xl xl:text-6xl">{activeTeam.name}</h2>
+              <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2 sm:w-[310px]">
+          <div className="grid grid-cols-3 gap-2">
             <HeroMetric label="Played" value="16" />
             <HeroMetric label="Won" value="10" />
             <HeroMetric label="Pts" value="56" />
           </div>
         </div>
-        <div className="relative mt-5 grid grid-cols-2 gap-2">
+        <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
           <Button className="w-full">
             <PlusCircle className="h-4 w-4" />
             {clubMember ? "Book table" : manager ? "Enter result" : "View stats"}
@@ -275,16 +268,16 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
 
 function QuickTabs({ activePage, onNavigate }: { activePage: AppPage; onNavigate: (page: AppPage) => void }) {
   return (
-    <div className="w-full max-w-full overflow-x-auto">
-      <div className="flex min-w-max gap-2">
+    <div className="w-full max-w-full overflow-x-auto lg:overflow-visible">
+      <div className="flex min-w-max gap-2 lg:grid lg:min-w-0 lg:grid-cols-6">
         {quickTabs.map((tab) => (
           <button
             key={tab}
             onClick={() => onNavigate(tab)}
             className={cn(
-              "min-h-11 rounded-full px-5 text-sm font-extrabold",
+              "min-h-11 rounded-full px-5 text-sm font-extrabold lg:px-3",
               activePage === tab
-                ? "bg-[#37003c] text-white shadow-card"
+                ? "bg-[#10233f] text-white shadow-card"
                 : "bg-[#eeeaf2] text-[#25002b]"
             )}
           >
@@ -463,7 +456,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
       </Card>
 
       {message ? (
-        <div className="rounded-[18px] bg-white p-4 text-sm font-extrabold text-[#e90052] shadow-card">
+        <div className="rounded-[18px] bg-white p-4 text-sm font-extrabold text-[#1b8a72] shadow-card">
           {message}
         </div>
       ) : null}
@@ -507,7 +500,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
                           </div>
                           {booking.canCancel ? (
                             <Button variant="ghost" size="icon" onClick={() => cancelBooking(booking)} disabled={busy} aria-label={`Cancel ${table.tableName} at ${startTime}`}>
-                              <XCircle className="h-5 w-5 text-[#e90052]" />
+                              <XCircle className="h-5 w-5 text-[#1b8a72]" />
                             </Button>
                           ) : null}
                         </div>
@@ -557,7 +550,7 @@ function BookingsSkeleton() {
 
 function PlayerHome({ activeTeam, playerGameResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[] }) {
   return (
-    <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
       <PlayerStatCard />
       <SeasonCompleteCard action="View results" />
       <RecentResults />
@@ -636,7 +629,7 @@ function StatsPage({ activeTeam, playerGameResults }: { activeTeam: TeamContext;
   );
 }
 
-function MessagesPage({ activeTeam, compact = false }: { activeTeam: TeamContext; compact?: boolean }) {
+function MessagesPage({ activeTeam, compact = false, onSignOut, userLabel }: { activeTeam: TeamContext; compact?: boolean; onSignOut?: () => void; userLabel?: string }) {
   return (
     <Card className={compact ? "" : "md:max-w-xl"}>
       <CardHeader>
@@ -652,6 +645,16 @@ function MessagesPage({ activeTeam, compact = false }: { activeTeam: TeamContext
           <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Team notice</p>
           <p className="mt-1 font-black">Manager and club messages are coming next.</p>
         </div>
+        {onSignOut ? (
+          <div className="rounded-xl bg-[#f7f5fa] p-3">
+            <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Account</p>
+            <p className="mt-1 truncate text-sm font-bold text-[#6c5a73]">{userLabel ?? "Signed in"}</p>
+            <Button variant="dark" className="mt-3 w-full" onClick={onSignOut}>
+              <LogOut className="h-4 w-4" />
+              Log out
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -676,13 +679,13 @@ function PlayerStatCard() {
         <Badge variant="green">W W W L L</Badge>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] bg-[#37003c] p-4 text-white">
+        <div className="rounded-[18px] bg-[#10233f] p-4 text-white">
           <p className="text-xs font-extrabold uppercase text-white/65">Points won</p>
           <p className="mt-1 text-6xl font-black leading-none">56</p>
           <div className="mt-4 grid grid-cols-3 gap-2">
             <MiniStat label="Win rate" value="63%" dark />
             <MiniStat label="Played" value="16" dark />
-            <MiniStat label="Pts against" value="56" dark />
+            <MiniStat label="Against" value="56" dark />
           </div>
         </div>
       </CardContent>
@@ -703,10 +706,10 @@ function SeasonCompleteCard({ action }: { action: string }) {
             <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Castle</p>
             <p className="mt-1 text-lg font-black">A</p>
           </div>
-          <span className="rounded-full bg-[#37003c] px-3 py-1 text-xs font-black text-white">4th</span>
+          <span className="rounded-full bg-[#10233f] px-3 py-1 text-xs font-black text-white">4th</span>
           <div className="text-right">
             <p className="text-xs font-extrabold uppercase text-[#6c5a73]">A League</p>
-            <p className="mt-1 text-lg font-black">56 pts</p>
+            <p className="mt-1 text-lg font-black leading-tight">56 pts</p>
           </div>
         </div>
         <p className="mt-3 text-sm font-semibold text-[#6c5a73]">{upcomingFixture.date}</p>
@@ -812,7 +815,7 @@ function TeamPositionStrip({ activeTeam }: { activeTeam: TeamContext }) {
 
 function ManagerActionCard() {
   return (
-    <Card className="border-[#e90052]/20">
+    <Card className="border-[#1b8a72]/20">
       <CardHeader>
         <CardTitle>Actions</CardTitle>
         <Badge variant="red">
@@ -842,7 +845,7 @@ function ScoreCard() {
         <Badge variant="muted">Completed</Badge>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] bg-[#37003c] p-4 text-white">
+        <div className="rounded-[18px] bg-[#10233f] p-4 text-white">
           <ScoreRow team="Castle A" score="4" winner />
           <ScoreRow team="Elm Park A" score="3" />
         </div>
@@ -895,7 +898,7 @@ function LeagueTable({ activeTeam }: { activeTeam: TeamContext }) {
       </CardHeader>
       <CardContent>
         <div className="max-h-[520px] overflow-auto">
-          <table className="w-full border-separate border-spacing-0 text-left text-sm">
+          <table className="w-full border-separate border-spacing-0 text-left text-sm lg:text-[13px] xl:text-sm">
             <thead className="sticky top-0 z-10 bg-white text-xs uppercase text-[#6c5a73]">
               <tr>
                 <th className="py-2 pr-2">Pos</th>
@@ -927,7 +930,7 @@ function LeagueTable({ activeTeam }: { activeTeam: TeamContext }) {
                           "inline-grid h-8 w-8 place-items-center rounded-full text-xs font-black",
                           row.position === 1
                             ? "bg-[#ffb000] text-[#25002b]"
-                            : row.position <= 3
+                            : row.position <= 4
                               ? "bg-[#00ff85] text-[#25002b]"
                               : "bg-[#eeeaf2] text-[#25002b]"
                         )}
@@ -935,7 +938,7 @@ function LeagueTable({ activeTeam }: { activeTeam: TeamContext }) {
                         {row.position}
                       </span>
                     </td>
-                    <td className="border-t border-[#eeeaf2] px-2 font-black">{row.team}</td>
+                    <td className="whitespace-nowrap border-t border-[#eeeaf2] px-2 font-black">{row.team}</td>
                     <td className="border-t border-[#eeeaf2] px-2 text-right font-bold">{row.played}</td>
                     <td className="hidden border-t border-[#eeeaf2] px-2 text-right font-bold sm:table-cell">{row.won}</td>
                     <td className="hidden border-t border-[#eeeaf2] px-2 text-right font-bold sm:table-cell">{row.lost}</td>
@@ -997,7 +1000,7 @@ function ClubTeamStructureCard() {
             <div className="mt-2 h-1.5 rounded-full" style={{ backgroundColor: club.primaryColor }} />
             <div className="mt-2 flex flex-wrap gap-1.5">
               {club.teams.map((team) => (
-                <span key={team} className="rounded-full bg-white px-2 py-1 text-xs font-extrabold text-[#37003c] ring-1 ring-[#eeeaf2]">
+                <span key={team} className="rounded-full bg-white px-2 py-1 text-xs font-extrabold text-[#10233f] ring-1 ring-[#eeeaf2]">
                   {team}
                 </span>
               ))}
@@ -1011,7 +1014,7 @@ function ClubTeamStructureCard() {
 
 function HeroMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white/14 p-3 ring-1 ring-white/20 backdrop-blur">
+    <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur">
       <p className="text-xs font-extrabold uppercase text-white/65">{label}</p>
       <p className="mt-1 text-3xl font-black leading-none text-white">{value}</p>
     </div>
@@ -1020,9 +1023,9 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
 
 function MiniStat({ label, value, dark = false }: { label: string; value: string; dark?: boolean }) {
   return (
-    <div className={cn("rounded-xl p-3", dark ? "bg-white/10" : "bg-[#f7f5fa]")}>
+    <div className={cn("min-w-0 rounded-xl p-3", dark ? "bg-white/10" : "bg-[#f7f5fa]")}>
       <p className={cn("text-xs font-extrabold uppercase", dark ? "text-white/60" : "text-[#6c5a73]")}>{label}</p>
-      <p className={cn("mt-1 text-xl font-black", dark ? "text-white" : "text-[#25002b]")}>{value}</p>
+      <p className={cn("mt-1 truncate text-xl font-black", dark ? "text-white" : "text-[#10233f]")}>{value}</p>
     </div>
   );
 }
@@ -1040,7 +1043,7 @@ function BottomNav({ activePage, onNavigate }: { activePage: AppPage; onNavigate
               aria-current={activePage === item.label ? "page" : undefined}
               className={cn(
                 "flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs font-extrabold text-[#6c5a73]",
-                activePage === item.label && "bg-[#37003c] text-white shadow-card"
+                activePage === item.label && "bg-[#10233f] text-white shadow-card"
               )}
             >
               <Icon className="h-5 w-5" />

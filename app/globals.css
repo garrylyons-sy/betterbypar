@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  --pl-deep-purple: #37003c;
-  --pl-dark-purple: #2a0030;
-  --pl-purple-900: #1e0024;
+  --pl-deep-purple: #10233f;
+  --pl-dark-purple: #071426;
+  --pl-purple-900: #071426;
   --pl-electric-purple: #963cff;
-  --pl-magenta: #e90052;
+  --pl-magenta: #1b8a72;
   --pl-lime: #00ff85;
   --pl-cyan: #04f5ff;
   --pl-white: #ffffff;
@@ -18,16 +18,16 @@
   --pl-muted-text: #6c5a73;
   --pl-success: #00a85a;
   --pl-warning: #ffb000;
-  --pl-danger: #e90052;
-  --gradient-primary: linear-gradient(135deg, #37003c 0%, #963cff 55%, #e90052 100%);
-  --gradient-live: linear-gradient(135deg, #e90052 0%, #963cff 100%);
+  --pl-danger: #1b8a72;
+  --gradient-primary: linear-gradient(135deg, #071426 0%, #10233f 58%, #071b24 100%);
+  --gradient-live: linear-gradient(135deg, #10233f 0%, #1b8a72 100%);
   --gradient-success: linear-gradient(135deg, #00ff85 0%, #04f5ff 100%);
-  --gradient-dark: linear-gradient(180deg, #37003c 0%, #1e0024 100%);
+  --gradient-dark: linear-gradient(180deg, #10233f 0%, #071426 100%);
   --background: 282 38% 97%;
   --foreground: 291 100% 8%;
   --card: 0 0% 100%;
   --card-foreground: 291 100% 8%;
-  --primary: 339 100% 46%;
+  --primary: 165 67% 32%;
   --primary-foreground: 0 0% 100%;
   --muted: 270 21% 93%;
   --muted-foreground: 288 12% 40%;
@@ -52,15 +52,15 @@ body {
 
 .app-bg {
   background:
-    linear-gradient(180deg, rgba(55, 0, 60, 0.12) 0, rgba(247, 245, 250, 0) 210px),
+    linear-gradient(180deg, rgba(16, 35, 63, 0.12) 0, rgba(247, 245, 250, 0) 210px),
     var(--pl-off-white);
 }
 
 .matchday-gradient {
   background:
-    radial-gradient(circle at 86% 8%, rgba(4, 245, 255, 0.36), transparent 8rem),
-    radial-gradient(circle at 6% 88%, rgba(0, 255, 133, 0.24), transparent 9rem),
-    linear-gradient(135deg, #37003c 0%, #963cff 54%, #e90052 100%);
+    radial-gradient(circle at 86% 8%, rgba(123, 199, 214, 0.22), transparent 8rem),
+    radial-gradient(circle at 6% 88%, rgba(27, 138, 114, 0.18), transparent 9rem),
+    linear-gradient(135deg, #071426 0%, #10233f 58%, #071b24 100%);
 }
 
 .splash-navy-gradient {

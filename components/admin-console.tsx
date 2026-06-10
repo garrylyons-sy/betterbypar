@@ -155,7 +155,7 @@ function AdminLayout({
 }) {
   return (
     <main className="min-h-screen bg-[#f7f5fa] text-[#25002b]">
-      <header className="bg-[#37003c] px-4 py-5 text-white shadow-elevated sm:px-6 lg:px-10">
+      <header className="bg-[#10233f] px-4 py-5 text-white shadow-elevated sm:px-6 lg:px-10">
         <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-4">
           <div>
             <p className="text-xs font-extrabold uppercase text-white/65">League operations</p>
@@ -176,7 +176,7 @@ function AdminLayout({
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-sm font-black ${tab === item.id ? "bg-[#37003c] text-white" : "text-[#25002b]"}`}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-sm font-black ${tab === item.id ? "bg-[#10233f] text-white" : "text-[#25002b]"}`}
               >
                 <Icon className="h-5 w-5" />
                 {item.label}
@@ -242,7 +242,7 @@ function InvitesPanel({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not create invite.");
-      onMessage(data.invitation_code ? `Invite created: ${data.invitation_code}` : "Invite created.");
+      onMessage(data.activation_url ? `Invite created: ${data.activation_url}` : data.invitation_code ? `Invite created: ${data.invitation_code}` : "Invite created.");
       onRefresh();
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not create invite.");
@@ -369,7 +369,7 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
               </div>
               <span className="text-right text-xs font-bold text-[#6c5a73]">{new Date(log.created_at).toLocaleString()}</span>
             </div>
-            <p className="mt-2 text-sm font-bold text-[#37003c]">{log.page_label ?? log.page_path ?? "Session"}</p>
+            <p className="mt-2 text-sm font-bold text-[#10233f]">{log.page_label ?? log.page_path ?? "Session"}</p>
             <p className="mt-1 truncate text-xs font-semibold text-[#6c5a73]">{JSON.stringify(log.metadata)}</p>
           </div>
         ))}
@@ -405,7 +405,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
       <div className="grid gap-3">
         <AdminInput label="Email" value={email} onChange={setEmail} type="email" />
         <AdminInput label="Password" value={password} onChange={setPassword} type="password" />
-        {message ? <p className="text-sm font-bold text-[#e90052]">{message}</p> : null}
+        {message ? <p className="text-sm font-bold text-[#1b8a72]">{message}</p> : null}
         <Button onClick={signIn}>
           <LogIn className="h-4 w-4" />
           Sign in
@@ -436,7 +436,7 @@ function AdminInput({ label, value, onChange, type = "text" }: { label: string; 
   return (
     <label className="grid min-w-0 gap-1.5">
       <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{label}</span>
-      <input className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#04f5ff]" value={value} onChange={(event) => onChange(event.target.value)} type={type} />
+      <input className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)} type={type} />
     </label>
   );
 }
@@ -445,7 +445,7 @@ function AdminSelect({ label, value, onChange, options }: { label: string; value
   return (
     <label className="grid min-w-0 gap-1.5">
       <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{label}</span>
-      <select className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#04f5ff]" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}

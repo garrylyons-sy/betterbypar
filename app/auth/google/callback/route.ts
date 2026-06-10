@@ -78,7 +78,8 @@ export async function GET(request: NextRequest) {
         email: googleUser.email,
         username: googleUser.email.split("@")[0],
         googleId: googleUser.sub,
-        profileImage: googleUser.picture ?? null
+        profileImage: googleUser.picture ?? null,
+        invitationCode: oauthCookies.invitationCode
       });
 
     await setSessionCookie(user.accountId);

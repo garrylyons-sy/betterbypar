@@ -8,6 +8,7 @@ import type { PlayerGameResult, Role, TeamContext } from "@/lib/types";
 export const sessionCookieName = "is_session";
 const oauthStateCookieName = "is_oauth_state";
 const oauthNextCookieName = "is_oauth_next";
+const oauthInviteCookieName = "is_oauth_invite";
 const sessionMaxAgeSeconds = 60 * 60 * 24 * 30;
 
 type PersonRow = {
@@ -101,7 +102,7 @@ export async function clearSessionCookie() {
   cookieStore.delete(sessionCookieName);
 }
 
-export async function setOAuthCookies(state: string, nextPath: string) {
+export async function setOAuthCookies(state: string, nextPath: string, invitationCode?: string | null) {
   const cookieStore = await cookies();
   const secure = (await publicOrigin()).startsWith("https://");
   cookieStore.set(oauthStateCookieName, state, {
@@ -120,12 +121,22 @@ export async function setOAuthCookies(state: string, nextPath: string) {
       maxAge: 600
     });
   }
+  if (invitationCode) {
+    cookieStore.set(oauthInviteCookieName, invitationCode, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure,
+      path: "/",
+      maxAge: 600
+    });
+  }
 }
 
 export function readOAuthCookies() {
   return cookies().then((cookieStore) => ({
     state: cookieStore.get(oauthStateCookieName)?.value,
-    next: cookieStore.get(oauthNextCookieName)?.value
+    next: cookieStore.get(oauthNextCookieName)?.value,
+    invitationCode: cookieStore.get(oauthInviteCookieName)?.value
   }));
 }
 
@@ -133,6 +144,7 @@ export async function clearOAuthCookies() {
   const cookieStore = await cookies();
   cookieStore.delete(oauthStateCookieName);
   cookieStore.delete(oauthNextCookieName);
+  cookieStore.delete(oauthInviteCookieName);
 }
 
 export async function currentUser() {
@@ -232,13 +244,15 @@ export async function claimInvitationForAccount({
   username,
   passwordHash,
   googleId,
-  profileImage
+  profileImage,
+  invitationCode
 }: {
   email: string;
   username?: string;
   passwordHash?: string | null;
   googleId?: string | null;
   profileImage?: string | null;
+  invitationCode?: string;
 }) {
   const lowerEmail = email.toLowerCase();
 
@@ -248,10 +262,11 @@ export async function claimInvitationForAccount({
        from public.invitation
        where lower(email) = lower($1)
          and status = 'Pending'
+         and ($2::text is null or invitation_code = $2)
        order by created_at desc
        limit 1
        for update`,
-      [lowerEmail]
+      [lowerEmail, invitationCode?.trim() || null]
     );
     const invitation = invitationResult.rows[0];
 
