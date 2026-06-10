@@ -104,7 +104,7 @@ export function AppShell({
           <PageContent activePage={activePage} activeTeam={activeTeam} standingsData={activeStandings} playerGameResults={playerGameResults} onNavigate={setActivePage} onSignOut={onSignOut} userLabel={userLabel} />
         </div>
         <aside className="grid gap-4 lg:content-start">
-          <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} />
+          {activePage !== "Table" ? <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} /> : null}
           <ClubTeamStructureCard />
           <MembershipManagement />
         </aside>
