@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   BarChart3,
   CalendarDays,
@@ -317,7 +318,7 @@ function ClubSimulator({ value, onChange }: { value: string; onChange: (club: st
 
 function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamContext; activePage: AppPage; onNavigate: (page: AppPage) => void }) {
   return (
-    <aside className="hidden self-start rounded-[18px] bg-[#10233f] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block">
+    <aside className="hidden self-start rounded-[18px] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor)}>
       <p className="text-xs font-extrabold uppercase text-white/60">Competition</p>
       <h2 className="mt-1 text-2xl font-black">{activeTeam.league}</h2>
       <div className="mt-5 space-y-1.5">
@@ -349,15 +350,9 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
   const played = activeTeam.leagueMatchesPlayed ?? 0;
   const won = activeTeam.matchesWon ?? 0;
   const points = activeTeam.leaguePoints ?? activeTeam.pointsFor ?? 0;
-  const panelStyle = {
-    background:
-      `radial-gradient(circle at 16% 20%, ${activeTeam.primaryColor}55, transparent 11rem), ` +
-      "linear-gradient(135deg, #071426 0%, #10233f 62%, #071b24 100%)"
-  };
-
   return (
     <section className="overflow-hidden rounded-[18px] text-white shadow-card">
-      <div className="relative p-4 sm:p-5 xl:p-6" style={panelStyle}>
+      <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor)}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] xl:items-end">
           <div className="flex min-w-0 items-start gap-3">
@@ -457,6 +452,28 @@ function ordinal(value: number) {
   return `${value}th`;
 }
 
+function clubPanelStyle(color: string): CSSProperties {
+  return {
+    background:
+      `radial-gradient(circle at 18% 18%, ${color}aa, transparent 12rem), ` +
+      `linear-gradient(135deg, ${color} 0%, #10233f 58%, #071426 100%)`
+  };
+}
+
+function clubAccentStyle(color: string): CSSProperties {
+  return {
+    background: `linear-gradient(135deg, ${color} 0%, #10233f 100%)`,
+    color: "white"
+  };
+}
+
+function clubSoftAccentStyle(color: string): CSSProperties {
+  return {
+    backgroundColor: `${color}14`,
+    borderColor: `${color}33`
+  };
+}
+
 function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
   const [bookingDate, setBookingDate] = useState(localIsoDate());
   const [payload, setPayload] = useState<BookingPayload | null>(null);
@@ -470,7 +487,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
       <section className="grid gap-4">
         <Card className="overflow-hidden">
           <CardContent className="pt-4">
-            <div className="rounded-[18px] bg-[#10233f] p-4 text-white">
+            <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor)}>
               <p className="text-xs font-extrabold uppercase text-white/65">Table bookings</p>
               <h2 className="mt-1 text-3xl font-black leading-none">{activeTeam.club}</h2>
               <p className="mt-2 text-sm font-semibold text-white/75">
@@ -555,7 +572,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
     <section className="grid gap-4">
       <Card className="overflow-hidden">
         <CardContent className="pt-4">
-          <div className="rounded-[18px] bg-[#10233f] p-4 text-white">
+          <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor)}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-extrabold uppercase text-white/65">Table bookings</p>
@@ -596,7 +613,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
       </Card>
 
       {message ? (
-        <div className="rounded-[18px] bg-white p-4 text-sm font-extrabold text-[#1b8a72] shadow-card">
+        <div className="rounded-[18px] bg-white p-4 text-sm font-extrabold shadow-card" style={{ color: activeTeam.primaryColor }}>
           {message}
         </div>
       ) : null}
@@ -640,7 +657,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
                           </div>
                           {booking.canCancel ? (
                             <Button variant="ghost" size="icon" onClick={() => cancelBooking(booking)} disabled={busy} aria-label={`Cancel ${table.tableName} at ${startTime}`}>
-                              <XCircle className="h-5 w-5 text-[#1b8a72]" />
+                              <XCircle className="h-5 w-5" style={{ color: activeTeam.primaryColor }} />
                             </Button>
                           ) : null}
                         </div>
@@ -860,7 +877,7 @@ function MoreMenu({
 function ManagerHome({ activeTeam }: { activeTeam: TeamContext }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <ManagerActionCard />
+      <ManagerActionCard activeTeam={activeTeam} />
       <SeasonCompleteCard activeTeam={activeTeam} action="Review season" />
       <ScoreCard activeTeam={activeTeam} />
       <ManagerSeasonSnapshot activeTeam={activeTeam} />
@@ -913,7 +930,7 @@ function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demo
         <Badge variant="green">W W W L L</Badge>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] bg-[#10233f] p-4 text-white">
+        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor)}>
           <p className="text-xs font-extrabold uppercase text-white/65">Points won</p>
           <p className="mt-1 text-6xl font-black leading-none">{pointsFor || "-"}</p>
           <div className="mt-4 grid grid-cols-3 gap-2">
@@ -937,12 +954,12 @@ function SeasonCompleteCard({ activeTeam = teamContexts[0], action }: { activeTe
         <Badge variant={hasLeagueTable && activeTeam.leaguePosition <= 4 ? "green" : "muted"}>{hasLeagueTable && activeTeam.leaguePosition <= 4 ? "Qualified" : "Final table"}</Badge>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-[18px] bg-[#f7f5fa] p-4">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-[18px] border p-4" style={clubSoftAccentStyle(activeTeam.primaryColor)}>
           <div>
             <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{activeTeam.club.replace(" Golf Club", "")}</p>
             <p className="mt-1 text-lg font-black">{activeTeam.name.replace(activeTeam.club.replace(" Golf Club", ""), "").trim() || activeTeam.name}</p>
           </div>
-          <span className="rounded-full bg-[#10233f] px-3 py-1 text-xs font-black text-white">{hasLeagueTable ? ordinal(activeTeam.leaguePosition) : "-"}</span>
+          <span className="rounded-full px-3 py-1 text-xs font-black text-white" style={{ backgroundColor: activeTeam.primaryColor }}>{hasLeagueTable ? ordinal(activeTeam.leaguePosition) : "-"}</span>
           <div className="text-right">
             <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{activeTeam.league}</p>
             <p className="mt-1 text-lg font-black leading-tight">{activeTeam.leaguePoints ?? activeTeam.pointsFor ?? "-"} pts</p>
@@ -954,7 +971,7 @@ function SeasonCompleteCard({ activeTeam = teamContexts[0], action }: { activeTe
             ? `${activeTeam.name} finished ${ordinal(activeTeam.leaguePosition)} in ${activeTeam.league}`
             : `${activeTeam.name} has no league table yet`}
         </p>
-        <Button className="mt-4 w-full">{action}</Button>
+        <Button className="mt-4 w-full" style={{ backgroundColor: activeTeam.primaryColor }}>{action}</Button>
       </CardContent>
     </Card>
   );
@@ -1038,7 +1055,7 @@ function TeamPositionStrip({ activeTeam }: { activeTeam: TeamContext }) {
   return (
     <Card className="md:self-start">
       <CardContent className="pt-4">
-        <div className="flex items-center justify-between rounded-[18px] bg-[var(--gradient-success)] p-4 text-[#25002b]">
+        <div className="flex items-center justify-between rounded-[18px] p-4 text-white" style={clubAccentStyle(activeTeam.primaryColor)}>
           <div>
             <p className="text-xs font-extrabold uppercase">{hasLeagueTable ? "Team position" : "Table pending"}</p>
             <p className="text-lg font-black">{activeTeam.name}</p>
@@ -1053,9 +1070,9 @@ function TeamPositionStrip({ activeTeam }: { activeTeam: TeamContext }) {
   );
 }
 
-function ManagerActionCard() {
+function ManagerActionCard({ activeTeam }: { activeTeam: TeamContext }) {
   return (
-    <Card className="border-[#1b8a72]/20">
+    <Card style={clubSoftAccentStyle(activeTeam.primaryColor)}>
       <CardHeader>
         <CardTitle>Actions</CardTitle>
         <Badge variant="red">
@@ -1064,7 +1081,7 @@ function ManagerActionCard() {
         </Badge>
       </CardHeader>
       <CardContent className="grid gap-2">
-        <Button className="w-full">
+        <Button className="w-full" style={{ backgroundColor: activeTeam.primaryColor }}>
           <ClipboardCheck className="h-4 w-4" />
           Review results
         </Button>
@@ -1090,7 +1107,7 @@ function ScoreCard({ activeTeam = teamContexts[0] }: { activeTeam?: TeamContext 
         <Badge variant="muted">Completed</Badge>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] bg-[#10233f] p-4 text-white">
+        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor)}>
           <ScoreRow team={activeTeam.name} score={teamScore} winner={winner} />
           <ScoreRow team={opponent} score={opponentScore} winner={!winner} />
         </div>
