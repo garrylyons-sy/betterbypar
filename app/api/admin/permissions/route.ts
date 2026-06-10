@@ -20,6 +20,23 @@ export async function POST(request: Request) {
     const teamId = String(body.teamId ?? "").trim();
     const role = String(body.role ?? "Player");
     const active = Boolean(body.active);
+    const permissionType = String(body.permissionType ?? "team");
+
+    if (permissionType === "admin") {
+      if (!personId) {
+        return NextResponse.json({ error: "Person is required." }, { status: 400 });
+      }
+
+      await dbQuery(
+        `insert into public.app_operator (person_id, active)
+         values ($1, $2)
+         on conflict (person_id) do update
+         set active = excluded.active`,
+        [personId, active]
+      );
+
+      return NextResponse.json({ ok: true });
+    }
 
     if (!personId || !teamId) {
       return NextResponse.json({ error: "Person and team are required." }, { status: 400 });

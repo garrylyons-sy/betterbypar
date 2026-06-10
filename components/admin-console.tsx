@@ -19,6 +19,7 @@ type PersonOption = {
   personId: string;
   name: string;
   email: string;
+  admin?: boolean;
 };
 type ActivityRow = {
   id: string;
@@ -109,7 +110,8 @@ export function AdminConsole() {
           seen.set(person.person_id, {
             personId: person.person_id,
             name: `${person.first_name} ${person.last_name}`.trim(),
-            email: person.email ?? ""
+            email: person.email ?? "",
+            admin: Boolean(person.admin)
           });
         }
         setPeople(Array.from(seen.values()));
@@ -225,6 +227,7 @@ function InvitesPanel({
   const [email, setEmail] = useState("");
   const [teamId, setTeamId] = useState(teams[0]?.teamId ?? "");
   const [role, setRole] = useState<Role>("Player");
+
   const [expiresAt, setExpiresAt] = useState("");
 
   async function createInvite() {
@@ -301,12 +304,23 @@ function PermissionsPanel({
   onRefresh: () => void;
 }) {
   const [personId, setPersonId] = useState(people[0]?.personId ?? "");
+  const [adminPersonId, setAdminPersonId] = useState(people.find((person) => person.email.toLowerCase() === "garlyons@gmail.com")?.personId ?? people[0]?.personId ?? "");
   const [teamId, setTeamId] = useState(teams[0]?.teamId ?? "");
   const [role, setRole] = useState<Role>("Player");
 
-  async function setPermission(active: boolean) {
+  useEffect(() => {
+    if (people.some((person) => person.personId === adminPersonId)) return;
+    setAdminPersonId(people.find((person) => person.email.toLowerCase() === "garlyons@gmail.com")?.personId ?? people[0]?.personId ?? "");
+  }, [adminPersonId, people]);
+
+  useEffect(() => {
+    if (people.some((person) => person.personId === personId)) return;
+    setPersonId(people[0]?.personId ?? "");
+  }, [people, personId]);
+
+  async function savePermission(payload: Record<string, unknown>, successMessage: string) {
     if (demo) {
-      onMessage(active ? "Demo permission added." : "Demo permission disabled.");
+      onMessage(successMessage);
       return;
     }
 
@@ -315,11 +329,11 @@ function PermissionsPanel({
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ personId, teamId, role, active })
+        body: JSON.stringify(payload)
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not save permission.");
-      onMessage(active ? "Permission saved." : "Permission disabled.");
+      onMessage(successMessage);
       onRefresh();
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not save permission.");
@@ -327,26 +341,58 @@ function PermissionsPanel({
   }
 
   return (
-    <Card className="min-w-0">
-      <CardHeader>
-        <CardTitle>Set permissions</CardTitle>
-        <Badge variant="cyan">Membership based</Badge>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        <AdminSelect label="Person" value={personId} onChange={setPersonId} options={people.map((person) => ({ value: person.personId, label: `${person.name} ${person.email ? `- ${person.email}` : ""}` }))} />
-        <AdminSelect label="Team" value={teamId} onChange={setTeamId} options={teams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.clubName}` }))} />
-        <AdminSelect label="Role" value={role} onChange={(value) => setRole(value as Role)} options={roles.map((roleOption) => ({ value: roleOption, label: roleOption }))} />
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Button onClick={() => setPermission(true)}>
-            <ShieldCheck className="h-4 w-4" />
-            Save permission
-          </Button>
-          <Button variant="secondary" onClick={() => setPermission(false)}>
-            Disable permission
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="grid gap-4">
+      <Card className="min-w-0">
+        <CardHeader>
+          <CardTitle>Admin access</CardTitle>
+          <Badge variant="cyan">Operators</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <AdminSelect
+            label="Person"
+            value={adminPersonId}
+            onChange={setAdminPersonId}
+            options={people.map((person) => ({
+              value: person.personId,
+              label: `${person.name} ${person.email ? `- ${person.email}` : ""}${person.admin ? " - Admin" : ""}`
+            }))}
+          />
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            Admin access lets a logged-in player open the admin console, create invites, set permissions and view logs.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button onClick={() => savePermission({ permissionType: "admin", personId: adminPersonId, active: true }, "Admin access granted.")}>
+              <ShieldCheck className="h-4 w-4" />
+              Grant admin
+            </Button>
+            <Button variant="secondary" onClick={() => savePermission({ permissionType: "admin", personId: adminPersonId, active: false }, "Admin access revoked.")}>
+              Revoke admin
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="min-w-0">
+        <CardHeader>
+          <CardTitle>Team permissions</CardTitle>
+          <Badge variant="cyan">Membership based</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <AdminSelect label="Person" value={personId} onChange={setPersonId} options={people.map((person) => ({ value: person.personId, label: `${person.name} ${person.email ? `- ${person.email}` : ""}` }))} />
+          <AdminSelect label="Team" value={teamId} onChange={setTeamId} options={teams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.clubName}` }))} />
+          <AdminSelect label="Role" value={role} onChange={(value) => setRole(value as Role)} options={roles.map((roleOption) => ({ value: roleOption, label: roleOption }))} />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button onClick={() => savePermission({ personId, teamId, role, active: true }, "Permission saved.")}>
+              <ShieldCheck className="h-4 w-4" />
+              Save permission
+            </Button>
+            <Button variant="secondary" onClick={() => savePermission({ personId, teamId, role, active: false }, "Permission disabled.")}>
+              Disable permission
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

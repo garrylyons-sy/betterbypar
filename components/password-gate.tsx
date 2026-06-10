@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { LockKeyhole, Trophy } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 
@@ -9,6 +10,7 @@ const ACCESS_PASSWORD = "sPectacular!87";
 const STORAGE_KEY = "interclub-snooker-access-granted";
 
 export function PasswordGate({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [password, setPassword] = useState("");
@@ -30,6 +32,10 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
     }
 
     setError("Incorrect password");
+  }
+
+  if (pathname.startsWith("/admin")) {
+    return children;
   }
 
   if (!isReady) {

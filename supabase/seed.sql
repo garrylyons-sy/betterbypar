@@ -129,3 +129,10 @@ join public.person p on lower(p.email) = lower('garlyons@gmail.com')
 where c.name = 'Castle Golf Club'
 on conflict (club_id, person_id, role) do update
 set active = excluded.active;
+
+insert into public.app_operator (person_id, active)
+select p.id, true
+from public.person p
+where lower(p.email) = lower('garlyons@gmail.com')
+on conflict (person_id) do update
+set active = excluded.active;

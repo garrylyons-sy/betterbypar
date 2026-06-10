@@ -23,7 +23,18 @@ export async function GET() {
 
     const [teams, peopleResult, logsResult, requestsResult] = await Promise.all([
       loadTeamOptions(),
-      dbQuery("select person_id, first_name, last_name, email from public.membership_management_view order by last_name nulls last, first_name"),
+      dbQuery(
+        `select distinct on (p.id)
+           p.id as person_id,
+           p.first_name,
+           p.last_name,
+           p.email,
+           coalesce(ao.active, false) as admin
+         from public.person p
+         left join public.app_operator ao on ao.person_id = p.id
+         where p.active = true
+         order by p.id, p.last_name nulls last, p.first_name`
+      ),
       dbQuery(
         `select
            l.id,
