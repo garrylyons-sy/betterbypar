@@ -73,7 +73,7 @@ export function GoogleAuthButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex min-h-11 w-full items-center justify-center gap-3 rounded-full border border-[#d6d1dc] bg-white px-5 text-sm font-semibold text-[#1f1f1f] shadow-[0_1px_2px_rgba(16,35,63,0.08)] transition-colors hover:bg-[#f8fafd] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+      className="mx-auto inline-flex h-10 w-full max-w-[220px] items-center justify-center gap-3 rounded-full border border-[#747775] bg-white px-4 text-[14px] font-medium leading-none text-[#1f1f1f] shadow-none transition-colors hover:bg-[#f8fafd] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
     >
       <GoogleGIcon />
       <span>{label}</span>
