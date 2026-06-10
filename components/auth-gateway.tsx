@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Eye, KeyRound, Mail, Send, ShieldCheck, UserPlus } from "lucide-react";
+import { CheckCircle2, Eye, KeyRound, Send, ShieldCheck, UserPlus } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
-import { AuthSelectField, AuthSignInForm, AuthTextAreaField, AuthTextField, authJsonFetch } from "@/components/auth-controls";
+import { AuthSelectField, AuthSignInForm, AuthTextAreaField, AuthTextField, GoogleAuthButton, authJsonFetch } from "@/components/auth-controls";
 import { SplashScreen } from "@/components/splash-screen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -320,10 +320,10 @@ function ActivateForm({ invite, onSignedIn }: { invite: ActivationInvite | null;
         <UserPlus className="h-4 w-4" />
         Create account
       </Button>
-      <Button variant="secondary" onClick={() => window.location.assign(invite ? `/auth/google?next=${encodeURIComponent(`/activate?invite=${invite.code}`)}` : "/auth/google")}>
-        <Mail className="h-4 w-4" />
-        Activate with Google
-      </Button>
+      <GoogleAuthButton
+        label="Sign in with Google"
+        onClick={() => window.location.assign(invite ? `/auth/google?next=${encodeURIComponent(`/activate?invite=${invite.code}`)}` : "/auth/google")}
+      />
     </div>
   );
 }
