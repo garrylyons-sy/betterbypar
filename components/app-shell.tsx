@@ -113,6 +113,7 @@ export function AppShell({
         simulatedClub={simulatedClub}
         onRoleChange={setSimulatedRole}
         onClubChange={setSimulatedClub}
+        onSignOut={onSignOut}
         userLabel={userLabel}
       />
       <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)_380px] lg:items-start lg:gap-6 lg:px-8 xl:grid-cols-[230px_minmax(0,1fr)_400px] xl:px-10">
@@ -194,7 +195,8 @@ function Header({
   simulatedClub,
   userLabel,
   onRoleChange,
-  onClubChange
+  onClubChange,
+  onSignOut
 }: {
   activeTeam: TeamContext;
   simulatedRole: Role;
@@ -202,7 +204,10 @@ function Header({
   userLabel?: string;
   onRoleChange: (role: Role) => void;
   onClubChange: (club: string) => void;
+  onSignOut?: () => void;
 }) {
+  const [accountOpen, setAccountOpen] = useState(false);
+
   return (
     <header className="sticky top-0 z-30 bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6 lg:px-10">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -228,9 +233,40 @@ function Header({
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           {userLabel ? (
-            <div className="hidden min-h-11 items-center gap-2 rounded-full bg-white/10 px-3 text-white sm:flex">
-              <UserCircle className="h-5 w-5 shrink-0" />
-              <span className="max-w-[180px] truncate text-sm font-extrabold">{userLabel}</span>
+            <div className="relative hidden sm:block">
+              <button
+                type="button"
+                onClick={() => setAccountOpen((open) => !open)}
+                className="flex min-h-11 items-center gap-2 rounded-full bg-white/10 px-3 text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+                aria-haspopup="menu"
+                aria-expanded={accountOpen}
+              >
+                <UserCircle className="h-5 w-5 shrink-0" />
+                <span className="max-w-[180px] truncate text-sm font-extrabold">{userLabel}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-white/70" />
+              </button>
+              {accountOpen ? (
+                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 rounded-2xl bg-white p-2 text-[#10233f] shadow-elevated ring-1 ring-[#eeeaf2]" role="menu">
+                  <div className="px-3 py-2">
+                    <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Signed in as</p>
+                    <p className="truncate text-sm font-black">{userLabel}</p>
+                  </div>
+                  {onSignOut ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAccountOpen(false);
+                        onSignOut();
+                      }}
+                      className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-black text-[#10233f] transition-colors hover:bg-[#f7f5fa] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+                      role="menuitem"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Log out
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
