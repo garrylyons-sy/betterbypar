@@ -197,6 +197,17 @@ function ContextSwitcher({
   contexts: TeamContext[];
   onTeamChange: (id: string) => void;
 }) {
+  const duplicateBaseLabels = new Set(
+    contexts
+      .map((team) => `${team.name} - ${team.role}`)
+      .filter((label, index, labels) => labels.indexOf(label) !== index)
+  );
+
+  function contextLabel(team: TeamContext) {
+    const base = `${team.name} - ${team.role}`;
+    return duplicateBaseLabels.has(base) ? `${base} - ${team.season}` : base;
+  }
+
   return (
     <label className="relative block w-full sm:w-auto">
       <span className="sr-only">Switch team context</span>
@@ -207,7 +218,7 @@ function ContextSwitcher({
       >
         {contexts.map((team) => (
           <option key={team.id} value={team.id}>
-            {team.name} - {team.role}
+            {contextLabel(team)}
           </option>
         ))}
       </select>
