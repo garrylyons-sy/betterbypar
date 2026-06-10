@@ -13,6 +13,7 @@ import {
   Home,
   LogOut,
   Mail,
+  Menu as MenuIcon,
   MessageCircle,
   PlusCircle,
   ShieldCheck,
@@ -30,16 +31,32 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { label: "Home", icon: Home },
-  { label: "Fixtures", icon: CalendarDays },
-  { label: "Table", icon: Trophy },
-  { label: "Bookings", icon: CalendarPlus },
-  { label: "Messages", icon: Mail }
+  { label: "Home", page: "Home", icon: Home },
+  { label: "Fixtures", page: "Fixtures", icon: CalendarDays },
+  { label: "Table", page: "Table", icon: Trophy },
+  { label: "Bookings", page: "Bookings", icon: CalendarPlus },
+  { label: "More", page: "Menu", icon: MenuIcon }
 ] as const;
 
-type AppPage = typeof navItems[number]["label"] | "Results" | "Players" | "Stats";
+const desktopNavItems = [
+  { label: "Home", page: "Home", icon: Home },
+  { label: "Fixtures", page: "Fixtures", icon: CalendarDays },
+  { label: "Results", page: "Results", icon: ClipboardCheck },
+  { label: "Table", page: "Table", icon: Trophy },
+  { label: "Bookings", page: "Bookings", icon: CalendarPlus },
+  { label: "Players", page: "Players", icon: Users },
+  { label: "Stats", page: "Stats", icon: BarChart3 },
+  { label: "Messages", page: "Messages", icon: Mail }
+] as const;
 
-const quickTabs: AppPage[] = ["Fixtures", "Results", "Table", "Bookings", "Players", "Stats"];
+type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Menu";
+
+const menuItems: Array<{ label: string; page: AppPage; icon: typeof Home; description: string }> = [
+  { label: "Results", page: "Results", icon: ClipboardCheck, description: "Recent scores and individual games" },
+  { label: "Players", page: "Players", icon: Users, description: "Team player list and match records" },
+  { label: "Stats", page: "Stats", icon: BarChart3, description: "Season and player performance" },
+  { label: "Messages", page: "Messages", icon: Mail, description: "Club notices and account options" }
+];
 
 export function AppShell({
   contexts = teamContexts,
@@ -84,8 +101,7 @@ export function AppShell({
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} />
         <div className="grid gap-4">
           <MatchdayHero activeTeam={activeTeam} />
-          <QuickTabs activePage={activePage} onNavigate={setActivePage} />
-          <PageContent activePage={activePage} activeTeam={activeTeam} standingsData={activeStandings} playerGameResults={playerGameResults} onSignOut={onSignOut} userLabel={userLabel} />
+          <PageContent activePage={activePage} activeTeam={activeTeam} standingsData={activeStandings} playerGameResults={playerGameResults} onNavigate={setActivePage} onSignOut={onSignOut} userLabel={userLabel} />
         </div>
         <aside className="grid gap-4 lg:content-start">
           <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} />
@@ -103,6 +119,7 @@ function PageContent({
   activeTeam,
   standingsData,
   playerGameResults,
+  onNavigate,
   onSignOut,
   userLabel
 }: {
@@ -110,6 +127,7 @@ function PageContent({
   activeTeam: TeamContext;
   standingsData: Standing[];
   playerGameResults: PlayerGameResult[];
+  onNavigate: (page: AppPage) => void;
   onSignOut?: () => void;
   userLabel?: string;
 }) {
@@ -120,6 +138,7 @@ function PageContent({
   if (activePage === "Players") return <PlayersPage playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
+  if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} onNavigate={onNavigate} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />;
@@ -203,15 +222,15 @@ function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamC
       <p className="text-xs font-extrabold uppercase text-white/60">Competition</p>
       <h2 className="mt-1 text-2xl font-black">{activeTeam.league}</h2>
       <div className="mt-5 space-y-1.5">
-        {navItems.map((item, index) => {
+        {desktopNavItems.map((item) => {
           const Icon = item.icon;
           return (
             <button
               key={item.label}
-              onClick={() => onNavigate(item.label)}
+              onClick={() => onNavigate(item.page)}
               className={cn(
                 "flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-extrabold text-white/80 transition-colors hover:bg-white/10",
-                activePage === item.label && "bg-white text-[#10233f]"
+                activePage === item.page && "bg-white text-[#10233f]"
               )}
             >
               <Icon className="h-5 w-5" />
@@ -279,29 +298,6 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
         </div>
       </div>
     </section>
-  );
-}
-
-function QuickTabs({ activePage, onNavigate }: { activePage: AppPage; onNavigate: (page: AppPage) => void }) {
-  return (
-    <div className="w-full max-w-full">
-      <div className="grid grid-cols-3 gap-2 lg:grid-cols-6">
-        {quickTabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => onNavigate(tab)}
-            className={cn(
-              "min-h-11 rounded-full px-3 text-sm font-extrabold",
-              activePage === tab
-                ? "bg-[#10233f] text-white shadow-card"
-                : "bg-[#eeeaf2] text-[#25002b]"
-            )}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -676,6 +672,39 @@ function MessagesPage({ activeTeam, compact = false, onSignOut, userLabel }: { a
   );
 }
 
+function MoreMenu({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <CardTitle>More</CardTitle>
+          <Badge variant="muted">{activeTeam.name}</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-2 sm:grid-cols-2">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.page}
+                onClick={() => onNavigate(item.page)}
+                className="grid min-h-[76px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left"
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-black">{item.label}</span>
+                  <span className="block text-xs font-semibold text-[#6c5a73]">{item.description}</span>
+                </span>
+              </button>
+            );
+          })}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
 function ManagerHome({ activeTeam }: { activeTeam: TeamContext }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
@@ -915,8 +944,8 @@ function LeagueTable({ activeTeam, standingsData = standings }: { activeTeam: Te
   const tableRows = standingsData.length ? standingsData : standings;
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="min-w-0">
+      <CardHeader className="gap-2">
         <CardTitle>League Table</CardTitle>
         <div className="flex gap-2">
           <Badge variant="gold">Final</Badge>
@@ -924,8 +953,8 @@ function LeagueTable({ activeTeam, standingsData = standings }: { activeTeam: Te
         </div>
       </CardHeader>
       <CardContent>
-        <div className="-mx-2 overflow-x-auto px-2">
-          <table className="w-full min-w-[420px] border-separate border-spacing-0 text-left text-sm lg:min-w-0 lg:text-[13px] xl:text-sm">
+        <div className="w-full overflow-visible">
+          <table className="w-full border-separate border-spacing-0 text-left text-sm lg:text-[13px] xl:text-sm">
             <thead className="sticky top-0 z-10 bg-white text-xs uppercase text-[#6c5a73]">
               <tr>
                 <th className="py-2 pr-2">Pos</th>
@@ -965,7 +994,7 @@ function LeagueTable({ activeTeam, standingsData = standings }: { activeTeam: Te
                         {row.position}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap border-t border-[#eeeaf2] px-2 font-black">{row.team}</td>
+                    <td className="border-t border-[#eeeaf2] px-2 font-black leading-tight lg:whitespace-nowrap">{row.team}</td>
                     <td className="border-t border-[#eeeaf2] px-2 text-right font-bold">{row.played}</td>
                     <td className="hidden border-t border-[#eeeaf2] px-2 text-right font-bold sm:table-cell">{row.won}</td>
                     <td className="hidden border-t border-[#eeeaf2] px-2 text-right font-bold sm:table-cell">{row.lost}</td>
@@ -1058,23 +1087,27 @@ function MiniStat({ label, value, dark = false }: { label: string; value: string
 }
 
 function BottomNav({ activePage, onNavigate }: { activePage: AppPage; onNavigate: (page: AppPage) => void }) {
+  const morePages: AppPage[] = ["Menu", "Results", "Players", "Stats", "Messages"];
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#eeeaf2] bg-white px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-elevated lg:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#eeeaf2] bg-white px-1.5 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1.5 shadow-elevated lg:hidden">
       <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
+          const active = item.page === "Menu" ? morePages.includes(activePage) : activePage === item.page;
+
           return (
             <button
               key={item.label}
-              onClick={() => onNavigate(item.label)}
-              aria-current={activePage === item.label ? "page" : undefined}
+              onClick={() => onNavigate(item.page)}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs font-extrabold text-[#6c5a73]",
-                activePage === item.label && "bg-[#10233f] text-white shadow-card"
+                "flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 text-[10px] font-extrabold leading-tight text-[#6c5a73]",
+                active && "bg-[#10233f] text-white shadow-card"
               )}
             >
-              <Icon className="h-5 w-5" />
-              {item.label}
+              <Icon className="h-4 w-4" />
+              <span className="max-w-full truncate">{item.label}</span>
             </button>
           );
         })}
