@@ -11,7 +11,12 @@ export const teamContexts: TeamContext[] = [
     season: "2025/26",
     role: "Player",
     leaguePosition: 4,
-    leagueMatchesPlayed: 16
+    leagueMatchesPlayed: 16,
+    matchesWon: 10,
+    matchesLost: 6,
+    pointsFor: 56,
+    pointsAgainst: 56,
+    leaguePoints: 56
   },
   {
     id: "castle-a-manager",
@@ -23,7 +28,12 @@ export const teamContexts: TeamContext[] = [
     season: "2025/26",
     role: "Manager",
     leaguePosition: 4,
-    leagueMatchesPlayed: 16
+    leagueMatchesPlayed: 16,
+    matchesWon: 10,
+    matchesLost: 6,
+    pointsFor: 56,
+    pointsAgainst: 56,
+    leaguePoints: 56
   }
 ];
 

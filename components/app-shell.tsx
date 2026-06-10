@@ -23,7 +23,7 @@ import {
   Zap
 } from "lucide-react";
 import { clubTeamStructure, managementModules, playerGameResults as demoPlayerGameResults, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
-import type { PlayerGameResult, TeamContext } from "@/lib/types";
+import type { PlayerGameResult, Standing, TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,12 +43,14 @@ const quickTabs: AppPage[] = ["Fixtures", "Results", "Table", "Bookings", "Playe
 
 export function AppShell({
   contexts = teamContexts,
+  standingsData = standings,
   playerGameResults = demoPlayerGameResults,
   userLabel,
   onSignOut,
   onPageVisit
 }: {
   contexts?: TeamContext[];
+  standingsData?: Standing[];
   playerGameResults?: PlayerGameResult[];
   userLabel?: string;
   onSignOut?: () => void;
@@ -66,6 +68,10 @@ export function AppShell({
     () => contexts.find((team) => team.id === selectedId) ?? contexts[0] ?? teamContexts[0],
     [contexts, selectedId]
   );
+  const activeStandings = useMemo(() => {
+    const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
+    return filtered.length ? filtered : standings;
+  }, [activeTeam.league, activeTeam.season, standingsData]);
 
   useEffect(() => {
     onPageVisit?.(activePage, activeTeam);
@@ -79,10 +85,10 @@ export function AppShell({
         <div className="grid gap-4">
           <MatchdayHero activeTeam={activeTeam} />
           <QuickTabs activePage={activePage} onNavigate={setActivePage} />
-          <PageContent activePage={activePage} activeTeam={activeTeam} playerGameResults={playerGameResults} onSignOut={onSignOut} userLabel={userLabel} />
+          <PageContent activePage={activePage} activeTeam={activeTeam} standingsData={activeStandings} playerGameResults={playerGameResults} onSignOut={onSignOut} userLabel={userLabel} />
         </div>
         <aside className="grid gap-4 lg:content-start">
-          <LeagueTable activeTeam={activeTeam} />
+          <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} />
           <ClubTeamStructureCard />
           <MembershipManagement />
         </aside>
@@ -95,12 +101,14 @@ export function AppShell({
 function PageContent({
   activePage,
   activeTeam,
+  standingsData,
   playerGameResults,
   onSignOut,
   userLabel
 }: {
   activePage: AppPage;
   activeTeam: TeamContext;
+  standingsData: Standing[];
   playerGameResults: PlayerGameResult[];
   onSignOut?: () => void;
   userLabel?: string;
@@ -108,11 +116,11 @@ function PageContent({
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Fixtures") return <FixturesPage />;
   if (activePage === "Results") return <ResultsPage playerGameResults={playerGameResults} />;
-  if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} />;
+  if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} standingsData={standingsData} />;
   if (activePage === "Players") return <PlayersPage playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
-  if (activeTeam.role === "Manager") return <ManagerHome />;
+  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />;
 }
@@ -215,6 +223,9 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
   const manager = activeTeam.role === "Manager";
   const clubMember = activeTeam.role === "Club Member";
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
+  const played = activeTeam.leagueMatchesPlayed ?? 0;
+  const won = activeTeam.matchesWon ?? 0;
+  const points = activeTeam.leaguePoints ?? activeTeam.pointsFor ?? 0;
   const panelStyle = {
     background:
       `radial-gradient(circle at 16% 20%, ${activeTeam.primaryColor}55, transparent 11rem), ` +
@@ -246,9 +257,9 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <HeroMetric label="Played" value="16" />
-            <HeroMetric label="Won" value="10" />
-            <HeroMetric label="Pts" value="56" />
+            <HeroMetric label="Played" value={hasLeagueTable ? String(played) : "-"} />
+            <HeroMetric label="Won" value={hasLeagueTable ? String(won) : "-"} />
+            <HeroMetric label="Pts" value={hasLeagueTable ? String(points) : "-"} />
           </div>
         </div>
         <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
@@ -268,14 +279,14 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
 
 function QuickTabs({ activePage, onNavigate }: { activePage: AppPage; onNavigate: (page: AppPage) => void }) {
   return (
-    <div className="w-full max-w-full overflow-x-auto lg:overflow-visible">
-      <div className="flex min-w-max gap-2 lg:grid lg:min-w-0 lg:grid-cols-6">
+    <div className="w-full max-w-full">
+      <div className="grid grid-cols-3 gap-2 lg:grid-cols-6">
         {quickTabs.map((tab) => (
           <button
             key={tab}
             onClick={() => onNavigate(tab)}
             className={cn(
-              "min-h-11 rounded-full px-5 text-sm font-extrabold lg:px-3",
+              "min-h-11 rounded-full px-3 text-sm font-extrabold",
               activePage === tab
                 ? "bg-[#10233f] text-white shadow-card"
                 : "bg-[#eeeaf2] text-[#25002b]"
@@ -550,9 +561,9 @@ function BookingsSkeleton() {
 
 function PlayerHome({ activeTeam, playerGameResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[] }) {
   return (
-      <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
-      <PlayerStatCard />
-      <SeasonCompleteCard action="View results" />
+    <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
+      <PlayerStatCard activeTeam={activeTeam} playerGameResults={playerGameResults} />
+      <SeasonCompleteCard activeTeam={activeTeam} action="View results" />
       <RecentResults />
       <PlayerGameResultsCard results={playerGameResults} />
       <TeamPositionStrip activeTeam={activeTeam} />
@@ -622,7 +633,7 @@ function PlayersPage({ playerGameResults }: { playerGameResults: PlayerGameResul
 function StatsPage({ activeTeam, playerGameResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[] }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <PlayerStatCard />
+      <PlayerStatCard activeTeam={activeTeam} playerGameResults={playerGameResults} />
       <TeamPositionStrip activeTeam={activeTeam} />
       <PlayerGameResultsCard results={playerGameResults} />
     </section>
@@ -660,32 +671,39 @@ function MessagesPage({ activeTeam, compact = false, onSignOut, userLabel }: { a
   );
 }
 
-function ManagerHome() {
+function ManagerHome({ activeTeam }: { activeTeam: TeamContext }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <ManagerActionCard />
-      <SeasonCompleteCard action="Review season" />
+      <SeasonCompleteCard activeTeam={activeTeam} action="Review season" />
       <ScoreCard />
-      <ManagerSeasonSnapshot />
+      <ManagerSeasonSnapshot activeTeam={activeTeam} />
     </section>
   );
 }
 
-function PlayerStatCard() {
+function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demoPlayerGameResults }: { activeTeam?: TeamContext; playerGameResults?: PlayerGameResult[] }) {
+  const wins = playerGameResults.filter((result) => result.result === "Won").length;
+  const losses = playerGameResults.filter((result) => result.result === "Lost").length;
+  const played = playerGameResults.length || activeTeam.leagueMatchesPlayed || 0;
+  const winRate = playerGameResults.length ? Math.round((wins / playerGameResults.length) * 100) : activeTeam.leagueMatchesPlayed ? Math.round(((activeTeam.matchesWon ?? 0) / activeTeam.leagueMatchesPlayed) * 100) : 0;
+  const pointsFor = activeTeam.pointsFor ?? activeTeam.leaguePoints ?? 0;
+  const pointsAgainst = activeTeam.pointsAgainst ?? 0;
+
   return (
     <Card className="overflow-hidden">
       <CardHeader>
-        <CardTitle>Castle Season</CardTitle>
+        <CardTitle>{activeTeam.name} Season</CardTitle>
         <Badge variant="green">W W W L L</Badge>
       </CardHeader>
       <CardContent>
         <div className="rounded-[18px] bg-[#10233f] p-4 text-white">
           <p className="text-xs font-extrabold uppercase text-white/65">Points won</p>
-          <p className="mt-1 text-6xl font-black leading-none">56</p>
+          <p className="mt-1 text-6xl font-black leading-none">{pointsFor || "-"}</p>
           <div className="mt-4 grid grid-cols-3 gap-2">
-            <MiniStat label="Win rate" value="63%" dark />
-            <MiniStat label="Played" value="16" dark />
-            <MiniStat label="Against" value="56" dark />
+            <MiniStat label="Win rate" value={played ? `${winRate}%` : "-"} dark />
+            <MiniStat label="Played" value={String(played || "-")} dark />
+            <MiniStat label="Against" value={String(pointsAgainst || "-")} dark />
           </div>
         </div>
       </CardContent>
@@ -693,23 +711,25 @@ function PlayerStatCard() {
   );
 }
 
-function SeasonCompleteCard({ action }: { action: string }) {
+function SeasonCompleteCard({ activeTeam = teamContexts[0], action }: { activeTeam?: TeamContext; action: string }) {
+  const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Season Complete</CardTitle>
-        <Badge variant="green">Qualified</Badge>
+        <Badge variant={hasLeagueTable && activeTeam.leaguePosition <= 4 ? "green" : "muted"}>{hasLeagueTable && activeTeam.leaguePosition <= 4 ? "Qualified" : "Final table"}</Badge>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-[18px] bg-[#f7f5fa] p-4">
           <div>
-            <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Castle</p>
-            <p className="mt-1 text-lg font-black">A</p>
+            <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{activeTeam.club.replace(" Golf Club", "")}</p>
+            <p className="mt-1 text-lg font-black">{activeTeam.name.replace(activeTeam.club.replace(" Golf Club", ""), "").trim() || activeTeam.name}</p>
           </div>
-          <span className="rounded-full bg-[#10233f] px-3 py-1 text-xs font-black text-white">4th</span>
+          <span className="rounded-full bg-[#10233f] px-3 py-1 text-xs font-black text-white">{hasLeagueTable ? `${activeTeam.leaguePosition}th` : "-"}</span>
           <div className="text-right">
-            <p className="text-xs font-extrabold uppercase text-[#6c5a73]">A League</p>
-            <p className="mt-1 text-lg font-black leading-tight">56 pts</p>
+            <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{activeTeam.league}</p>
+            <p className="mt-1 text-lg font-black leading-tight">{activeTeam.leaguePoints ?? activeTeam.pointsFor ?? "-"} pts</p>
           </div>
         </div>
         <p className="mt-3 text-sm font-semibold text-[#6c5a73]">{upcomingFixture.date}</p>
@@ -863,7 +883,7 @@ function ScoreRow({ team, score, winner = false }: { team: string; score: string
   );
 }
 
-function ManagerSeasonSnapshot() {
+function ManagerSeasonSnapshot({ activeTeam = teamContexts[0] }: { activeTeam?: TeamContext }) {
   return (
     <Card>
       <CardHeader>
@@ -872,21 +892,23 @@ function ManagerSeasonSnapshot() {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-2">
-          <MiniStat label="Won" value="10" />
-          <MiniStat label="Lost" value="6" />
-          <MiniStat label="Points for" value="56" />
-          <MiniStat label="Points against" value="56" />
+          <MiniStat label="Won" value={String(activeTeam.matchesWon ?? "-")} />
+          <MiniStat label="Lost" value={String(activeTeam.matchesLost ?? "-")} />
+          <MiniStat label="Points for" value={String(activeTeam.pointsFor ?? "-")} />
+          <MiniStat label="Points against" value={String(activeTeam.pointsAgainst ?? "-")} />
         </div>
         <div className="mt-3 rounded-xl bg-[#f7f5fa] p-3">
           <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Playoff line</p>
-          <p className="mt-1 font-black">Castle finished 4th, inside the A League semi-final places.</p>
+          <p className="mt-1 font-black">{activeTeam.name} finished {activeTeam.leaguePosition || "-"}, inside the {activeTeam.league} semi-final places.</p>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function LeagueTable({ activeTeam }: { activeTeam: TeamContext }) {
+function LeagueTable({ activeTeam, standingsData = standings }: { activeTeam: TeamContext; standingsData?: Standing[] }) {
+  const tableRows = standingsData.length ? standingsData : standings;
+
   return (
     <Card>
       <CardHeader>
@@ -911,7 +933,7 @@ function LeagueTable({ activeTeam }: { activeTeam: TeamContext }) {
               </tr>
             </thead>
             <tbody>
-              {standings.map((row) => {
+              {tableRows.map((row) => {
                 const active = row.team === activeTeam.name;
                 const diff = row.pointsFor - row.pointsAgainst;
 

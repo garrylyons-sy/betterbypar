@@ -3,6 +3,7 @@ export type Role = "Player" | "Manager" | "Assistant Manager" | "Club Member";
 export type TeamContext = {
   id: string;
   personId?: string;
+  teamId?: string;
   name: string;
   club: string;
   logoPath: string;
@@ -12,6 +13,11 @@ export type TeamContext = {
   role: Role;
   leaguePosition: number;
   leagueMatchesPlayed?: number;
+  matchesWon?: number;
+  matchesLost?: number;
+  pointsFor?: number;
+  pointsAgainst?: number;
+  leaguePoints?: number;
 };
 
 export type PlayerGameResult = {
@@ -43,6 +49,8 @@ export type Fixture = {
 export type Standing = {
   position: number;
   team: string;
+  league?: "A League" | "B League" | "C League";
+  season?: string;
   played: number;
   won: number;
   lost: number;

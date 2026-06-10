@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { clubTeamStructure } from "@/lib/demo-data";
-import type { PlayerGameResult, TeamContext } from "@/lib/types";
+import type { PlayerGameResult, Standing, TeamContext } from "@/lib/types";
 
 type AuthMode = "signin" | "activate" | "request";
 type TeamOption = {
@@ -27,6 +27,7 @@ type SessionPayload = {
     name: string;
   };
   contexts?: TeamContext[];
+  standings?: Standing[];
   playerGameResults?: PlayerGameResult[];
   error?: string;
 };
@@ -163,6 +164,7 @@ export function AuthGateway() {
           {message ? <SessionBanner message={message} label={session.user?.email ?? "Signed in"} /> : null}
           <AppShell
             contexts={contexts}
+            standingsData={session.standings ?? []}
             playerGameResults={session.playerGameResults ?? []}
             userLabel={session.user?.email ?? "Signed in"}
             onSignOut={signOut}

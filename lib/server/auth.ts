@@ -3,7 +3,7 @@ import { cookies, headers } from "next/headers";
 import { PoolClient } from "pg";
 
 import { dbQuery, withTransaction } from "@/lib/server/db";
-import type { PlayerGameResult, Role, TeamContext } from "@/lib/types";
+import type { PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 
 export const sessionCookieName = "is_session";
 const oauthStateCookieName = "is_oauth_state";
@@ -480,6 +480,7 @@ export async function loadTeamOptions() {
 export async function loadSessionPayload(user: AppUser) {
   const teamContexts = (await dbQuery<{
     membership_id: string;
+    team_id: string;
     role: Role;
     team_name: string;
     club_name: string;
@@ -489,9 +490,15 @@ export async function loadSessionPayload(user: AppUser) {
     season_name: string;
     league_position: number | null;
     matches_played: number | null;
+    matches_won: number | null;
+    matches_lost: number | null;
+    points_for: number | null;
+    points_against: number | null;
+    league_points: number | null;
   }>(
     `select
        tm.id as membership_id,
+       t.id as team_id,
        tm.role,
        t.name as team_name,
        c.name as club_name,
@@ -500,7 +507,12 @@ export async function loadSessionPayload(user: AppUser) {
        l.name as league_name,
        s.name as season_name,
        ltv.position as league_position,
-       ltv.matches_played
+       ltv.matches_played,
+       ltv.matches_won,
+       ltv.matches_lost,
+       ltv.points_for,
+       ltv.points_against,
+       ltv.league_points
      from public.team_membership tm
      join public.team t on t.id = tm.team_id and t.active = true
      join public.club c on c.id = t.club_id and c.active = true
@@ -514,6 +526,7 @@ export async function loadSessionPayload(user: AppUser) {
   )).rows.map((row) => ({
     id: row.membership_id,
     personId: user.personId,
+    teamId: row.team_id,
     name: row.team_name,
     club: row.club_name,
     logoPath: row.logo_path,
@@ -522,7 +535,12 @@ export async function loadSessionPayload(user: AppUser) {
     season: row.season_name,
     role: row.role,
     leaguePosition: row.league_position ?? 0,
-    leagueMatchesPlayed: Number(row.matches_played ?? 0)
+    leagueMatchesPlayed: Number(row.matches_played ?? 0),
+    matchesWon: Number(row.matches_won ?? 0),
+    matchesLost: Number(row.matches_lost ?? 0),
+    pointsFor: Number(row.points_for ?? 0),
+    pointsAgainst: Number(row.points_against ?? 0),
+    leaguePoints: Number(row.league_points ?? 0)
   } satisfies TeamContext));
 
   const clubContexts = (await dbQuery<{
@@ -565,6 +583,55 @@ export async function loadSessionPayload(user: AppUser) {
   } satisfies TeamContext));
 
   const contexts = [...teamContexts, ...clubContexts];
+  const standings = (await dbQuery<{
+    position: number;
+    team_name: string;
+    league_name: TeamContext["league"];
+    season_name: string;
+    matches_played: number;
+    matches_won: number;
+    matches_lost: number;
+    points_for: number;
+    points_against: number;
+    league_points: number;
+  }>(
+    `with relevant_competitions as (
+       select distinct t.league_id, t.season_id
+       from public.team_membership tm
+       join public.team t on t.id = tm.team_id
+       where tm.person_id = $1
+         and tm.active = true
+     )
+     select
+       ltv.position,
+       t.name as team_name,
+       l.name as league_name,
+       s.name as season_name,
+       ltv.matches_played,
+       ltv.matches_won,
+       ltv.matches_lost,
+       ltv.points_for,
+       ltv.points_against,
+       ltv.league_points
+     from public.league_table_view ltv
+     join public.team t on t.id = ltv.team_id and t.active = true
+     join public.league l on l.id = ltv.league_id
+     join public.season s on s.id = ltv.season_id
+     join relevant_competitions rc on rc.league_id = ltv.league_id and rc.season_id = ltv.season_id
+     order by s.name desc, l.name, ltv.position`,
+    [user.personId]
+  )).rows.map((row) => ({
+    position: Number(row.position),
+    team: row.team_name,
+    league: row.league_name,
+    season: row.season_name,
+    played: Number(row.matches_played),
+    won: Number(row.matches_won),
+    lost: Number(row.matches_lost),
+    pointsFor: Number(row.points_for),
+    pointsAgainst: Number(row.points_against),
+    leaguePoints: Number(row.league_points)
+  } satisfies Standing));
 
   const playerGameResults = (await dbQuery<{
     game_id: string;
@@ -625,6 +692,7 @@ export async function loadSessionPayload(user: AppUser) {
     authenticated: true,
     user,
     contexts,
+    standings,
     playerGameResults
   };
 }
