@@ -16,15 +16,14 @@ import {
   Menu as MenuIcon,
   MessageCircle,
   PlusCircle,
-  ShieldCheck,
   Trophy,
   UserCircle,
   Users,
   XCircle,
   Zap
 } from "lucide-react";
-import { clubTeamStructure, managementModules, playerGameResults as demoPlayerGameResults, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
-import type { PlayerGameResult, Standing, TeamContext } from "@/lib/types";
+import { clubTeamStructure, playerGameResults as demoPlayerGameResults, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
+import type { PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +49,7 @@ const desktopNavItems = [
 ] as const;
 
 type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Menu";
+const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
 
 const menuItems: Array<{ label: string; page: AppPage; icon: typeof Home; description: string }> = [
   { label: "Results", page: "Results", icon: ClipboardCheck, description: "Recent scores and individual games" },
@@ -75,15 +75,26 @@ export function AppShell({
 }) {
   const [selectedId, setSelectedId] = useState(contexts[0]?.id ?? teamContexts[0].id);
   const [activePage, setActivePage] = useState<AppPage>("Home");
+  const [simulatedRole, setSimulatedRole] = useState<Role>(contexts[0]?.role ?? teamContexts[0].role);
+  const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
   useEffect(() => {
     if (!contexts.some((team) => team.id === selectedId)) {
       setSelectedId(contexts[0]?.id ?? teamContexts[0].id);
     }
   }, [contexts, selectedId]);
 
-  const activeTeam = useMemo(
+  const realActiveTeam = useMemo(
     () => contexts.find((team) => team.id === selectedId) ?? contexts[0] ?? teamContexts[0],
     [contexts, selectedId]
+  );
+  useEffect(() => {
+    setSimulatedRole(realActiveTeam.role);
+    setSimulatedClub(realActiveTeam.club);
+  }, [realActiveTeam.id, realActiveTeam.role, realActiveTeam.club]);
+
+  const activeTeam = useMemo(
+    () => buildSimulatedContext(realActiveTeam, simulatedRole, simulatedClub, standingsData),
+    [realActiveTeam, simulatedClub, simulatedRole, standingsData]
   );
   const activeStandings = useMemo(() => {
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
@@ -96,7 +107,14 @@ export function AppShell({
 
   return (
     <main className="min-h-screen app-bg pb-24 text-[#10233f]">
-      <Header activeTeam={activeTeam} contexts={contexts} onTeamChange={setSelectedId} userLabel={userLabel} />
+      <Header
+        activeTeam={activeTeam}
+        simulatedRole={simulatedRole}
+        simulatedClub={simulatedClub}
+        onRoleChange={setSimulatedRole}
+        onClubChange={setSimulatedClub}
+        userLabel={userLabel}
+      />
       <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)_380px] lg:items-start lg:gap-6 lg:px-8 xl:grid-cols-[230px_minmax(0,1fr)_400px] xl:px-10">
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} />
         <div className="grid gap-4">
@@ -106,12 +124,37 @@ export function AppShell({
         <aside className="grid gap-4 lg:content-start">
           {activePage !== "Table" ? <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} /> : null}
           <ClubTeamStructureCard />
-          <MembershipManagement />
         </aside>
       </section>
       <BottomNav activePage={activePage} onNavigate={setActivePage} />
     </main>
   );
+}
+
+function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: string, tableRows: Standing[]): TeamContext {
+  const club = clubTeamStructure.find((entry) => entry.club === clubName) ?? clubTeamStructure[0];
+  const suffix = baseTeam.name.match(/\b([ABC])$/)?.[1] ?? "A";
+  const preferredTeam = club.teams.find((team) => team.endsWith(` ${suffix}`)) ?? club.teams[0] ?? club.club;
+  const standing = tableRows.find((row) => row.team === preferredTeam && row.league === baseTeam.league && row.season === baseTeam.season)
+    ?? tableRows.find((row) => row.team === preferredTeam);
+  const clubMember = role === "Club Member";
+
+  return {
+    ...baseTeam,
+    id: `${baseTeam.id}-${role}-${club.club}`,
+    name: clubMember ? club.club : preferredTeam,
+    club: club.club,
+    logoPath: club.logoPath,
+    primaryColor: club.primaryColor,
+    role,
+    leaguePosition: standing?.position ?? 0,
+    leagueMatchesPlayed: standing?.played ?? 0,
+    matchesWon: standing?.won ?? 0,
+    matchesLost: standing?.lost ?? 0,
+    pointsFor: standing?.pointsFor ?? 0,
+    pointsAgainst: standing?.pointsAgainst ?? 0,
+    leaguePoints: standing?.leaguePoints ?? 0
+  };
 }
 
 function PageContent({
@@ -133,27 +176,32 @@ function PageContent({
 }) {
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Fixtures") return <FixturesPage />;
-  if (activePage === "Results") return <ResultsPage playerGameResults={playerGameResults} />;
+  if (activePage === "Results") return <ResultsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} standingsData={standingsData} />;
   if (activePage === "Players") return <PlayersPage playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} onNavigate={onNavigate} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} />;
+  if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />;
 }
 
 function Header({
   activeTeam,
-  contexts,
+  simulatedRole,
+  simulatedClub,
   userLabel,
-  onTeamChange
+  onRoleChange,
+  onClubChange
 }: {
   activeTeam: TeamContext;
-  contexts: TeamContext[];
+  simulatedRole: Role;
+  simulatedClub: string;
   userLabel?: string;
-  onTeamChange: (id: string) => void;
+  onRoleChange: (role: Role) => void;
+  onClubChange: (club: string) => void;
 }) {
   return (
     <header className="sticky top-0 z-30 bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6 lg:px-10">
@@ -174,8 +222,11 @@ function Header({
             ) : null}
           </div>
         </div>
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[430px]">
+          <RoleSimulator value={simulatedRole} onChange={onRoleChange} />
+          <ClubSimulator value={simulatedClub} onChange={onClubChange} />
+        </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
-          <ContextSwitcher activeTeam={activeTeam} contexts={contexts} onTeamChange={onTeamChange} />
           {userLabel ? (
             <div className="hidden min-h-11 items-center gap-2 rounded-full bg-white/10 px-3 text-white sm:flex">
               <UserCircle className="h-5 w-5 shrink-0" />
@@ -188,37 +239,38 @@ function Header({
   );
 }
 
-function ContextSwitcher({
-  activeTeam,
-  contexts,
-  onTeamChange
-}: {
-  activeTeam: TeamContext;
-  contexts: TeamContext[];
-  onTeamChange: (id: string) => void;
-}) {
-  const duplicateBaseLabels = new Set(
-    contexts
-      .map((team) => `${team.name} - ${team.role}`)
-      .filter((label, index, labels) => labels.indexOf(label) !== index)
-  );
-
-  function contextLabel(team: TeamContext) {
-    const base = `${team.name} - ${team.role}`;
-    return duplicateBaseLabels.has(base) ? `${base} - ${team.season}` : base;
-  }
-
+function RoleSimulator({ value, onChange }: { value: Role; onChange: (role: Role) => void }) {
   return (
-    <label className="relative block w-full sm:w-auto">
-      <span className="sr-only">Switch team context</span>
+    <label className="relative block w-full">
+      <span className="sr-only">Simulate role</span>
       <select
-        value={activeTeam.id}
-        onChange={(event) => onTeamChange(event.target.value)}
-        className="h-11 w-full appearance-none rounded-full border border-white/15 bg-white px-4 pr-9 text-sm font-extrabold text-[#25002b] shadow-card outline-none sm:min-w-[220px]"
+        value={value}
+        onChange={(event) => onChange(event.target.value as Role)}
+        className="h-11 w-full appearance-none rounded-full border border-white/15 bg-white/95 px-4 pr-9 text-sm font-extrabold text-[#10233f] shadow-card outline-none"
       >
-        {contexts.map((team) => (
-          <option key={team.id} value={team.id}>
-            {contextLabel(team)}
+        {roleOptions.map((role) => (
+          <option key={role} value={role}>
+            {role}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-[#10233f]" />
+    </label>
+  );
+}
+
+function ClubSimulator({ value, onChange }: { value: string; onChange: (club: string) => void }) {
+  return (
+    <label className="relative block w-full">
+      <span className="sr-only">Simulate club</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full appearance-none rounded-full border border-white/15 bg-white/95 px-4 pr-9 text-sm font-extrabold text-[#10233f] shadow-card outline-none"
+      >
+        {clubTeamStructure.map((club) => (
+          <option key={club.club} value={club.club}>
+            {club.club}
           </option>
         ))}
       </select>
@@ -255,7 +307,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamC
 }
 
 function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
-  const manager = activeTeam.role === "Manager";
+  const manager = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
   const clubMember = activeTeam.role === "Club Member";
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
   const played = activeTeam.leagueMatchesPlayed ?? 0;
@@ -300,7 +352,7 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
         <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
           <Button className="w-full">
             <PlusCircle className="h-4 w-4" />
-            {clubMember ? "Book table" : manager ? "Enter result" : "View stats"}
+            {clubMember ? "Book table" : activeTeam.role === "Assistant Manager" ? "Support team" : manager ? "Enter result" : "View stats"}
           </Button>
           <Button variant="secondary" className="w-full">
             <MessageCircle className="h-4 w-4" />
@@ -359,6 +411,16 @@ function formatBookingDate(date: string) {
   }).format(new Date(`${date}T12:00:00`));
 }
 
+function ordinal(value: number) {
+  const lastTwo = value % 100;
+  if (lastTwo >= 11 && lastTwo <= 13) return `${value}th`;
+  const last = value % 10;
+  if (last === 1) return `${value}st`;
+  if (last === 2) return `${value}nd`;
+  if (last === 3) return `${value}rd`;
+  return `${value}th`;
+}
+
 function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
   const [bookingDate, setBookingDate] = useState(localIsoDate());
   const [payload, setPayload] = useState<BookingPayload | null>(null);
@@ -366,6 +428,25 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
   const [message, setMessage] = useState("");
   const [busySlot, setBusySlot] = useState("");
   const currentLocalDate = localIsoDate();
+
+  if (activeTeam.club !== "Castle Golf Club") {
+    return (
+      <section className="grid gap-4">
+        <Card className="overflow-hidden">
+          <CardContent className="pt-4">
+            <div className="rounded-[18px] bg-[#10233f] p-4 text-white">
+              <p className="text-xs font-extrabold uppercase text-white/65">Table bookings</p>
+              <h2 className="mt-1 text-3xl font-black leading-none">{activeTeam.club}</h2>
+              <p className="mt-2 text-sm font-semibold text-white/75">
+                Club-specific table booking is ready for Castle first. This club can be switched on when its tables are added.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        <MessagesPage activeTeam={activeTeam} compact />
+      </section>
+    );
+  }
 
   const loadBookings = async () => {
     setLoading(true);
@@ -613,10 +694,10 @@ function FixturesPage() {
   );
 }
 
-function ResultsPage({ playerGameResults }: { playerGameResults: PlayerGameResult[] }) {
+function ResultsPage({ activeTeam, playerGameResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[] }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <ScoreCard />
+      <ScoreCard activeTeam={activeTeam} />
       <RecentResults />
       <PlayerGameResultsCard results={playerGameResults} />
     </section>
@@ -721,8 +802,38 @@ function ManagerHome({ activeTeam }: { activeTeam: TeamContext }) {
     <section className="grid gap-4 md:grid-cols-2">
       <ManagerActionCard />
       <SeasonCompleteCard activeTeam={activeTeam} action="Review season" />
-      <ScoreCard />
+      <ScoreCard activeTeam={activeTeam} />
       <ManagerSeasonSnapshot activeTeam={activeTeam} />
+    </section>
+  );
+}
+
+function AssistantManagerHome({ activeTeam }: { activeTeam: TeamContext }) {
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Assistant Hub</CardTitle>
+          <Badge variant="cyan">Team support</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-2">
+          <Button className="w-full">
+            <Users className="h-4 w-4" />
+            Check squad
+          </Button>
+          <Button variant="dark" className="w-full">
+            <Mail className="h-4 w-4" />
+            Message team
+          </Button>
+          <Button variant="secondary" className="w-full">
+            <CalendarPlus className="h-4 w-4" />
+            Book table
+          </Button>
+        </CardContent>
+      </Card>
+      <SeasonCompleteCard activeTeam={activeTeam} action="View fixtures" />
+      <ManagerSeasonSnapshot activeTeam={activeTeam} />
+      <MessagesPage activeTeam={activeTeam} compact />
     </section>
   );
 }
@@ -771,14 +882,18 @@ function SeasonCompleteCard({ activeTeam = teamContexts[0], action }: { activeTe
             <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{activeTeam.club.replace(" Golf Club", "")}</p>
             <p className="mt-1 text-lg font-black">{activeTeam.name.replace(activeTeam.club.replace(" Golf Club", ""), "").trim() || activeTeam.name}</p>
           </div>
-          <span className="rounded-full bg-[#10233f] px-3 py-1 text-xs font-black text-white">{hasLeagueTable ? `${activeTeam.leaguePosition}th` : "-"}</span>
+          <span className="rounded-full bg-[#10233f] px-3 py-1 text-xs font-black text-white">{hasLeagueTable ? ordinal(activeTeam.leaguePosition) : "-"}</span>
           <div className="text-right">
             <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{activeTeam.league}</p>
             <p className="mt-1 text-lg font-black leading-tight">{activeTeam.leaguePoints ?? activeTeam.pointsFor ?? "-"} pts</p>
           </div>
         </div>
         <p className="mt-3 text-sm font-semibold text-[#6c5a73]">{upcomingFixture.date}</p>
-        <p className="text-sm font-semibold text-[#6c5a73]">{upcomingFixture.venue}</p>
+        <p className="text-sm font-semibold text-[#6c5a73]">
+          {hasLeagueTable
+            ? `${activeTeam.name} finished ${ordinal(activeTeam.leaguePosition)} in ${activeTeam.league}`
+            : `${activeTeam.name} has no league table yet`}
+        </p>
         <Button className="mt-4 w-full">{action}</Button>
       </CardContent>
     </Card>
@@ -902,7 +1017,12 @@ function ManagerActionCard() {
   );
 }
 
-function ScoreCard() {
+function ScoreCard({ activeTeam = teamContexts[0] }: { activeTeam?: TeamContext }) {
+  const opponent = activeTeam.name === "Castle A" ? "Elm Park A" : "Castle A";
+  const teamScore = activeTeam.name === "Castle A" ? "4" : activeTeam.leaguePosition <= 3 ? "5" : "3";
+  const opponentScore = activeTeam.name === "Castle A" ? "3" : activeTeam.leaguePosition <= 3 ? "2" : "4";
+  const winner = Number(teamScore) >= Number(opponentScore);
+
   return (
     <Card>
       <CardHeader>
@@ -911,8 +1031,8 @@ function ScoreCard() {
       </CardHeader>
       <CardContent>
         <div className="rounded-[18px] bg-[#10233f] p-4 text-white">
-          <ScoreRow team="Castle A" score="4" winner />
-          <ScoreRow team="Elm Park A" score="3" />
+          <ScoreRow team={activeTeam.name} score={teamScore} winner={winner} />
+          <ScoreRow team={opponent} score={opponentScore} winner={!winner} />
         </div>
       </CardContent>
     </Card>
@@ -944,7 +1064,9 @@ function ManagerSeasonSnapshot({ activeTeam = teamContexts[0] }: { activeTeam?: 
         </div>
         <div className="mt-3 rounded-xl bg-[#f7f5fa] p-3">
           <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Playoff line</p>
-          <p className="mt-1 font-black">{activeTeam.name} finished {activeTeam.leaguePosition || "-"}, inside the {activeTeam.league} semi-final places.</p>
+          <p className="mt-1 font-black">
+            {activeTeam.name} finished {activeTeam.leaguePosition ? ordinal(activeTeam.leaguePosition) : "-"}, inside the {activeTeam.league} semi-final places.
+          </p>
         </div>
       </CardContent>
     </Card>
@@ -1026,29 +1148,6 @@ function LeagueTable({ activeTeam, standingsData }: { activeTeam: TeamContext; s
           </table>
         </div>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function MembershipManagement() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Membership</CardTitle>
-        <Badge variant="muted">
-          <ShieldCheck className="mr-1 h-3 w-3" />
-          Supabase
-        </Badge>
-      </CardHeader>
-      <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-        {managementModules.map((module) => (
-          <div key={module.label} className="rounded-xl bg-[#f7f5fa] p-3">
-            <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{module.label}</p>
-            <p className="mt-1 text-xl font-black">{module.value}</p>
-            <p className="text-xs font-semibold text-[#6c5a73]">{module.detail}</p>
-          </div>
-        ))}
       </CardContent>
     </Card>
   );
