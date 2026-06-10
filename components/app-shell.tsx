@@ -182,7 +182,7 @@ function PageContent({
   if (activePage === "Players") return <PlayersPage playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
-  if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} onNavigate={onNavigate} />;
+  if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} />;
@@ -800,9 +800,33 @@ function MessagesPage({ activeTeam, compact = false, onSignOut, userLabel }: { a
   );
 }
 
-function MoreMenu({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+function MoreMenu({
+  activeTeam,
+  onNavigate,
+  onSignOut,
+  userLabel
+}: {
+  activeTeam: TeamContext;
+  onNavigate: (page: AppPage) => void;
+  onSignOut?: () => void;
+  userLabel?: string;
+}) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
+      {onSignOut ? (
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Account</CardTitle>
+            <Badge variant="muted">{userLabel ?? "Signed in"}</Badge>
+          </CardHeader>
+          <CardContent>
+            <Button variant="dark" className="w-full" onClick={onSignOut}>
+              <LogOut className="h-4 w-4" />
+              Log out
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
       <Card className="md:col-span-2">
         <CardHeader>
           <CardTitle>More</CardTitle>
