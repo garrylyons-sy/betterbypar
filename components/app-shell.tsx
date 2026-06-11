@@ -283,10 +283,10 @@ function Header({
             <img src="/favicon.ico" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-xs font-extrabold uppercase tracking-wide text-white/75">
+            <p className="truncate text-xs font-bold uppercase tracking-wide text-white/75">
               Interclub Snooker
             </p>
-            <h1 className="truncate text-lg font-black leading-tight">{activeTeam.season}</h1>
+            <h1 className="truncate text-lg font-extrabold leading-tight">{activeTeam.season}</h1>
             {userLabel ? (
               <p className="truncate text-xs font-bold text-white/70 sm:hidden">
                 {userLabel}
@@ -314,19 +314,19 @@ function Header({
               <button
                 type="button"
                 onClick={() => setAccountOpen((open) => !open)}
-                className="flex min-h-11 items-center gap-2 rounded-full bg-white/10 px-3 text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+                className="flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-3 text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
                 aria-haspopup="menu"
                 aria-expanded={accountOpen}
               >
                 <UserCircle className="h-5 w-5 shrink-0" />
-                <span className="max-w-[180px] truncate text-sm font-extrabold">{userLabel}</span>
+                <span className="max-w-[180px] truncate text-sm font-bold">{userLabel}</span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-white/70" />
               </button>
               {accountOpen ? (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 rounded-2xl bg-white p-2 text-[#10233f] shadow-elevated ring-1 ring-[#eeeaf2]" role="menu">
+                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 rounded-xl bg-white p-2 text-[#10233f] shadow-elevated ring-1 ring-[#eeeaf2]" role="menu">
                   <div className="px-3 py-2">
-                    <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Signed in as</p>
-                    <p className="truncate text-sm font-black">{userLabel}</p>
+                    <p className="text-xs font-bold uppercase text-[#6c5a73]">Signed in as</p>
+                    <p className="truncate text-sm font-extrabold">{userLabel}</p>
                   </div>
                   {onSignOut ? (
                     <button
@@ -335,7 +335,7 @@ function Header({
                         setAccountOpen(false);
                         onSignOut();
                       }}
-                      className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-black text-[#10233f] transition-colors hover:bg-[#f7f5fa] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+                      className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-bold text-[#10233f] transition-colors hover:bg-[#f7f5fa] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
                       role="menuitem"
                     >
                       <LogOut className="h-4 w-4" />
@@ -375,8 +375,8 @@ function ContextSwitcher({
 }) {
   if (contexts.length <= 1) {
     return (
-      <div className="min-h-11 rounded-full bg-white/95 px-4 py-2 text-[#10233f] shadow-card">
-        <p className="truncate text-sm font-black">{contextLabel(activeTeam)}</p>
+      <div className="min-h-11 rounded-xl bg-white/95 px-4 py-2 text-[#10233f] shadow-card">
+        <p className="truncate text-sm font-extrabold">{contextLabel(activeTeam)}</p>
         <p className="truncate text-[11px] font-bold text-[#6c5a73]">{contextDescription(activeTeam)}</p>
       </div>
     );
@@ -388,7 +388,7 @@ function ContextSwitcher({
       <select
         value={selectedId}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full appearance-none rounded-full border border-white/15 bg-white/95 px-4 pr-10 text-sm font-extrabold text-[#10233f] shadow-card outline-none"
+        className="h-12 w-full appearance-none rounded-xl border border-white/15 bg-white/95 px-4 pr-10 text-sm font-bold text-[#10233f] shadow-card outline-none"
       >
         {contexts.map((context) => (
           <option key={context.id} value={context.id}>
@@ -408,7 +408,7 @@ function RoleSimulator({ value, onChange }: { value: Role; onChange: (role: Role
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as Role)}
-        className="h-11 w-full appearance-none rounded-full border border-white/15 bg-white/95 px-4 pr-9 text-sm font-extrabold text-[#10233f] shadow-card outline-none"
+        className="h-11 w-full appearance-none rounded-xl border border-white/15 bg-white/95 px-4 pr-9 text-sm font-bold text-[#10233f] shadow-card outline-none"
       >
         {roleOptions.map((role) => (
           <option key={role} value={role}>
@@ -428,7 +428,7 @@ function ClubSimulator({ value, onChange }: { value: string; onChange: (club: st
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full appearance-none rounded-full border border-white/15 bg-white/95 px-4 pr-9 text-sm font-extrabold text-[#10233f] shadow-card outline-none"
+        className="h-11 w-full appearance-none rounded-xl border border-white/15 bg-white/95 px-4 pr-9 text-sm font-bold text-[#10233f] shadow-card outline-none"
       >
         {clubTeamStructure.map((club) => (
           <option key={club.club} value={club.club}>
@@ -446,8 +446,8 @@ function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamC
 
   return (
     <aside className="hidden self-start rounded-[18px] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
-      <p className="text-xs font-extrabold uppercase text-white/60">{activeTeam.role === "Club Member" ? "Club" : "Competition"}</p>
-      <h2 className="mt-1 text-2xl font-black">{activeTeam.role === "Club Member" ? activeTeam.club.replace(" Golf Club", "") : activeTeam.league}</h2>
+      <p className="text-xs font-bold uppercase text-white/60">{activeTeam.role === "Club Member" ? "Club" : "Competition"}</p>
+      <h2 className="mt-1 text-2xl font-extrabold">{activeTeam.role === "Club Member" ? activeTeam.club.replace(" Golf Club", "") : activeTeam.league}</h2>
       <div className="mt-5 space-y-1.5">
         {items.map((item) => {
           const Icon = item.icon;
@@ -456,7 +456,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamC
               key={item.label}
               onClick={() => onNavigate(item.page)}
               className={cn(
-                "flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-extrabold text-white/80 transition-colors hover:bg-white/10",
+                "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-bold text-white/80 transition-colors hover:bg-white/10",
                 activePage === item.page && "bg-white text-[#10233f]"
               )}
             >
@@ -492,10 +492,10 @@ function MatchdayHero({ activeTeam, interclubView = false }: { activeTeam: TeamC
                   {hasLeagueTable ? `Position ${activeTeam.leaguePosition}` : "Table pending"}
                 </Badge>
               </div>
-              <p className="mt-5 text-xs font-extrabold uppercase tracking-wide text-white/70">
+              <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">
                 {clubMember && interclubView ? "Interclub leagues" : clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
               </p>
-              <h2 className="mt-1 text-4xl font-black leading-none sm:text-5xl xl:text-6xl">{activeTeam.name}</h2>
+              <h2 className="mt-1 text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.name}</h2>
               <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
             </div>
           </div>
@@ -533,8 +533,8 @@ function ClubMemberHero({ activeTeam }: { activeTeam: TeamContext }) {
               <Badge variant="muted">Tables</Badge>
               <Badge variant="muted">Messages</Badge>
             </div>
-            <p className="mt-5 text-xs font-extrabold uppercase tracking-wide text-white/70">Club home</p>
-            <h2 className="mt-1 text-4xl font-black leading-none sm:text-5xl xl:text-6xl">{activeTeam.club}</h2>
+            <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">Club home</p>
+            <h2 className="mt-1 text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.club}</h2>
             <p className="mt-2 text-sm font-semibold text-white/80">Book tables, read club notices and manage your account.</p>
           </div>
         </div>
@@ -821,7 +821,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
               </Button>
               <label className="relative block min-w-0 flex-1">
                 <span className="sr-only">Booking date</span>
-                <span className="grid min-h-14 place-items-center rounded-full bg-white px-4 text-center text-base font-black text-[#25002b]">
+              <span className="grid min-h-14 place-items-center rounded-xl bg-white px-4 text-center text-base font-extrabold text-[#25002b]">
                   {new Intl.DateTimeFormat("en-IE", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${bookingDate}T12:00:00`))}
                 </span>
                 <input
@@ -878,14 +878,14 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
                       )}
                     >
                       <div className="text-center">
-                        <p className="text-xl font-black leading-none">{startTime}</p>
-                        <p className="mt-1 text-[11px] font-extrabold uppercase text-[#6c5a73]">{String(hour + 1).padStart(2, "0")}:00</p>
+                        <p className="text-xl font-extrabold leading-none">{startTime}</p>
+                        <p className="mt-1 text-[11px] font-bold uppercase text-[#6c5a73]">{String(hour + 1).padStart(2, "0")}:00</p>
                       </div>
                       {booking ? (
                         <div className="flex min-w-0 items-center justify-between gap-2">
                           <div className="min-w-0">
                             <Badge variant={booking.canCancel ? "green" : "muted"}>{booking.canCancel ? "Your booking" : "Booked"}</Badge>
-                            <p className="mt-1 truncate text-sm font-black">{booking.bookedBy}</p>
+                            <p className="mt-1 truncate text-sm font-bold">{booking.bookedBy}</p>
                           </div>
                           {booking.canCancel ? (
                             <Button variant="ghost" size="icon" onClick={() => cancelBooking(booking)} disabled={busy} aria-label={`Cancel ${table.tableName} at ${startTime}`}>
@@ -1418,7 +1418,7 @@ function SeasonResultsCard({ activeTeam, results, defaultScope = "club" }: { act
         <Badge variant="cyan">{sortedResults.length ? `${sortedResults.length} matches` : activeTeam.season}</Badge>
       </CardHeader>
       <CardContent className="space-y-2">
-        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#f7f5fa] p-1">
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#f7f5fa] p-1">
           {[
             { label: "My club", value: "club" as const, count: clubResults.length },
             { label: "All league", value: "league" as const, count: results.length }
@@ -1428,21 +1428,21 @@ function SeasonResultsCard({ activeTeam, results, defaultScope = "club" }: { act
               type="button"
               onClick={() => setScope(item.value)}
               className={cn(
-                "min-h-11 rounded-xl px-3 text-sm font-black transition-colors",
+                "min-h-11 rounded-lg px-3 text-sm font-bold transition-colors",
                 scope === item.value ? "bg-[#10233f] text-white shadow-card" : "text-[#10233f]"
               )}
             >
-              {item.label} <span className={cn("font-extrabold", scope === item.value ? "text-white/70" : "text-[#6c5a73]")}>({item.count})</span>
+              {item.label} <span className={cn("font-semibold", scope === item.value ? "text-white/70" : "text-[#6c5a73]")}>({item.count})</span>
             </button>
           ))}
         </div>
         {scope === "league" ? (
           <div className="space-y-3">
             {weekGroups.map((group) => (
-              <section key={group.key} className="rounded-2xl p-2 ring-1 ring-[#eeeaf2]" style={clubSoftAccentStyle(activeTeam.primaryColor)}>
+              <section key={group.key} className="rounded-xl p-2 ring-1 ring-[#eeeaf2]" style={clubSoftAccentStyle(activeTeam.primaryColor)}>
                 <div className="mb-2 flex items-center justify-between gap-2 px-1">
                   <div>
-                    <p className="text-sm font-black text-[#10233f]">{group.label}</p>
+                    <p className="text-sm font-extrabold text-[#10233f]">{group.label}</p>
                     <p className="text-xs font-semibold text-[#6c5a73]">{formatFixtureDate(group.date)}</p>
                   </div>
                   <Badge variant="muted">{group.results.length} matches</Badge>
@@ -1479,7 +1479,7 @@ function ResultRow({ result, activeTeam }: { result: MatchResult; activeTeam: Te
     <div
       key={result.id}
       className={cn(
-        "overflow-hidden rounded-xl bg-white shadow-[0_8px_22px_rgba(16,35,63,0.06)] ring-1 ring-[#eeeaf2]",
+        "overflow-hidden rounded-lg bg-white shadow-[0_8px_22px_rgba(16,35,63,0.06)] ring-1 ring-[#eeeaf2]",
         activeTeamPlayed && "ring-2 ring-offset-1 ring-offset-white"
       )}
       style={activeTeamPlayed ? { boxShadow: `0 0 0 2px ${activeTeam.primaryColor}22` } : undefined}
@@ -1487,20 +1487,20 @@ function ResultRow({ result, activeTeam }: { result: MatchResult; activeTeam: Te
       <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${homeColors.primaryColor}, ${awayColors.primaryColor})` }} />
       <div className="grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 p-3">
         <div className="min-w-0">
-          <p className="break-words font-black leading-tight" style={{ color: homeColors.primaryColor }}>{result.homeTeamName}</p>
+          <p className="break-words font-extrabold leading-tight" style={{ color: homeColors.primaryColor }}>{result.homeTeamName}</p>
           <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{formatFixtureDate(result.fixtureDate)}</p>
         </div>
-        <div className="grid grid-cols-[auto_auto_auto] items-center gap-1 rounded-full bg-[#f7f5fa] px-2 py-1 ring-1 ring-[#eeeaf2]">
-          <span className={cn("grid h-8 min-w-8 place-items-center rounded-full px-2 text-lg font-black ring-1", scoreTone(result.homeTeamScore, result.awayTeamScore))}>
+        <div className="grid grid-cols-[auto_auto_auto] items-center gap-1 rounded-lg bg-[#f7f5fa] px-2 py-1 ring-1 ring-[#eeeaf2]">
+          <span className={cn("grid h-8 min-w-8 place-items-center rounded-md px-2 text-lg font-extrabold ring-1", scoreTone(result.homeTeamScore, result.awayTeamScore))}>
             {result.homeTeamScore}
           </span>
-          <span className="text-xs font-black text-[#6c5a73]">v</span>
-          <span className={cn("grid h-8 min-w-8 place-items-center rounded-full px-2 text-lg font-black ring-1", scoreTone(result.awayTeamScore, result.homeTeamScore))}>
+          <span className="text-xs font-bold text-[#6c5a73]">v</span>
+          <span className={cn("grid h-8 min-w-8 place-items-center rounded-md px-2 text-lg font-extrabold ring-1", scoreTone(result.awayTeamScore, result.homeTeamScore))}>
             {result.awayTeamScore}
           </span>
         </div>
         <div className="min-w-0 text-right">
-          <p className="break-words font-black leading-tight" style={{ color: awayColors.primaryColor }}>{result.awayTeamName}</p>
+          <p className="break-words font-extrabold leading-tight" style={{ color: awayColors.primaryColor }}>{result.awayTeamName}</p>
           <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{homeWon ? "Home win" : awayWon ? "Away win" : "Draw"}</p>
         </div>
       </div>
@@ -1827,7 +1827,7 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
       <CardContent>
         {tableRows.length === 0 ? (
           <div className="rounded-2xl bg-[#f7f5fa] p-4">
-            <p className="text-sm font-black text-[#10233f]">No league table yet</p>
+            <p className="text-sm font-extrabold text-[#10233f]">No league table yet</p>
             <p className="mt-1 text-sm font-semibold text-[#6c5a73]">
               {activeTeam.season} has no results or standings data yet.
             </p>
@@ -1868,7 +1868,7 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
                     <td className="border-t border-[#eeeaf2] py-3 pr-3">
                       <span
                         className={cn(
-                          "inline-grid h-8 w-8 place-items-center rounded-full text-xs font-black",
+                          "inline-grid h-8 w-8 place-items-center rounded-lg text-xs font-extrabold",
                           row.position === 1
                             ? "bg-[#ffb000] text-[#25002b]"
                             : row.position <= 4
@@ -1883,8 +1883,8 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }} />
                         <div className="min-w-0">
-                          <p className="break-words font-black leading-tight lg:whitespace-nowrap" style={{ color: primaryColor }}>{row.team}</p>
-                          <p className="mt-0.5 text-[10px] font-extrabold uppercase text-[#6c5a73] xl:hidden">{form}</p>
+                          <p className="break-words font-extrabold leading-tight lg:whitespace-nowrap" style={{ color: primaryColor }}>{row.team}</p>
+                          <p className="mt-0.5 text-[10px] font-bold uppercase text-[#6c5a73] xl:hidden">{form}</p>
                         </div>
                       </div>
                     </td>
@@ -1892,12 +1892,12 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
                     <td className="hidden border-t border-[#eeeaf2] px-2 text-right font-bold sm:table-cell">{row.won}</td>
                     <td className="hidden border-t border-[#eeeaf2] px-2 text-right font-bold sm:table-cell">{row.lost}</td>
                     <td className="hidden border-t border-[#eeeaf2] px-2 text-center xl:table-cell">
-                      <span className="inline-flex rounded-full px-2 py-1 text-[11px] font-black text-white" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}>
+                      <span className="inline-flex rounded-md px-2 py-1 text-[11px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}>
                         {form}
                       </span>
                     </td>
                     <td className="border-t border-[#eeeaf2] px-2 text-right font-bold">{diff > 0 ? `+${diff}` : diff}</td>
-                    <td className="border-t border-[#eeeaf2] px-2 text-right text-base font-black">{row.leaguePoints}</td>
+                    <td className="border-t border-[#eeeaf2] px-2 text-right text-base font-extrabold">{row.leaguePoints}</td>
                   </tr>
                 );
               })}
@@ -1923,14 +1923,14 @@ function ClubTeamStructureCard() {
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
                 <ClubLogoTile club={club.club} logoPath={club.logoPath} size="compact" />
-                <p className="font-black leading-tight">{club.club}</p>
+                <p className="font-extrabold leading-tight">{club.club}</p>
               </div>
               <Badge variant="muted">{club.teams.length}</Badge>
             </div>
             <div className="mt-2 h-1.5 rounded-full" style={clubAccentStyle(club.primaryColor, club.accentColor)} />
             <div className="mt-2 flex flex-wrap gap-1.5">
               {club.teams.map((team) => (
-                <span key={team} className="rounded-full bg-white px-2 py-1 text-xs font-extrabold text-[#10233f] ring-1 ring-[#eeeaf2]">
+                <span key={team} className="rounded-md bg-white px-2 py-1 text-xs font-bold text-[#10233f] ring-1 ring-[#eeeaf2]">
                   {team}
                 </span>
               ))}
@@ -1944,9 +1944,9 @@ function ClubTeamStructureCard() {
 
 function HeroMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur">
-      <p className="text-xs font-extrabold uppercase text-white/65">{label}</p>
-      <p className="mt-1 text-3xl font-black leading-none text-white">{value}</p>
+    <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur">
+      <p className="text-xs font-bold uppercase text-white/65">{label}</p>
+      <p className="mt-1 text-3xl font-extrabold leading-none text-white">{value}</p>
     </div>
   );
 }
@@ -1954,8 +1954,8 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
 function MiniStat({ label, value, dark = false }: { label: string; value: string; dark?: boolean }) {
   return (
     <div className={cn("min-w-0 rounded-xl p-3", dark ? "bg-white/10" : "bg-[#f7f5fa]")}>
-      <p className={cn("text-xs font-extrabold uppercase", dark ? "text-white/60" : "text-[#6c5a73]")}>{label}</p>
-      <p className={cn("mt-1 truncate text-xl font-black", dark ? "text-white" : "text-[#10233f]")}>{value}</p>
+      <p className={cn("text-xs font-bold uppercase", dark ? "text-white/60" : "text-[#6c5a73]")}>{label}</p>
+      <p className={cn("mt-1 truncate text-xl font-extrabold", dark ? "text-white" : "text-[#10233f]")}>{value}</p>
     </div>
   );
 }
@@ -1979,7 +1979,7 @@ function BottomNav({ activePage, activeTeam, onNavigate }: { activePage: AppPage
               onClick={() => onNavigate(item.page)}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 text-[10px] font-extrabold leading-tight text-[#6c5a73]",
+                "flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 text-[10px] font-bold leading-tight text-[#6c5a73]",
                 active && "bg-[#10233f] text-white shadow-card"
               )}
             >

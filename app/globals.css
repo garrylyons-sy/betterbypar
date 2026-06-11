@@ -116,6 +116,23 @@ body {
   outline-offset: 3px;
 }
 
+@layer utilities {
+  .font-black {
+    font-weight: 800;
+  }
+
+  .font-extrabold {
+    font-weight: 700;
+  }
+}
+
+button.rounded-full,
+select.rounded-full,
+input.rounded-full,
+a.rounded-full {
+  border-radius: 12px;
+}
+
 @keyframes splash-out {
   0%,
   72% {

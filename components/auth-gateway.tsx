@@ -204,7 +204,7 @@ function AuthHome({
       <section className="mx-auto grid min-h-screen w-full max-w-[1180px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[1fr_460px] lg:items-center lg:px-10">
         <div className="rounded-[18px] bg-[#10233f] p-5 text-white shadow-elevated sm:p-7">
           <Badge variant="cyan">Player access</Badge>
-          <h1 className="mt-5 text-4xl font-black leading-none sm:text-5xl">
+          <h1 className="mt-5 text-3xl font-extrabold leading-tight sm:text-4xl">
             Interclub Snooker
           </h1>
           <p className="mt-3 max-w-xl text-base font-semibold text-white/75">
@@ -230,15 +230,15 @@ function AuthHome({
           </CardHeader>
           <CardContent>
             {message ? (
-              <div className="mb-4 rounded-2xl bg-[#f7f5fa] p-3 text-sm font-extrabold text-[#10233f]">
+              <div className="mb-4 rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">
                 {message}
               </div>
             ) : null}
-            <div className="mb-4 grid grid-cols-3 rounded-full bg-[#eeeaf2] p-1">
+            <div className="mb-4 grid grid-cols-3 rounded-xl bg-[#eeeaf2] p-1">
               {(["signin", "activate", "request"] as AuthMode[]).map((item) => (
                 <button
                   key={item}
-                  className={`min-h-11 rounded-full text-sm font-black ${mode === item ? "bg-[#10233f] text-white" : "text-[#25002b]"}`}
+                  className={`min-h-11 rounded-lg text-sm font-bold ${mode === item ? "bg-[#10233f] text-white" : "text-[#25002b]"}`}
                   onClick={() => setMode(item)}
                 >
                   {item === "signin" ? "Sign in" : item === "activate" ? "Activate" : "Request"}
@@ -263,7 +263,7 @@ function AuthFeature({ icon: Icon, label }: { icon: typeof ShieldCheck; label: s
   return (
     <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/15">
       <Icon className="h-5 w-5 text-[#7bc7d6]" />
-      <p className="mt-2 text-sm font-black">{label}</p>
+      <p className="mt-2 text-sm font-bold">{label}</p>
     </div>
   );
 }
@@ -301,8 +301,8 @@ function ActivateForm({ invite, onSignedIn }: { invite: ActivationInvite | null;
     <div className="grid gap-3">
       {invite ? (
         <div className="rounded-2xl bg-[#f7f5fa] p-3">
-          <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Invitation</p>
-          <p className="mt-1 text-base font-black text-[#25002b]">{invite.name}</p>
+          <p className="text-xs font-bold uppercase text-[#6c5a73]">Invitation</p>
+          <p className="mt-1 text-base font-extrabold text-[#25002b]">{invite.name}</p>
           <p className="text-sm font-bold text-[#6c5a73]">{invite.email}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge variant="cyan">{invite.club ?? "Club"}</Badge>
@@ -385,8 +385,8 @@ function RequestInviteForm({ teamOptions }: { teamOptions: TeamOption[] }) {
         }))}
       />
       <div className="rounded-2xl bg-[#f7f5fa] p-3">
-        <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Requested role</p>
-        <p className="mt-1 text-base font-black text-[#10233f]">Player</p>
+        <p className="text-xs font-bold uppercase text-[#6c5a73]">Requested role</p>
+        <p className="mt-1 text-base font-extrabold text-[#10233f]">Player</p>
         <p className="mt-1 text-xs font-semibold text-[#6c5a73]">
           Manager access is assigned through backend membership management after verification.
         </p>
@@ -403,7 +403,7 @@ function RequestInviteForm({ teamOptions }: { teamOptions: TeamOption[] }) {
 
 function DemoAuthNotice() {
   return (
-    <div className="bg-[#00ff85] px-4 py-2 text-center text-xs font-black uppercase text-[#25002b]">
+    <div className="bg-[#00ff85] px-4 py-2 text-center text-xs font-bold uppercase text-[#25002b]">
       Preview dashboard: live auth uses app-owned sessions backed by Supabase Postgres.
     </div>
   );

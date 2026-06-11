@@ -172,12 +172,12 @@ function AdminLayout({
       <header className="bg-[#10233f] px-4 py-5 text-white shadow-elevated sm:px-6 lg:px-10">
         <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-extrabold uppercase text-white/65">League operations</p>
-            <h1 className="text-2xl font-black leading-tight">Admin console</h1>
+            <p className="text-xs font-bold uppercase text-white/65">League operations</p>
+            <h1 className="text-2xl font-extrabold leading-tight">Admin console</h1>
           </div>
           <div className="flex flex-col items-end gap-1">
             <Badge variant="cyan">Administrator</Badge>
-            {adminUser ? <p className="max-w-[220px] truncate text-sm font-extrabold text-white/80">{adminUser.name}</p> : null}
+            {adminUser ? <p className="max-w-[220px] truncate text-sm font-bold text-white/80">{adminUser.name}</p> : null}
           </div>
         </div>
       </header>
@@ -193,7 +193,7 @@ function AdminLayout({
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-full px-4 text-sm font-black ${tab === item.id ? "bg-[#10233f] text-white" : "text-[#25002b]"}`}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-4 text-sm font-bold ${tab === item.id ? "bg-[#10233f] text-white" : "text-[#25002b]"}`}
               >
                 <Icon className="h-5 w-5" />
                 {item.label}
@@ -202,7 +202,7 @@ function AdminLayout({
           })}
         </aside>
         <div className="grid min-w-0 gap-4">
-          {message ? <div className="rounded-2xl bg-[#00ff85] px-4 py-3 text-sm font-black text-[#25002b]">{message}</div> : null}
+          {message ? <div className="rounded-xl bg-[#00ff85] px-4 py-3 text-sm font-bold text-[#25002b]">{message}</div> : null}
           {children}
         </div>
       </section>
@@ -294,7 +294,7 @@ function InvitesPanel({
         <CardContent className="grid gap-2">
           {(requests.length ? requests : [{ id: "demo-request", requested_person_name: "No pending requests", email: "Player requests will appear here", status: "Pending", message: null, created_at: new Date().toISOString() }]).map((request) => (
             <div key={request.id} className="rounded-xl bg-[#f7f5fa] p-3">
-              <p className="font-black">{request.requested_person_name}</p>
+              <p className="font-extrabold">{request.requested_person_name}</p>
               <p className="text-xs font-bold text-[#6c5a73]">{request.email}</p>
               <Badge variant={request.status === "Pending" ? "cyan" : "muted"}>{request.status}</Badge>
             </div>
@@ -423,7 +423,7 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
           <div key={log.id} className="rounded-xl bg-[#f7f5fa] p-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-black">{log.activity_type}</p>
+                <p className="font-extrabold">{log.activity_type}</p>
                 <p className="text-xs font-bold text-[#6c5a73]">
                   {log.person ? `${log.person.first_name} ${log.person.last_name}` : "Unknown user"}
                 </p>
@@ -467,7 +467,7 @@ function AdminShell({ title, subtitle, children }: { title: string; subtitle: st
 function AdminInput({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
   return (
     <label className="grid min-w-0 gap-1.5">
-      <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{label}</span>
+      <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
       <input className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)} type={type} />
     </label>
   );
@@ -476,7 +476,7 @@ function AdminInput({ label, value, onChange, type = "text" }: { label: string; 
 function AdminSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
   return (
     <label className="grid min-w-0 gap-1.5">
-      <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{label}</span>
+      <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
       <select className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>

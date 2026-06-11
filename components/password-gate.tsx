@@ -59,10 +59,10 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
               <Trophy className="h-6 w-6" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-xs font-black uppercase tracking-wide text-[#0A6B45]">
+              <p className="text-xs font-bold uppercase tracking-wide text-[#0A6B45]">
                 Private preview
               </p>
-              <h1 className="text-2xl font-black leading-tight">
+              <h1 className="text-2xl font-extrabold leading-tight">
                 Interclub Snooker
               </h1>
             </div>
@@ -70,7 +70,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             <label className="block">
-              <span className="mb-2 block text-xs font-black uppercase text-[#526174]">
+              <span className="mb-2 block text-xs font-bold uppercase text-[#526174]">
                 Access password
               </span>
               <div className="flex min-h-12 items-center gap-2 rounded-2xl border border-[#D8E0EA] bg-[#F5F7FA] px-4 focus-within:border-[#0A6B45] focus-within:ring-2 focus-within:ring-[#0A6B45]/20">
@@ -98,7 +98,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
               </p>
             ) : null}
 
-            <Button className="min-h-12 w-full rounded-full bg-[#0E2742] text-sm font-black uppercase text-white hover:bg-[#143B63]">
+            <Button className="min-h-12 w-full rounded-xl bg-[#0E2742] text-sm font-bold uppercase text-white hover:bg-[#143B63]">
               Enter app
             </Button>
           </form>

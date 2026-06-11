@@ -109,7 +109,7 @@ export function AuthTextField({
 }) {
   return (
     <label className="grid min-w-0 gap-1.5">
-      <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{label}</span>
+      <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
       <input
         className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]"
         value={value}
@@ -135,7 +135,7 @@ export function AuthSelectField({
 }) {
   return (
     <label className="grid min-w-0 gap-1.5">
-      <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{label}</span>
+      <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
       <select
         className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]"
         value={value}
@@ -162,7 +162,7 @@ export function AuthTextAreaField({
 }) {
   return (
     <label className="grid min-w-0 gap-1.5">
-      <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{label}</span>
+      <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
       <textarea
         className="min-h-24 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 py-3 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]"
         value={value}
