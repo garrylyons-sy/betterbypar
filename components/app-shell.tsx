@@ -394,9 +394,7 @@ function MatchdayHero({ activeTeam, interclubView = false }: { activeTeam: TeamC
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] xl:items-end">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/95 p-2 shadow-[0_8px_18px_rgba(0,0,0,0.18)] ring-1 ring-white/20 sm:h-20 sm:w-20">
-              <img src={activeTeam.logoPath} alt={`${activeTeam.club} logo`} className="max-h-full max-w-full object-contain" />
-            </div>
+            <ClubLogoTile club={activeTeam.club} logoPath={activeTeam.logoPath} size="hero" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="cyan">{activeTeam.role}</Badge>
@@ -439,9 +437,7 @@ function ClubMemberHero({ activeTeam }: { activeTeam: TeamContext }) {
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         <div className="relative flex min-w-0 items-start gap-3">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/95 p-2 shadow-[0_8px_18px_rgba(0,0,0,0.18)] ring-1 ring-white/20 sm:h-20 sm:w-20">
-            <img src={activeTeam.logoPath} alt={`${activeTeam.club} logo`} className="max-h-full max-w-full object-contain" />
-          </div>
+          <ClubLogoTile club={activeTeam.club} logoPath={activeTeam.logoPath} size="hero" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="cyan">Club Member</Badge>
@@ -465,6 +461,36 @@ function ClubMemberHero({ activeTeam }: { activeTeam: TeamContext }) {
         </div>
       </div>
     </section>
+  );
+}
+
+function ClubLogoTile({ club, logoPath, size }: { club: string; logoPath: string; size: "hero" | "compact" }) {
+  const dunLaoghaire = club === "Dun Laoghaire Golf Club";
+
+  if (size === "compact") {
+    return (
+      <span
+        className={cn(
+          "flex shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-[#eeeaf2]",
+          dunLaoghaire ? "h-10 w-16 flex-col gap-0.5 px-1 py-1" : "h-9 w-9 p-1.5"
+        )}
+      >
+        <img src={logoPath} alt={`${club} logo`} className={cn("object-contain", dunLaoghaire ? "h-5 w-auto" : "max-h-full max-w-full")} />
+        {dunLaoghaire ? <span className="text-center text-[8px] font-black leading-none text-[#10233f]">Dun Laoghaire</span> : null}
+      </span>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex h-16 shrink-0 items-center justify-center rounded-2xl bg-white/95 shadow-[0_8px_18px_rgba(0,0,0,0.18)] ring-1 ring-white/20 sm:h-20",
+        dunLaoghaire ? "w-24 flex-col gap-1 px-2 py-2 sm:w-28" : "w-16 p-2 sm:w-20"
+      )}
+    >
+      <img src={logoPath} alt={`${club} logo`} className={cn("object-contain", dunLaoghaire ? "h-9 w-auto sm:h-11" : "max-h-full max-w-full")} />
+      {dunLaoghaire ? <span className="text-center text-[10px] font-black uppercase leading-none text-[#10233f] sm:text-[11px]">Dun Laoghaire</span> : null}
+    </div>
   );
 }
 
@@ -1440,9 +1466,7 @@ function ClubTeamStructureCard() {
           <div key={club.club} className="rounded-xl bg-[#f7f5fa] p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white p-1.5 ring-1 ring-[#eeeaf2]">
-                  <img src={club.logoPath} alt={`${club.club} logo`} className="max-h-full max-w-full object-contain" />
-                </span>
+                <ClubLogoTile club={club.club} logoPath={club.logoPath} size="compact" />
                 <p className="font-black leading-tight">{club.club}</p>
               </div>
               <Badge variant="muted">{club.teams.length}</Badge>

@@ -138,5 +138,5 @@ export const clubTeamStructure: ClubTeamStructure[] = [
   { club: "Woodbrook Golf Club", logoPath: "/club-logos/woodbrook.jpg", primaryColor: "#193C64", accentColor: "#0B243B", teams: ["Woodbrook A"] },
   { club: "Newlands Golf Club", logoPath: "/club-logos/newlands.png", primaryColor: "#008E3A", accentColor: "#005C2E", teams: ["Newlands A", "Newlands B", "Newlands C"] },
   { club: "Dun Laoghaire Golf Club", logoPath: "/club-logos/dun-laoghaire.png", primaryColor: "#0E4D73", accentColor: "#07233A", teams: ["Dun Laoghaire A"] },
-  { club: "Fitzwilliam Lawn Tennis Club", logoPath: "/club-logos/fitzwilliam.png", primaryColor: "#9A7A18", accentColor: "#111111", teams: ["Fitzwilliam A", "Fitzwilliam B"] }
+  { club: "Fitzwilliam Lawn Tennis Club", logoPath: "/club-logos/fitzwilliam.png", primaryColor: "#164236", accentColor: "#B5963B", teams: ["Fitzwilliam A", "Fitzwilliam B"] }
 ];
