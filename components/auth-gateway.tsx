@@ -326,7 +326,7 @@ function ActivateForm({ invite, onSignedIn }: { invite: ActivationInvite | null;
       </Button>
       <GoogleAuthButton
         label="Sign in with Google"
-        onClick={() => window.location.assign(invite ? `/auth/google?next=${encodeURIComponent(`/activate?invite=${invite.code}`)}` : "/auth/google")}
+        href={invite ? `/auth/google?next=${encodeURIComponent(`/activate?invite=${invite.code}`)}` : "/auth/google"}
       />
     </div>
   );

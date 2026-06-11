@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LogIn } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,11 @@ export function AuthSignInForm({
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [currentNext, setCurrentNext] = useState("/");
+
+  useEffect(() => {
+    setCurrentNext(`${window.location.pathname}${window.location.search}`);
+  }, []);
 
   async function signInWithPassword() {
     setBusy(true);
@@ -46,15 +51,7 @@ export function AuthSignInForm({
     }
   }
 
-  const googlePath = googleNext ? `/auth/google?next=${encodeURIComponent(googleNext)}` : "/auth/google";
-  const signInWithGoogle = () => {
-    const authUrl = new URL(googlePath, window.location.origin).toString();
-    if (window.self !== window.top) {
-      window.top?.location.assign(authUrl);
-      return;
-    }
-    window.location.assign(authUrl);
-  };
+  const googlePath = `/auth/google?next=${encodeURIComponent(googleNext ?? currentNext)}`;
 
   return (
     <div className="grid gap-3">
@@ -65,26 +62,39 @@ export function AuthSignInForm({
         <LogIn className="h-4 w-4" />
         Sign in
       </Button>
-      <GoogleAuthButton label="Sign in with Google" onClick={signInWithGoogle} />
+      <GoogleAuthButton label="Sign in with Google" href={googlePath} />
     </div>
   );
 }
 
 export function GoogleAuthButton({
   label,
-  onClick
+  onClick,
+  href
 }: {
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
+  href?: string;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="mx-auto inline-flex h-10 w-full max-w-[220px] items-center justify-center gap-3 rounded-full border border-[#747775] bg-white px-4 text-[14px] font-medium leading-none text-[#1f1f1f] shadow-none transition-colors hover:bg-[#f8fafd] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
-    >
+  const className = "mx-auto inline-flex h-10 w-full max-w-[220px] items-center justify-center gap-3 rounded-full border border-[#747775] bg-white px-4 text-[14px] font-medium leading-none text-[#1f1f1f] shadow-none transition-colors hover:bg-[#f8fafd] focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]";
+  const content = (
+    <>
       <GoogleGIcon />
       <span>{label}</span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} target="_top" className={className}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {content}
     </button>
   );
 }
