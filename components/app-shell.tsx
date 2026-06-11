@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import {
   BarChart3,
@@ -1893,11 +1893,15 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
   const [slots, setSlots] = useState<ManagerLineupSlot[]>(defaultLineupSlots);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const dirtyDraftRef = useRef(false);
+  const fixtureIdRef = useRef("");
 
   useEffect(() => {
     if (!activeTeam.teamId) return;
     let cancelled = false;
     let firstLoad = true;
+    dirtyDraftRef.current = false;
+    fixtureIdRef.current = "";
 
     async function loadLineup() {
       if (!activeTeam.teamId) return;
@@ -1908,7 +1912,16 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
         if (cancelled) return;
         if (!response.ok) throw new Error(data.error || "Lineup unavailable.");
         setPayload(data);
-        setSlots(data.lineup?.slots?.length ? data.lineup.slots : defaultLineupSlots);
+        const fixtureId = data.fixture?.id ?? "";
+        const fixtureChanged = fixtureId !== fixtureIdRef.current;
+        const lineupStatus = data.lineup?.status ?? "Draft";
+        if (fixtureChanged) {
+          fixtureIdRef.current = fixtureId;
+          dirtyDraftRef.current = false;
+        }
+        if (firstLoad || fixtureChanged || lineupStatus === "Published" || !dirtyDraftRef.current) {
+          setSlots(data.lineup?.slots?.length ? data.lineup.slots : defaultLineupSlots);
+        }
       } catch (error) {
         if (!cancelled && firstLoad) setMessage(error instanceof Error ? error.message : "Lineup unavailable.");
       } finally {
@@ -1926,6 +1939,7 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
   }, [activeTeam.teamId]);
 
   function updateSlot(slotNumber: number, key: "player1Id" | "player2Id", value: string) {
+    dirtyDraftRef.current = true;
     setSlots((current) => current.map((slot) => slot.slotNumber === slotNumber ? { ...slot, [key]: value } : slot));
   }
 
@@ -1958,6 +1972,7 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not save lineup.");
+      dirtyDraftRef.current = false;
       setPayload(data);
       setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
       setMessage(action === "publish" ? "Lineup published. It will be shared once the match card is ready." : "Draft lineup saved privately.");
@@ -2117,16 +2132,19 @@ function PlayerSelect({
   unavailablePlayerIds: Set<string>;
   onChange: (value: string) => void;
 }) {
-  const availablePlayers = players.filter((player) => player.id === value || !unavailablePlayerIds.has(player.id));
-
   return (
     <label className="grid gap-1">
       <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
       <select className="min-h-11 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold text-[#10233f]" value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">Select player</option>
-        {availablePlayers.map((player) => (
-          <option key={player.id} value={player.id}>{player.name}</option>
-        ))}
+        {players.map((player) => {
+          const unavailable = player.id !== value && unavailablePlayerIds.has(player.id);
+          return (
+            <option key={player.id} value={player.id} disabled={unavailable}>
+              {player.name}{unavailable ? " - already picked" : ""}
+            </option>
+          );
+        })}
       </select>
     </label>
   );
