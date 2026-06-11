@@ -155,7 +155,7 @@ export function AppShell({
         </div>
         {showLeaguePanels ? (
           <aside className="grid gap-4 lg:content-start">
-            {activePage !== "Table" ? <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} /> : null}
+            {activePage !== "Table" ? <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} matchResults={activeMatchResults} /> : null}
             <ClubTeamStructureCard />
           </aside>
         ) : null}
@@ -214,7 +214,7 @@ function PageContent({
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Fixtures") return <FixturesPage />;
   if (activePage === "Results") return <ResultsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} />;
-  if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} standingsData={standingsData} />;
+  if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} standingsData={standingsData} matchResults={matchResults} />;
   if (activePage === "Players") return <PlayersPage playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
@@ -577,6 +577,30 @@ function clubSoftAccentStyle(color: string): CSSProperties {
     backgroundColor: `${color}14`,
     borderColor: `${color}33`
   };
+}
+
+function clubForTeam(teamName: string) {
+  return clubTeamStructure.find((club) => club.teams.includes(teamName));
+}
+
+function tableForm(row: Standing, matchResults: MatchResult[] = []) {
+  const playedResults = matchResults
+    .filter((result) => result.homeTeamName === row.team || result.awayTeamName === row.team)
+    .sort((a, b) => b.fixtureDate.localeCompare(a.fixtureDate))
+    .slice(0, 5)
+    .map((result) => {
+      const home = result.homeTeamName === row.team;
+      const teamScore = home ? result.homeTeamScore : result.awayTeamScore;
+      const opponentScore = home ? result.awayTeamScore : result.homeTeamScore;
+      return teamScore >= opponentScore ? "W" : "L";
+    });
+
+  if (playedResults.length) return playedResults.join("");
+
+  const values: string[] = [];
+  for (let index = 0; index < row.won && values.length < 5; index += 1) values.push("W");
+  for (let index = 0; index < row.lost && values.length < 5; index += 1) values.push("L");
+  return values.length ? values.join("") : "-";
 }
 
 function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
@@ -1396,7 +1420,7 @@ function ManagerSeasonSnapshot({ activeTeam = teamContexts[0] }: { activeTeam?: 
   );
 }
 
-function LeagueTable({ activeTeam, standingsData }: { activeTeam: TeamContext; standingsData?: Standing[] }) {
+function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeTeam: TeamContext; standingsData?: Standing[]; matchResults?: MatchResult[] }) {
   const tableRows = standingsData ?? standings;
 
   return (
@@ -1426,6 +1450,7 @@ function LeagueTable({ activeTeam, standingsData }: { activeTeam: TeamContext; s
                 <th className="px-2 text-right">P</th>
                 <th className="hidden px-2 text-right sm:table-cell">W</th>
                 <th className="hidden px-2 text-right sm:table-cell">L</th>
+                <th className="hidden px-2 text-center xl:table-cell">Form</th>
                 <th className="px-2 text-right">Diff</th>
                 <th className="px-2 text-right">Pts</th>
               </tr>
@@ -1434,15 +1459,20 @@ function LeagueTable({ activeTeam, standingsData }: { activeTeam: TeamContext; s
               {tableRows.map((row) => {
                 const active = row.team === activeTeam.name;
                 const diff = row.pointsFor - row.pointsAgainst;
+                const club = clubForTeam(row.team);
+                const primaryColor = club?.primaryColor ?? "#10233f";
+                const accentColor = club?.accentColor ?? primaryColor;
+                const form = tableForm(row, matchResults);
 
                 return (
                   <tr
                     key={row.team}
                     tabIndex={0}
                     className={cn(
-                      "border-t outline-none",
-                      active && "bg-[#eeeaf2]"
+                      "border-t outline-none transition-colors",
+                      active ? "bg-[#f7f5fa]" : "hover:bg-[#f7f5fa]"
                     )}
+                    style={{ boxShadow: `inset 4px 0 0 ${primaryColor}` }}
                   >
                     <td className="border-t border-[#eeeaf2] py-3 pr-2">
                       <span
@@ -1458,10 +1488,23 @@ function LeagueTable({ activeTeam, standingsData }: { activeTeam: TeamContext; s
                         {row.position}
                       </span>
                     </td>
-                    <td className="border-t border-[#eeeaf2] px-2 font-black leading-tight lg:whitespace-nowrap">{row.team}</td>
+                    <td className="border-t border-[#eeeaf2] px-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }} />
+                        <div className="min-w-0">
+                          <p className="break-words font-black leading-tight lg:whitespace-nowrap">{row.team}</p>
+                          <p className="mt-0.5 text-[10px] font-extrabold uppercase text-[#6c5a73] xl:hidden">{form}</p>
+                        </div>
+                      </div>
+                    </td>
                     <td className="border-t border-[#eeeaf2] px-2 text-right font-bold">{row.played}</td>
                     <td className="hidden border-t border-[#eeeaf2] px-2 text-right font-bold sm:table-cell">{row.won}</td>
                     <td className="hidden border-t border-[#eeeaf2] px-2 text-right font-bold sm:table-cell">{row.lost}</td>
+                    <td className="hidden border-t border-[#eeeaf2] px-2 text-center xl:table-cell">
+                      <span className="inline-flex rounded-full px-2 py-1 text-[11px] font-black text-white" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}>
+                        {form}
+                      </span>
+                    </td>
                     <td className="border-t border-[#eeeaf2] px-2 text-right font-bold">{diff > 0 ? `+${diff}` : diff}</td>
                     <td className="border-t border-[#eeeaf2] px-2 text-right text-base font-black">{row.leaguePoints}</td>
                   </tr>
