@@ -85,11 +85,13 @@ export function AppShell({
     const params = new URLSearchParams(window.location.search);
     const requestedTeam = params.get("team")?.trim().toLowerCase();
     const requestedRole = params.get("role")?.trim().toLowerCase();
-    if (!requestedTeam && !requestedRole) return contexts[0]?.id ?? teamContexts[0].id;
+    const requestedSeason = params.get("season")?.trim().toLowerCase();
+    if (!requestedTeam && !requestedRole && !requestedSeason) return contexts[0]?.id ?? teamContexts[0].id;
     return contexts.find((team) => {
       const teamMatches = requestedTeam ? team.name.toLowerCase() === requestedTeam : true;
       const roleMatches = requestedRole ? team.role.toLowerCase() === requestedRole : true;
-      return teamMatches && roleMatches;
+      const seasonMatches = requestedSeason ? team.season.toLowerCase() === requestedSeason : true;
+      return teamMatches && roleMatches && seasonMatches;
     })?.id ?? contexts[0]?.id ?? teamContexts[0].id;
   }, [contexts]);
   const [selectedId, setSelectedId] = useState(preferredContextId);
@@ -104,7 +106,7 @@ export function AppShell({
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if ((params.has("team") || params.has("role")) && selectedId !== preferredContextId) {
+    if ((params.has("team") || params.has("role") || params.has("season")) && selectedId !== preferredContextId) {
       setSelectedId(preferredContextId);
     }
   }, [preferredContextId, selectedId]);

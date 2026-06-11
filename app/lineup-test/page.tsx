@@ -1,7 +1,7 @@
 export default function LineupTestPage() {
   const appOrigin = "https://www.interclubsnooker.com";
-  const castleSrc = `${appOrigin}/?team=castle%20a&role=manager&embed=1`;
-  const grangeSrc = `${appOrigin}/?team=grange%20a&role=manager&embed=1`;
+  const castleSrc = `${appOrigin}/?team=castle%20a&role=manager&season=2026%2F27&embed=1`;
+  const grangeSrc = `${appOrigin}/?team=grange%20a&role=manager&season=2026%2F27&embed=1`;
 
   return (
     <main className="min-h-screen bg-[#071426] p-4 text-white">
