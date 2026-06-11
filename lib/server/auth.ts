@@ -601,14 +601,7 @@ export async function loadSessionPayload(user: AppUser) {
     points_against: number;
     league_points: number;
   }>(
-    `with relevant_competitions as (
-       select distinct t.league_id, t.season_id
-       from public.team_membership tm
-       join public.team t on t.id = tm.team_id
-       where tm.person_id = $1
-         and tm.active = true
-     )
-     select
+    `select
        ltv.position,
        t.name as team_name,
        l.name as league_name,
@@ -623,10 +616,8 @@ export async function loadSessionPayload(user: AppUser) {
      join public.team t on t.id = ltv.team_id and t.active = true
      join public.league l on l.id = ltv.league_id
      join public.season s on s.id = ltv.season_id
-     join relevant_competitions rc on rc.league_id = ltv.league_id and rc.season_id = ltv.season_id
      where ltv.matches_played > 0
-     order by s.name desc, l.name, ltv.position`,
-    [user.personId]
+     order by s.name desc, l.name, ltv.position`
   )).rows.map((row) => ({
     position: Number(row.position),
     team: row.team_name,
@@ -709,14 +700,7 @@ export async function loadSessionPayload(user: AppUser) {
     away_team_score: number;
     status: "Scheduled" | "Completed";
   }>(
-    `with relevant_competitions as (
-       select distinct t.league_id, t.season_id
-       from public.team_membership tm
-       join public.team t on t.id = tm.team_id
-       where tm.person_id = $1
-         and tm.active = true
-     )
-     select
+    `select
        f.id as fixture_id,
        l.name as league_name,
        s.name as season_name,
@@ -735,12 +719,10 @@ export async function loadSessionPayload(user: AppUser) {
      join public.team at on at.id = f.away_team_id
      join public.league l on l.id = f.league_id
      join public.season s on s.id = f.season_id
-     join relevant_competitions rc on rc.league_id = f.league_id and rc.season_id = f.season_id
      left join public.fixture_week_match fwm on fwm.match_id = m.id
      left join public.fixture_week fw on fw.id = fwm.week_id
      where f.status = 'Completed'
-     order by coalesce(fw.week_number, 0) desc, f.fixture_date desc, ht.name, at.name`,
-    [user.personId]
+     order by s.name desc, l.name, coalesce(fw.week_number, 0) desc, f.fixture_date desc, ht.name, at.name`
   )).rows.map((row) => ({
     id: row.fixture_id,
     league: row.league_name,
