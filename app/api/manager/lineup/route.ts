@@ -339,6 +339,11 @@ function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, requir
       player2Id: slot.gameType === "Doubles" ? player2Id : ""
     };
   });
+  const selectedIds = normalized.flatMap((slot) => [slot.player1Id, slot.player2Id].filter(Boolean));
+  const duplicateId = selectedIds.find((playerId, index) => selectedIds.indexOf(playerId) !== index);
+  if (duplicateId) {
+    throw new Error("A player can only be selected once in a lineup.");
+  }
   return normalized;
 }
 

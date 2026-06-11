@@ -1842,6 +1842,17 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
     setSlots((current) => current.map((slot) => slot.slotNumber === slotNumber ? { ...slot, [key]: value } : slot));
   }
 
+  function selectedPlayerIdsExcept(slotNumber: number, key: "player1Id" | "player2Id") {
+    return new Set(
+      slots.flatMap((slot) => {
+        const ids = [];
+        if (!(slot.slotNumber === slotNumber && key === "player1Id") && slot.player1Id) ids.push(slot.player1Id);
+        if (!(slot.slotNumber === slotNumber && key === "player2Id") && slot.player2Id) ids.push(slot.player2Id);
+        return ids;
+      })
+    );
+  }
+
   async function submitLineup(action: "save" | "publish") {
     if (!activeTeam.teamId || !payload?.fixture) return;
     setBusy(true);
@@ -1901,9 +1912,21 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
                     <p className="font-black text-[#10233f]">{slot.label}</p>
                     <Badge variant={slot.gameType === "Doubles" ? "cyan" : "muted"}>{slot.gameType === "Doubles" ? "2 pts" : "1 pt"}</Badge>
                   </div>
-                  <PlayerSelect label={slot.gameType === "Doubles" ? "Player 1" : "Player"} value={slot.player1Id} players={playerOptions} onChange={(value) => updateSlot(slot.slotNumber, "player1Id", value)} />
+                  <PlayerSelect
+                    label={slot.gameType === "Doubles" ? "Player 1" : "Player"}
+                    value={slot.player1Id}
+                    players={playerOptions}
+                    unavailablePlayerIds={selectedPlayerIdsExcept(slot.slotNumber, "player1Id")}
+                    onChange={(value) => updateSlot(slot.slotNumber, "player1Id", value)}
+                  />
                   {slot.gameType === "Doubles" ? (
-                    <PlayerSelect label="Player 2" value={slot.player2Id} players={playerOptions} onChange={(value) => updateSlot(slot.slotNumber, "player2Id", value)} />
+                    <PlayerSelect
+                      label="Player 2"
+                      value={slot.player2Id}
+                      players={playerOptions}
+                      unavailablePlayerIds={selectedPlayerIdsExcept(slot.slotNumber, "player2Id")}
+                      onChange={(value) => updateSlot(slot.slotNumber, "player2Id", value)}
+                    />
                   ) : null}
                 </div>
               ))}
@@ -1955,13 +1978,27 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
   }
 }
 
-function PlayerSelect({ label, value, players, onChange }: { label: string; value: string; players: Array<{ id: string; name: string }>; onChange: (value: string) => void }) {
+function PlayerSelect({
+  label,
+  value,
+  players,
+  unavailablePlayerIds,
+  onChange
+}: {
+  label: string;
+  value: string;
+  players: Array<{ id: string; name: string }>;
+  unavailablePlayerIds: Set<string>;
+  onChange: (value: string) => void;
+}) {
+  const availablePlayers = players.filter((player) => player.id === value || !unavailablePlayerIds.has(player.id));
+
   return (
     <label className="grid gap-1">
       <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
       <select className="min-h-11 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold text-[#10233f]" value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">Select player</option>
-        {players.map((player) => (
+        {availablePlayers.map((player) => (
           <option key={player.id} value={player.id}>{player.name}</option>
         ))}
       </select>
