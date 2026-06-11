@@ -66,11 +66,14 @@ const clubMemberDesktopNavItems = [
 type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
 const RECENT_FORM_LIMIT = 3;
+const leagueOrder: TeamContext["league"][] = ["A League", "B League", "C League"];
+const pagesWithLeagueAside: AppPage[] = ["Home", "Fixtures", "Results", "Players", "Stats"];
 
 const menuItems: Array<{ label: string; page: AppPage; icon: typeof Home; description: string }> = [
   { label: "Results", page: "Results", icon: ClipboardCheck, description: "Recent scores and individual games" },
   { label: "Players", page: "Players", icon: Users, description: "Team player list and match records" },
   { label: "Stats", page: "Stats", icon: BarChart3, description: "Season and player performance" },
+  { label: "Interclub Leagues", page: "Interclub Leagues", icon: Trophy, description: "View all league tables and results" },
   { label: "Messages", page: "Messages", icon: Mail, description: "Club notices and account options" }
 ];
 
@@ -127,8 +130,9 @@ export function AppShell({
     () => (matchResults ?? []).filter((result) => result.league === activeTeam.league && result.season === activeTeam.season),
     [activeTeam.league, activeTeam.season, matchResults]
   );
+  const allMatchResults = matchResults ?? [];
   const clubMemberView = activeTeam.role === "Club Member";
-  const showLeaguePanels = !clubMemberView || activePage === "Interclub Leagues";
+  const showLeaguePanels = !clubMemberView && pagesWithLeagueAside.includes(activePage);
 
   useEffect(() => {
     onPageVisit?.(activePage, activeTeam);
@@ -152,7 +156,18 @@ export function AppShell({
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} />
         <div className="grid gap-4">
           {clubMemberView && activePage !== "Interclub Leagues" ? <ClubMemberHero activeTeam={activeTeam} /> : <MatchdayHero activeTeam={activeTeam} interclubView={activePage === "Interclub Leagues"} />}
-          <PageContent activePage={activePage} activeTeam={activeTeam} standingsData={activeStandings} playerGameResults={playerGameResults} matchResults={activeMatchResults} onNavigate={setActivePage} onSignOut={onSignOut} userLabel={userLabel} />
+          <PageContent
+            activePage={activePage}
+            activeTeam={activeTeam}
+            standingsData={activeStandings}
+            allStandingsData={standingsData}
+            playerGameResults={playerGameResults}
+            matchResults={activeMatchResults}
+            allMatchResults={allMatchResults}
+            onNavigate={setActivePage}
+            onSignOut={onSignOut}
+            userLabel={userLabel}
+          />
         </div>
         {showLeaguePanels ? (
           <aside className="grid gap-4 lg:content-start">
@@ -168,7 +183,8 @@ export function AppShell({
 
 function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: string, tableRows: Standing[]): TeamContext {
   const club = clubTeamStructure.find((entry) => entry.club === clubName) ?? clubTeamStructure[0];
-  const suffix = baseTeam.name.match(/\b([ABC])$/)?.[1] ?? "A";
+  const baseSuffix = baseTeam.name.match(/\b([ABC])$/)?.[1] ?? "A";
+  const suffix = role === "Manager" || role === "Assistant Manager" ? "A" : baseSuffix;
   const preferredTeam = club.teams.find((team) => team.endsWith(` ${suffix}`)) ?? club.teams[0] ?? club.club;
   const standing = tableRows.find((row) => row.team === preferredTeam && row.league === baseTeam.league && row.season === baseTeam.season)
     ?? tableRows.find((row) => row.team === preferredTeam);
@@ -197,8 +213,10 @@ function PageContent({
   activePage,
   activeTeam,
   standingsData,
+  allStandingsData,
   playerGameResults,
   matchResults,
+  allMatchResults,
   onNavigate,
   onSignOut,
   userLabel
@@ -206,8 +224,10 @@ function PageContent({
   activePage: AppPage;
   activeTeam: TeamContext;
   standingsData: Standing[];
+  allStandingsData: Standing[];
   playerGameResults: PlayerGameResult[];
   matchResults: MatchResult[];
+  allMatchResults: MatchResult[];
   onNavigate: (page: AppPage) => void;
   onSignOut?: () => void;
   userLabel?: string;
@@ -220,8 +240,8 @@ function PageContent({
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
-  if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} onNavigate={onNavigate} />;
-  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} />;
+  if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} />;
+  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} playerGameResults={playerGameResults} onNavigate={onNavigate} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} onNavigate={onNavigate} />;
@@ -584,6 +604,20 @@ function clubForTeam(teamName: string) {
   return clubTeamStructure.find((club) => club.teams.includes(teamName));
 }
 
+function teamColors(teamName: string) {
+  const club = clubForTeam(teamName);
+  return {
+    primaryColor: club?.primaryColor ?? "#10233f",
+    accentColor: club?.accentColor ?? "#071426"
+  };
+}
+
+function scoreTone(score: number, opponentScore: number) {
+  if (score > opponentScore) return "text-[#007a3d] bg-[#00ff8526] ring-[#00a85a33]";
+  if (score < opponentScore) return "text-[#b00035] bg-[#e9005214] ring-[#e9005233]";
+  return "text-[#10233f] bg-[#eeeaf2] ring-[#d8d0df]";
+}
+
 function tableForm(row: Standing, matchResults: MatchResult[] = []) {
   const playedResults = matchResults
     .filter((result) => result.homeTeamName === row.team || result.awayTeamName === row.team)
@@ -838,11 +872,12 @@ function BookingsSkeleton() {
 function PlayerHome({ activeTeam, playerGameResults, onNavigate }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; onNavigate: (page: AppPage) => void }) {
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
+      <TeamStatsCard activeTeam={activeTeam} onNavigate={onNavigate} />
       <PlayerStatCard activeTeam={activeTeam} playerGameResults={playerGameResults} />
-      <SeasonCompleteCard activeTeam={activeTeam} action="View results" onAction={() => onNavigate("Results")} />
-      <RecentResults />
+      <TeamRecentFormCard />
+      <PersonalRecentFormCard playerGameResults={playerGameResults} />
       <PlayerGameResultsCard results={playerGameResults} />
-      <TeamPositionStrip activeTeam={activeTeam} />
+      <MemberActionsCard activeTeam={activeTeam} onNavigate={onNavigate} />
     </section>
   );
 }
@@ -863,6 +898,7 @@ function ClubMemberHome({ activeTeam, onNavigate }: { activeTeam: TeamContext; o
           </p>
         </CardContent>
       </Card>
+      <MemberActionsCard activeTeam={activeTeam} onNavigate={onNavigate} />
       <Card>
         <CardHeader>
           <CardTitle>Interclub Leagues</CardTitle>
@@ -883,19 +919,56 @@ function ClubMemberHome({ activeTeam, onNavigate }: { activeTeam: TeamContext; o
   );
 }
 
+function MemberActionsCard({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Member Actions</CardTitle>
+        <Badge variant="muted">{activeTeam.club.replace(" Golf Club", "")}</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        <Button className="w-full" onClick={() => onNavigate("Bookings")} style={{ backgroundColor: activeTeam.primaryColor }}>
+          <CalendarPlus className="h-4 w-4" />
+          Book table
+        </Button>
+        <button
+          type="button"
+          className="grid min-h-[68px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left ring-1 ring-[#eeeaf2]"
+        >
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
+            <Trophy className="h-5 w-5" />
+          </span>
+          <span>
+            <span className="block font-black">Enter competitions</span>
+            <span className="block text-xs font-semibold text-[#6c5a73]">Coming soon</span>
+          </span>
+        </button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function InterclubLeaguesPage({
   activeTeam,
+  standingsData,
+  matchResults,
   onNavigate
 }: {
   activeTeam: TeamContext;
+  standingsData: Standing[];
+  matchResults: MatchResult[];
   onNavigate: (page: AppPage) => void;
 }) {
+  const orderedLeagues = activeTeam.role === "Club Member"
+    ? leagueOrder
+    : [activeTeam.league, ...leagueOrder.filter((league) => league !== activeTeam.league)];
+
   return (
     <section className="grid gap-4">
       <Card>
         <CardHeader>
           <CardTitle>Interclub Leagues</CardTitle>
-          <Badge variant="muted">Optional</Badge>
+          <Badge variant="muted">{activeTeam.role === "Club Member" ? "A to C" : `${activeTeam.league} first`}</Badge>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
           {[
@@ -917,13 +990,30 @@ function InterclubLeaguesPage({
                 </span>
                 <span className="min-w-0">
                   <span className="block font-black">{item.label}</span>
-                  <span className="block text-xs font-semibold text-[#6c5a73]">View {activeTeam.league.toLowerCase()} information</span>
+                  <span className="block text-xs font-semibold text-[#6c5a73]">Open focused {item.label.toLowerCase()}</span>
                 </span>
               </button>
             );
           })}
         </CardContent>
       </Card>
+      {orderedLeagues.map((league) => {
+        const leagueStandings = standingsData.filter((row) => row.league === league && row.season === activeTeam.season);
+        const leagueResults = matchResults.filter((result) => result.league === league && result.season === activeTeam.season);
+        const contextForLeague = {
+          ...activeTeam,
+          league,
+          name: activeTeam.role === "Club Member" ? activeTeam.club : activeTeam.name,
+          leaguePosition: leagueStandings.find((row) => row.team === activeTeam.name)?.position ?? 0
+        };
+
+        return (
+          <section key={league} className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <LeagueTable activeTeam={contextForLeague} standingsData={leagueStandings} matchResults={leagueResults} />
+            <SeasonResultsCard activeTeam={contextForLeague} results={leagueResults} defaultScope="league" />
+          </section>
+        );
+      })}
     </section>
   );
 }
@@ -932,7 +1022,7 @@ function FixturesPage() {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <SeasonCompleteCard action="View match" />
-      <RecentResults />
+      <TeamRecentFormCard />
     </section>
   );
 }
@@ -1068,13 +1158,15 @@ function MoreMenu({
   );
 }
 
-function ManagerHome({ activeTeam }: { activeTeam: TeamContext }) {
+function ManagerHome({ activeTeam, playerGameResults, onNavigate }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; onNavigate: (page: AppPage) => void }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <ManagerActionCard activeTeam={activeTeam} />
       <SeasonCompleteCard activeTeam={activeTeam} action="Review season" />
-      <ScoreCard activeTeam={activeTeam} />
+      <TeamRecentFormCard />
+      <PlayerFormSnapshot playerGameResults={playerGameResults} />
       <ManagerSeasonSnapshot activeTeam={activeTeam} />
+      <MemberActionsCard activeTeam={activeTeam} onNavigate={onNavigate} />
     </section>
   );
 }
@@ -1109,29 +1201,57 @@ function AssistantManagerHome({ activeTeam }: { activeTeam: TeamContext }) {
   );
 }
 
+function TeamStatsCard({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+  const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
+
+  return (
+    <Card className="overflow-hidden md:col-span-2 xl:col-span-1">
+      <CardHeader>
+        <CardTitle>Team Stats</CardTitle>
+        <Badge variant={hasLeagueTable && activeTeam.leaguePosition <= 4 ? "green" : "muted"}>
+          {hasLeagueTable ? ordinal(activeTeam.leaguePosition) : "Pending"}
+        </Badge>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+          <p className="text-xs font-extrabold uppercase text-white/65">{activeTeam.league}</p>
+          <p className="mt-1 text-3xl font-black leading-tight">{activeTeam.name}</p>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <MiniStat label="Played" value={String(activeTeam.leagueMatchesPlayed || "-")} dark />
+            <MiniStat label="Won" value={String(activeTeam.matchesWon ?? "-")} dark />
+            <MiniStat label="Points" value={String(activeTeam.leaguePoints ?? activeTeam.pointsFor ?? "-")} dark />
+          </div>
+          <Button variant="secondary" className="mt-4 w-full" onClick={() => onNavigate("Table")}>
+            <Trophy className="h-4 w-4" />
+            View table
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demoPlayerGameResults }: { activeTeam?: TeamContext; playerGameResults?: PlayerGameResult[] }) {
   const wins = playerGameResults.filter((result) => result.result === "Won").length;
   const losses = playerGameResults.filter((result) => result.result === "Lost").length;
-  const played = playerGameResults.length || activeTeam.leagueMatchesPlayed || 0;
-  const winRate = playerGameResults.length ? Math.round((wins / playerGameResults.length) * 100) : activeTeam.leagueMatchesPlayed ? Math.round(((activeTeam.matchesWon ?? 0) / activeTeam.leagueMatchesPlayed) * 100) : 0;
-  const pointsFor = activeTeam.pointsFor ?? activeTeam.leaguePoints ?? 0;
-  const pointsAgainst = activeTeam.pointsAgainst ?? 0;
-  const recentForm = recentResults.slice(0, RECENT_FORM_LIMIT).map((fixture) => fixture.result === "Won" ? "W" : "L").join(" ");
+  const played = playerGameResults.length;
+  const winRate = played ? Math.round((wins / played) * 100) : 0;
+  const recentForm = playerGameResults.slice(0, RECENT_FORM_LIMIT).map((fixture) => fixture.result === "Won" ? "W" : "L").join(" ");
 
   return (
     <Card className="overflow-hidden">
       <CardHeader>
-        <CardTitle>{activeTeam.name} Season</CardTitle>
+        <CardTitle>My Stats</CardTitle>
         <Badge variant="green">{recentForm || "-"}</Badge>
       </CardHeader>
       <CardContent>
         <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
-          <p className="text-xs font-extrabold uppercase text-white/65">Points won</p>
-          <p className="mt-1 text-6xl font-black leading-none">{pointsFor || "-"}</p>
+          <p className="text-xs font-extrabold uppercase text-white/65">Personal win rate</p>
+          <p className="mt-1 text-6xl font-black leading-none">{played ? `${winRate}%` : "-"}</p>
           <div className="mt-4 grid grid-cols-3 gap-2">
-            <MiniStat label="Win rate" value={played ? `${winRate}%` : "-"} dark />
             <MiniStat label="Played" value={String(played || "-")} dark />
-            <MiniStat label="Against" value={String(pointsAgainst || "-")} dark />
+            <MiniStat label="Won" value={String(wins || "-")} dark />
+            <MiniStat label="Lost" value={String(losses || "-")} dark />
           </div>
         </div>
       </CardContent>
@@ -1172,8 +1292,8 @@ function SeasonCompleteCard({ activeTeam = teamContexts[0], action, onAction }: 
   );
 }
 
-function SeasonResultsCard({ activeTeam, results }: { activeTeam: TeamContext; results: MatchResult[] }) {
-  const [scope, setScope] = useState<"club" | "league">("club");
+function SeasonResultsCard({ activeTeam, results, defaultScope = "club" }: { activeTeam: TeamContext; results: MatchResult[]; defaultScope?: "club" | "league" }) {
+  const [scope, setScope] = useState<"club" | "league">(defaultScope);
   const clubResults = useMemo(
     () => results.filter((result) => result.homeTeamName === activeTeam.name || result.awayTeamName === activeTeam.name),
     [activeTeam.name, results]
@@ -1236,7 +1356,7 @@ function SeasonResultsCard({ activeTeam, results }: { activeTeam: TeamContext; r
         {scope === "league" ? (
           <div className="space-y-3">
             {weekGroups.map((group) => (
-              <section key={group.key} className="rounded-2xl bg-[#f7f5fa] p-2">
+              <section key={group.key} className="rounded-2xl p-2 ring-1 ring-[#eeeaf2]" style={clubSoftAccentStyle(activeTeam.primaryColor)}>
                 <div className="mb-2 flex items-center justify-between gap-2 px-1">
                   <div>
                     <p className="text-sm font-black text-[#10233f]">{group.label}</p>
@@ -1266,43 +1386,52 @@ function SeasonResultsCard({ activeTeam, results }: { activeTeam: TeamContext; r
 }
 
 function ResultRow({ result, activeTeam }: { result: MatchResult; activeTeam: TeamContext }) {
-          const homeWon = result.homeTeamScore > result.awayTeamScore;
-          const awayWon = result.awayTeamScore > result.homeTeamScore;
-          const activeTeamPlayed = result.homeTeamName === activeTeam.name || result.awayTeamName === activeTeam.name;
+  const homeWon = result.homeTeamScore > result.awayTeamScore;
+  const awayWon = result.awayTeamScore > result.homeTeamScore;
+  const activeTeamPlayed = result.homeTeamName === activeTeam.name || result.awayTeamName === activeTeam.name;
+  const homeColors = teamColors(result.homeTeamName);
+  const awayColors = teamColors(result.awayTeamName);
 
-          return (
-            <div
-              key={result.id}
-              className={cn(
-                "grid min-h-[76px] grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-xl bg-[#f7f5fa] p-3",
-                activeTeamPlayed && "ring-2 ring-[#10233f]/20"
-              )}
-            >
-              <div className="min-w-0">
-                <p className={cn("break-words font-black leading-tight", homeWon && "text-[#10233f]")}>{result.homeTeamName}</p>
-                <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{formatFixtureDate(result.fixtureDate)}</p>
-              </div>
-              <div className="rounded-xl bg-white px-3 py-2 text-center shadow-[0_3px_10px_rgba(55,0,60,0.08)] ring-1 ring-[#eeeaf2]">
-                <p className="text-2xl font-black leading-none text-[#25002b]">
-                  {result.homeTeamScore}-{result.awayTeamScore}
-                </p>
-                <p className="mt-1 text-[10px] font-extrabold uppercase text-[#6c5a73]">Final</p>
-              </div>
-              <div className="min-w-0 text-right">
-                <p className={cn("break-words font-black leading-tight", awayWon && "text-[#10233f]")}>{result.awayTeamName}</p>
-                <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{result.league}</p>
-              </div>
-            </div>
-          );
+  return (
+    <div
+      key={result.id}
+      className={cn(
+        "overflow-hidden rounded-xl bg-white shadow-[0_8px_22px_rgba(16,35,63,0.06)] ring-1 ring-[#eeeaf2]",
+        activeTeamPlayed && "ring-2 ring-offset-1 ring-offset-white"
+      )}
+      style={activeTeamPlayed ? { boxShadow: `0 0 0 2px ${activeTeam.primaryColor}22` } : undefined}
+    >
+      <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${homeColors.primaryColor}, ${awayColors.primaryColor})` }} />
+      <div className="grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 p-3">
+        <div className="min-w-0">
+          <p className="break-words font-black leading-tight" style={{ color: homeColors.primaryColor }}>{result.homeTeamName}</p>
+          <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{formatFixtureDate(result.fixtureDate)}</p>
+        </div>
+        <div className="grid grid-cols-[auto_auto_auto] items-center gap-1 rounded-full bg-[#f7f5fa] px-2 py-1 ring-1 ring-[#eeeaf2]">
+          <span className={cn("grid h-8 min-w-8 place-items-center rounded-full px-2 text-lg font-black ring-1", scoreTone(result.homeTeamScore, result.awayTeamScore))}>
+            {result.homeTeamScore}
+          </span>
+          <span className="text-xs font-black text-[#6c5a73]">v</span>
+          <span className={cn("grid h-8 min-w-8 place-items-center rounded-full px-2 text-lg font-black ring-1", scoreTone(result.awayTeamScore, result.homeTeamScore))}>
+            {result.awayTeamScore}
+          </span>
+        </div>
+        <div className="min-w-0 text-right">
+          <p className="break-words font-black leading-tight" style={{ color: awayColors.primaryColor }}>{result.awayTeamName}</p>
+          <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{homeWon ? "Home win" : awayWon ? "Away win" : "Draw"}</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function RecentResults() {
+function TeamRecentFormCard() {
   const visibleRecentResults = recentResults.slice(0, RECENT_FORM_LIMIT);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recent Form</CardTitle>
+        <CardTitle>Recent Team Form</CardTitle>
         <Badge variant="cyan">Last {RECENT_FORM_LIMIT}</Badge>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -1318,6 +1447,35 @@ function RecentResults() {
             </div>
           </div>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PersonalRecentFormCard({ playerGameResults }: { playerGameResults: PlayerGameResult[] }) {
+  const visibleGames = playerGameResults.slice(0, RECENT_FORM_LIMIT);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Recent Personal Form</CardTitle>
+        <Badge variant="cyan">Last {RECENT_FORM_LIMIT}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {visibleGames.map((game) => (
+          <div key={game.gameId} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3">
+            <div className="min-w-0">
+              <p className="truncate font-black">v {game.opponentName}</p>
+              <p className="truncate text-xs font-semibold text-[#6c5a73]">{game.sourceWeek} - Game {game.gameNumber}</p>
+            </div>
+            <Badge variant={game.result === "Won" ? "green" : "red"}>{game.result}</Badge>
+          </div>
+        ))}
+        {visibleGames.length === 0 ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            Your personal match history will appear here once your account is linked.
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -1410,6 +1568,35 @@ function ManagerActionCard({ activeTeam }: { activeTeam: TeamContext }) {
           <Mail className="h-4 w-4" />
           Message squad
         </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlayerFormSnapshot({ playerGameResults }: { playerGameResults: PlayerGameResult[] }) {
+  const visibleGames = playerGameResults.slice(0, 5);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Player Form</CardTitle>
+        <Badge variant="muted">Squad view</Badge>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {visibleGames.map((game) => (
+          <div key={game.gameId} className="grid min-h-14 grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3">
+            <div className="min-w-0">
+              <p className="truncate font-black">You v {game.opponentName}</p>
+              <p className="truncate text-xs font-semibold text-[#6c5a73]">{game.sourceWeek} - {game.homeTeamName} {game.matchScore} {game.awayTeamName}</p>
+            </div>
+            <Badge variant={game.result === "Won" ? "green" : "red"}>{game.result}</Badge>
+          </div>
+        ))}
+        {visibleGames.length === 0 ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            Player form will appear here as individual games are linked to squad members.
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -1542,7 +1729,7 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }} />
                         <div className="min-w-0">
-                          <p className="break-words font-black leading-tight lg:whitespace-nowrap">{row.team}</p>
+                          <p className="break-words font-black leading-tight lg:whitespace-nowrap" style={{ color: primaryColor }}>{row.team}</p>
                           <p className="mt-0.5 text-[10px] font-extrabold uppercase text-[#6c5a73] xl:hidden">{form}</p>
                         </div>
                       </div>
@@ -1574,7 +1761,7 @@ function ClubTeamStructureCard() {
     <Card>
       <CardHeader>
         <CardTitle>Club Teams</CardTitle>
-        <Badge variant="cyan">Setup</Badge>
+        <Badge variant="cyan">Reference</Badge>
       </CardHeader>
       <CardContent className="space-y-2">
         {clubTeamStructure.map((club) => (
