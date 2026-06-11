@@ -40,6 +40,9 @@ export type MatchResult = {
   id: string;
   league: "A League" | "B League" | "C League";
   season: string;
+  weekId?: string;
+  weekNumber?: number;
+  weekLabel?: string;
   fixtureDate: string;
   homeTeamName: string;
   awayTeamName: string;

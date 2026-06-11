@@ -1181,6 +1181,30 @@ function SeasonResultsCard({ activeTeam, results }: { activeTeam: TeamContext; r
     () => [...scopedResults].sort((a, b) => b.fixtureDate.localeCompare(a.fixtureDate) || a.homeTeamName.localeCompare(b.homeTeamName)),
     [scopedResults]
   );
+  const weekGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; label: string; date: string; weekNumber: number; results: MatchResult[] }>();
+
+    sortedResults.forEach((result) => {
+      const key = result.weekId ?? `${result.league}-${result.season}-${result.fixtureDate.slice(0, 10)}`;
+      const weekNumber = result.weekNumber ?? 0;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.results.push(result);
+        if (result.fixtureDate < existing.date) existing.date = result.fixtureDate;
+        return;
+      }
+
+      groups.set(key, {
+        key,
+        label: result.weekLabel ?? (weekNumber ? `Week ${weekNumber}` : formatFixtureDate(result.fixtureDate)),
+        date: result.fixtureDate,
+        weekNumber,
+        results: [result]
+      });
+    });
+
+    return Array.from(groups.values()).sort((a, b) => b.weekNumber - a.weekNumber || b.date.localeCompare(a.date));
+  }, [sortedResults]);
 
   return (
     <Card className="md:col-span-2">
@@ -1207,7 +1231,39 @@ function SeasonResultsCard({ activeTeam, results }: { activeTeam: TeamContext; r
             </button>
           ))}
         </div>
-        {sortedResults.map((result) => {
+        {scope === "league" ? (
+          <div className="space-y-3">
+            {weekGroups.map((group) => (
+              <section key={group.key} className="rounded-2xl bg-[#f7f5fa] p-2">
+                <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                  <div>
+                    <p className="text-sm font-black text-[#10233f]">{group.label}</p>
+                    <p className="text-xs font-semibold text-[#6c5a73]">{formatFixtureDate(group.date)}</p>
+                  </div>
+                  <Badge variant="muted">{group.results.length} matches</Badge>
+                </div>
+                <div className="space-y-2">
+                  {group.results.map((result) => (
+                    <ResultRow key={result.id} result={result} activeTeam={activeTeam} />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : sortedResults.map((result) => (
+          <ResultRow key={result.id} result={result} activeTeam={activeTeam} />
+        ))}
+        {sortedResults.length === 0 ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            No completed results are available for {scope === "club" ? activeTeam.name : `${activeTeam.season} ${activeTeam.league}`} yet.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ResultRow({ result, activeTeam }: { result: MatchResult; activeTeam: TeamContext }) {
           const homeWon = result.homeTeamScore > result.awayTeamScore;
           const awayWon = result.awayTeamScore > result.homeTeamScore;
           const activeTeamPlayed = result.homeTeamName === activeTeam.name || result.awayTeamName === activeTeam.name;
@@ -1236,15 +1292,6 @@ function SeasonResultsCard({ activeTeam, results }: { activeTeam: TeamContext; r
               </div>
             </div>
           );
-        })}
-        {sortedResults.length === 0 ? (
-          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-            No completed results are available for {scope === "club" ? activeTeam.name : `${activeTeam.season} ${activeTeam.league}`} yet.
-          </p>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
 }
 
 function RecentResults() {

@@ -699,6 +699,9 @@ export async function loadSessionPayload(user: AppUser) {
     fixture_id: string;
     league_name: TeamContext["league"];
     season_name: string;
+    week_id: string | null;
+    week_number: number | null;
+    week_label: string | null;
     fixture_date: string;
     home_team_name: string;
     away_team_name: string;
@@ -717,6 +720,9 @@ export async function loadSessionPayload(user: AppUser) {
        f.id as fixture_id,
        l.name as league_name,
        s.name as season_name,
+       fw.id as week_id,
+       fw.week_number,
+       fw.week_label,
        f.fixture_date,
        ht.name as home_team_name,
        at.name as away_team_name,
@@ -730,13 +736,18 @@ export async function loadSessionPayload(user: AppUser) {
      join public.league l on l.id = f.league_id
      join public.season s on s.id = f.season_id
      join relevant_competitions rc on rc.league_id = f.league_id and rc.season_id = f.season_id
+     left join public.fixture_week_match fwm on fwm.match_id = m.id
+     left join public.fixture_week fw on fw.id = fwm.week_id
      where f.status = 'Completed'
-     order by f.fixture_date desc, ht.name, at.name`,
+     order by coalesce(fw.week_number, 0) desc, f.fixture_date desc, ht.name, at.name`,
     [user.personId]
   )).rows.map((row) => ({
     id: row.fixture_id,
     league: row.league_name,
     season: row.season_name,
+    weekId: row.week_id ?? undefined,
+    weekNumber: row.week_number === null ? undefined : Number(row.week_number),
+    weekLabel: row.week_label ?? undefined,
     fixtureDate: row.fixture_date,
     homeTeamName: row.home_team_name,
     awayTeamName: row.away_team_name,

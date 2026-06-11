@@ -229,6 +229,26 @@ create table public.match (
   check (home_team_score + away_team_score <= 7)
 );
 
+create table public.fixture_week (
+  id uuid primary key default gen_random_uuid(),
+  season_id uuid not null references public.season(id) on delete cascade,
+  league_id uuid not null references public.league(id) on delete cascade,
+  week_number integer not null check (week_number > 0),
+  week_label text not null,
+  starts_on date,
+  unique (season_id, league_id, week_number)
+);
+
+create table public.fixture_week_match (
+  week_id uuid not null references public.fixture_week(id) on delete cascade,
+  match_id uuid not null references public.match(id) on delete cascade,
+  primary key (week_id, match_id),
+  unique (match_id)
+);
+
+comment on table public.fixture_week is 'League fixture round/week grouping. One week can contain multiple matches for the same league and season.';
+comment on table public.fixture_week_match is 'Join table linking a fixture week to the matches played in that week.';
+
 create table public.game (
   id uuid primary key default gen_random_uuid(),
   match_id uuid not null references public.match(id) on delete cascade,
