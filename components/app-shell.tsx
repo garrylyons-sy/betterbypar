@@ -1519,9 +1519,8 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
                       "border-t outline-none transition-colors",
                       active ? "bg-[#f7f5fa]" : "hover:bg-[#f7f5fa]"
                     )}
-                    style={{ boxShadow: `inset 4px 0 0 ${primaryColor}` }}
                   >
-                    <td className="border-t border-[#eeeaf2] py-3 pr-2">
+                    <td className="border-t border-[#eeeaf2] py-3 pr-3">
                       <span
                         className={cn(
                           "inline-grid h-8 w-8 place-items-center rounded-full text-xs font-black",
