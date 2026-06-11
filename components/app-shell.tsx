@@ -66,6 +66,7 @@ const clubMemberDesktopNavItems = [
 type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
 const RECENT_FORM_LIMIT = 3;
+const SIMULATION_CONTROLS_ENABLED = false;
 const leagueOrder: TeamContext["league"][] = ["A League", "B League", "C League"];
 const pagesWithLeagueAside: AppPage[] = ["Home", "Fixtures", "Results", "Players", "Stats"];
 
@@ -118,10 +119,9 @@ export function AppShell({
     setSimulatedClub(realActiveTeam.club);
   }, [realActiveTeam.id, realActiveTeam.role, realActiveTeam.club]);
 
-  const activeTeam = useMemo(
-    () => buildSimulatedContext(realActiveTeam, simulatedRole, simulatedClub, standingsData),
-    [realActiveTeam, simulatedClub, simulatedRole, standingsData]
-  );
+  const activeTeam = SIMULATION_CONTROLS_ENABLED
+    ? buildSimulatedContext(realActiveTeam, simulatedRole, simulatedClub, standingsData)
+    : realActiveTeam;
   const activeStandings = useMemo(() => {
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
     return filtered.length ? filtered : standingsData === standings ? standings : [];
@@ -142,6 +142,9 @@ export function AppShell({
     <main className="min-h-screen app-bg pb-24 text-[#10233f]">
       <Header
         activeTeam={activeTeam}
+        contexts={contexts}
+        selectedId={selectedId}
+        onContextChange={setSelectedId}
         simulatedRole={simulatedRole}
         simulatedClub={simulatedClub}
         onRoleChange={setSimulatedRole}
@@ -249,6 +252,9 @@ function PageContent({
 
 function Header({
   activeTeam,
+  contexts,
+  selectedId,
+  onContextChange,
   simulatedRole,
   simulatedClub,
   userLabel,
@@ -257,6 +263,9 @@ function Header({
   onSignOut
 }: {
   activeTeam: TeamContext;
+  contexts: TeamContext[];
+  selectedId: string;
+  onContextChange: (id: string) => void;
   simulatedRole: Role;
   simulatedClub: string;
   userLabel?: string;
@@ -285,9 +294,19 @@ function Header({
             ) : null}
           </div>
         </div>
-        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[430px]">
-          <RoleSimulator value={simulatedRole} onChange={onRoleChange} />
-          <ClubSimulator value={simulatedClub} onChange={onClubChange} />
+        <div className="w-full sm:w-auto sm:min-w-[300px]">
+          <ContextSwitcher
+            contexts={contexts}
+            selectedId={selectedId}
+            activeTeam={activeTeam}
+            onChange={onContextChange}
+          />
+          {SIMULATION_CONTROLS_ENABLED ? (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <RoleSimulator value={simulatedRole} onChange={onRoleChange} />
+              <ClubSimulator value={simulatedClub} onChange={onClubChange} />
+            </div>
+          ) : null}
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
           {userLabel ? (
@@ -330,6 +349,55 @@ function Header({
         </div>
       </div>
     </header>
+  );
+}
+
+function contextLabel(context: TeamContext) {
+  if (context.role === "Club Member") return `${context.club.replace(" Golf Club", "")} - Member`;
+  return `${context.name} - ${context.role}`;
+}
+
+function contextDescription(context: TeamContext) {
+  if (context.role === "Club Member") return "Club access";
+  return `${context.league} - ${context.club.replace(" Golf Club", "")}`;
+}
+
+function ContextSwitcher({
+  contexts,
+  selectedId,
+  activeTeam,
+  onChange
+}: {
+  contexts: TeamContext[];
+  selectedId: string;
+  activeTeam: TeamContext;
+  onChange: (id: string) => void;
+}) {
+  if (contexts.length <= 1) {
+    return (
+      <div className="min-h-11 rounded-full bg-white/95 px-4 py-2 text-[#10233f] shadow-card">
+        <p className="truncate text-sm font-black">{contextLabel(activeTeam)}</p>
+        <p className="truncate text-[11px] font-bold text-[#6c5a73]">{contextDescription(activeTeam)}</p>
+      </div>
+    );
+  }
+
+  return (
+    <label className="relative block w-full">
+      <span className="sr-only">Switch team role</span>
+      <select
+        value={selectedId}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-12 w-full appearance-none rounded-full border border-white/15 bg-white/95 px-4 pr-10 text-sm font-extrabold text-[#10233f] shadow-card outline-none"
+      >
+        {contexts.map((context) => (
+          <option key={context.id} value={context.id}>
+            {contextLabel(context)}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-[#10233f]" />
+    </label>
   );
 }
 
