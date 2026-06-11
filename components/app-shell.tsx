@@ -1296,6 +1296,7 @@ function MoreMenu({
 
 function ManagerHome({ activeTeam, matchResults, onNavigate, leagueTeamCount, panels }: { activeTeam: TeamContext; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number; panels: AppearancePanelId[] }) {
   const renderPanel = (panel: AppearancePanelId) => {
+    if (panel === "matchPlanning") return <MatchPlanningCard key={panel} activeTeam={activeTeam} />;
     if (panel === "managerActions") return <ManagerActionCard key={panel} activeTeam={activeTeam} />;
     if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="Review season" leagueTeamCount={leagueTeamCount} />;
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
@@ -1312,6 +1313,10 @@ function ManagerHome({ activeTeam, matchResults, onNavigate, leagueTeamCount, pa
       {panels.map(renderPanel)}
     </section>
   );
+}
+
+function MatchPlanningCard({ activeTeam }: { activeTeam: TeamContext }) {
+  return <ManagerLineupCard activeTeam={activeTeam} />;
 }
 
 function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panels }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number; panels: AppearancePanelId[] }) {
@@ -1741,7 +1746,6 @@ function TeamPositionStrip({ activeTeam }: { activeTeam: TeamContext }) {
 function ManagerActionCard({ activeTeam }: { activeTeam: TeamContext }) {
   return (
     <section className="grid gap-4">
-      <ManagerLineupCard activeTeam={activeTeam} />
       <Card style={clubSoftAccentStyle(activeTeam.primaryColor)}>
         <CardHeader>
           <CardTitle>Actions</CardTitle>
@@ -1789,6 +1793,7 @@ type ManagerLineupPayload = {
   } | null;
   players: Array<{ id: string; name: string }>;
   lineup: { status: "Draft" | "Published"; publishedAt?: string | null; slots: ManagerLineupSlot[] } | null;
+  opponentStatus: { teamName: string; status: "Draft" | "Published"; publishedAt?: string | null } | null;
   opponentLineup: { teamName: string; status: "Draft" | "Published"; slots: ManagerLineupSlot[] } | null;
   games: Array<{
     id: string;
@@ -1886,6 +1891,8 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
   const opponentName = payload?.fixture
     ? payload.fixture.homeTeamId === activeTeam.teamId ? payload.fixture.awayTeamName : payload.fixture.homeTeamName
     : "";
+  const opponentHasPublished = payload?.opponentStatus?.status === "Published";
+  const canSeeOpponentLineup = ownStatus === "Published" && opponentHasPublished;
 
   return (
     <Card>
@@ -1905,6 +1912,24 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
               <p className="mt-1 text-lg font-black">{activeTeam.name} v {opponentName}</p>
               <p className="text-sm font-bold text-white/70">{formatFixtureDate(payload.fixture.fixtureDate)}</p>
             </div>
+            {payload.opponentStatus ? (
+              <div className="rounded-xl bg-[#f7f5fa] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Opponent lineup</p>
+                    <p className="text-sm font-bold text-[#10233f]">
+                      {payload.opponentStatus.teamName} {opponentHasPublished ? "has published" : "is still drafting"}
+                    </p>
+                  </div>
+                  <Badge variant={opponentHasPublished ? "green" : "muted"}>{payload.opponentStatus.status}</Badge>
+                </div>
+                {opponentHasPublished && !canSeeOpponentLineup ? (
+                  <p className="mt-2 text-xs font-semibold text-[#6c5a73]">
+                    Their player names unlock once you publish your lineup.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="grid gap-2">
               {slots.map((slot) => (
                 <div key={slot.slotNumber} className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3">

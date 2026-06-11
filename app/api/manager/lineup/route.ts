@@ -154,7 +154,7 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
   )).rows.map((row) => ({ id: row.person_id, name: row.player_name }));
 
   if (!fixture) {
-    return { fixture: null, players, lineup: null, opponentLineup: null, games: [] };
+    return { fixture: null, players, lineup: null, opponentStatus: null, opponentLineup: null, games: [] };
   }
 
   const lineupRows = (await dbQuery<LineupRow>(
@@ -164,6 +164,11 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
   const own = buildLineup(lineupRows.filter((row) => row.team_id === teamId), fixture);
   const opponentTeamId = fixture.home_team_id === teamId ? fixture.away_team_id : fixture.home_team_id;
   const opponentRaw = lineupRows.filter((row) => row.team_id === opponentTeamId);
+  const opponentStatus = opponentRaw[0] ? {
+    teamName: opponentRaw[0].team_name,
+    status: opponentRaw[0].status,
+    publishedAt: opponentRaw[0].published_at
+  } : null;
   const opponent = own?.status === "Published" && opponentRaw[0]?.status === "Published" ? buildLineup(opponentRaw, fixture) : null;
 
   const games = (await dbQuery(
@@ -206,6 +211,7 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     },
     players,
     lineup: own,
+    opponentStatus,
     opponentLineup: opponent,
     games
   };

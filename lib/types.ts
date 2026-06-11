@@ -9,6 +9,7 @@ export type AppearancePanelId =
   | "clubAccess"
   | "interclubLeagues"
   | "messages"
+  | "matchPlanning"
   | "managerActions"
   | "seasonComplete"
   | "squadManagement"
