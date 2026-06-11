@@ -148,6 +148,7 @@ function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: stri
     club: club.club,
     logoPath: club.logoPath,
     primaryColor: club.primaryColor,
+    accentColor: club.accentColor,
     role,
     leaguePosition: standing?.position ?? 0,
     leagueMatchesPlayed: standing?.played ?? 0,
@@ -318,7 +319,7 @@ function ClubSimulator({ value, onChange }: { value: string; onChange: (club: st
 
 function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamContext; activePage: AppPage; onNavigate: (page: AppPage) => void }) {
   return (
-    <aside className="hidden self-start rounded-[18px] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor)}>
+    <aside className="hidden self-start rounded-[18px] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
       <p className="text-xs font-extrabold uppercase text-white/60">Competition</p>
       <h2 className="mt-1 text-2xl font-black">{activeTeam.league}</h2>
       <div className="mt-5 space-y-1.5">
@@ -352,7 +353,7 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
   const points = activeTeam.leaguePoints ?? activeTeam.pointsFor ?? 0;
   return (
     <section className="overflow-hidden rounded-[18px] text-white shadow-card">
-      <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor)}>
+      <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] xl:items-end">
           <div className="flex min-w-0 items-start gap-3">
@@ -452,17 +453,17 @@ function ordinal(value: number) {
   return `${value}th`;
 }
 
-function clubPanelStyle(color: string): CSSProperties {
+function clubPanelStyle(color: string, accentColor = "#10233F"): CSSProperties {
   return {
     background:
       `radial-gradient(circle at 18% 18%, ${color}aa, transparent 12rem), ` +
-      `linear-gradient(135deg, ${color} 0%, #10233f 58%, #071426 100%)`
+      `linear-gradient(135deg, ${color} 0%, ${accentColor} 62%, #071426 100%)`
   };
 }
 
-function clubAccentStyle(color: string): CSSProperties {
+function clubAccentStyle(color: string, accentColor = "#10233F"): CSSProperties {
   return {
-    background: `linear-gradient(135deg, ${color} 0%, #10233f 100%)`,
+    background: `linear-gradient(135deg, ${color} 0%, ${accentColor} 100%)`,
     color: "white"
   };
 }
@@ -487,7 +488,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
       <section className="grid gap-4">
         <Card className="overflow-hidden">
           <CardContent className="pt-4">
-            <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor)}>
+            <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
               <p className="text-xs font-extrabold uppercase text-white/65">Table bookings</p>
               <h2 className="mt-1 text-3xl font-black leading-none">{activeTeam.club}</h2>
               <p className="mt-2 text-sm font-semibold text-white/75">
@@ -572,7 +573,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
     <section className="grid gap-4">
       <Card className="overflow-hidden">
         <CardContent className="pt-4">
-          <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor)}>
+          <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-extrabold uppercase text-white/65">Table bookings</p>
@@ -930,7 +931,7 @@ function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demo
         <Badge variant="green">W W W L L</Badge>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor)}>
+        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
           <p className="text-xs font-extrabold uppercase text-white/65">Points won</p>
           <p className="mt-1 text-6xl font-black leading-none">{pointsFor || "-"}</p>
           <div className="mt-4 grid grid-cols-3 gap-2">
@@ -1055,7 +1056,7 @@ function TeamPositionStrip({ activeTeam }: { activeTeam: TeamContext }) {
   return (
     <Card className="md:self-start">
       <CardContent className="pt-4">
-        <div className="flex items-center justify-between rounded-[18px] p-4 text-white" style={clubAccentStyle(activeTeam.primaryColor)}>
+        <div className="flex items-center justify-between rounded-[18px] p-4 text-white" style={clubAccentStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
           <div>
             <p className="text-xs font-extrabold uppercase">{hasLeagueTable ? "Team position" : "Table pending"}</p>
             <p className="text-lg font-black">{activeTeam.name}</p>
@@ -1107,7 +1108,7 @@ function ScoreCard({ activeTeam = teamContexts[0] }: { activeTeam?: TeamContext 
         <Badge variant="muted">Completed</Badge>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor)}>
+        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
           <ScoreRow team={activeTeam.name} score={teamScore} winner={winner} />
           <ScoreRow team={opponent} score={opponentScore} winner={!winner} />
         </div>
@@ -1249,7 +1250,7 @@ function ClubTeamStructureCard() {
               </div>
               <Badge variant="muted">{club.teams.length}</Badge>
             </div>
-            <div className="mt-2 h-1.5 rounded-full" style={{ backgroundColor: club.primaryColor }} />
+            <div className="mt-2 h-1.5 rounded-full" style={clubAccentStyle(club.primaryColor, club.accentColor)} />
             <div className="mt-2 flex flex-wrap gap-1.5">
               {club.teams.map((team) => (
                 <span key={team} className="rounded-full bg-white px-2 py-1 text-xs font-extrabold text-[#10233f] ring-1 ring-[#eeeaf2]">

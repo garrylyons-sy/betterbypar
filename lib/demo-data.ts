@@ -7,6 +7,7 @@ export const teamContexts: TeamContext[] = [
     club: "Castle Golf Club",
     logoPath: "/club-logos/castle.png",
     primaryColor: "#030E66",
+    accentColor: "#10233F",
     league: "A League",
     season: "2025/26",
     role: "Player",
@@ -24,6 +25,7 @@ export const teamContexts: TeamContext[] = [
     club: "Castle Golf Club",
     logoPath: "/club-logos/castle.png",
     primaryColor: "#030E66",
+    accentColor: "#10233F",
     league: "A League",
     season: "2025/26",
     role: "Manager",
@@ -128,13 +130,13 @@ export const managementModules = [
 ];
 
 export const clubTeamStructure: ClubTeamStructure[] = [
-  { club: "Castle Golf Club", logoPath: "/club-logos/castle.png", primaryColor: "#030E66", teams: ["Castle A", "Castle B", "Castle C"] },
-  { club: "Grange Golf Club", logoPath: "/club-logos/grange.png", primaryColor: "#006B3F", teams: ["Grange A", "Grange B", "Grange C"] },
-  { club: "Milltown Golf Club", logoPath: "/club-logos/milltown.png", primaryColor: "#1B5E3A", teams: ["Milltown A", "Milltown B"] },
-  { club: "Elm Park Golf Club", logoPath: "/club-logos/elm-park.png", primaryColor: "#B43C2B", teams: ["Elm Park A", "Elm Park B", "Elm Park C"] },
-  { club: "Stackstown Golf Club", logoPath: "/club-logos/stackstown.png", primaryColor: "#1D7A43", teams: ["Stackstown A", "Stackstown B", "Stackstown C"] },
-  { club: "Woodbrook Golf Club", logoPath: "/club-logos/woodbrook.jpg", primaryColor: "#193C64", teams: ["Woodbrook A"] },
-  { club: "Newlands Golf Club", logoPath: "/club-logos/newlands.png", primaryColor: "#008E3A", teams: ["Newlands A", "Newlands B", "Newlands C"] },
-  { club: "Dun Laoghaire Golf Club", logoPath: "/club-logos/dun-laoghaire.png", primaryColor: "#7A4A24", teams: ["Dun Laoghaire A"] },
-  { club: "Fitzwilliam Lawn Tennis Club", logoPath: "/club-logos/fitzwilliam.png", primaryColor: "#6F4A1F", teams: ["Fitzwilliam A", "Fitzwilliam B"] }
+  { club: "Castle Golf Club", logoPath: "/club-logos/castle.png", primaryColor: "#030E66", accentColor: "#10233F", teams: ["Castle A", "Castle B", "Castle C"] },
+  { club: "Grange Golf Club", logoPath: "/club-logos/grange.png", primaryColor: "#006B3F", accentColor: "#003D2B", teams: ["Grange A", "Grange B", "Grange C"] },
+  { club: "Milltown Golf Club", logoPath: "/club-logos/milltown.png", primaryColor: "#1B5E3A", accentColor: "#0F2F24", teams: ["Milltown A", "Milltown B"] },
+  { club: "Elm Park Golf Club", logoPath: "/club-logos/elm-park.png", primaryColor: "#B43C2B", accentColor: "#4A1114", teams: ["Elm Park A", "Elm Park B", "Elm Park C"] },
+  { club: "Stackstown Golf Club", logoPath: "/club-logos/stackstown.png", primaryColor: "#1D7A43", accentColor: "#0E3D25", teams: ["Stackstown A", "Stackstown B", "Stackstown C"] },
+  { club: "Woodbrook Golf Club", logoPath: "/club-logos/woodbrook.jpg", primaryColor: "#193C64", accentColor: "#0B243B", teams: ["Woodbrook A"] },
+  { club: "Newlands Golf Club", logoPath: "/club-logos/newlands.png", primaryColor: "#008E3A", accentColor: "#005C2E", teams: ["Newlands A", "Newlands B", "Newlands C"] },
+  { club: "Dun Laoghaire Golf Club", logoPath: "/club-logos/dun-laoghaire.png", primaryColor: "#7A4A24", accentColor: "#3A2418", teams: ["Dun Laoghaire A"] },
+  { club: "Fitzwilliam Lawn Tennis Club", logoPath: "/club-logos/fitzwilliam.png", primaryColor: "#6F4A1F", accentColor: "#2A1A0D", teams: ["Fitzwilliam A", "Fitzwilliam B"] }
 ];

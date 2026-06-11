@@ -486,6 +486,7 @@ export async function loadSessionPayload(user: AppUser) {
     club_name: string;
     logo_path: string;
     primary_color: string;
+    accent_color: string;
     league_name: TeamContext["league"];
     season_name: string;
     league_position: number | null;
@@ -504,6 +505,7 @@ export async function loadSessionPayload(user: AppUser) {
        c.name as club_name,
        c.logo_path,
        c.primary_color,
+       coalesce(c.accent_color, '#10233F') as accent_color,
        l.name as league_name,
        s.name as season_name,
        ltv.position as league_position,
@@ -531,6 +533,7 @@ export async function loadSessionPayload(user: AppUser) {
     club: row.club_name,
     logoPath: row.logo_path,
     primaryColor: row.primary_color,
+    accentColor: row.accent_color,
     league: row.league_name,
     season: row.season_name,
     role: row.role,
@@ -548,12 +551,14 @@ export async function loadSessionPayload(user: AppUser) {
     club_name: string;
     logo_path: string;
     primary_color: string;
+    accent_color: string;
   }>(
     `select
        cm.id as membership_id,
        c.name as club_name,
        c.logo_path,
-       c.primary_color
+       c.primary_color,
+       coalesce(c.accent_color, '#10233F') as accent_color
      from public.club_membership cm
      join public.club c on c.id = cm.club_id and c.active = true
      where cm.person_id = $1
@@ -575,6 +580,7 @@ export async function loadSessionPayload(user: AppUser) {
     club: row.club_name,
     logoPath: row.logo_path,
     primaryColor: row.primary_color,
+    accentColor: row.accent_color,
     league: "A League",
     season: "Club",
     role: "Club Member",

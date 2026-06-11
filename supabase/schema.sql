@@ -59,6 +59,7 @@ create table public.club (
   address text,
   logo_path text,
   primary_color text check (primary_color is null or primary_color ~ '^#[0-9A-Fa-f]{6}$'),
+  accent_color text check (accent_color is null or accent_color ~ '^#[0-9A-Fa-f]{6}$'),
   active boolean not null default true
 );
 
@@ -547,6 +548,7 @@ select
   c.name as club_name,
   c.logo_path,
   c.primary_color,
+  c.accent_color,
   l.id as league_id,
   l.name as league_name,
   s.id as season_id,

@@ -8,6 +8,7 @@ export type TeamContext = {
   club: string;
   logoPath: string;
   primaryColor: string;
+  accentColor: string;
   league: "A League" | "B League" | "C League";
   season: string;
   role: Role;
@@ -71,5 +72,6 @@ export type ClubTeamStructure = {
   club: string;
   logoPath: string;
   primaryColor: string;
+  accentColor: string;
   teams: string[];
 };

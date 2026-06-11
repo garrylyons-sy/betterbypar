@@ -11,21 +11,22 @@ insert into public.league (name, playing_day)
 values ('A League', 'Thursday')
 on conflict (name) do update set playing_day = excluded.playing_day;
 
-insert into public.club (name, venue, logo_path, primary_color, active)
+insert into public.club (name, venue, logo_path, primary_color, accent_color, active)
 values
-  ('Castle Golf Club', 'Castle Golf Club', '/club-logos/castle.png', '#030E66', true),
-  ('Grange Golf Club', 'Grange Golf Club', '/club-logos/grange.png', '#006B3F', true),
-  ('Milltown Golf Club', 'Milltown Golf Club', '/club-logos/milltown.png', '#1B5E3A', true),
-  ('Elm Park Golf Club', 'Elm Park Golf Club', '/club-logos/elm-park.png', '#B43C2B', true),
-  ('Stackstown Golf Club', 'Stackstown Golf Club', '/club-logos/stackstown.png', '#1D7A43', true),
-  ('Woodbrook Golf Club', 'Woodbrook Golf Club', '/club-logos/woodbrook.jpg', '#193C64', true),
-  ('Newlands Golf Club', 'Newlands Golf Club', '/club-logos/newlands.png', '#008E3A', true),
-  ('Dun Laoghaire Golf Club', 'Dun Laoghaire Golf Club', '/club-logos/dun-laoghaire.png', '#7A4A24', true),
-  ('Fitzwilliam Lawn Tennis Club', 'Fitzwilliam Lawn Tennis Club', '/club-logos/fitzwilliam.png', '#6F4A1F', true)
+  ('Castle Golf Club', 'Castle Golf Club', '/club-logos/castle.png', '#030E66', '#10233F', true),
+  ('Grange Golf Club', 'Grange Golf Club', '/club-logos/grange.png', '#006B3F', '#003D2B', true),
+  ('Milltown Golf Club', 'Milltown Golf Club', '/club-logos/milltown.png', '#1B5E3A', '#0F2F24', true),
+  ('Elm Park Golf Club', 'Elm Park Golf Club', '/club-logos/elm-park.png', '#B43C2B', '#4A1114', true),
+  ('Stackstown Golf Club', 'Stackstown Golf Club', '/club-logos/stackstown.png', '#1D7A43', '#0E3D25', true),
+  ('Woodbrook Golf Club', 'Woodbrook Golf Club', '/club-logos/woodbrook.jpg', '#193C64', '#0B243B', true),
+  ('Newlands Golf Club', 'Newlands Golf Club', '/club-logos/newlands.png', '#008E3A', '#005C2E', true),
+  ('Dun Laoghaire Golf Club', 'Dun Laoghaire Golf Club', '/club-logos/dun-laoghaire.png', '#7A4A24', '#3A2418', true),
+  ('Fitzwilliam Lawn Tennis Club', 'Fitzwilliam Lawn Tennis Club', '/club-logos/fitzwilliam.png', '#6F4A1F', '#2A1A0D', true)
 on conflict (name) do update
 set venue = excluded.venue,
     logo_path = excluded.logo_path,
     primary_color = excluded.primary_color,
+    accent_color = excluded.accent_color,
     active = excluded.active;
 
 with requested_teams (team_name, club_name) as (
