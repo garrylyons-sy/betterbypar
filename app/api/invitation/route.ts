@@ -26,24 +26,39 @@ export async function GET(request: NextRequest) {
        i.status::text,
        i.expires_at::text,
        c.name as club_name,
-       coalesce(
-         jsonb_agg(
+       coalesce(m.memberships, '[]'::jsonb) as memberships
+     from public.invitation i
+     left join public.club c on c.id = i.invited_club_id
+     left join lateral (
+       select jsonb_agg(item order by sort_key, team_name) as memberships
+       from (
+         select
+           l.name as sort_key,
+           t.name as team_name,
            jsonb_build_object(
              'team_name', t.name,
              'league_name', l.name,
              'role', im.role::text
-           )
-           order by l.name, t.name
-         ) filter (where im.id is not null),
-         '[]'::jsonb
-       ) as memberships
-     from public.invitation i
-     left join public.club c on c.id = i.invited_club_id
-     left join public.invitation_membership im on im.invitation_id = i.id
-     left join public.team t on t.id = im.team_id
-     left join public.league l on l.id = t.league_id
+           ) as item
+         from public.invitation_membership im
+         join public.team t on t.id = im.team_id
+         join public.league l on l.id = t.league_id
+         where im.invitation_id = i.id
+         union all
+         select
+           'Club' as sort_key,
+           c2.name as team_name,
+           jsonb_build_object(
+             'team_name', c2.name,
+             'league_name', 'Club',
+             'role', icm.role
+           ) as item
+         from public.invitation_club_membership icm
+         join public.club c2 on c2.id = icm.club_id
+         where icm.invitation_id = i.id
+       ) role_rows
+     ) m on true
      where i.invitation_code = $1
-     group by i.id, c.name
      limit 1`,
     [code]
   );

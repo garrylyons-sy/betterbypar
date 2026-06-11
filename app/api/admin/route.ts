@@ -30,6 +30,7 @@ export async function GET() {
            p.first_name,
            p.last_name,
            p.email,
+           p.phone,
            coalesce(ao.active, false) as admin
          from public.person p
          left join public.app_operator ao on ao.person_id = p.id

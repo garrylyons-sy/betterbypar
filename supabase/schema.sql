@@ -130,6 +130,8 @@ create table public.invitation (
   invited_person_name text not null,
   invited_club_id uuid references public.club(id) on delete set null,
   invited_role membership_role not null,
+  phone text,
+  invite_administrator boolean not null default false,
   status invitation_status not null default 'Pending',
   created_at timestamptz not null default now(),
   expires_at timestamptz not null,
@@ -147,6 +149,30 @@ create table public.invitation_membership (
 );
 
 comment on table public.invitation_membership is 'Team-role grants attached to an account invitation. A single person can be invited as a player in one team and manager or assistant manager in another.';
+
+create table public.invitation_club_membership (
+  id uuid primary key default gen_random_uuid(),
+  invitation_id uuid not null references public.invitation(id) on delete cascade,
+  club_id uuid not null references public.club(id) on delete cascade,
+  role text not null default 'Club Member' check (role = 'Club Member'),
+  unique (invitation_id, club_id, role)
+);
+
+comment on table public.invitation_club_membership is 'Club-level roles attached to an account invitation, used for members who can book tables and receive club messages without a team role.';
+
+create table public.invitation_email (
+  id uuid primary key default gen_random_uuid(),
+  invitation_id uuid references public.invitation(id) on delete cascade,
+  to_email text not null,
+  subject text not null,
+  body_html text not null,
+  body_text text not null,
+  status text not null default 'Queued' check (status in ('Queued', 'Sent', 'Failed')),
+  created_at timestamptz not null default now(),
+  sent_at timestamptz
+);
+
+create index invitation_email_invitation_idx on public.invitation_email(invitation_id);
 
 create table public.invitation_request (
   id uuid primary key default gen_random_uuid(),
@@ -1152,6 +1178,8 @@ alter table public.team_membership enable row level security;
 alter table public.club_membership enable row level security;
 alter table public.invitation enable row level security;
 alter table public.invitation_membership enable row level security;
+alter table public.invitation_club_membership enable row level security;
+alter table public.invitation_email enable row level security;
 alter table public.invitation_request enable row level security;
 alter table public.fixture enable row level security;
 alter table public.match enable row level security;
@@ -1223,6 +1251,8 @@ create policy "members can read club memberships" on public.club_membership for 
 create policy "operators can read all club memberships" on public.club_membership for select to authenticated using (public.is_app_operator());
 create policy "operators can read invitations" on public.invitation for select to authenticated using (public.is_app_operator());
 create policy "operators can read invitation memberships" on public.invitation_membership for select to authenticated using (public.is_app_operator());
+create policy "operators can read invitation club memberships" on public.invitation_club_membership for select to authenticated using (public.is_app_operator());
+create policy "operators can read invitation emails" on public.invitation_email for select to authenticated using (public.is_app_operator());
 create policy "operators can read invite requests" on public.invitation_request for select to authenticated using (public.is_app_operator());
 create policy "members can read fixtures" on public.fixture for select to authenticated using (true);
 create policy "members can read matches" on public.match for select to authenticated using (true);

@@ -17,6 +17,7 @@ type PersonRow = {
   first_name: string;
   last_name: string;
   email: string | null;
+  phone: string | null;
   profile_image: string | null;
 };
 
@@ -284,9 +285,13 @@ export async function claimInvitationForAccount({
       "select team_id, role from public.invitation_membership where invitation_id = $1",
       [invitation.id]
     );
+    const clubMembershipResult = await client.query(
+      "select club_id, role from public.invitation_club_membership where invitation_id = $1",
+      [invitation.id]
+    );
 
-    if (membershipResult.rowCount === 0) {
-      throw new Error("Invitation has no team role attached.");
+    if (membershipResult.rowCount === 0 && clubMembershipResult.rowCount === 0 && !invitation.invite_administrator) {
+      throw new Error("Invitation has no role attached.");
     }
 
     const { firstName, lastName } = splitName(invitation.invited_person_name);
@@ -310,21 +315,22 @@ export async function claimInvitationForAccount({
 
     if (!person) {
       const result = await client.query<PersonRow>(
-        `insert into public.person (first_name, last_name, email, profile_image, active)
-         values ($1, $2, $3, $4, true)
+        `insert into public.person (first_name, last_name, email, phone, profile_image, active)
+         values ($1, $2, $3, $4, $5, true)
          returning *`,
-        [firstName, lastName, lowerEmail, profileImage ?? null]
+        [firstName, lastName, lowerEmail, invitation.phone ?? null, profileImage ?? null]
       );
       person = result.rows[0];
     } else {
       const result = await client.query<PersonRow>(
         `update public.person
          set email = coalesce(email, $2),
-             profile_image = coalesce(nullif($3, ''), profile_image),
+             phone = coalesce(nullif($3, ''), phone),
+             profile_image = coalesce(nullif($4, ''), profile_image),
              active = true
          where id = $1
          returning *`,
-        [person.id, lowerEmail, profileImage ?? ""]
+        [person.id, lowerEmail, invitation.phone ?? "", profileImage ?? ""]
       );
       person = result.rows[0];
     }
@@ -386,6 +392,26 @@ export async function claimInvitationForAccount({
           [membership.team_id, person.id, membership.role]
         );
       }
+    }
+
+    for (const membership of clubMembershipResult.rows) {
+      await client.query(
+        `insert into public.club_membership (club_id, person_id, role, active)
+         values ($1, $2, 'Club Member', true)
+         on conflict (club_id, person_id, role) do update
+         set active = true`,
+        [membership.club_id, person.id]
+      );
+    }
+
+    if (invitation.invite_administrator) {
+      await client.query(
+        `insert into public.app_operator (person_id, active)
+         values ($1, true)
+         on conflict (person_id) do update
+         set active = true`,
+        [person.id]
+      );
     }
 
     await client.query(
