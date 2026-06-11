@@ -1,14 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { withTransaction } from "@/lib/server/db";
+import { currentUser } from "@/lib/server/auth";
+import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
     const host = request.headers.get("host") ?? "";
-    if (!host.startsWith("localhost:") && !host.startsWith("127.0.0.1:")) {
-      return NextResponse.json({ error: "Lineup test reset is only available locally." }, { status: 403 });
+    const isLocal = host.startsWith("localhost:") || host.startsWith("127.0.0.1:");
+    const isLiveDomain = host === "interclubsnooker.com" || host === "www.interclubsnooker.com";
+
+    if (!isLocal && !isLiveDomain) {
+      return NextResponse.json({ error: "Lineup test reset is not available on this host." }, { status: 403 });
+    }
+
+    if (isLiveDomain) {
+      const user = await currentUser();
+      if (!user) return NextResponse.json({ error: "Sign in is required to reset the lineup test." }, { status: 401 });
+      const { rowCount } = await dbQuery(
+        "select 1 from public.app_operator where person_id = $1 and active = true limit 1",
+        [user.personId]
+      );
+      if (!rowCount) {
+        return NextResponse.json({ error: "Administrator access is required to reset the lineup test." }, { status: 403 });
+      }
     }
 
     const result = await withTransaction(async (client) => {
