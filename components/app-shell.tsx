@@ -1147,18 +1147,42 @@ function SeasonCompleteCard({ activeTeam = teamContexts[0], action, onAction }: 
 }
 
 function SeasonResultsCard({ activeTeam, results }: { activeTeam: TeamContext; results: MatchResult[] }) {
+  const [scope, setScope] = useState<"club" | "league">("club");
+  const clubResults = useMemo(
+    () => results.filter((result) => result.homeTeamName === activeTeam.name || result.awayTeamName === activeTeam.name),
+    [activeTeam.name, results]
+  );
+  const scopedResults = scope === "club" ? clubResults : results;
   const sortedResults = useMemo(
-    () => [...results].sort((a, b) => b.fixtureDate.localeCompare(a.fixtureDate) || a.homeTeamName.localeCompare(b.homeTeamName)),
-    [results]
+    () => [...scopedResults].sort((a, b) => b.fixtureDate.localeCompare(a.fixtureDate) || a.homeTeamName.localeCompare(b.homeTeamName)),
+    [scopedResults]
   );
 
   return (
     <Card className="md:col-span-2">
       <CardHeader>
-        <CardTitle>Season Results</CardTitle>
+        <CardTitle>{scope === "club" ? `${activeTeam.name} Results` : "League Results"}</CardTitle>
         <Badge variant="cyan">{sortedResults.length ? `${sortedResults.length} matches` : activeTeam.season}</Badge>
       </CardHeader>
       <CardContent className="space-y-2">
+        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#f7f5fa] p-1">
+          {[
+            { label: "My club", value: "club" as const, count: clubResults.length },
+            { label: "All league", value: "league" as const, count: results.length }
+          ].map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => setScope(item.value)}
+              className={cn(
+                "min-h-11 rounded-xl px-3 text-sm font-black transition-colors",
+                scope === item.value ? "bg-[#10233f] text-white shadow-card" : "text-[#10233f]"
+              )}
+            >
+              {item.label} <span className={cn("font-extrabold", scope === item.value ? "text-white/70" : "text-[#6c5a73]")}>({item.count})</span>
+            </button>
+          ))}
+        </div>
         {sortedResults.map((result) => {
           const homeWon = result.homeTeamScore > result.awayTeamScore;
           const awayWon = result.awayTeamScore > result.homeTeamScore;
@@ -1191,7 +1215,7 @@ function SeasonResultsCard({ activeTeam, results }: { activeTeam: TeamContext; r
         })}
         {sortedResults.length === 0 ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-            No completed results are available for {activeTeam.season} {activeTeam.league} yet.
+            No completed results are available for {scope === "club" ? activeTeam.name : `${activeTeam.season} ${activeTeam.league}`} yet.
           </p>
         ) : null}
       </CardContent>
