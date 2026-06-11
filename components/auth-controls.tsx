@@ -47,6 +47,14 @@ export function AuthSignInForm({
   }
 
   const googlePath = googleNext ? `/auth/google?next=${encodeURIComponent(googleNext)}` : "/auth/google";
+  const signInWithGoogle = () => {
+    const authUrl = new URL(googlePath, window.location.origin).toString();
+    if (window.self !== window.top) {
+      window.top?.location.assign(authUrl);
+      return;
+    }
+    window.location.assign(authUrl);
+  };
 
   return (
     <div className="grid gap-3">
@@ -57,7 +65,7 @@ export function AuthSignInForm({
         <LogIn className="h-4 w-4" />
         Sign in
       </Button>
-      <GoogleAuthButton label="Sign in with Google" onClick={() => window.location.assign(googlePath)} />
+      <GoogleAuthButton label="Sign in with Google" onClick={signInWithGoogle} />
     </div>
   );
 }

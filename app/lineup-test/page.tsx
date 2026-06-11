@@ -1,6 +1,7 @@
 export default function LineupTestPage() {
-  const castleSrc = "/?team=castle%20a&role=manager&embed=1";
-  const grangeSrc = "/?team=grange%20a&role=manager&embed=1";
+  const appOrigin = "https://www.interclubsnooker.com";
+  const castleSrc = `${appOrigin}/?team=castle%20a&role=manager&embed=1`;
+  const grangeSrc = `${appOrigin}/?team=grange%20a&role=manager&embed=1`;
 
   return (
     <main className="min-h-screen bg-[#071426] p-4 text-white">
@@ -10,7 +11,7 @@ export default function LineupTestPage() {
           <h1 className="text-2xl font-extrabold">Castle A Manager vs Grange A Manager</h1>
         </div>
         <p className="max-w-xl text-sm font-semibold text-white/70">
-          Both panes use the same local app session. Log in once, then each pane selects a different manager context from the URL.
+          Both panes use interclubsnooker.com. If you need to sign in, use Google once in a pane and the login will open as the main page before returning to the app.
         </p>
       </header>
       <section className="mx-auto grid max-w-[1600px] gap-4 xl:grid-cols-2">
