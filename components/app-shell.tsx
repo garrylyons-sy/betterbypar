@@ -80,6 +80,7 @@ export function AppShell({
   onSignOut?: () => void;
   onPageVisit?: (pageLabel: string, activeTeam: TeamContext) => void;
 }) {
+  const seasons = useMemo(() => Array.from(new Set(contexts.map((context) => context.season))).filter(Boolean), [contexts]);
   const preferredContextId = useMemo(() => {
     if (typeof window === "undefined") return contexts[0]?.id ?? teamContexts[0].id;
     const params = new URLSearchParams(window.location.search);
@@ -94,26 +95,55 @@ export function AppShell({
       return teamMatches && roleMatches && seasonMatches;
     })?.id ?? contexts[0]?.id ?? teamContexts[0].id;
   }, [contexts]);
+  const preferredContext = useMemo(
+    () => contexts.find((team) => team.id === preferredContextId) ?? contexts[0] ?? teamContexts[0],
+    [contexts, preferredContextId]
+  );
   const [selectedId, setSelectedId] = useState(preferredContextId);
+  const [selectedSeason, setSelectedSeason] = useState(preferredContext.season);
   const [activePage, setActivePage] = useState<AppPage>("Home");
   const [simulatedRole, setSimulatedRole] = useState<Role>(contexts[0]?.role ?? teamContexts[0].role);
   const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
+  const seasonContexts = useMemo(
+    () => contexts.filter((context) => context.season === selectedSeason),
+    [contexts, selectedSeason]
+  );
+
+  function changeSeason(nextSeason: string) {
+    const current = contexts.find((team) => team.id === selectedId);
+    const nextContext = contexts.find((team) =>
+      team.season === nextSeason &&
+      current &&
+      team.name === current.name &&
+      team.role === current.role &&
+      team.club === current.club
+    ) ?? contexts.find((team) => team.season === nextSeason) ?? contexts[0];
+
+    setSelectedSeason(nextSeason);
+    if (nextContext) setSelectedId(nextContext.id);
+  }
+
   useEffect(() => {
-    if (!contexts.some((team) => team.id === selectedId)) {
-      setSelectedId(preferredContextId);
+    if (!seasons.includes(selectedSeason)) {
+      setSelectedSeason(preferredContext.season);
+      return;
     }
-  }, [contexts, preferredContextId, selectedId]);
+    if (!seasonContexts.some((team) => team.id === selectedId)) {
+      setSelectedId(seasonContexts[0]?.id ?? preferredContextId);
+    }
+  }, [preferredContext.season, preferredContextId, seasonContexts, seasons, selectedId, selectedSeason]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     if ((params.has("team") || params.has("role") || params.has("season")) && selectedId !== preferredContextId) {
+      setSelectedSeason(preferredContext.season);
       setSelectedId(preferredContextId);
     }
-  }, [preferredContextId, selectedId]);
+  }, [preferredContext.season, preferredContextId, selectedId]);
 
   const realActiveTeam = useMemo(
-    () => contexts.find((team) => team.id === selectedId) ?? contexts[0] ?? teamContexts[0],
-    [contexts, selectedId]
+    () => seasonContexts.find((team) => team.id === selectedId) ?? seasonContexts[0] ?? contexts[0] ?? teamContexts[0],
+    [contexts, seasonContexts, selectedId]
   );
   useEffect(() => {
     setSimulatedRole(realActiveTeam.role);
@@ -145,9 +175,12 @@ export function AppShell({
     <main className="min-h-screen app-bg pb-24 text-[#10233f]">
       <Header
         activeTeam={activeTeam}
-        contexts={contexts}
+        contexts={seasonContexts.length ? seasonContexts : contexts}
         selectedId={selectedId}
         onContextChange={setSelectedId}
+        seasons={seasons}
+        selectedSeason={selectedSeason}
+        onSeasonChange={changeSeason}
         simulatedRole={simulatedRole}
         simulatedClub={simulatedClub}
         onRoleChange={setSimulatedRole}
@@ -263,6 +296,9 @@ function Header({
   contexts,
   selectedId,
   onContextChange,
+  seasons,
+  selectedSeason,
+  onSeasonChange,
   simulatedRole,
   simulatedClub,
   userLabel,
@@ -274,6 +310,9 @@ function Header({
   contexts: TeamContext[];
   selectedId: string;
   onContextChange: (id: string) => void;
+  seasons: string[];
+  selectedSeason: string;
+  onSeasonChange: (season: string) => void;
   simulatedRole: Role;
   simulatedClub: string;
   userLabel?: string;
@@ -302,7 +341,8 @@ function Header({
             ) : null}
           </div>
         </div>
-        <div className="w-full sm:w-auto sm:min-w-[300px]">
+        <div className="grid w-full gap-2 sm:w-auto sm:min-w-[360px] sm:grid-cols-[130px_minmax(220px,1fr)]">
+          <SeasonSwitcher seasons={seasons} selectedSeason={selectedSeason} onChange={onSeasonChange} />
           <ContextSwitcher
             contexts={contexts}
             selectedId={selectedId}
@@ -310,7 +350,7 @@ function Header({
             onChange={onContextChange}
           />
           {SIMULATION_CONTROLS_ENABLED ? (
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:col-span-2">
               <RoleSimulator value={simulatedRole} onChange={onRoleChange} />
               <ClubSimulator value={simulatedClub} onChange={onClubChange} />
             </div>
@@ -368,6 +408,35 @@ function contextLabel(context: TeamContext) {
 function contextDescription(context: TeamContext) {
   if (context.role === "Club Member") return "Club access";
   return `${context.league} - ${context.club.replace(" Golf Club", "")}`;
+}
+
+function SeasonSwitcher({ seasons, selectedSeason, onChange }: { seasons: string[]; selectedSeason: string; onChange: (season: string) => void }) {
+  if (seasons.length <= 1) {
+    return (
+      <div className="min-h-11 rounded-xl bg-white/95 px-4 py-2 text-[#10233f] shadow-card">
+        <p className="truncate text-[11px] font-bold uppercase text-[#6c5a73]">Season</p>
+        <p className="truncate text-sm font-extrabold">{selectedSeason}</p>
+      </div>
+    );
+  }
+
+  return (
+    <label className="relative block w-full">
+      <span className="sr-only">Switch season</span>
+      <select
+        value={selectedSeason}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-12 w-full appearance-none rounded-xl border border-white/15 bg-white/95 px-4 pr-10 text-sm font-bold text-[#10233f] shadow-card outline-none"
+      >
+        {seasons.map((season) => (
+          <option key={season} value={season}>
+            {season}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-[#10233f]" />
+    </label>
+  );
 }
 
 function ContextSwitcher({
