@@ -38,6 +38,13 @@ const navItems = [
   { label: "More", page: "Menu", icon: MenuIcon }
 ] as const;
 
+const clubMemberNavItems = [
+  { label: "Home", page: "Home", icon: Home },
+  { label: "Bookings", page: "Bookings", icon: CalendarPlus },
+  { label: "Messages", page: "Messages", icon: Mail },
+  { label: "More", page: "Menu", icon: MenuIcon }
+] as const;
+
 const desktopNavItems = [
   { label: "Home", page: "Home", icon: Home },
   { label: "Fixtures", page: "Fixtures", icon: CalendarDays },
@@ -49,13 +56,25 @@ const desktopNavItems = [
   { label: "Messages", page: "Messages", icon: Mail }
 ] as const;
 
-type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Menu";
+const clubMemberDesktopNavItems = [
+  { label: "Home", page: "Home", icon: Home },
+  { label: "Bookings", page: "Bookings", icon: CalendarPlus },
+  { label: "Messages", page: "Messages", icon: Mail },
+  { label: "Interclub Leagues", page: "Interclub Leagues", icon: Trophy }
+] as const;
+
+type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
 
 const menuItems: Array<{ label: string; page: AppPage; icon: typeof Home; description: string }> = [
   { label: "Results", page: "Results", icon: ClipboardCheck, description: "Recent scores and individual games" },
   { label: "Players", page: "Players", icon: Users, description: "Team player list and match records" },
   { label: "Stats", page: "Stats", icon: BarChart3, description: "Season and player performance" },
+  { label: "Messages", page: "Messages", icon: Mail, description: "Club notices and account options" }
+];
+
+const clubMemberMenuItems: Array<{ label: string; page: AppPage; icon: typeof Home; description: string }> = [
+  { label: "Interclub Leagues", page: "Interclub Leagues", icon: Trophy, description: "Fixtures, tables, players and stats" },
   { label: "Messages", page: "Messages", icon: Mail, description: "Club notices and account options" }
 ];
 
@@ -101,6 +120,8 @@ export function AppShell({
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
     return filtered.length ? filtered : standingsData === standings ? standings : [];
   }, [activeTeam.league, activeTeam.season, standingsData]);
+  const clubMemberView = activeTeam.role === "Club Member";
+  const showLeaguePanels = !clubMemberView || activePage === "Interclub Leagues";
 
   useEffect(() => {
     onPageVisit?.(activePage, activeTeam);
@@ -117,18 +138,23 @@ export function AppShell({
         onSignOut={onSignOut}
         userLabel={userLabel}
       />
-      <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)_380px] lg:items-start lg:gap-6 lg:px-8 xl:grid-cols-[230px_minmax(0,1fr)_400px] xl:px-10">
+      <section className={cn(
+        "mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:items-start lg:gap-6 lg:px-8 xl:px-10",
+        showLeaguePanels ? "lg:grid-cols-[220px_minmax(0,1fr)_380px] xl:grid-cols-[230px_minmax(0,1fr)_400px]" : "lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]"
+      )}>
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} />
         <div className="grid gap-4">
-          <MatchdayHero activeTeam={activeTeam} />
+          {clubMemberView && activePage !== "Interclub Leagues" ? <ClubMemberHero activeTeam={activeTeam} /> : <MatchdayHero activeTeam={activeTeam} interclubView={activePage === "Interclub Leagues"} />}
           <PageContent activePage={activePage} activeTeam={activeTeam} standingsData={activeStandings} playerGameResults={playerGameResults} onNavigate={setActivePage} onSignOut={onSignOut} userLabel={userLabel} />
         </div>
-        <aside className="grid gap-4 lg:content-start">
-          {activePage !== "Table" ? <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} /> : null}
-          <ClubTeamStructureCard />
-        </aside>
+        {showLeaguePanels ? (
+          <aside className="grid gap-4 lg:content-start">
+            {activePage !== "Table" ? <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} /> : null}
+            <ClubTeamStructureCard />
+          </aside>
+        ) : null}
       </section>
-      <BottomNav activePage={activePage} onNavigate={setActivePage} />
+      <BottomNav activePage={activePage} activeTeam={activeTeam} onNavigate={setActivePage} />
     </main>
   );
 }
@@ -185,9 +211,10 @@ function PageContent({
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
+  if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} onNavigate={onNavigate} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} />;
-  if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} />;
+  if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />;
 }
 
@@ -318,12 +345,14 @@ function ClubSimulator({ value, onChange }: { value: string; onChange: (club: st
 }
 
 function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamContext; activePage: AppPage; onNavigate: (page: AppPage) => void }) {
+  const items = activeTeam.role === "Club Member" ? clubMemberDesktopNavItems : desktopNavItems;
+
   return (
     <aside className="hidden self-start rounded-[18px] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
-      <p className="text-xs font-extrabold uppercase text-white/60">Competition</p>
-      <h2 className="mt-1 text-2xl font-black">{activeTeam.league}</h2>
+      <p className="text-xs font-extrabold uppercase text-white/60">{activeTeam.role === "Club Member" ? "Club" : "Competition"}</p>
+      <h2 className="mt-1 text-2xl font-black">{activeTeam.role === "Club Member" ? activeTeam.club.replace(" Golf Club", "") : activeTeam.league}</h2>
       <div className="mt-5 space-y-1.5">
-        {desktopNavItems.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           return (
             <button
@@ -344,7 +373,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamC
   );
 }
 
-function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
+function MatchdayHero({ activeTeam, interclubView = false }: { activeTeam: TeamContext; interclubView?: boolean }) {
   const manager = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
   const clubMember = activeTeam.role === "Club Member";
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
@@ -369,7 +398,7 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
                 </Badge>
               </div>
               <p className="mt-5 text-xs font-extrabold uppercase tracking-wide text-white/70">
-                {clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
+                {clubMember && interclubView ? "Interclub leagues" : clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
               </p>
               <h2 className="mt-1 text-4xl font-black leading-none sm:text-5xl xl:text-6xl">{activeTeam.name}</h2>
               <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
@@ -389,6 +418,41 @@ function MatchdayHero({ activeTeam }: { activeTeam: TeamContext }) {
           <Button variant="secondary" className="w-full">
             <MessageCircle className="h-4 w-4" />
             Message
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ClubMemberHero({ activeTeam }: { activeTeam: TeamContext }) {
+  return (
+    <section className="overflow-hidden rounded-[18px] text-white shadow-card">
+      <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+        <div className="table-line-pattern absolute inset-0 opacity-20" />
+        <div className="relative flex min-w-0 items-start gap-3">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white p-2 shadow-card ring-1 ring-white/40 sm:h-20 sm:w-20">
+            <img src={activeTeam.logoPath} alt={`${activeTeam.club} logo`} className="max-h-full max-w-full object-contain" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="cyan">Club Member</Badge>
+              <Badge variant="muted">Tables</Badge>
+              <Badge variant="muted">Messages</Badge>
+            </div>
+            <p className="mt-5 text-xs font-extrabold uppercase tracking-wide text-white/70">Club home</p>
+            <h2 className="mt-1 text-4xl font-black leading-none sm:text-5xl xl:text-6xl">{activeTeam.club}</h2>
+            <p className="mt-2 text-sm font-semibold text-white/80">Book tables, read club notices and manage your account.</p>
+          </div>
+        </div>
+        <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
+          <Button className="w-full">
+            <CalendarPlus className="h-4 w-4" />
+            Book table
+          </Button>
+          <Button variant="secondary" className="w-full">
+            <MessageCircle className="h-4 w-4" />
+            Messages
           </Button>
         </div>
       </div>
@@ -718,7 +782,7 @@ function PlayerHome({ activeTeam, playerGameResults }: { activeTeam: TeamContext
   );
 }
 
-function ClubMemberHome({ activeTeam }: { activeTeam: TeamContext }) {
+function ClubMemberHome({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <Card>
@@ -734,7 +798,67 @@ function ClubMemberHome({ activeTeam }: { activeTeam: TeamContext }) {
           </p>
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Interclub Leagues</CardTitle>
+          <Badge variant="muted">Optional</Badge>
+        </CardHeader>
+        <CardContent>
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            Fixtures, tables, players and stats are available separately when you want to follow the leagues.
+          </p>
+          <Button className="mt-3 w-full" onClick={() => onNavigate("Interclub Leagues")} style={{ backgroundColor: activeTeam.primaryColor }}>
+            <Trophy className="h-4 w-4" />
+            View leagues
+          </Button>
+        </CardContent>
+      </Card>
       <MessagesPage activeTeam={activeTeam} compact />
+    </section>
+  );
+}
+
+function InterclubLeaguesPage({
+  activeTeam,
+  onNavigate
+}: {
+  activeTeam: TeamContext;
+  onNavigate: (page: AppPage) => void;
+}) {
+  return (
+    <section className="grid gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Interclub Leagues</CardTitle>
+          <Badge variant="muted">Optional</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-2 sm:grid-cols-2">
+          {[
+            { label: "Fixtures", page: "Fixtures" as AppPage, icon: CalendarDays },
+            { label: "Results", page: "Results" as AppPage, icon: ClipboardCheck },
+            { label: "League table", page: "Table" as AppPage, icon: Trophy },
+            { label: "Players", page: "Players" as AppPage, icon: Users },
+            { label: "Statistics", page: "Stats" as AppPage, icon: BarChart3 }
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.page}
+                onClick={() => onNavigate(item.page)}
+                className="grid min-h-[76px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left"
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-black">{item.label}</span>
+                  <span className="block text-xs font-semibold text-[#6c5a73]">View {activeTeam.league.toLowerCase()} information</span>
+                </span>
+              </button>
+            );
+          })}
+        </CardContent>
+      </Card>
     </section>
   );
 }
@@ -788,6 +912,8 @@ function StatsPage({ activeTeam, playerGameResults }: { activeTeam: TeamContext;
 }
 
 function MessagesPage({ activeTeam, compact = false, onSignOut, userLabel }: { activeTeam: TeamContext; compact?: boolean; onSignOut?: () => void; userLabel?: string }) {
+  const clubMember = activeTeam.role === "Club Member";
+
   return (
     <Card className={compact ? "" : "md:max-w-xl"}>
       <CardHeader>
@@ -800,8 +926,8 @@ function MessagesPage({ activeTeam, compact = false, onSignOut, userLabel }: { a
           <p className="mt-1 font-black">Table booking messages will appear here.</p>
         </div>
         <div className="rounded-xl bg-[#f7f5fa] p-3">
-          <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Team notice</p>
-          <p className="mt-1 font-black">Manager and club messages are coming next.</p>
+          <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{clubMember ? "Interclub notice" : "Team notice"}</p>
+          <p className="mt-1 font-black">{clubMember ? "League updates will appear in Interclub Leagues." : "Manager and club messages are coming next."}</p>
         </div>
         {onSignOut ? (
           <div className="rounded-xl bg-[#f7f5fa] p-3">
@@ -829,6 +955,8 @@ function MoreMenu({
   onSignOut?: () => void;
   userLabel?: string;
 }) {
+  const items = activeTeam.role === "Club Member" ? clubMemberMenuItems : menuItems;
+
   return (
     <section className="grid gap-4 md:grid-cols-2">
       {onSignOut ? (
@@ -851,7 +979,7 @@ function MoreMenu({
           <Badge variant="muted">{activeTeam.name}</Badge>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
-          {menuItems.map((item) => {
+          {items.map((item) => {
             const Icon = item.icon;
             return (
               <button
@@ -1283,13 +1411,16 @@ function MiniStat({ label, value, dark = false }: { label: string; value: string
   );
 }
 
-function BottomNav({ activePage, onNavigate }: { activePage: AppPage; onNavigate: (page: AppPage) => void }) {
-  const morePages: AppPage[] = ["Menu", "Results", "Players", "Stats", "Messages"];
+function BottomNav({ activePage, activeTeam, onNavigate }: { activePage: AppPage; activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+  const items = activeTeam.role === "Club Member" ? clubMemberNavItems : navItems;
+  const morePages: AppPage[] = activeTeam.role === "Club Member"
+    ? ["Menu", "Interclub Leagues"]
+    : ["Menu", "Results", "Players", "Stats", "Messages"];
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#eeeaf2] bg-white px-1.5 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1.5 shadow-elevated lg:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
-        {navItems.map((item) => {
+      <div className={cn("mx-auto grid max-w-md gap-1", items.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
+        {items.map((item) => {
           const Icon = item.icon;
           const active = item.page === "Menu" ? morePages.includes(activePage) : activePage === item.page;
 
