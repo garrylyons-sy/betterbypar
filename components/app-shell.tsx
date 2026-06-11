@@ -1897,20 +1897,31 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
   useEffect(() => {
     if (!activeTeam.teamId) return;
     let cancelled = false;
-    setMessage("");
-    fetch(`/api/manager/lineup?teamId=${encodeURIComponent(activeTeam.teamId)}`, { credentials: "same-origin" })
-      .then((response) => response.json().then((data) => ({ response, data })))
-      .then(({ response, data }) => {
+    let firstLoad = true;
+
+    async function loadLineup() {
+      if (!activeTeam.teamId) return;
+      if (firstLoad) setMessage("");
+      try {
+        const response = await fetch(`/api/manager/lineup?teamId=${encodeURIComponent(activeTeam.teamId)}`, { credentials: "same-origin" });
+        const data = await response.json().catch(() => ({}));
         if (cancelled) return;
         if (!response.ok) throw new Error(data.error || "Lineup unavailable.");
         setPayload(data);
         setSlots(data.lineup?.slots?.length ? data.lineup.slots : defaultLineupSlots);
-      })
-      .catch((error) => {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : "Lineup unavailable.");
-      });
+      } catch (error) {
+        if (!cancelled && firstLoad) setMessage(error instanceof Error ? error.message : "Lineup unavailable.");
+      } finally {
+        firstLoad = false;
+      }
+    }
+
+    loadLineup();
+    const poll = window.setInterval(loadLineup, 8000);
+
     return () => {
       cancelled = true;
+      window.clearInterval(poll);
     };
   }, [activeTeam.teamId]);
 
@@ -1962,13 +1973,15 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
   const opponentName = payload?.fixture
     ? payload.fixture.homeTeamId === activeTeam.teamId ? payload.fixture.awayTeamName : payload.fixture.homeTeamName
     : "";
+  const ownPublished = ownStatus === "Published";
   const opponentHasPublished = payload?.opponentStatus?.status === "Published";
   const canSeeOpponentLineup = ownStatus === "Published" && opponentHasPublished;
+  const matchReady = Boolean(payload?.games.length);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Lineup</CardTitle>
+        <CardTitle>{matchReady ? "Match" : "Match planning"}</CardTitle>
         <Badge variant={ownStatus === "Published" ? "green" : "cyan"}>{ownStatus}</Badge>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -2001,43 +2014,60 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
                 ) : null}
               </div>
             ) : null}
-            <div className="grid gap-2">
-              {slots.map((slot) => (
-                <div key={slot.slotNumber} className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-black text-[#10233f]">{slot.label}</p>
-                    <Badge variant={slot.gameType === "Doubles" ? "cyan" : "muted"}>{slot.gameType === "Doubles" ? "2 pts" : "1 pt"}</Badge>
-                  </div>
-                  <PlayerSelect
-                    label={slot.gameType === "Doubles" ? "Player 1" : "Player"}
-                    value={slot.player1Id}
-                    players={playerOptions}
-                    unavailablePlayerIds={selectedPlayerIdsExcept(slot.slotNumber, "player1Id")}
-                    onChange={(value) => updateSlot(slot.slotNumber, "player1Id", value)}
-                  />
-                  {slot.gameType === "Doubles" ? (
-                    <PlayerSelect
-                      label="Player 2"
-                      value={slot.player2Id}
-                      players={playerOptions}
-                      unavailablePlayerIds={selectedPlayerIdsExcept(slot.slotNumber, "player2Id")}
-                      onChange={(value) => updateSlot(slot.slotNumber, "player2Id", value)}
-                    />
-                  ) : null}
+            {matchReady ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} busy={busy} /> : null}
+            {!ownPublished ? (
+              <>
+                <div className="grid gap-2">
+                  {slots.map((slot) => (
+                    <div key={slot.slotNumber} className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-black text-[#10233f]">{slot.label}</p>
+                        <Badge variant={slot.gameType === "Doubles" ? "cyan" : "muted"}>{slot.gameType === "Doubles" ? "2 pts" : "1 pt"}</Badge>
+                      </div>
+                      <PlayerSelect
+                        label={slot.gameType === "Doubles" ? "Player 1" : "Player"}
+                        value={slot.player1Id}
+                        players={playerOptions}
+                        unavailablePlayerIds={selectedPlayerIdsExcept(slot.slotNumber, "player1Id")}
+                        onChange={(value) => updateSlot(slot.slotNumber, "player1Id", value)}
+                      />
+                      {slot.gameType === "Doubles" ? (
+                        <PlayerSelect
+                          label="Player 2"
+                          value={slot.player2Id}
+                          players={playerOptions}
+                          unavailablePlayerIds={selectedPlayerIdsExcept(slot.slotNumber, "player2Id")}
+                          onChange={(value) => updateSlot(slot.slotNumber, "player2Id", value)}
+                        />
+                      ) : null}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button variant="secondary" onClick={() => submitLineup("save")} disabled={busy}>
+                    Save draft
+                  </Button>
+                  <Button onClick={() => submitLineup("publish")} disabled={busy}>
+                    Publish lineup
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-xl bg-[#f7f5fa] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Your lineup</p>
+                    <p className="text-sm font-bold text-[#10233f]">
+                      Published and locked{matchReady ? ". Match card is ready." : ". Waiting for the opponent."}
+                    </p>
+                  </div>
+                  <Badge variant="green">Locked</Badge>
+                </div>
+              </div>
+            )}
             {message ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">{message}</p> : null}
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Button variant="secondary" onClick={() => submitLineup("save")} disabled={busy}>
-                Save draft
-              </Button>
-              <Button onClick={() => submitLineup("publish")} disabled={busy}>
-                Publish lineup
-              </Button>
-            </div>
+            {ownPublished ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
             {payload.opponentLineup ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
-            {payload.games.length ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} busy={busy} /> : null}
           </>
         )}
       </CardContent>

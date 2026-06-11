@@ -88,6 +88,10 @@ export async function POST(request: NextRequest) {
 
     await withTransaction(async (client) => {
       await ensureFixtureTeam(client, fixtureId, teamId);
+      const existingStatus = await loadLineupStatus(client, fixtureId, teamId);
+      if (existingStatus === "Published") {
+        throw new Error("Published lineups are locked and cannot be changed.");
+      }
       const playerIds = await loadTeamPlayerIds(client, teamId);
       const normalized = normalizeSlots(slots, playerIds, action === "publish");
       const lineupId = await upsertLineup(client, fixtureId, teamId, user.personId, action === "publish");
@@ -326,6 +330,18 @@ async function loadTeamPlayerIds(client: PoolClient, teamId: string) {
     [teamId]
   );
   return new Set(result.rows.map((row) => row.person_id));
+}
+
+async function loadLineupStatus(client: PoolClient, fixtureId: string, teamId: string) {
+  const result = await client.query<{ status: "Draft" | "Published" }>(
+    `select status
+     from public.fixture_lineup
+     where fixture_id = $1
+       and team_id = $2
+     limit 1`,
+    [fixtureId, teamId]
+  );
+  return result.rows[0]?.status ?? null;
 }
 
 function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, requireComplete: boolean) {
