@@ -289,7 +289,11 @@ create table public.game (
   winner_team_id uuid references public.team(id) on delete restrict,
   points_awarded integer not null check (points_awarded in (1, 2)),
   unique (match_id, game_number),
-  check ((game_type = 'Singles' and game_number between 1 and 5 and points_awarded = 1) or (game_type = 'Doubles' and game_number = 6 and points_awarded = 2))
+  constraint game_live_order_check check (
+    (game_type = 'Singles' and game_number in (1, 2, 4, 5, 6) and points_awarded = 1)
+    or
+    (game_type = 'Doubles' and game_number = 3 and points_awarded = 2)
+  )
 );
 
 comment on table public.game is 'Each row is one snooker frame. Singles frames award 1 league point to the frame winner; the doubles frame awards 2 league points to the frame winner.';
@@ -337,6 +341,40 @@ create table public.match_lineup (
   created_at timestamptz not null default now(),
   unique (match_id, team_id, player_id, game_number)
 );
+
+create table public.fixture_lineup (
+  id uuid primary key default gen_random_uuid(),
+  fixture_id uuid not null references public.fixture(id) on delete cascade,
+  team_id uuid not null references public.team(id) on delete cascade,
+  status text not null default 'Draft' check (status in ('Draft', 'Published')),
+  submitted_by uuid references public.person(id) on delete set null,
+  published_at timestamptz,
+  updated_at timestamptz not null default now(),
+  unique (fixture_id, team_id)
+);
+
+create table public.fixture_lineup_slot (
+  id uuid primary key default gen_random_uuid(),
+  lineup_id uuid not null references public.fixture_lineup(id) on delete cascade,
+  slot_number integer not null check (slot_number between 1 and 6),
+  game_type game_type not null,
+  player_1_id uuid references public.person(id) on delete restrict,
+  player_2_id uuid references public.person(id) on delete restrict,
+  unique (lineup_id, slot_number),
+  check (slot_number = 3 or player_2_id is null),
+  check (player_1_id is null or player_1_id <> player_2_id),
+  check (
+    (slot_number = 3 and game_type = 'Doubles')
+    or
+    (slot_number in (1, 2, 4, 5, 6) and game_type = 'Singles')
+  )
+);
+
+create index fixture_lineup_fixture_idx on public.fixture_lineup(fixture_id);
+create index fixture_lineup_team_idx on public.fixture_lineup(team_id);
+
+comment on table public.fixture_lineup is 'Manager lineup for a fixture. Draft lineups are private; Published lineups can be paired into generated games.';
+comment on table public.fixture_lineup_slot is 'Six ordered lineup slots: singles 1, singles 2, doubles 3, singles 4, singles 5, singles 6.';
 
 create table public.break (
   id uuid primary key default gen_random_uuid(),
@@ -1186,6 +1224,8 @@ alter table public.match enable row level security;
 alter table public.game enable row level security;
 alter table public.player_game_result enable row level security;
 alter table public.match_lineup enable row level security;
+alter table public.fixture_lineup enable row level security;
+alter table public.fixture_lineup_slot enable row level security;
 alter table public.break enable row level security;
 alter table public.user_activity_log enable row level security;
 alter table public.table_booking enable row level security;

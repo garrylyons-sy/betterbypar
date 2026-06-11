@@ -1,0 +1,442 @@
+import { NextRequest, NextResponse } from "next/server";
+import { PoolClient } from "pg";
+
+import { currentUser } from "@/lib/server/auth";
+import { dbQuery, withTransaction } from "@/lib/server/db";
+
+export const runtime = "nodejs";
+
+const lineupSlots = [
+  { slotNumber: 1, gameType: "Singles", label: "Singles 1" },
+  { slotNumber: 2, gameType: "Singles", label: "Singles 2" },
+  { slotNumber: 3, gameType: "Doubles", label: "Doubles" },
+  { slotNumber: 4, gameType: "Singles", label: "Singles 4" },
+  { slotNumber: 5, gameType: "Singles", label: "Singles 5" },
+  { slotNumber: 6, gameType: "Singles", label: "Singles 6" }
+] as const;
+
+type LineupSlotInput = {
+  slotNumber?: number;
+  player1Id?: string;
+  player2Id?: string;
+};
+
+async function requireTeamManager(teamId: string) {
+  const user = await currentUser();
+  if (!user) throw new Error("Not authenticated.");
+  const { rowCount } = await dbQuery(
+    `select 1
+     from public.team_membership
+     where person_id = $1
+       and team_id = $2
+       and role in ('Manager', 'Assistant Manager')
+       and active = true
+     limit 1`,
+    [user.personId, teamId]
+  );
+  if (!rowCount) throw new Error("Manager access is required for this team.");
+  return user;
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const teamId = request.nextUrl.searchParams.get("teamId")?.trim();
+    if (!teamId) return NextResponse.json({ error: "teamId is required." }, { status: 400 });
+    await requireTeamManager(teamId);
+
+    const payload = await loadLineupPayload(teamId);
+    return NextResponse.json(payload);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Lineup unavailable." },
+      { status: 400 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await currentUser();
+    if (!user) throw new Error("Not authenticated.");
+
+    const body = await request.json();
+    const teamId = String(body.teamId ?? "").trim();
+    const fixtureId = String(body.fixtureId ?? "").trim();
+    const action = String(body.action ?? "save").trim();
+    const slots = Array.isArray(body.slots) ? body.slots as LineupSlotInput[] : [];
+
+    if (!teamId || !fixtureId) {
+      return NextResponse.json({ error: "teamId and fixtureId are required." }, { status: 400 });
+    }
+    await requireTeamManager(teamId);
+
+    if (action === "recordResult") {
+      const gameId = String(body.gameId ?? "").trim();
+      const winnerTeamId = String(body.winnerTeamId ?? "").trim();
+      if (!gameId || !winnerTeamId) {
+        return NextResponse.json({ error: "gameId and winnerTeamId are required." }, { status: 400 });
+      }
+
+      await withTransaction(async (client) => {
+        await ensureFixtureTeam(client, fixtureId, teamId);
+        await recordGameWinner(client, fixtureId, gameId, winnerTeamId);
+      });
+
+      const payload = await loadLineupPayload(teamId, fixtureId);
+      return NextResponse.json({ ok: true, ...payload });
+    }
+
+    await withTransaction(async (client) => {
+      await ensureFixtureTeam(client, fixtureId, teamId);
+      const playerIds = await loadTeamPlayerIds(client, teamId);
+      const normalized = normalizeSlots(slots, playerIds, action === "publish");
+      const lineupId = await upsertLineup(client, fixtureId, teamId, user.personId, action === "publish");
+
+      for (const slot of lineupSlots) {
+        const selected = normalized.find((item) => item.slotNumber === slot.slotNumber);
+        await client.query(
+          `insert into public.fixture_lineup_slot (lineup_id, slot_number, game_type, player_1_id, player_2_id)
+           values ($1, $2, $3, $4, $5)
+           on conflict (lineup_id, slot_number) do update
+           set player_1_id = excluded.player_1_id,
+               player_2_id = excluded.player_2_id`,
+          [lineupId, slot.slotNumber, slot.gameType, selected?.player1Id || null, selected?.player2Id || null]
+        );
+      }
+
+      if (action === "publish") {
+        await generateGamesIfBothPublished(client, fixtureId, user.personId);
+      }
+    });
+
+    const payload = await loadLineupPayload(teamId, fixtureId);
+    return NextResponse.json({ ok: true, ...payload });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not save lineup." },
+      { status: 400 }
+    );
+  }
+}
+
+async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
+  const fixtureResult = await dbQuery<{
+    fixture_id: string;
+    fixture_date: string;
+    home_team_id: string;
+    away_team_id: string;
+    home_team_name: string;
+    away_team_name: string;
+    league_name: string;
+    season_name: string;
+    status: string;
+  }>(
+    `${fixtureSelectSql}
+     where f.status = 'Scheduled'
+       and ($1::uuid is null or f.id = $1)
+       and (f.home_team_id = $2 or f.away_team_id = $2)
+     order by case when $1::uuid is not null then 0 else 1 end, f.fixture_date asc
+     limit 1`,
+    [preferredFixtureId || null, teamId]
+  );
+
+  const fixture = fixtureResult.rows[0];
+  const players = (await dbQuery<{ person_id: string; player_name: string }>(
+    `select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name
+     from public.team_membership tm
+     join public.person p on p.id = tm.person_id
+     where tm.team_id = $1
+       and tm.role = 'Player'
+       and tm.active = true
+       and p.active = true
+     order by player_name`,
+    [teamId]
+  )).rows.map((row) => ({ id: row.person_id, name: row.player_name }));
+
+  if (!fixture) {
+    return { fixture: null, players, lineup: null, opponentLineup: null, games: [] };
+  }
+
+  const lineupRows = (await dbQuery<LineupRow>(
+    lineupQuerySql,
+    [fixture.fixture_id]
+  )).rows;
+  const own = buildLineup(lineupRows.filter((row) => row.team_id === teamId), fixture);
+  const opponentTeamId = fixture.home_team_id === teamId ? fixture.away_team_id : fixture.home_team_id;
+  const opponentRaw = lineupRows.filter((row) => row.team_id === opponentTeamId);
+  const opponent = own?.status === "Published" && opponentRaw[0]?.status === "Published" ? buildLineup(opponentRaw, fixture) : null;
+
+  const games = (await dbQuery(
+    `select
+       g.id,
+       g.game_number,
+       g.game_type::text,
+       g.points_awarded,
+       g.winner_team_id,
+       hp1.id as home_player_1_id,
+       concat_ws(' ', hp1.first_name, hp1.last_name) as home_player_1_name,
+       hp2.id as home_player_2_id,
+       concat_ws(' ', hp2.first_name, hp2.last_name) as home_player_2_name,
+       ap1.id as away_player_1_id,
+       concat_ws(' ', ap1.first_name, ap1.last_name) as away_player_1_name,
+       ap2.id as away_player_2_id,
+       concat_ws(' ', ap2.first_name, ap2.last_name) as away_player_2_name
+     from public.match m
+     join public.game g on g.match_id = m.id
+     left join public.person hp1 on hp1.id = g.home_player_1_id
+     left join public.person hp2 on hp2.id = g.home_player_2_id
+     left join public.person ap1 on ap1.id = g.away_player_1_id
+     left join public.person ap2 on ap2.id = g.away_player_2_id
+     where m.fixture_id = $1
+     order by g.game_number`,
+    [fixture.fixture_id]
+  )).rows;
+
+  return {
+    fixture: {
+      id: fixture.fixture_id,
+      fixtureDate: fixture.fixture_date,
+      homeTeamId: fixture.home_team_id,
+      awayTeamId: fixture.away_team_id,
+      homeTeamName: fixture.home_team_name,
+      awayTeamName: fixture.away_team_name,
+      league: fixture.league_name,
+      season: fixture.season_name,
+      status: fixture.status
+    },
+    players,
+    lineup: own,
+    opponentLineup: opponent,
+    games
+  };
+}
+
+const fixtureSelectSql = `
+  select
+    f.id as fixture_id,
+    f.fixture_date,
+    f.home_team_id,
+    f.away_team_id,
+    ht.name as home_team_name,
+    at.name as away_team_name,
+    l.name as league_name,
+    s.name as season_name,
+    f.status::text as status
+  from public.fixture f
+  join public.team ht on ht.id = f.home_team_id
+  join public.team at on at.id = f.away_team_id
+  join public.league l on l.id = f.league_id
+  join public.season s on s.id = f.season_id
+`;
+
+type LineupRow = {
+  lineup_id: string;
+  fixture_id: string;
+  team_id: string;
+  team_name: string;
+  status: "Draft" | "Published";
+  published_at: string | null;
+  slot_number: number | null;
+  game_type: "Singles" | "Doubles" | null;
+  player_1_id: string | null;
+  player_1_name: string | null;
+  player_2_id: string | null;
+  player_2_name: string | null;
+};
+
+const lineupQuerySql = `
+  select
+    fl.id as lineup_id,
+    fl.fixture_id,
+    fl.team_id,
+    t.name as team_name,
+    fl.status,
+    fl.published_at,
+    fls.slot_number,
+    fls.game_type::text as game_type,
+    fls.player_1_id,
+    concat_ws(' ', p1.first_name, p1.last_name) as player_1_name,
+    fls.player_2_id,
+    concat_ws(' ', p2.first_name, p2.last_name) as player_2_name
+  from public.fixture_lineup fl
+  join public.team t on t.id = fl.team_id
+  left join public.fixture_lineup_slot fls on fls.lineup_id = fl.id
+  left join public.person p1 on p1.id = fls.player_1_id
+  left join public.person p2 on p2.id = fls.player_2_id
+  where fl.fixture_id = $1
+  order by fl.team_id, fls.slot_number
+`;
+
+function buildLineup(rows: LineupRow[], fixture: { fixture_id: string }) {
+  const first = rows[0];
+  if (!first) {
+    return {
+      fixtureId: fixture.fixture_id,
+      status: "Draft",
+      slots: lineupSlots.map((slot) => ({ ...slot, player1Id: "", player1Name: "", player2Id: "", player2Name: "" }))
+    };
+  }
+
+  return {
+    id: first.lineup_id,
+    fixtureId: first.fixture_id,
+    teamId: first.team_id,
+    teamName: first.team_name,
+    status: first.status,
+    publishedAt: first.published_at,
+    slots: lineupSlots.map((slot) => {
+      const row = rows.find((item) => item.slot_number === slot.slotNumber);
+      return {
+        ...slot,
+        player1Id: row?.player_1_id ?? "",
+        player1Name: row?.player_1_name ?? "",
+        player2Id: row?.player_2_id ?? "",
+        player2Name: row?.player_2_name ?? ""
+      };
+    })
+  };
+}
+
+async function ensureFixtureTeam(client: PoolClient, fixtureId: string, teamId: string) {
+  const result = await client.query(
+    `select 1
+     from public.fixture
+     where id = $1
+       and status = 'Scheduled'
+       and (home_team_id = $2 or away_team_id = $2)
+     limit 1`,
+    [fixtureId, teamId]
+  );
+  if (!result.rowCount) throw new Error("Scheduled fixture not found for this team.");
+}
+
+async function loadTeamPlayerIds(client: PoolClient, teamId: string) {
+  const result = await client.query<{ person_id: string }>(
+    `select person_id
+     from public.team_membership
+     where team_id = $1
+       and role = 'Player'
+       and active = true`,
+    [teamId]
+  );
+  return new Set(result.rows.map((row) => row.person_id));
+}
+
+function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, requireComplete: boolean) {
+  const normalized = lineupSlots.map((slot) => {
+    const input = slots.find((item) => Number(item.slotNumber) === slot.slotNumber);
+    const player1Id = String(input?.player1Id ?? "").trim();
+    const player2Id = String(input?.player2Id ?? "").trim();
+    if (player1Id && !playerIds.has(player1Id)) throw new Error(`${slot.label} player is not in this team.`);
+    if (player2Id && !playerIds.has(player2Id)) throw new Error(`${slot.label} doubles partner is not in this team.`);
+    if (player1Id && player2Id && player1Id === player2Id) throw new Error(`${slot.label} needs two different players.`);
+    if (requireComplete && !player1Id) throw new Error(`${slot.label} needs a player before publishing.`);
+    if (requireComplete && slot.gameType === "Doubles" && !player2Id) throw new Error("Doubles needs two players before publishing.");
+    if (requireComplete && slot.gameType === "Singles" && player2Id) throw new Error(`${slot.label} is a singles slot.`);
+    return {
+      slotNumber: slot.slotNumber,
+      player1Id,
+      player2Id: slot.gameType === "Doubles" ? player2Id : ""
+    };
+  });
+  return normalized;
+}
+
+async function upsertLineup(client: PoolClient, fixtureId: string, teamId: string, personId: string, publish: boolean) {
+  const result = await client.query<{ id: string }>(
+    `insert into public.fixture_lineup (fixture_id, team_id, status, submitted_by, published_at, updated_at)
+     values ($1, $2, $3, $4, case when $3 = 'Published' then now() else null end, now())
+     on conflict (fixture_id, team_id) do update
+     set status = excluded.status,
+         submitted_by = excluded.submitted_by,
+         published_at = case
+           when excluded.status = 'Published' and public.fixture_lineup.published_at is null then now()
+           when excluded.status = 'Published' then public.fixture_lineup.published_at
+           else null
+         end,
+         updated_at = now()
+     returning id`,
+    [fixtureId, teamId, publish ? "Published" : "Draft", personId]
+  );
+  return result.rows[0].id;
+}
+
+async function generateGamesIfBothPublished(client: PoolClient, fixtureId: string, personId: string) {
+  const fixtureResult = await client.query<{
+    home_team_id: string;
+    away_team_id: string;
+  }>("select home_team_id, away_team_id from public.fixture where id = $1 for update", [fixtureId]);
+  const fixture = fixtureResult.rows[0];
+  if (!fixture) throw new Error("Fixture not found.");
+
+  const lineupResult = await client.query<LineupRow>(lineupQuerySql, [fixtureId]);
+  const home = buildLineup(lineupResult.rows.filter((row) => row.team_id === fixture.home_team_id), { fixture_id: fixtureId });
+  const away = buildLineup(lineupResult.rows.filter((row) => row.team_id === fixture.away_team_id), { fixture_id: fixtureId });
+  if (home.status !== "Published" || away.status !== "Published") return;
+
+  const matchResult = await client.query<{ id: string }>(
+    `insert into public.match (fixture_id, entered_by, entered_at)
+     values ($1, $2, now())
+     on conflict (fixture_id) do update
+     set entered_by = coalesce(public.match.entered_by, excluded.entered_by)
+     returning id`,
+    [fixtureId, personId]
+  );
+  const matchId = matchResult.rows[0].id;
+
+  for (const slot of lineupSlots) {
+    const homeSlot = home.slots.find((item) => item.slotNumber === slot.slotNumber);
+    const awaySlot = away.slots.find((item) => item.slotNumber === slot.slotNumber);
+    await client.query(
+      `insert into public.game (
+         match_id, game_type, game_number, home_player_1_id, home_player_2_id,
+         away_player_1_id, away_player_2_id, points_awarded
+       )
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
+       on conflict (match_id, game_number) do update
+       set home_player_1_id = case when public.game.winner_team_id is null then excluded.home_player_1_id else public.game.home_player_1_id end,
+           home_player_2_id = case when public.game.winner_team_id is null then excluded.home_player_2_id else public.game.home_player_2_id end,
+           away_player_1_id = case when public.game.winner_team_id is null then excluded.away_player_1_id else public.game.away_player_1_id end,
+           away_player_2_id = case when public.game.winner_team_id is null then excluded.away_player_2_id else public.game.away_player_2_id end`,
+      [
+        matchId,
+        slot.gameType,
+        slot.slotNumber,
+        homeSlot?.player1Id || null,
+        slot.gameType === "Doubles" ? homeSlot?.player2Id || null : null,
+        awaySlot?.player1Id || null,
+        slot.gameType === "Doubles" ? awaySlot?.player2Id || null : null,
+        slot.gameType === "Doubles" ? 2 : 1
+      ]
+    );
+  }
+}
+
+async function recordGameWinner(client: PoolClient, fixtureId: string, gameId: string, winnerTeamId: string) {
+  const result = await client.query<{ match_id: string }>(
+    `select m.id as match_id
+     from public.match m
+     join public.fixture f on f.id = m.fixture_id
+     join public.game g on g.match_id = m.id
+     where f.id = $1
+       and g.id = $2
+       and (f.home_team_id = $3 or f.away_team_id = $3)
+     limit 1`,
+    [fixtureId, gameId, winnerTeamId]
+  );
+  const matchId = result.rows[0]?.match_id;
+  if (!matchId) throw new Error("Game not found for this fixture.");
+
+  await client.query("update public.game set winner_team_id = $1 where id = $2", [winnerTeamId, gameId]);
+  await client.query("select public.refresh_match_team_points($1)", [matchId]);
+
+  const completion = await client.query<{ total_games: string; completed_games: string }>(
+    `select count(*) as total_games, count(*) filter (where winner_team_id is not null) as completed_games
+     from public.game
+     where match_id = $1`,
+    [matchId]
+  );
+  if (Number(completion.rows[0]?.total_games ?? 0) === 6 && Number(completion.rows[0]?.completed_games ?? 0) === 6) {
+    await client.query("update public.fixture set status = 'Completed' where id = $1", [fixtureId]);
+  }
+}

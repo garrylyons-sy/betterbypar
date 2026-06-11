@@ -1721,25 +1721,276 @@ function TeamPositionStrip({ activeTeam }: { activeTeam: TeamContext }) {
 
 function ManagerActionCard({ activeTeam }: { activeTeam: TeamContext }) {
   return (
-    <Card style={clubSoftAccentStyle(activeTeam.primaryColor)}>
+    <section className="grid gap-4">
+      <ManagerLineupCard activeTeam={activeTeam} />
+      <Card style={clubSoftAccentStyle(activeTeam.primaryColor)}>
+        <CardHeader>
+          <CardTitle>Actions</CardTitle>
+          <Badge variant="red">
+            <Zap className="mr-1 h-3 w-3" />
+            Live
+          </Badge>
+        </CardHeader>
+        <CardContent className="grid gap-2">
+          <Button className="w-full" style={{ backgroundColor: activeTeam.primaryColor }}>
+            <ClipboardCheck className="h-4 w-4" />
+            Review results
+          </Button>
+          <Button variant="dark" className="w-full">
+            <Mail className="h-4 w-4" />
+            Message squad
+          </Button>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+type ManagerLineupSlot = {
+  slotNumber: number;
+  gameType: "Singles" | "Doubles";
+  label: string;
+  player1Id: string;
+  player1Name?: string;
+  player2Id: string;
+  player2Name?: string;
+};
+
+type ManagerLineupPayload = {
+  fixture: {
+    id: string;
+    fixtureDate: string;
+    homeTeamId: string;
+    awayTeamId: string;
+    homeTeamName: string;
+    awayTeamName: string;
+    league: string;
+    season: string;
+    status: string;
+  } | null;
+  players: Array<{ id: string; name: string }>;
+  lineup: { status: "Draft" | "Published"; publishedAt?: string | null; slots: ManagerLineupSlot[] } | null;
+  opponentLineup: { teamName: string; status: "Draft" | "Published"; slots: ManagerLineupSlot[] } | null;
+  games: Array<{
+    id: string;
+    game_number: number;
+    game_type: "Singles" | "Doubles";
+    points_awarded: number;
+    winner_team_id: string | null;
+    home_player_1_name: string;
+    home_player_2_name: string | null;
+    away_player_1_name: string;
+    away_player_2_name: string | null;
+  }>;
+};
+
+const defaultLineupSlots: ManagerLineupSlot[] = [
+  { slotNumber: 1, gameType: "Singles", label: "Singles 1", player1Id: "", player2Id: "" },
+  { slotNumber: 2, gameType: "Singles", label: "Singles 2", player1Id: "", player2Id: "" },
+  { slotNumber: 3, gameType: "Doubles", label: "Doubles", player1Id: "", player2Id: "" },
+  { slotNumber: 4, gameType: "Singles", label: "Singles 4", player1Id: "", player2Id: "" },
+  { slotNumber: 5, gameType: "Singles", label: "Singles 5", player1Id: "", player2Id: "" },
+  { slotNumber: 6, gameType: "Singles", label: "Singles 6", player1Id: "", player2Id: "" }
+];
+
+function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
+  const [payload, setPayload] = useState<ManagerLineupPayload | null>(null);
+  const [slots, setSlots] = useState<ManagerLineupSlot[]>(defaultLineupSlots);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!activeTeam.teamId) return;
+    let cancelled = false;
+    setMessage("");
+    fetch(`/api/manager/lineup?teamId=${encodeURIComponent(activeTeam.teamId)}`, { credentials: "same-origin" })
+      .then((response) => response.json().then((data) => ({ response, data })))
+      .then(({ response, data }) => {
+        if (cancelled) return;
+        if (!response.ok) throw new Error(data.error || "Lineup unavailable.");
+        setPayload(data);
+        setSlots(data.lineup?.slots?.length ? data.lineup.slots : defaultLineupSlots);
+      })
+      .catch((error) => {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Lineup unavailable.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTeam.teamId]);
+
+  function updateSlot(slotNumber: number, key: "player1Id" | "player2Id", value: string) {
+    setSlots((current) => current.map((slot) => slot.slotNumber === slotNumber ? { ...slot, [key]: value } : slot));
+  }
+
+  async function submitLineup(action: "save" | "publish") {
+    if (!activeTeam.teamId || !payload?.fixture) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/manager/lineup", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          teamId: activeTeam.teamId,
+          fixtureId: payload.fixture.id,
+          action,
+          slots
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not save lineup.");
+      setPayload(data);
+      setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
+      setMessage(action === "publish" ? "Lineup published. It will be shared once the match card is ready." : "Draft lineup saved privately.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save lineup.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const playerOptions = payload?.players ?? [];
+  const ownStatus = payload?.lineup?.status ?? "Draft";
+  const opponentName = payload?.fixture
+    ? payload.fixture.homeTeamId === activeTeam.teamId ? payload.fixture.awayTeamName : payload.fixture.homeTeamName
+    : "";
+
+  return (
+    <Card>
       <CardHeader>
-        <CardTitle>Actions</CardTitle>
-        <Badge variant="red">
-          <Zap className="mr-1 h-3 w-3" />
-          Live
-        </Badge>
+        <CardTitle>Lineup</CardTitle>
+        <Badge variant={ownStatus === "Published" ? "green" : "cyan"}>{ownStatus}</Badge>
       </CardHeader>
-      <CardContent className="grid gap-2">
-        <Button className="w-full" style={{ backgroundColor: activeTeam.primaryColor }}>
-          <ClipboardCheck className="h-4 w-4" />
-          Review results
-        </Button>
-        <Button variant="dark" className="w-full">
-          <Mail className="h-4 w-4" />
-          Message squad
-        </Button>
+      <CardContent className="grid gap-3">
+        {!payload?.fixture ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            No scheduled fixture is available for {activeTeam.name}. When the next fixture is scheduled, lineup selection will appear here.
+          </p>
+        ) : (
+          <>
+            <div className="rounded-xl bg-[#10233f] p-4 text-white">
+              <p className="text-xs font-extrabold uppercase text-white/60">Next fixture</p>
+              <p className="mt-1 text-lg font-black">{activeTeam.name} v {opponentName}</p>
+              <p className="text-sm font-bold text-white/70">{formatFixtureDate(payload.fixture.fixtureDate)}</p>
+            </div>
+            <div className="grid gap-2">
+              {slots.map((slot) => (
+                <div key={slot.slotNumber} className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-black text-[#10233f]">{slot.label}</p>
+                    <Badge variant={slot.gameType === "Doubles" ? "cyan" : "muted"}>{slot.gameType === "Doubles" ? "2 pts" : "1 pt"}</Badge>
+                  </div>
+                  <PlayerSelect label={slot.gameType === "Doubles" ? "Player 1" : "Player"} value={slot.player1Id} players={playerOptions} onChange={(value) => updateSlot(slot.slotNumber, "player1Id", value)} />
+                  {slot.gameType === "Doubles" ? (
+                    <PlayerSelect label="Player 2" value={slot.player2Id} players={playerOptions} onChange={(value) => updateSlot(slot.slotNumber, "player2Id", value)} />
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            {message ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">{message}</p> : null}
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button variant="secondary" onClick={() => submitLineup("save")} disabled={busy}>
+                Save draft
+              </Button>
+              <Button onClick={() => submitLineup("publish")} disabled={busy}>
+                Publish lineup
+              </Button>
+            </div>
+            {payload.opponentLineup ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
+            {payload.games.length ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} busy={busy} /> : null}
+          </>
+        )}
       </CardContent>
     </Card>
+  );
+
+  async function recordGameWinner(gameId: string, winnerTeamId: string) {
+    if (!activeTeam.teamId || !payload?.fixture) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/manager/lineup", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          teamId: activeTeam.teamId,
+          fixtureId: payload.fixture.id,
+          action: "recordResult",
+          gameId,
+          winnerTeamId
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not update result.");
+      setPayload(data);
+      setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
+      setMessage("Game result updated.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update result.");
+    } finally {
+      setBusy(false);
+    }
+  }
+}
+
+function PlayerSelect({ label, value, players, onChange }: { label: string; value: string; players: Array<{ id: string; name: string }>; onChange: (value: string) => void }) {
+  return (
+    <label className="grid gap-1">
+      <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
+      <select className="min-h-11 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold text-[#10233f]" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Select player</option>
+        {players.map((player) => (
+          <option key={player.id} value={player.id}>{player.name}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function PublishedLineupSummary({ title, slots }: { title: string; slots: ManagerLineupSlot[] }) {
+  return (
+    <div className="rounded-xl bg-[#f7f5fa] p-3">
+      <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{title}</p>
+      <div className="mt-2 grid gap-1">
+        {slots.map((slot) => (
+          <p key={slot.slotNumber} className="text-sm font-bold text-[#10233f]">
+            {slot.label}: {slot.player1Name || "TBC"}{slot.player2Name ? ` / ${slot.player2Name}` : ""}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GeneratedMatchCard({ payload, onRecord, busy }: { payload: ManagerLineupPayload; onRecord: (gameId: string, winnerTeamId: string) => void; busy: boolean }) {
+  const games = payload.games;
+  const fixture = payload.fixture;
+  if (!fixture) return null;
+
+  return (
+    <div className="rounded-xl bg-[#10233f] p-3 text-white">
+      <p className="text-xs font-extrabold uppercase text-white/60">Match card generated</p>
+      <div className="mt-2 grid gap-2">
+        {games.map((game) => (
+          <div key={game.id} className="grid gap-2 rounded-lg bg-white/10 p-2 text-sm font-bold">
+            <div>
+              Game {game.game_number}: {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""} v {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""} ({game.points_awarded} pts)
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button size="sm" disabled={busy} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
+                {fixture.homeTeamName} won
+              </Button>
+              <Button size="sm" disabled={busy} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
+                {fixture.awayTeamName} won
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
