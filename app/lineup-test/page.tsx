@@ -1,6 +1,6 @@
 export default function LineupTestPage() {
-  const castleSrc = "/?team=castle%20a&role=manager";
-  const grangeSrc = "/?team=grange%20a&role=manager";
+  const castleSrc = "/?team=castle%20a&role=manager&embed=1";
+  const grangeSrc = "/?team=grange%20a&role=manager&embed=1";
 
   return (
     <main className="min-h-screen bg-[#071426] p-4 text-white">
