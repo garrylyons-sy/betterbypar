@@ -5,7 +5,7 @@ with club_colours (name, primary_color, accent_color) as (
   values
     ('Castle Golf Club', '#030E66', '#10233F'),
     ('Grange Golf Club', '#006B3F', '#003D2B'),
-    ('Milltown Golf Club', '#1B5E3A', '#0F2F24'),
+    ('Milltown Golf Club', '#8B1218', '#12345A'),
     ('Elm Park Golf Club', '#B43C2B', '#4A1114'),
     ('Stackstown Golf Club', '#1D7A43', '#0E3D25'),
     ('Woodbrook Golf Club', '#193C64', '#0B243B'),

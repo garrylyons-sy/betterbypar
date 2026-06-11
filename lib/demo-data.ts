@@ -132,7 +132,7 @@ export const managementModules = [
 export const clubTeamStructure: ClubTeamStructure[] = [
   { club: "Castle Golf Club", logoPath: "/club-logos/castle.png", primaryColor: "#030E66", accentColor: "#10233F", teams: ["Castle A", "Castle B", "Castle C"] },
   { club: "Grange Golf Club", logoPath: "/club-logos/grange.png", primaryColor: "#006B3F", accentColor: "#003D2B", teams: ["Grange A", "Grange B", "Grange C"] },
-  { club: "Milltown Golf Club", logoPath: "/club-logos/milltown.png", primaryColor: "#1B5E3A", accentColor: "#0F2F24", teams: ["Milltown A", "Milltown B"] },
+  { club: "Milltown Golf Club", logoPath: "/club-logos/milltown.png", primaryColor: "#8B1218", accentColor: "#12345A", teams: ["Milltown A", "Milltown B"] },
   { club: "Elm Park Golf Club", logoPath: "/club-logos/elm-park.png", primaryColor: "#B43C2B", accentColor: "#4A1114", teams: ["Elm Park A", "Elm Park B", "Elm Park C"] },
   { club: "Stackstown Golf Club", logoPath: "/club-logos/stackstown.png", primaryColor: "#1D7A43", accentColor: "#0E3D25", teams: ["Stackstown A", "Stackstown B", "Stackstown C"] },
   { club: "Woodbrook Golf Club", logoPath: "/club-logos/woodbrook.jpg", primaryColor: "#193C64", accentColor: "#0B243B", teams: ["Woodbrook A"] },

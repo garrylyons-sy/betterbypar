@@ -16,7 +16,7 @@ insert into public.club (name, venue, logo_path, primary_color, accent_color, ac
 values
   ('Castle Golf Club', 'Castle Golf Club', '/club-logos/castle.png', '#030E66', '#10233F', true),
   ('Grange Golf Club', 'Grange Golf Club', '/club-logos/grange.png', '#006B3F', '#003D2B', true),
-  ('Milltown Golf Club', 'Milltown Golf Club', '/club-logos/milltown.png', '#1B5E3A', '#0F2F24', true),
+  ('Milltown Golf Club', 'Milltown Golf Club', '/club-logos/milltown.png', '#8B1218', '#12345A', true),
   ('Elm Park Golf Club', 'Elm Park Golf Club', '/club-logos/elm-park.png', '#B43C2B', '#4A1114', true),
   ('Stackstown Golf Club', 'Stackstown Golf Club', '/club-logos/stackstown.png', '#1D7A43', '#0E3D25', true),
   ('Woodbrook Golf Club', 'Woodbrook Golf Club', '/club-logos/woodbrook.jpg', '#193C64', '#0B243B', true),
