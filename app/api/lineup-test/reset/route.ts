@@ -1,0 +1,63 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { withTransaction } from "@/lib/server/db";
+
+export const runtime = "nodejs";
+
+export async function POST(request: NextRequest) {
+  try {
+    const host = request.headers.get("host") ?? "";
+    if (!host.startsWith("localhost:") && !host.startsWith("127.0.0.1:")) {
+      return NextResponse.json({ error: "Lineup test reset is only available locally." }, { status: 403 });
+    }
+
+    const result = await withTransaction(async (client) => {
+      const fixture = await client.query<{ id: string }>(
+        `select f.id
+         from public.fixture f
+         join public.season s on s.id = f.season_id
+         join public.league l on l.id = f.league_id
+         join public.team ht on ht.id = f.home_team_id
+         join public.team at on at.id = f.away_team_id
+         where s.name = '2026/27'
+           and l.name = 'A League'
+           and ht.name = 'Castle A'
+           and at.name = 'Grange A'
+         order by f.fixture_date
+         limit 1`
+      );
+      const fixtureId = fixture.rows[0]?.id;
+      if (!fixtureId) throw new Error("Castle A v Grange A 2026/27 fixture was not found.");
+
+      const deletedLineups = await client.query(
+        `delete from public.fixture_lineup
+         where fixture_id = $1`,
+        [fixtureId]
+      );
+      const deletedMatch = await client.query(
+        `delete from public.match
+         where fixture_id = $1`,
+        [fixtureId]
+      );
+      await client.query(
+        `update public.fixture
+         set status = 'Scheduled'
+         where id = $1`,
+        [fixtureId]
+      );
+
+      return {
+        fixtureId,
+        lineupsDeleted: deletedLineups.rowCount ?? 0,
+        matchesDeleted: deletedMatch.rowCount ?? 0
+      };
+    });
+
+    return NextResponse.json({ ok: true, ...result });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not reset lineup test match." },
+      { status: 400 }
+    );
+  }
+}

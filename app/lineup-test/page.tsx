@@ -1,7 +1,30 @@
+"use client";
+
+import { useState } from "react";
+
 export default function LineupTestPage() {
   const appOrigin = "https://www.interclubsnooker.com";
-  const castleSrc = `${appOrigin}/?team=castle%20a&role=manager&season=2026%2F27&embed=1`;
-  const grangeSrc = `${appOrigin}/?team=grange%20a&role=manager&season=2026%2F27&embed=1`;
+  const [frameVersion, setFrameVersion] = useState(0);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const castleSrc = `${appOrigin}/?team=castle%20a&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`;
+  const grangeSrc = `${appOrigin}/?team=grange%20a&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`;
+
+  async function resetMatch() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/lineup-test/reset", { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Reset failed.");
+      setMessage("Reset to scheduled fixture. Panes refreshed.");
+      setFrameVersion((version) => version + 1);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Reset failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#071426] p-4 text-white">
@@ -13,10 +36,21 @@ export default function LineupTestPage() {
         <p className="max-w-xl text-sm font-semibold text-white/70">
           Both panes use interclubsnooker.com. If you need to sign in, use Google once in a pane and the login will open as the main page before returning to the app.
         </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {message ? <p className="text-xs font-bold text-white/70">{message}</p> : null}
+          <button
+            type="button"
+            onClick={resetMatch}
+            disabled={busy}
+            className="min-h-9 rounded-lg bg-white/10 px-3 text-xs font-extrabold uppercase text-white ring-1 ring-white/15 transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {busy ? "Resetting" : "Reset match"}
+          </button>
+        </div>
       </header>
       <section className="mx-auto grid max-w-[1600px] gap-4 xl:grid-cols-2">
-        <TestFrame title="Castle A - Manager" src={castleSrc} />
-        <TestFrame title="Grange A - Manager" src={grangeSrc} />
+        <TestFrame key={`castle-${frameVersion}`} title="Castle A - Manager" src={castleSrc} />
+        <TestFrame key={`grange-${frameVersion}`} title="Grange A - Manager" src={grangeSrc} />
       </section>
     </main>
   );
