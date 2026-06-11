@@ -2332,18 +2332,18 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
             </p>
           </div>
         ) : (
-        <div className="w-full overflow-visible">
-          <table className="w-full border-separate border-spacing-0 text-left text-sm lg:text-[13px] xl:text-sm">
+        <div className="w-full overflow-hidden">
+          <table className="w-full table-fixed border-separate border-spacing-0 text-left text-[12px] sm:text-[13px] 2xl:text-sm">
             <thead className="sticky top-0 z-10 bg-white text-xs uppercase text-[#6c5a73]">
               <tr>
-                <th className="py-2 pr-2">Pos</th>
-                <th className="px-2">Team</th>
-                <th className="px-2 text-right">P</th>
-                <th className="hidden px-2 text-right sm:table-cell">W</th>
-                <th className="hidden px-2 text-right sm:table-cell">L</th>
-                <th className="hidden px-2 text-center xl:table-cell">Form</th>
-                <th className="px-2 text-right">Diff</th>
-                <th className="px-2 text-right">Pts</th>
+                <th className="w-11 py-2 pr-1">Pos</th>
+                <th className="px-1.5">Team</th>
+                <th className="w-8 px-1 text-right">P</th>
+                <th className="hidden w-8 px-1 text-right sm:table-cell">W</th>
+                <th className="hidden w-8 px-1 text-right sm:table-cell">L</th>
+                <th className="hidden w-14 px-1 text-center 2xl:table-cell">Form</th>
+                <th className="w-11 px-1 text-right">Diff</th>
+                <th className="w-11 px-1 text-right">Pts</th>
               </tr>
             </thead>
             <tbody>
@@ -2365,7 +2365,7 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
                       active ? "bg-[#f7f5fa]" : "hover:bg-[#f7f5fa]"
                     )}
                   >
-                    <td className="border-t border-[#eeeaf2] py-3 pr-3">
+                    <td className="border-t border-[#eeeaf2] py-3 pr-1">
                       <span
                         className={cn(
                           "inline-grid h-8 w-8 place-items-center rounded-lg text-xs font-extrabold",
@@ -2379,25 +2379,25 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
                         {row.position}
                       </span>
                     </td>
-                    <td className="border-t border-[#eeeaf2] px-2">
+                    <td className="border-t border-[#eeeaf2] px-1.5">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }} />
                         <div className="min-w-0">
-                          <p className="break-words font-extrabold leading-tight lg:whitespace-nowrap" style={{ color: primaryColor }}>{row.team}</p>
-                          <p className="mt-0.5 text-[10px] font-bold uppercase text-[#6c5a73] xl:hidden">{form}</p>
+                          <p className="break-words font-extrabold leading-tight" style={{ color: primaryColor }}>{row.team}</p>
+                          <p className="mt-0.5 text-[10px] font-bold uppercase text-[#6c5a73] 2xl:hidden">{form}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="border-t border-[#eeeaf2] px-2 text-right font-bold">{row.played}</td>
-                    <td className="hidden border-t border-[#eeeaf2] px-2 text-right font-bold sm:table-cell">{row.won}</td>
-                    <td className="hidden border-t border-[#eeeaf2] px-2 text-right font-bold sm:table-cell">{row.lost}</td>
-                    <td className="hidden border-t border-[#eeeaf2] px-2 text-center xl:table-cell">
-                      <span className="inline-flex rounded-md px-2 py-1 text-[11px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}>
+                    <td className="border-t border-[#eeeaf2] px-1 text-right font-bold">{row.played}</td>
+                    <td className="hidden border-t border-[#eeeaf2] px-1 text-right font-bold sm:table-cell">{row.won}</td>
+                    <td className="hidden border-t border-[#eeeaf2] px-1 text-right font-bold sm:table-cell">{row.lost}</td>
+                    <td className="hidden border-t border-[#eeeaf2] px-1 text-center 2xl:table-cell">
+                      <span className="inline-flex rounded-md px-1.5 py-1 text-[10px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}>
                         {form}
                       </span>
                     </td>
-                    <td className="border-t border-[#eeeaf2] px-2 text-right font-bold">{diff > 0 ? `+${diff}` : diff}</td>
-                    <td className="border-t border-[#eeeaf2] px-2 text-right text-base font-extrabold">{row.leaguePoints}</td>
+                    <td className="border-t border-[#eeeaf2] px-1 text-right font-bold">{diff > 0 ? `+${diff}` : diff}</td>
+                    <td className="border-t border-[#eeeaf2] px-1 text-right text-sm font-extrabold 2xl:text-base">{row.leaguePoints}</td>
                   </tr>
                 );
               })}
