@@ -158,7 +158,7 @@ export function AppShell({
       )}>
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} />
         <div className="grid gap-4">
-          {clubMemberView && activePage !== "Interclub Leagues" ? <ClubMemberHero activeTeam={activeTeam} /> : <MatchdayHero activeTeam={activeTeam} interclubView={activePage === "Interclub Leagues"} />}
+          {clubMemberView && activePage !== "Interclub Leagues" ? <ClubMemberHero activeTeam={activeTeam} /> : <MatchdayHero activeTeam={activeTeam} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} />}
           <PageContent
             activePage={activePage}
             activeTeam={activeTeam}
@@ -235,19 +235,21 @@ function PageContent({
   onSignOut?: () => void;
   userLabel?: string;
 }) {
+  const leagueTeamCount = standingsData.length;
+
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
-  if (activePage === "Fixtures") return <FixturesPage activeTeam={activeTeam} matchResults={matchResults} />;
+  if (activePage === "Fixtures") return <FixturesPage activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} />;
   if (activePage === "Results") return <ResultsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} />;
   if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} standingsData={standingsData} matchResults={matchResults} />;
   if (activePage === "Players") return <PlayersPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
-  if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} />;
+  if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} />;
-  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} />;
-  if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} />;
+  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
+  if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} />;
-  return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} />;
+  return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
 }
 
 function Header({
@@ -470,13 +472,14 @@ function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamC
   );
 }
 
-function MatchdayHero({ activeTeam, interclubView = false }: { activeTeam: TeamContext; interclubView?: boolean }) {
+function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false }: { activeTeam: TeamContext; leagueTeamCount: number; interclubView?: boolean }) {
   const manager = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
   const clubMember = activeTeam.role === "Club Member";
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
   const played = activeTeam.leagueMatchesPlayed ?? 0;
   const won = activeTeam.matchesWon ?? 0;
   const points = activeTeam.leaguePoints ?? activeTeam.pointsFor ?? 0;
+  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
   return (
     <section className="overflow-hidden rounded-[18px] text-white shadow-card">
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
@@ -488,7 +491,7 @@ function MatchdayHero({ activeTeam, interclubView = false }: { activeTeam: TeamC
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="cyan">{activeTeam.role}</Badge>
                 <Badge variant="muted">{activeTeam.league}</Badge>
-                <Badge variant={hasLeagueTable && activeTeam.leaguePosition === 1 ? "gold" : hasLeagueTable ? "green" : "muted"}>
+                <Badge variant={hasLeagueTable ? qualificationBadgeVariant(qualification) : "muted"}>
                   {hasLeagueTable ? `Position ${activeTeam.leaguePosition}` : "Table pending"}
                 </Badge>
               </div>
@@ -644,6 +647,30 @@ function ordinal(value: number) {
   if (last === 2) return `${value}nd`;
   if (last === 3) return `${value}rd`;
   return `${value}th`;
+}
+
+type QualificationStatus = "final" | "semi" | "none";
+
+function qualificationStatus(position: number, teamCount: number): QualificationStatus {
+  if (!position || !teamCount) return "none";
+  if (teamCount >= 7) return position <= 4 ? "semi" : "none";
+  if (teamCount >= 5) {
+    if (position === 1) return "final";
+    return position <= 3 ? "semi" : "none";
+  }
+  return "none";
+}
+
+function qualificationBadgeVariant(status: QualificationStatus) {
+  if (status === "final") return "gold";
+  if (status === "semi") return "green";
+  return "muted";
+}
+
+function qualificationLabel(status: QualificationStatus) {
+  if (status === "final") return "Final";
+  if (status === "semi") return "Semi";
+  return "Outside playoffs";
 }
 
 function clubPanelStyle(color: string, accentColor = "#10233F"): CSSProperties {
@@ -937,10 +964,10 @@ function BookingsSkeleton() {
   );
 }
 
-function PlayerHome({ activeTeam, playerGameResults, matchResults, onNavigate }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void }) {
+function PlayerHome({ activeTeam, playerGameResults, matchResults, onNavigate, leagueTeamCount }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number }) {
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
-      <TeamStatsCard activeTeam={activeTeam} onNavigate={onNavigate} />
+      <TeamStatsCard activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />
       <PlayerStatCard activeTeam={activeTeam} playerGameResults={playerGameResults} />
       <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
       <PersonalRecentFormCard playerGameResults={playerGameResults} />
@@ -1086,10 +1113,10 @@ function InterclubLeaguesPage({
   );
 }
 
-function FixturesPage({ activeTeam, matchResults }: { activeTeam: TeamContext; matchResults: MatchResult[] }) {
+function FixturesPage({ activeTeam, matchResults, leagueTeamCount }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <SeasonCompleteCard activeTeam={activeTeam} action="View match" />
+      <SeasonCompleteCard activeTeam={activeTeam} action="View match" leagueTeamCount={leagueTeamCount} />
       <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
     </section>
   );
@@ -1128,12 +1155,12 @@ function PlayersPage({ activeTeam, playerGameResults }: { activeTeam: TeamContex
   );
 }
 
-function StatsPage({ activeTeam, playerGameResults, matchResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[] }) {
+function StatsPage({ activeTeam, playerGameResults, matchResults, leagueTeamCount }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[]; leagueTeamCount: number }) {
   if (activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager") {
     return (
       <section className="grid gap-4 md:grid-cols-2">
-        <TeamStatsCard activeTeam={activeTeam} onNavigate={() => {}} />
-        <ManagerSeasonSnapshot activeTeam={activeTeam} />
+        <TeamStatsCard activeTeam={activeTeam} onNavigate={() => {}} leagueTeamCount={leagueTeamCount} />
+        <ManagerSeasonSnapshot activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />
         <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
         <SquadManagementCard activeTeam={activeTeam} />
       </section>
@@ -1241,20 +1268,20 @@ function MoreMenu({
   );
 }
 
-function ManagerHome({ activeTeam, matchResults, onNavigate }: { activeTeam: TeamContext; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void }) {
+function ManagerHome({ activeTeam, matchResults, onNavigate, leagueTeamCount }: { activeTeam: TeamContext; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <ManagerActionCard activeTeam={activeTeam} />
-      <SeasonCompleteCard activeTeam={activeTeam} action="Review season" />
+      <SeasonCompleteCard activeTeam={activeTeam} action="Review season" leagueTeamCount={leagueTeamCount} />
       <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
       <SquadManagementCard activeTeam={activeTeam} />
-      <ManagerSeasonSnapshot activeTeam={activeTeam} />
+      <ManagerSeasonSnapshot activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />
       <MemberActionsCard activeTeam={activeTeam} onNavigate={onNavigate} />
     </section>
   );
 }
 
-function AssistantManagerHome({ activeTeam }: { activeTeam: TeamContext }) {
+function AssistantManagerHome({ activeTeam, leagueTeamCount }: { activeTeam: TeamContext; leagueTeamCount: number }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <Card>
@@ -1277,21 +1304,22 @@ function AssistantManagerHome({ activeTeam }: { activeTeam: TeamContext }) {
           </Button>
         </CardContent>
       </Card>
-      <SeasonCompleteCard activeTeam={activeTeam} action="View fixtures" />
-      <ManagerSeasonSnapshot activeTeam={activeTeam} />
+      <SeasonCompleteCard activeTeam={activeTeam} action="View fixtures" leagueTeamCount={leagueTeamCount} />
+      <ManagerSeasonSnapshot activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />
       <MessagesPage activeTeam={activeTeam} compact />
     </section>
   );
 }
 
-function TeamStatsCard({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+function TeamStatsCard({ activeTeam, onNavigate, leagueTeamCount }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; leagueTeamCount: number }) {
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
+  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
 
   return (
     <Card className="overflow-hidden md:col-span-2 xl:col-span-1">
       <CardHeader>
         <CardTitle>Team Stats</CardTitle>
-        <Badge variant={hasLeagueTable && activeTeam.leaguePosition <= 4 ? "green" : "muted"}>
+        <Badge variant={hasLeagueTable ? qualificationBadgeVariant(qualification) : "muted"}>
           {hasLeagueTable ? ordinal(activeTeam.leaguePosition) : "Pending"}
         </Badge>
       </CardHeader>
@@ -1342,14 +1370,16 @@ function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demo
   );
 }
 
-function SeasonCompleteCard({ activeTeam = teamContexts[0], action, onAction }: { activeTeam?: TeamContext; action: string; onAction?: () => void }) {
+function SeasonCompleteCard({ activeTeam = teamContexts[0], action, leagueTeamCount = standings.length, onAction }: { activeTeam?: TeamContext; action: string; leagueTeamCount?: number; onAction?: () => void }) {
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
+  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
+  const qualified = qualification !== "none";
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Season Complete</CardTitle>
-        <Badge variant={hasLeagueTable && activeTeam.leaguePosition <= 4 ? "green" : "muted"}>{hasLeagueTable && activeTeam.leaguePosition <= 4 ? "Qualified" : "Final table"}</Badge>
+        <Badge variant={hasLeagueTable ? qualificationBadgeVariant(qualification) : "muted"}>{hasLeagueTable && qualified ? qualificationLabel(qualification) : "Final table"}</Badge>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-[18px] border p-4" style={clubSoftAccentStyle(activeTeam.primaryColor)}>
@@ -1787,7 +1817,14 @@ function ScoreRow({ team, score, winner = false }: { team: string; score: string
   );
 }
 
-function ManagerSeasonSnapshot({ activeTeam = teamContexts[0] }: { activeTeam?: TeamContext }) {
+function ManagerSeasonSnapshot({ activeTeam = teamContexts[0], leagueTeamCount = standings.length }: { activeTeam?: TeamContext; leagueTeamCount?: number }) {
+  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
+  const playoffText = qualification === "final"
+    ? `inside the ${activeTeam.league} direct final place`
+    : qualification === "semi"
+      ? `inside the ${activeTeam.league} semi-final places`
+      : `outside the ${activeTeam.league} playoff places`;
+
   return (
     <Card>
       <CardHeader>
@@ -1804,7 +1841,7 @@ function ManagerSeasonSnapshot({ activeTeam = teamContexts[0] }: { activeTeam?: 
         <div className="mt-3 rounded-xl bg-[#f7f5fa] p-3">
           <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Playoff line</p>
           <p className="mt-1 font-black">
-            {activeTeam.name} finished {activeTeam.leaguePosition ? ordinal(activeTeam.leaguePosition) : "-"}, inside the {activeTeam.league} semi-final places.
+            {activeTeam.name} finished {activeTeam.leaguePosition ? ordinal(activeTeam.leaguePosition) : "-"}, {playoffText}.
           </p>
         </div>
       </CardContent>
@@ -1814,14 +1851,17 @@ function ManagerSeasonSnapshot({ activeTeam = teamContexts[0] }: { activeTeam?: 
 
 function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeTeam: TeamContext; standingsData?: Standing[]; matchResults?: MatchResult[] }) {
   const tableRows = standingsData ?? standings;
+  const teamCount = tableRows.length;
+  const showDirectFinal = teamCount >= 5 && teamCount <= 6;
+  const showSemiFinals = teamCount >= 5;
 
   return (
     <Card className="min-w-0">
       <CardHeader className="gap-2">
         <CardTitle>League Table</CardTitle>
         <div className="flex gap-2">
-          <Badge variant="gold">Final</Badge>
-          <Badge variant="green">Semi</Badge>
+          {showDirectFinal ? <Badge variant="gold">Final</Badge> : null}
+          {showSemiFinals ? <Badge variant="green">Semi</Badge> : null}
         </div>
       </CardHeader>
       <CardContent>
@@ -1855,6 +1895,7 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
                 const primaryColor = club?.primaryColor ?? "#10233f";
                 const accentColor = club?.accentColor ?? primaryColor;
                 const form = tableForm(row, matchResults);
+                const qualification = qualificationStatus(row.position, teamCount);
 
                 return (
                   <tr
@@ -1869,9 +1910,9 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
                       <span
                         className={cn(
                           "inline-grid h-8 w-8 place-items-center rounded-lg text-xs font-extrabold",
-                          row.position === 1
+                          qualification === "final"
                             ? "bg-[#ffb000] text-[#25002b]"
-                            : row.position <= 4
+                            : qualification === "semi"
                               ? "bg-[#00ff85] text-[#25002b]"
                               : "bg-[#eeeaf2] text-[#25002b]"
                         )}
