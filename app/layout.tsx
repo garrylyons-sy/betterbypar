@@ -4,7 +4,12 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Interclub Snooker",
-  description: "Mobile-first league management for amateur interclub snooker."
+  description: "Mobile-first league management for amateur interclub snooker.",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/app-icon.svg"
+  }
 };
 
 export const viewport: Viewport = {

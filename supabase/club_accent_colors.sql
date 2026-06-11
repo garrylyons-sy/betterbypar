@@ -10,8 +10,8 @@ with club_colours (name, primary_color, accent_color) as (
     ('Stackstown Golf Club', '#1D7A43', '#0E3D25'),
     ('Woodbrook Golf Club', '#193C64', '#0B243B'),
     ('Newlands Golf Club', '#008E3A', '#005C2E'),
-    ('Dun Laoghaire Golf Club', '#7A4A24', '#3A2418'),
-    ('Fitzwilliam Lawn Tennis Club', '#6F4A1F', '#2A1A0D')
+    ('Dun Laoghaire Golf Club', '#0E4D73', '#07233A'),
+    ('Fitzwilliam Lawn Tennis Club', '#9A7A18', '#111111')
 )
 update public.club c
 set primary_color = cc.primary_color,

@@ -241,8 +241,8 @@ function Header({
     <header className="sticky top-0 z-30 bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6 lg:px-10">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-base font-black text-[#10233f]">
-            IS
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white p-1.5 shadow-[0_6px_16px_rgba(0,0,0,0.16)] ring-1 ring-white/25">
+            <img src="/favicon.ico" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
           </div>
           <div className="min-w-0">
             <p className="truncate text-xs font-extrabold uppercase tracking-wide text-white/75">
@@ -386,7 +386,7 @@ function MatchdayHero({ activeTeam, interclubView = false }: { activeTeam: TeamC
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] xl:items-end">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white p-2 shadow-card ring-1 ring-white/40 sm:h-20 sm:w-20">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/95 p-2 shadow-[0_8px_18px_rgba(0,0,0,0.18)] ring-1 ring-white/20 sm:h-20 sm:w-20">
               <img src={activeTeam.logoPath} alt={`${activeTeam.club} logo`} className="max-h-full max-w-full object-contain" />
             </div>
             <div className="min-w-0">
@@ -431,7 +431,7 @@ function ClubMemberHero({ activeTeam }: { activeTeam: TeamContext }) {
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         <div className="relative flex min-w-0 items-start gap-3">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white p-2 shadow-card ring-1 ring-white/40 sm:h-20 sm:w-20">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/95 p-2 shadow-[0_8px_18px_rgba(0,0,0,0.18)] ring-1 ring-white/20 sm:h-20 sm:w-20">
             <img src={activeTeam.logoPath} alt={`${activeTeam.club} logo`} className="max-h-full max-w-full object-contain" />
           </div>
           <div className="min-w-0">
