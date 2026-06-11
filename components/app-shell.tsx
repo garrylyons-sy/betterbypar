@@ -80,15 +80,34 @@ export function AppShell({
   onSignOut?: () => void;
   onPageVisit?: (pageLabel: string, activeTeam: TeamContext) => void;
 }) {
-  const [selectedId, setSelectedId] = useState(contexts[0]?.id ?? teamContexts[0].id);
+  const preferredContextId = useMemo(() => {
+    if (typeof window === "undefined") return contexts[0]?.id ?? teamContexts[0].id;
+    const params = new URLSearchParams(window.location.search);
+    const requestedTeam = params.get("team")?.trim().toLowerCase();
+    const requestedRole = params.get("role")?.trim().toLowerCase();
+    if (!requestedTeam && !requestedRole) return contexts[0]?.id ?? teamContexts[0].id;
+    return contexts.find((team) => {
+      const teamMatches = requestedTeam ? team.name.toLowerCase() === requestedTeam : true;
+      const roleMatches = requestedRole ? team.role.toLowerCase() === requestedRole : true;
+      return teamMatches && roleMatches;
+    })?.id ?? contexts[0]?.id ?? teamContexts[0].id;
+  }, [contexts]);
+  const [selectedId, setSelectedId] = useState(preferredContextId);
   const [activePage, setActivePage] = useState<AppPage>("Home");
   const [simulatedRole, setSimulatedRole] = useState<Role>(contexts[0]?.role ?? teamContexts[0].role);
   const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
   useEffect(() => {
     if (!contexts.some((team) => team.id === selectedId)) {
-      setSelectedId(contexts[0]?.id ?? teamContexts[0].id);
+      setSelectedId(preferredContextId);
     }
-  }, [contexts, selectedId]);
+  }, [contexts, preferredContextId, selectedId]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if ((params.has("team") || params.has("role")) && selectedId !== preferredContextId) {
+      setSelectedId(preferredContextId);
+    }
+  }, [preferredContextId, selectedId]);
 
   const realActiveTeam = useMemo(
     () => contexts.find((team) => team.id === selectedId) ?? contexts[0] ?? teamContexts[0],
