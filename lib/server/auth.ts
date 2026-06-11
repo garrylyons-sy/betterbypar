@@ -695,12 +695,63 @@ export async function loadSessionPayload(user: AppUser) {
     } satisfies PlayerGameResult;
   });
 
+  const matchResults = (await dbQuery<{
+    fixture_id: string;
+    league_name: TeamContext["league"];
+    season_name: string;
+    fixture_date: string;
+    home_team_name: string;
+    away_team_name: string;
+    home_team_score: number;
+    away_team_score: number;
+    status: "Scheduled" | "Completed";
+  }>(
+    `with relevant_competitions as (
+       select distinct t.league_id, t.season_id
+       from public.team_membership tm
+       join public.team t on t.id = tm.team_id
+       where tm.person_id = $1
+         and tm.active = true
+     )
+     select
+       f.id as fixture_id,
+       l.name as league_name,
+       s.name as season_name,
+       f.fixture_date,
+       ht.name as home_team_name,
+       at.name as away_team_name,
+       m.home_team_score,
+       m.away_team_score,
+       f.status
+     from public.fixture f
+     join public.match m on m.fixture_id = f.id
+     join public.team ht on ht.id = f.home_team_id
+     join public.team at on at.id = f.away_team_id
+     join public.league l on l.id = f.league_id
+     join public.season s on s.id = f.season_id
+     join relevant_competitions rc on rc.league_id = f.league_id and rc.season_id = f.season_id
+     where f.status = 'Completed'
+     order by f.fixture_date desc, ht.name, at.name`,
+    [user.personId]
+  )).rows.map((row) => ({
+    id: row.fixture_id,
+    league: row.league_name,
+    season: row.season_name,
+    fixtureDate: row.fixture_date,
+    homeTeamName: row.home_team_name,
+    awayTeamName: row.away_team_name,
+    homeTeamScore: Number(row.home_team_score),
+    awayTeamScore: Number(row.away_team_score),
+    status: row.status
+  }));
+
   return {
     authenticated: true,
     user,
     contexts,
     standings,
-    playerGameResults
+    playerGameResults,
+    matchResults
   };
 }
 

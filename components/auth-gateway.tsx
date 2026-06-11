@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { clubTeamStructure } from "@/lib/demo-data";
-import type { PlayerGameResult, Standing, TeamContext } from "@/lib/types";
+import type { MatchResult, PlayerGameResult, Standing, TeamContext } from "@/lib/types";
 
 type AuthMode = "signin" | "activate" | "request";
 type TeamOption = {
@@ -30,6 +30,7 @@ type SessionPayload = {
   contexts?: TeamContext[];
   standings?: Standing[];
   playerGameResults?: PlayerGameResult[];
+  matchResults?: MatchResult[];
   error?: string;
 };
 type ActivationInvite = {
@@ -156,6 +157,7 @@ export function AuthGateway() {
             contexts={contexts}
             standingsData={session.standings ?? []}
             playerGameResults={session.playerGameResults ?? []}
+            matchResults={session.matchResults ?? []}
             userLabel={session.user?.name ?? session.user?.email ?? "Signed in"}
             onSignOut={signOut}
             onPageVisit={recordPageVisit}

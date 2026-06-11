@@ -24,7 +24,7 @@ import {
   Zap
 } from "lucide-react";
 import { clubTeamStructure, playerGameResults as demoPlayerGameResults, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
-import type { PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
+import type { MatchResult, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,6 +82,7 @@ export function AppShell({
   contexts = teamContexts,
   standingsData = standings,
   playerGameResults = demoPlayerGameResults,
+  matchResults,
   userLabel,
   onSignOut,
   onPageVisit
@@ -89,6 +90,7 @@ export function AppShell({
   contexts?: TeamContext[];
   standingsData?: Standing[];
   playerGameResults?: PlayerGameResult[];
+  matchResults?: MatchResult[];
   userLabel?: string;
   onSignOut?: () => void;
   onPageVisit?: (pageLabel: string, activeTeam: TeamContext) => void;
@@ -120,6 +122,10 @@ export function AppShell({
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
     return filtered.length ? filtered : standingsData === standings ? standings : [];
   }, [activeTeam.league, activeTeam.season, standingsData]);
+  const activeMatchResults = useMemo(
+    () => (matchResults ?? []).filter((result) => result.league === activeTeam.league && result.season === activeTeam.season),
+    [activeTeam.league, activeTeam.season, matchResults]
+  );
   const clubMemberView = activeTeam.role === "Club Member";
   const showLeaguePanels = !clubMemberView || activePage === "Interclub Leagues";
 
@@ -145,7 +151,7 @@ export function AppShell({
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} />
         <div className="grid gap-4">
           {clubMemberView && activePage !== "Interclub Leagues" ? <ClubMemberHero activeTeam={activeTeam} /> : <MatchdayHero activeTeam={activeTeam} interclubView={activePage === "Interclub Leagues"} />}
-          <PageContent activePage={activePage} activeTeam={activeTeam} standingsData={activeStandings} playerGameResults={playerGameResults} onNavigate={setActivePage} onSignOut={onSignOut} userLabel={userLabel} />
+          <PageContent activePage={activePage} activeTeam={activeTeam} standingsData={activeStandings} playerGameResults={playerGameResults} matchResults={activeMatchResults} onNavigate={setActivePage} onSignOut={onSignOut} userLabel={userLabel} />
         </div>
         {showLeaguePanels ? (
           <aside className="grid gap-4 lg:content-start">
@@ -191,6 +197,7 @@ function PageContent({
   activeTeam,
   standingsData,
   playerGameResults,
+  matchResults,
   onNavigate,
   onSignOut,
   userLabel
@@ -199,13 +206,14 @@ function PageContent({
   activeTeam: TeamContext;
   standingsData: Standing[];
   playerGameResults: PlayerGameResult[];
+  matchResults: MatchResult[];
   onNavigate: (page: AppPage) => void;
   onSignOut?: () => void;
   userLabel?: string;
 }) {
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Fixtures") return <FixturesPage />;
-  if (activePage === "Results") return <ResultsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
+  if (activePage === "Results") return <ResultsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} />;
   if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} standingsData={standingsData} />;
   if (activePage === "Players") return <PlayersPage playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
@@ -215,7 +223,7 @@ function PageContent({
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} />;
-  return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} />;
+  return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} onNavigate={onNavigate} />;
 }
 
 function Header({
@@ -507,6 +515,14 @@ function formatBookingDate(date: string) {
   }).format(new Date(`${date}T12:00:00`));
 }
 
+function formatFixtureDate(date: string) {
+  return new Intl.DateTimeFormat("en-IE", {
+    weekday: "short",
+    day: "numeric",
+    month: "short"
+  }).format(new Date(date));
+}
+
 function ordinal(value: number) {
   const lastTwo = value % 100;
   if (lastTwo >= 11 && lastTwo <= 13) return `${value}th`;
@@ -770,11 +786,11 @@ function BookingsSkeleton() {
   );
 }
 
-function PlayerHome({ activeTeam, playerGameResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[] }) {
+function PlayerHome({ activeTeam, playerGameResults, onNavigate }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; onNavigate: (page: AppPage) => void }) {
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
       <PlayerStatCard activeTeam={activeTeam} playerGameResults={playerGameResults} />
-      <SeasonCompleteCard activeTeam={activeTeam} action="View results" />
+      <SeasonCompleteCard activeTeam={activeTeam} action="View results" onAction={() => onNavigate("Results")} />
       <RecentResults />
       <PlayerGameResultsCard results={playerGameResults} />
       <TeamPositionStrip activeTeam={activeTeam} />
@@ -872,11 +888,11 @@ function FixturesPage() {
   );
 }
 
-function ResultsPage({ activeTeam, playerGameResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[] }) {
+function ResultsPage({ activeTeam, playerGameResults, matchResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[] }) {
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <ScoreCard activeTeam={activeTeam} />
-      <RecentResults />
+      <SeasonResultsCard activeTeam={activeTeam} results={matchResults} />
       <PlayerGameResultsCard results={playerGameResults} />
     </section>
   );
@@ -1073,7 +1089,7 @@ function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demo
   );
 }
 
-function SeasonCompleteCard({ activeTeam = teamContexts[0], action }: { activeTeam?: TeamContext; action: string }) {
+function SeasonCompleteCard({ activeTeam = teamContexts[0], action, onAction }: { activeTeam?: TeamContext; action: string; onAction?: () => void }) {
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
 
   return (
@@ -1100,7 +1116,60 @@ function SeasonCompleteCard({ activeTeam = teamContexts[0], action }: { activeTe
             ? `${activeTeam.name} finished ${ordinal(activeTeam.leaguePosition)} in ${activeTeam.league}`
             : `${activeTeam.name} has no league table yet`}
         </p>
-        <Button className="mt-4 w-full" style={{ backgroundColor: activeTeam.primaryColor }}>{action}</Button>
+        <Button className="mt-4 w-full" style={{ backgroundColor: activeTeam.primaryColor }} onClick={onAction}>{action}</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SeasonResultsCard({ activeTeam, results }: { activeTeam: TeamContext; results: MatchResult[] }) {
+  const sortedResults = useMemo(
+    () => [...results].sort((a, b) => b.fixtureDate.localeCompare(a.fixtureDate) || a.homeTeamName.localeCompare(b.homeTeamName)),
+    [results]
+  );
+
+  return (
+    <Card className="md:col-span-2">
+      <CardHeader>
+        <CardTitle>Season Results</CardTitle>
+        <Badge variant="cyan">{sortedResults.length ? `${sortedResults.length} matches` : activeTeam.season}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {sortedResults.map((result) => {
+          const homeWon = result.homeTeamScore > result.awayTeamScore;
+          const awayWon = result.awayTeamScore > result.homeTeamScore;
+          const activeTeamPlayed = result.homeTeamName === activeTeam.name || result.awayTeamName === activeTeam.name;
+
+          return (
+            <div
+              key={result.id}
+              className={cn(
+                "grid min-h-[76px] grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-xl bg-[#f7f5fa] p-3",
+                activeTeamPlayed && "ring-2 ring-[#10233f]/20"
+              )}
+            >
+              <div className="min-w-0">
+                <p className={cn("break-words font-black leading-tight", homeWon && "text-[#10233f]")}>{result.homeTeamName}</p>
+                <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{formatFixtureDate(result.fixtureDate)}</p>
+              </div>
+              <div className="rounded-xl bg-white px-3 py-2 text-center shadow-[0_3px_10px_rgba(55,0,60,0.08)] ring-1 ring-[#eeeaf2]">
+                <p className="text-2xl font-black leading-none text-[#25002b]">
+                  {result.homeTeamScore}-{result.awayTeamScore}
+                </p>
+                <p className="mt-1 text-[10px] font-extrabold uppercase text-[#6c5a73]">Final</p>
+              </div>
+              <div className="min-w-0 text-right">
+                <p className={cn("break-words font-black leading-tight", awayWon && "text-[#10233f]")}>{result.awayTeamName}</p>
+                <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{result.league}</p>
+              </div>
+            </div>
+          );
+        })}
+        {sortedResults.length === 0 ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            No completed results are available for {activeTeam.season} {activeTeam.league} yet.
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );

@@ -36,6 +36,18 @@ export type PlayerGameResult = {
   isDoublesPartnerRow: boolean;
 };
 
+export type MatchResult = {
+  id: string;
+  league: "A League" | "B League" | "C League";
+  season: string;
+  fixtureDate: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  homeTeamScore: number;
+  awayTeamScore: number;
+  status: "Scheduled" | "Completed";
+};
+
 export type Fixture = {
   id: string;
   opponent: string;
