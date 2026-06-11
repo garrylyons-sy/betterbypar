@@ -65,6 +65,7 @@ const clubMemberDesktopNavItems = [
 
 type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
+const RECENT_FORM_LIMIT = 3;
 
 const menuItems: Array<{ label: string; page: AppPage; icon: typeof Home; description: string }> = [
   { label: "Results", page: "Results", icon: ClipboardCheck, description: "Recent scores and individual games" },
@@ -587,7 +588,7 @@ function tableForm(row: Standing, matchResults: MatchResult[] = []) {
   const playedResults = matchResults
     .filter((result) => result.homeTeamName === row.team || result.awayTeamName === row.team)
     .sort((a, b) => b.fixtureDate.localeCompare(a.fixtureDate))
-    .slice(0, 5)
+    .slice(0, RECENT_FORM_LIMIT)
     .map((result) => {
       const home = result.homeTeamName === row.team;
       const teamScore = home ? result.homeTeamScore : result.awayTeamScore;
@@ -598,8 +599,8 @@ function tableForm(row: Standing, matchResults: MatchResult[] = []) {
   if (playedResults.length) return playedResults.join("");
 
   const values: string[] = [];
-  for (let index = 0; index < row.won && values.length < 5; index += 1) values.push("W");
-  for (let index = 0; index < row.lost && values.length < 5; index += 1) values.push("L");
+  for (let index = 0; index < row.won && values.length < RECENT_FORM_LIMIT; index += 1) values.push("W");
+  for (let index = 0; index < row.lost && values.length < RECENT_FORM_LIMIT; index += 1) values.push("L");
   return values.length ? values.join("") : "-";
 }
 
@@ -1115,12 +1116,13 @@ function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demo
   const winRate = playerGameResults.length ? Math.round((wins / playerGameResults.length) * 100) : activeTeam.leagueMatchesPlayed ? Math.round(((activeTeam.matchesWon ?? 0) / activeTeam.leagueMatchesPlayed) * 100) : 0;
   const pointsFor = activeTeam.pointsFor ?? activeTeam.leaguePoints ?? 0;
   const pointsAgainst = activeTeam.pointsAgainst ?? 0;
+  const recentForm = recentResults.slice(0, RECENT_FORM_LIMIT).map((fixture) => fixture.result === "Won" ? "W" : "L").join(" ");
 
   return (
     <Card className="overflow-hidden">
       <CardHeader>
         <CardTitle>{activeTeam.name} Season</CardTitle>
-        <Badge variant="green">W W W L L</Badge>
+        <Badge variant="green">{recentForm || "-"}</Badge>
       </CardHeader>
       <CardContent>
         <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
@@ -1295,14 +1297,16 @@ function ResultRow({ result, activeTeam }: { result: MatchResult; activeTeam: Te
 }
 
 function RecentResults() {
+  const visibleRecentResults = recentResults.slice(0, RECENT_FORM_LIMIT);
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Recent Form</CardTitle>
-        <Badge variant="cyan">Last 3</Badge>
+        <Badge variant="cyan">Last {RECENT_FORM_LIMIT}</Badge>
       </CardHeader>
       <CardContent className="space-y-2">
-        {recentResults.map((fixture) => (
+        {visibleRecentResults.map((fixture) => (
           <div key={fixture.id} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3">
             <div>
               <p className="font-black">{fixture.opponent}</p>
