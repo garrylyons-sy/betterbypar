@@ -53,6 +53,18 @@ type InviteRequestRow = {
   message: string | null;
   created_at: string;
 };
+type InviteRow = {
+  id: string;
+  email: string;
+  invited_person_name: string;
+  status: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  invite_administrator: boolean;
+  club_name: string | null;
+  roles: Array<{ role: string; team_name: string; league_name: string }>;
+};
 type AdminUser = {
   email: string;
   name: string;
@@ -107,6 +119,7 @@ export function AdminConsole() {
   const [people, setPeople] = useState<PersonOption[]>(demoPeople);
   const [logs, setLogs] = useState<ActivityRow[]>(demoLogs);
   const [requests, setRequests] = useState<InviteRequestRow[]>([]);
+  const [invites, setInvites] = useState<InviteRow[]>([]);
   const [appearance, setAppearance] = useState<AppearanceConfig>(defaultAppearanceConfig);
 
   useEffect(() => {
@@ -147,6 +160,7 @@ export function AdminConsole() {
         setPeople(Array.from(seen.values()));
         setLogs(data.logs ?? []);
         setRequests(data.requests ?? []);
+        setInvites(data.invites ?? []);
         setAppearance(normalizeAppearanceConfig(data.appearance ?? defaultAppearanceConfig));
       }
     } catch (error) {
@@ -182,7 +196,7 @@ export function AdminConsole() {
 
   return (
     <AdminLayout tab={tab} setTab={setTab} message={message} adminUser={adminUser} onLogout={logout}>
-      <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={refreshAdminData} />
+      <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} invites={invites} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={refreshAdminData} />
     </AdminLayout>
   );
 }
@@ -273,6 +287,7 @@ function AdminTabPanel(props: {
   people: PersonOption[];
   logs: ActivityRow[];
   requests: InviteRequestRow[];
+  invites: InviteRow[];
   appearance: AppearanceConfig;
   demo?: boolean;
   onAppearanceChange: (appearance: AppearanceConfig) => void;
@@ -493,12 +508,14 @@ function PeoplePanel({
 function InvitesPanel({
   teams,
   requests,
+  invites,
   demo,
   onMessage,
   onRefresh
 }: {
   teams: TeamOption[];
   requests: InviteRequestRow[];
+  invites: InviteRow[];
   demo?: boolean;
   onMessage: (message: string) => void;
   onRefresh: () => void;
@@ -579,80 +596,83 @@ function InvitesPanel({
   }
 
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle>Create invite</CardTitle>
-          <Badge variant="green">Google activation</Badge>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <AdminInput label="Full name" value={name} onChange={setName} />
-            <AdminInput label="Email" value={email} onChange={setEmail} type="email" />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <AdminInput label="Phone" value={phone} onChange={setPhone} type="tel" />
-            <AdminSelect label="Club" value={clubId} onChange={setClubId} options={clubs.map((club) => ({ value: club.clubId, label: club.clubName }))} />
-          </div>
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-bold uppercase text-[#6c5a73]">Roles</p>
-              <Button variant="secondary" size="sm" onClick={addRoleRow}>
-                <PlusCircle className="h-4 w-4" />
-                Add role
-              </Button>
+    <div className="grid min-w-0 gap-4">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>Create invite</CardTitle>
+            <Badge variant="green">Google activation</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AdminInput label="Full name" value={name} onChange={setName} />
+              <AdminInput label="Email" value={email} onChange={setEmail} type="email" />
             </div>
-            {roleRows.map((row, index) => (
-              <div key={row.id} className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] lg:grid-cols-[160px_minmax(0,1fr)_44px]">
-                <AdminSelect label={`Role ${index + 1}`} value={row.role} onChange={(value) => updateRoleRow(row.id, { role: value as InviteRole })} options={inviteRoles.map((item) => ({ value: item, label: item }))} />
-                {row.role === "Club Member" ? (
-                  <div className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-[#10233f] ring-1 ring-[#eeeaf2]">
-                    Club-wide member access
-                    <span className="block text-xs font-semibold text-[#6c5a73]">Can book club tables and receive messages.</span>
-                  </div>
-                ) : (
-                  <AdminSelect label="Team" value={row.teamId} onChange={(value) => updateRoleRow(row.id, { teamId: value })} options={clubTeams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.leagueName}` }))} />
-                )}
-                <Button variant="secondary" size="icon" onClick={() => removeRoleRow(row.id)} disabled={roleRows.length === 1}>
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Remove role</span>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AdminInput label="Phone" value={phone} onChange={setPhone} type="tel" />
+              <AdminSelect label="Club" value={clubId} onChange={setClubId} options={clubs.map((club) => ({ value: club.clubId, label: club.clubName }))} />
+            </div>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">Roles</p>
+                <Button variant="secondary" size="sm" onClick={addRoleRow}>
+                  <PlusCircle className="h-4 w-4" />
+                  Add role
                 </Button>
               </div>
-            ))}
-          </div>
-          <AdminCheckbox label="Make administrator" checked={administrator} onChange={setAdministrator} description="After activation, this person can access admin and manage the platform." />
-          <AdminInput label="Expires" value={expiresAt} onChange={setExpiresAt} type="datetime-local" />
-          <Button onClick={createInvite} disabled={!name || !email || !clubId || (!administrator && !roleRows.length)}>
-            <PlusCircle className="h-4 w-4" />
-            Create and queue invite email
-          </Button>
-        </CardContent>
-      </Card>
-      <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle>Invite email</CardTitle>
-          <Badge variant="cyan">Test to Garry</Badge>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          {emailPreview ? (
-            <div className="grid gap-3">
-              <div className="rounded-xl bg-[#10233f] p-4 text-white">
-                <Mail className="mb-3 h-5 w-5 text-[#7bc7d6]" />
-                <p className="text-xs font-bold uppercase text-white/60">To</p>
-                <p className="font-extrabold">{emailPreview.to}</p>
-                <p className="mt-3 text-xs font-bold uppercase text-white/60">Subject</p>
-                <p className="font-bold">{emailPreview.subject}</p>
+              {roleRows.map((row, index) => (
+                <div key={row.id} className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] lg:grid-cols-[160px_minmax(0,1fr)_44px]">
+                  <AdminSelect label={`Role ${index + 1}`} value={row.role} onChange={(value) => updateRoleRow(row.id, { role: value as InviteRole })} options={inviteRoles.map((item) => ({ value: item, label: item }))} />
+                  {row.role === "Club Member" ? (
+                    <div className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-[#10233f] ring-1 ring-[#eeeaf2]">
+                      Club-wide member access
+                      <span className="block text-xs font-semibold text-[#6c5a73]">Can book club tables and receive messages.</span>
+                    </div>
+                  ) : (
+                    <AdminSelect label="Team" value={row.teamId} onChange={(value) => updateRoleRow(row.id, { teamId: value })} options={clubTeams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.leagueName}` }))} />
+                  )}
+                  <Button variant="secondary" size="icon" onClick={() => removeRoleRow(row.id)} disabled={roleRows.length === 1}>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Remove role</span>
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <AdminCheckbox label="Make administrator" checked={administrator} onChange={setAdministrator} description="After activation, this person can access admin and manage the platform." />
+            <AdminInput label="Expires" value={expiresAt} onChange={setExpiresAt} type="datetime-local" />
+            <Button onClick={createInvite} disabled={!name || !email || !clubId || (!administrator && !roleRows.length)}>
+              <PlusCircle className="h-4 w-4" />
+              Create and queue invite email
+            </Button>
+          </CardContent>
+        </Card>
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>Invite email</CardTitle>
+            <Badge variant="cyan">Test to Garry</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {emailPreview ? (
+              <div className="grid gap-3">
+                <div className="rounded-xl bg-[#10233f] p-4 text-white">
+                  <Mail className="mb-3 h-5 w-5 text-[#7bc7d6]" />
+                  <p className="text-xs font-bold uppercase text-white/60">To</p>
+                  <p className="font-extrabold">{emailPreview.to}</p>
+                  <p className="mt-3 text-xs font-bold uppercase text-white/60">Subject</p>
+                  <p className="font-bold">{emailPreview.subject}</p>
+                </div>
+                <pre className="max-h-[360px] overflow-auto whitespace-pre-wrap rounded-xl bg-[#f7f5fa] p-4 text-sm font-semibold text-[#10233f]">{emailPreview.body}</pre>
+                {emailPreview.activationUrl ? <a className="text-sm font-extrabold text-[#1b8a72]" href={emailPreview.activationUrl}>Open activation link</a> : null}
               </div>
-              <pre className="max-h-[360px] overflow-auto whitespace-pre-wrap rounded-xl bg-[#f7f5fa] p-4 text-sm font-semibold text-[#10233f]">{emailPreview.body}</pre>
-              {emailPreview.activationUrl ? <a className="text-sm font-extrabold text-[#1b8a72]" href={emailPreview.activationUrl}>Open activation link</a> : null}
-            </div>
-          ) : (
-            <div className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-semibold text-[#6c5a73]">
-              The next invite will queue a branded email record and, for testing, address it to garlyons@gmail.com.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : (
+              <div className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-semibold text-[#6c5a73]">
+                The next invite will queue a branded email record and, for testing, address it to garlyons@gmail.com.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      <ExistingInvites invites={invites} />
     </div>
   );
 }
@@ -760,6 +780,53 @@ function PermissionsPanel({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function ExistingInvites({ invites }: { invites: InviteRow[] }) {
+  return (
+    <Card className="min-w-0">
+      <CardHeader>
+        <CardTitle>Existing invites</CardTitle>
+        <Badge variant="muted">{invites.length}</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {invites.length ? invites.map((invite) => {
+          const displayStatus = invite.status === "Pending" && new Date(invite.expires_at).getTime() <= Date.now() ? "Expired" : invite.status;
+          const statusVariant = displayStatus === "Accepted" ? "green" : displayStatus === "Pending" ? "cyan" : displayStatus === "Expired" ? "muted" : "muted";
+          const roles = [
+            ...invite.roles.map((role) => `${role.role}${role.team_name ? ` - ${role.team_name}` : ""}`),
+            invite.invite_administrator ? "Administrator" : ""
+          ].filter(Boolean);
+          return (
+            <div key={invite.id} className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_150px]">
+              <div className="min-w-0">
+                <p className="truncate font-extrabold text-[#10233f]">{invite.invited_person_name}</p>
+                <p className="truncate text-xs font-bold text-[#6c5a73]">{invite.email}</p>
+                <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{invite.club_name ?? "No club"}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">Roles</p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {(roles.length ? roles : ["No roles"]).map((role) => (
+                    <span key={role} className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-[#10233f] ring-1 ring-[#eeeaf2]">{role}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-1 lg:justify-items-end">
+                <Badge variant={statusVariant}>{displayStatus}</Badge>
+                <p className="text-xs font-semibold text-[#6c5a73]">Created {formatAdminDate(invite.created_at)}</p>
+                <p className="text-xs font-semibold text-[#6c5a73]">{invite.accepted_at ? `Accepted ${formatAdminDate(invite.accepted_at)}` : `Expires ${formatAdminDate(invite.expires_at)}`}</p>
+              </div>
+            </div>
+          );
+        }) : (
+          <div className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-semibold text-[#6c5a73]">
+            Created invites will appear here with their current status.
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1009,6 +1076,14 @@ function newInviteRoleRow(role: InviteRole, teamId: string): InviteRoleRow {
     role,
     teamId: role === "Club Member" ? "" : teamId
   };
+}
+
+function formatAdminDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
 }
 
 function AdminCheckbox({

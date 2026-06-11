@@ -22,7 +22,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ authenticated: false, administrator: false }, { status: 401 });
     if (!administrator) return NextResponse.json({ authenticated: true, administrator: false, user }, { status: 403 });
 
-    const [teams, peopleResult, logsResult, requestsResult, appearance] = await Promise.all([
+    const [teams, peopleResult, logsResult, requestsResult, invitesResult, appearance] = await Promise.all([
       loadTeamOptions(),
       dbQuery(
         `select distinct on (p.id)
@@ -54,6 +54,52 @@ export async function GET() {
          limit 50`
       ),
       dbQuery("select id, requested_person_name, email, status, message, created_at from public.invitation_request order by created_at desc limit 25"),
+      dbQuery(
+        `select
+           i.id,
+           i.email,
+           i.invited_person_name,
+           i.status::text,
+           i.created_at,
+           i.expires_at,
+           i.accepted_at,
+           i.invite_administrator,
+           c.name as club_name,
+           coalesce(r.roles, '[]'::jsonb) as roles
+         from public.invitation i
+         left join public.club c on c.id = i.invited_club_id
+         left join lateral (
+           select jsonb_agg(role_item order by sort_key, role_label) as roles
+           from (
+             select
+               l.name as sort_key,
+               concat(im.role::text, ' - ', t.name) as role_label,
+               jsonb_build_object(
+                 'role', im.role::text,
+                 'team_name', t.name,
+                 'league_name', l.name
+               ) as role_item
+             from public.invitation_membership im
+             join public.team t on t.id = im.team_id
+             join public.league l on l.id = t.league_id
+             where im.invitation_id = i.id
+             union all
+             select
+               'Club' as sort_key,
+               'Club Member' as role_label,
+               jsonb_build_object(
+                 'role', icm.role,
+                 'team_name', c2.name,
+                 'league_name', 'Club'
+               ) as role_item
+             from public.invitation_club_membership icm
+             join public.club c2 on c2.id = icm.club_id
+             where icm.invitation_id = i.id
+           ) role_rows
+         ) r on true
+         order by i.created_at desc
+         limit 50`
+      ),
       loadAppearanceConfig()
     ]);
 
@@ -77,6 +123,7 @@ export async function GET() {
         } : null
       })),
       requests: requestsResult.rows,
+      invites: invitesResult.rows,
       appearance
     });
   } catch (error) {
