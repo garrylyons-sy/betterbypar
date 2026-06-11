@@ -1,4 +1,26 @@
 export type Role = "Player" | "Manager" | "Assistant Manager" | "Club Member";
+export type AppearancePanelId =
+  | "teamStats"
+  | "myStats"
+  | "teamRecentForm"
+  | "personalRecentForm"
+  | "individualGames"
+  | "memberActions"
+  | "clubAccess"
+  | "interclubLeagues"
+  | "messages"
+  | "managerActions"
+  | "seasonComplete"
+  | "squadManagement"
+  | "managerSnapshot"
+  | "assistantHub";
+export type AppearanceMenuId = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Interclub Leagues";
+export type RoleAppearance = {
+  role: Role;
+  panels: AppearancePanelId[];
+  menuItems: AppearanceMenuId[];
+};
+export type AppearanceConfig = Record<Role, RoleAppearance>;
 
 export type TeamContext = {
   id: string;

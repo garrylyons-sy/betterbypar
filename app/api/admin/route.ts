@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { loadAppearanceConfig } from "@/lib/server/appearance";
 import { currentUser, loadTeamOptions } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
 
@@ -21,7 +22,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ authenticated: false, administrator: false }, { status: 401 });
     if (!administrator) return NextResponse.json({ authenticated: true, administrator: false, user }, { status: 403 });
 
-    const [teams, peopleResult, logsResult, requestsResult] = await Promise.all([
+    const [teams, peopleResult, logsResult, requestsResult, appearance] = await Promise.all([
       loadTeamOptions(),
       dbQuery(
         `select distinct on (p.id)
@@ -51,7 +52,8 @@ export async function GET() {
          order by l.created_at desc
          limit 50`
       ),
-      dbQuery("select id, requested_person_name, email, status, message, created_at from public.invitation_request order by created_at desc limit 25")
+      dbQuery("select id, requested_person_name, email, status, message, created_at from public.invitation_request order by created_at desc limit 25"),
+      loadAppearanceConfig()
     ]);
 
     return NextResponse.json({
@@ -73,7 +75,8 @@ export async function GET() {
           email: row.email
         } : null
       })),
-      requests: requestsResult.rows
+      requests: requestsResult.rows,
+      appearance
     });
   } catch (error) {
     return NextResponse.json(

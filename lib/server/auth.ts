@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { PoolClient } from "pg";
 
+import { loadAppearanceConfig } from "@/lib/server/appearance";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import type { PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 
@@ -738,13 +739,16 @@ export async function loadSessionPayload(user: AppUser) {
     status: row.status
   }));
 
+  const appearance = await loadAppearanceConfig();
+
   return {
     authenticated: true,
     user,
     contexts,
     standings,
     playerGameResults,
-    matchResults
+    matchResults,
+    appearance
   };
 }
 

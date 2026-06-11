@@ -23,45 +23,13 @@ import {
   XCircle,
   Zap
 } from "lucide-react";
+import { appearanceMenuOptions, defaultAppearanceConfig, normalizeAppearanceConfig } from "@/lib/appearance";
 import { clubTeamStructure, playerGameResults as demoPlayerGameResults, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
-import type { MatchResult, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
+import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, MatchResult, PlayerGameResult, Role, RoleAppearance, Standing, TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-  { label: "Home", page: "Home", icon: Home },
-  { label: "Fixtures", page: "Fixtures", icon: CalendarDays },
-  { label: "Table", page: "Table", icon: Trophy },
-  { label: "Bookings", page: "Bookings", icon: CalendarPlus },
-  { label: "More", page: "Menu", icon: MenuIcon }
-] as const;
-
-const clubMemberNavItems = [
-  { label: "Home", page: "Home", icon: Home },
-  { label: "Bookings", page: "Bookings", icon: CalendarPlus },
-  { label: "Messages", page: "Messages", icon: Mail },
-  { label: "More", page: "Menu", icon: MenuIcon }
-] as const;
-
-const desktopNavItems = [
-  { label: "Home", page: "Home", icon: Home },
-  { label: "Fixtures", page: "Fixtures", icon: CalendarDays },
-  { label: "Results", page: "Results", icon: ClipboardCheck },
-  { label: "Table", page: "Table", icon: Trophy },
-  { label: "Bookings", page: "Bookings", icon: CalendarPlus },
-  { label: "Players", page: "Players", icon: Users },
-  { label: "Stats", page: "Stats", icon: BarChart3 },
-  { label: "Messages", page: "Messages", icon: Mail }
-] as const;
-
-const clubMemberDesktopNavItems = [
-  { label: "Home", page: "Home", icon: Home },
-  { label: "Bookings", page: "Bookings", icon: CalendarPlus },
-  { label: "Messages", page: "Messages", icon: Mail },
-  { label: "Interclub Leagues", page: "Interclub Leagues", icon: Trophy }
-] as const;
 
 type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
@@ -70,24 +38,35 @@ const SIMULATION_CONTROLS_ENABLED = false;
 const leagueOrder: TeamContext["league"][] = ["A League", "B League", "C League"];
 const pagesWithLeagueAside: AppPage[] = ["Home", "Fixtures", "Results", "Players", "Stats"];
 
-const menuItems: Array<{ label: string; page: AppPage; icon: typeof Home; description: string }> = [
-  { label: "Results", page: "Results", icon: ClipboardCheck, description: "Recent scores and individual games" },
-  { label: "Players", page: "Players", icon: Users, description: "Team player list and match records" },
-  { label: "Stats", page: "Stats", icon: BarChart3, description: "Season and player performance" },
-  { label: "Interclub Leagues", page: "Interclub Leagues", icon: Trophy, description: "View all league tables and results" },
-  { label: "Messages", page: "Messages", icon: Mail, description: "Club notices and account options" }
-];
+const menuIconMap: Record<AppearanceMenuId | "Menu", typeof Home> = {
+  Home,
+  Fixtures: CalendarDays,
+  Results: ClipboardCheck,
+  Table: Trophy,
+  Bookings: CalendarPlus,
+  Players: Users,
+  Stats: BarChart3,
+  Messages: Mail,
+  "Interclub Leagues": Trophy,
+  Menu: MenuIcon
+};
 
-const clubMemberMenuItems: Array<{ label: string; page: AppPage; icon: typeof Home; description: string }> = [
-  { label: "Interclub Leagues", page: "Interclub Leagues", icon: Trophy, description: "Fixtures, tables, players and stats" },
-  { label: "Messages", page: "Messages", icon: Mail, description: "Club notices and account options" }
-];
+function menuEntry(id: AppearanceMenuId) {
+  const option = appearanceMenuOptions.find((item) => item.id === id);
+  return {
+    label: option?.label ?? id,
+    page: id as AppPage,
+    icon: menuIconMap[id],
+    description: option?.description ?? id
+  };
+}
 
 export function AppShell({
   contexts = teamContexts,
   standingsData = standings,
   playerGameResults = demoPlayerGameResults,
   matchResults,
+  appearance,
   userLabel,
   onSignOut,
   onPageVisit
@@ -96,6 +75,7 @@ export function AppShell({
   standingsData?: Standing[];
   playerGameResults?: PlayerGameResult[];
   matchResults?: MatchResult[];
+  appearance?: AppearanceConfig;
   userLabel?: string;
   onSignOut?: () => void;
   onPageVisit?: (pageLabel: string, activeTeam: TeamContext) => void;
@@ -122,6 +102,8 @@ export function AppShell({
   const activeTeam = SIMULATION_CONTROLS_ENABLED
     ? buildSimulatedContext(realActiveTeam, simulatedRole, simulatedClub, standingsData)
     : realActiveTeam;
+  const appearanceConfig = useMemo(() => normalizeAppearanceConfig(appearance ?? defaultAppearanceConfig), [appearance]);
+  const activeAppearance = appearanceConfig[activeTeam.role] ?? defaultAppearanceConfig[activeTeam.role];
   const activeStandings = useMemo(() => {
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
     return filtered.length ? filtered : standingsData === standings ? standings : [];
@@ -156,7 +138,7 @@ export function AppShell({
         "mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:items-start lg:gap-6 lg:px-8 xl:px-10",
         showLeaguePanels ? "lg:grid-cols-[220px_minmax(0,1fr)_380px] xl:grid-cols-[230px_minmax(0,1fr)_400px]" : "lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]"
       )}>
-        <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} />
+        <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} menuItems={activeAppearance.menuItems} />
         <div className="grid gap-4">
           {clubMemberView && activePage !== "Interclub Leagues" ? <ClubMemberHero activeTeam={activeTeam} /> : <MatchdayHero activeTeam={activeTeam} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} />}
           <PageContent
@@ -167,6 +149,7 @@ export function AppShell({
             playerGameResults={playerGameResults}
             matchResults={activeMatchResults}
             allMatchResults={allMatchResults}
+            appearance={activeAppearance}
             onNavigate={setActivePage}
             onSignOut={onSignOut}
             userLabel={userLabel}
@@ -179,7 +162,7 @@ export function AppShell({
           </aside>
         ) : null}
       </section>
-      <BottomNav activePage={activePage} activeTeam={activeTeam} onNavigate={setActivePage} />
+      <BottomNav activePage={activePage} activeTeam={activeTeam} onNavigate={setActivePage} menuItems={activeAppearance.menuItems} />
     </main>
   );
 }
@@ -220,6 +203,7 @@ function PageContent({
   playerGameResults,
   matchResults,
   allMatchResults,
+  appearance,
   onNavigate,
   onSignOut,
   userLabel
@@ -231,6 +215,7 @@ function PageContent({
   playerGameResults: PlayerGameResult[];
   matchResults: MatchResult[];
   allMatchResults: MatchResult[];
+  appearance: RoleAppearance;
   onNavigate: (page: AppPage) => void;
   onSignOut?: () => void;
   userLabel?: string;
@@ -244,12 +229,12 @@ function PageContent({
   if (activePage === "Players") return <PlayersPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
-  if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
+  if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} />;
-  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
-  if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />;
-  if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} />;
-  return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
+  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
+  if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
+  if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
+  return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
 }
 
 function Header({
@@ -443,8 +428,8 @@ function ClubSimulator({ value, onChange }: { value: string; onChange: (club: st
   );
 }
 
-function DesktopRail({ activeTeam, activePage, onNavigate }: { activeTeam: TeamContext; activePage: AppPage; onNavigate: (page: AppPage) => void }) {
-  const items = activeTeam.role === "Club Member" ? clubMemberDesktopNavItems : desktopNavItems;
+function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { activeTeam: TeamContext; activePage: AppPage; onNavigate: (page: AppPage) => void; menuItems: AppearanceMenuId[] }) {
+  const items = menuItems.map(menuEntry);
 
   return (
     <aside className="hidden self-start rounded-[18px] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
@@ -964,52 +949,70 @@ function BookingsSkeleton() {
   );
 }
 
-function PlayerHome({ activeTeam, playerGameResults, matchResults, onNavigate, leagueTeamCount }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number }) {
+function PlayerHome({ activeTeam, playerGameResults, matchResults, onNavigate, leagueTeamCount, panels }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number; panels: AppearancePanelId[] }) {
+  const renderPanel = (panel: AppearancePanelId) => {
+    if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
+    if (panel === "myStats") return <PlayerStatCard key={panel} activeTeam={activeTeam} playerGameResults={playerGameResults} />;
+    if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
+    if (panel === "personalRecentForm") return <PersonalRecentFormCard key={panel} playerGameResults={playerGameResults} />;
+    if (panel === "individualGames") return <PlayerGameResultsCard key={panel} results={playerGameResults} />;
+    if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} />;
+    return null;
+  };
+
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
-      <TeamStatsCard activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />
-      <PlayerStatCard activeTeam={activeTeam} playerGameResults={playerGameResults} />
-      <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
-      <PersonalRecentFormCard playerGameResults={playerGameResults} />
-      <PlayerGameResultsCard results={playerGameResults} />
-      <MemberActionsCard activeTeam={activeTeam} onNavigate={onNavigate} />
+      {panels.map(renderPanel)}
     </section>
   );
 }
 
-function ClubMemberHome({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; panels: AppearancePanelId[] }) {
+  const renderPanel = (panel: AppearancePanelId) => {
+    if (panel === "clubAccess") {
+      return (
+        <Card key={panel}>
+          <CardHeader>
+            <CardTitle>Club Access</CardTitle>
+            <Badge variant="cyan">Member</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            <MiniStat label="Club" value={activeTeam.club.replace(" Golf Club", "")} />
+            <MiniStat label="Access" value="Tables" />
+            <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+              Club members can receive club messages and book tables at their club.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+    if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} />;
+    if (panel === "interclubLeagues") {
+      return (
+        <Card key={panel}>
+          <CardHeader>
+            <CardTitle>Interclub Leagues</CardTitle>
+            <Badge variant="muted">Optional</Badge>
+          </CardHeader>
+          <CardContent>
+            <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+              Fixtures, tables, players and stats are available separately when you want to follow the leagues.
+            </p>
+            <Button className="mt-3 w-full" onClick={() => onNavigate("Interclub Leagues")} style={{ backgroundColor: activeTeam.primaryColor }}>
+              <Trophy className="h-4 w-4" />
+              View leagues
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+    if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
+    return null;
+  };
+
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Club Access</CardTitle>
-          <Badge variant="cyan">Member</Badge>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          <MiniStat label="Club" value={activeTeam.club.replace(" Golf Club", "")} />
-          <MiniStat label="Access" value="Tables" />
-          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-            Club members can receive club messages and book tables at their club.
-          </p>
-        </CardContent>
-      </Card>
-      <MemberActionsCard activeTeam={activeTeam} onNavigate={onNavigate} />
-      <Card>
-        <CardHeader>
-          <CardTitle>Interclub Leagues</CardTitle>
-          <Badge variant="muted">Optional</Badge>
-        </CardHeader>
-        <CardContent>
-          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-            Fixtures, tables, players and stats are available separately when you want to follow the leagues.
-          </p>
-          <Button className="mt-3 w-full" onClick={() => onNavigate("Interclub Leagues")} style={{ backgroundColor: activeTeam.primaryColor }}>
-            <Trophy className="h-4 w-4" />
-            View leagues
-          </Button>
-        </CardContent>
-      </Card>
-      <MessagesPage activeTeam={activeTeam} compact />
+      {panels.map(renderPanel)}
     </section>
   );
 }
@@ -1211,16 +1214,20 @@ function MessagesPage({ activeTeam, compact = false, onSignOut, userLabel }: { a
 
 function MoreMenu({
   activeTeam,
+  menuItems,
   onNavigate,
   onSignOut,
   userLabel
 }: {
   activeTeam: TeamContext;
+  menuItems: AppearanceMenuId[];
   onNavigate: (page: AppPage) => void;
   onSignOut?: () => void;
   userLabel?: string;
 }) {
-  const items = activeTeam.role === "Club Member" ? clubMemberMenuItems : menuItems;
+  const configured = menuItems.map(menuEntry);
+  const overflowItems = configured.length > 5 ? configured.slice(4) : configured;
+  const items = overflowItems.filter((item) => item.page !== "Home");
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
@@ -1268,45 +1275,64 @@ function MoreMenu({
   );
 }
 
-function ManagerHome({ activeTeam, matchResults, onNavigate, leagueTeamCount }: { activeTeam: TeamContext; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number }) {
+function ManagerHome({ activeTeam, matchResults, onNavigate, leagueTeamCount, panels }: { activeTeam: TeamContext; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number; panels: AppearancePanelId[] }) {
+  const renderPanel = (panel: AppearancePanelId) => {
+    if (panel === "managerActions") return <ManagerActionCard key={panel} activeTeam={activeTeam} />;
+    if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="Review season" leagueTeamCount={leagueTeamCount} />;
+    if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
+    if (panel === "squadManagement") return <SquadManagementCard key={panel} activeTeam={activeTeam} />;
+    if (panel === "managerSnapshot") return <ManagerSeasonSnapshot key={panel} activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />;
+    if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} />;
+    if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
+    if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
+    return null;
+  };
+
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <ManagerActionCard activeTeam={activeTeam} />
-      <SeasonCompleteCard activeTeam={activeTeam} action="Review season" leagueTeamCount={leagueTeamCount} />
-      <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
-      <SquadManagementCard activeTeam={activeTeam} />
-      <ManagerSeasonSnapshot activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />
-      <MemberActionsCard activeTeam={activeTeam} onNavigate={onNavigate} />
+      {panels.map(renderPanel)}
     </section>
   );
 }
 
-function AssistantManagerHome({ activeTeam, leagueTeamCount }: { activeTeam: TeamContext; leagueTeamCount: number }) {
+function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panels }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number; panels: AppearancePanelId[] }) {
+  const renderPanel = (panel: AppearancePanelId) => {
+    if (panel === "assistantHub") {
+      return (
+        <Card key={panel}>
+          <CardHeader>
+            <CardTitle>Assistant Hub</CardTitle>
+            <Badge variant="cyan">Team support</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            <Button className="w-full">
+              <Users className="h-4 w-4" />
+              Check squad
+            </Button>
+            <Button variant="dark" className="w-full">
+              <Mail className="h-4 w-4" />
+              Message team
+            </Button>
+            <Button variant="secondary" className="w-full">
+              <CalendarPlus className="h-4 w-4" />
+              Book table
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+    if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="View fixtures" leagueTeamCount={leagueTeamCount} />;
+    if (panel === "managerSnapshot") return <ManagerSeasonSnapshot key={panel} activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />;
+    if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
+    if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={() => {}} leagueTeamCount={leagueTeamCount} />;
+    if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
+    if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={() => {}} />;
+    return null;
+  };
+
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Assistant Hub</CardTitle>
-          <Badge variant="cyan">Team support</Badge>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          <Button className="w-full">
-            <Users className="h-4 w-4" />
-            Check squad
-          </Button>
-          <Button variant="dark" className="w-full">
-            <Mail className="h-4 w-4" />
-            Message team
-          </Button>
-          <Button variant="secondary" className="w-full">
-            <CalendarPlus className="h-4 w-4" />
-            Book table
-          </Button>
-        </CardContent>
-      </Card>
-      <SeasonCompleteCard activeTeam={activeTeam} action="View fixtures" leagueTeamCount={leagueTeamCount} />
-      <ManagerSeasonSnapshot activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />
-      <MessagesPage activeTeam={activeTeam} compact />
+      {panels.map(renderPanel)}
     </section>
   );
 }
@@ -2001,11 +2027,14 @@ function MiniStat({ label, value, dark = false }: { label: string; value: string
   );
 }
 
-function BottomNav({ activePage, activeTeam, onNavigate }: { activePage: AppPage; activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
-  const items = activeTeam.role === "Club Member" ? clubMemberNavItems : navItems;
-  const morePages: AppPage[] = activeTeam.role === "Club Member"
-    ? ["Menu", "Interclub Leagues"]
-    : ["Menu", "Results", "Players", "Stats", "Messages"];
+function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePage: AppPage; activeTeam: TeamContext; onNavigate: (page: AppPage) => void; menuItems: AppearanceMenuId[] }) {
+  const configured = menuItems.map(menuEntry);
+  const primaryItems = configured.length > 5 ? configured.slice(0, 4) : configured.slice(0, 5);
+  const overflowItems = configured.slice(primaryItems.length);
+  const items = overflowItems.length
+    ? [...primaryItems, { label: "More", page: "Menu" as AppPage, icon: MenuIcon, description: "More options" }]
+    : primaryItems;
+  const morePages: AppPage[] = ["Menu", ...overflowItems.map((item) => item.page)];
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#eeeaf2] bg-white px-1.5 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1.5 shadow-elevated lg:hidden">
