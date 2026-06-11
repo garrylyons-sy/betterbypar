@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 220" role="img" aria-label="Dun Laoghaire Golf Club">
+  <defs>
+    <clipPath id="shield">
+      <path d="M80 10h55v78c0 35-25 63-55 76-30-13-55-41-55-76V10h55Z"/>
+    </clipPath>
+  </defs>
+  <path d="M80 10h55v78c0 35-25 63-55 76-30-13-55-41-55-76V10h55Z" fill="#091745"/>
+  <g clip-path="url(#shield)">
+    <rect x="25" y="10" width="55" height="77" fill="#101a58"/>
+    <rect x="80" y="10" width="55" height="77" fill="#0b1745"/>
+    <rect x="25" y="87" width="55" height="77" fill="#111a53"/>
+    <rect x="80" y="87" width="55" height="77" fill="#b31322"/>
+    <path d="M80 10v154M25 87h110" stroke="#ffffff" stroke-width="2" opacity=".9"/>
+  </g>
+  <path d="M80 10h55v78c0 35-25 63-55 76-30-13-55-41-55-76V10h55Z" fill="none" stroke="#071137" stroke-width="3"/>
+  <rect x="42" y="18" width="28" height="34" rx="5" fill="#f2c431"/>
+  <path d="M47 31h18v16H47V31Zm4 0v-5a5 5 0 0 1 10 0v5" fill="none" stroke="#0b1745" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M96 32c2-7 12-7 14 0 3-5 11-2 10 5-1 8-9 12-17 13-8-1-16-5-17-13-1-7 7-10 10-5Z" fill="#ffffff"/>
+  <path d="M47 113h21v10H47v-10Zm3-13h15l3 13H47l3-13Zm-2 23h19v17H48v-17Z" fill="#ffffff"/>
+  <circle cx="53" cy="99" r="3" fill="#ffffff"/>
+  <circle cx="62" cy="99" r="3" fill="#ffffff"/>
+  <path d="M97 110c9-5 21-2 25 8 5 13-6 26-20 25-9 0-16-5-19-13 6 2 11 0 13-5-4-3-4-10 1-15Z" fill="#ffffff"/>
+  <path d="M108 122c-1 5-5 8-11 8" fill="none" stroke="#b31322" stroke-width="3" stroke-linecap="round"/>
+  <text x="80" y="192" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="18" font-weight="700" fill="#071137">Dun Laoghaire</text>
+  <text x="80" y="211" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="17" font-weight="700" fill="#071137">Golf Club</text>
+</svg>

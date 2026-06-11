@@ -20,7 +20,7 @@ values
   ('Stackstown Golf Club', 'Stackstown Golf Club', '/club-logos/stackstown.png', '#1D7A43', '#0E3D25', true),
   ('Woodbrook Golf Club', 'Woodbrook Golf Club', '/club-logos/woodbrook.jpg', '#193C64', '#0B243B', true),
   ('Newlands Golf Club', 'Newlands Golf Club', '/club-logos/newlands.png', '#008E3A', '#005C2E', true),
-  ('Dun Laoghaire Golf Club', 'Dun Laoghaire Golf Club', '/club-logos/dun-laoghaire.png', '#0E4D73', '#07233A', true),
+  ('Dun Laoghaire Golf Club', 'Dun Laoghaire Golf Club', '/club-logos/dun-laoghaire.svg', '#0E4D73', '#07233A', true),
   ('Fitzwilliam Lawn Tennis Club', 'Fitzwilliam Lawn Tennis Club', '/club-logos/fitzwilliam.png', '#164236', '#B5963B', true)
 on conflict (name) do update
 set venue = excluded.venue,

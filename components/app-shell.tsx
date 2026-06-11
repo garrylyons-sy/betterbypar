@@ -472,11 +472,10 @@ function ClubLogoTile({ club, logoPath, size }: { club: string; logoPath: string
       <span
         className={cn(
           "flex shrink-0 items-center justify-center rounded-lg bg-white ring-1 ring-[#eeeaf2]",
-          dunLaoghaire ? "h-10 w-16 flex-col gap-0.5 px-1 py-1" : "h-9 w-9 p-1.5"
+          dunLaoghaire ? "h-12 w-10 p-1" : "h-9 w-9 p-1.5"
         )}
       >
-        <img src={logoPath} alt={`${club} logo`} className={cn("object-contain", dunLaoghaire ? "h-5 w-auto" : "max-h-full max-w-full")} />
-        {dunLaoghaire ? <span className="text-center text-[8px] font-black leading-none text-[#10233f]">Dun Laoghaire</span> : null}
+        <img src={logoPath} alt={`${club} logo`} className="max-h-full max-w-full object-contain" />
       </span>
     );
   }
@@ -485,11 +484,10 @@ function ClubLogoTile({ club, logoPath, size }: { club: string; logoPath: string
     <div
       className={cn(
         "flex h-16 shrink-0 items-center justify-center rounded-2xl bg-white/95 shadow-[0_8px_18px_rgba(0,0,0,0.18)] ring-1 ring-white/20 sm:h-20",
-        dunLaoghaire ? "w-24 flex-col gap-1 px-2 py-2 sm:w-28" : "w-16 p-2 sm:w-20"
+        dunLaoghaire ? "w-16 p-1.5 sm:h-24 sm:w-20" : "w-16 p-2 sm:w-20"
       )}
     >
-      <img src={logoPath} alt={`${club} logo`} className={cn("object-contain", dunLaoghaire ? "h-9 w-auto sm:h-11" : "max-h-full max-w-full")} />
-      {dunLaoghaire ? <span className="text-center text-[10px] font-black uppercase leading-none text-[#10233f] sm:text-[11px]">Dun Laoghaire</span> : null}
+      <img src={logoPath} alt={`${club} logo`} className="max-h-full max-w-full object-contain" />
     </div>
   );
 }
