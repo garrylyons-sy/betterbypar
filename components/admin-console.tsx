@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, Eye, KeyRound, LayoutPanelTop, Mail, PlusCircle, ShieldCheck, Smartphone, Trash2, UserPlus, Users } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, Eye, KeyRound, LayoutPanelTop, LogOut, Mail, PlusCircle, ShieldCheck, Smartphone, Trash2, UserPlus, Users } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -156,6 +156,18 @@ export function AdminConsole() {
     }
   }
 
+  async function logout() {
+    try {
+      await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
+    } finally {
+      setAuthenticated(false);
+      setAdministrator(false);
+      setAdminUser(null);
+      setMessage("Signed out.");
+      window.location.assign("/admin");
+    }
+  }
+
   if (loading) {
     return <AdminShell title="Loading admin" subtitle="Checking your session." />;
   }
@@ -165,11 +177,11 @@ export function AdminConsole() {
   }
 
   if (!administrator) {
-    return <AdminShell title="No administrator access" subtitle="Your account is signed in, but it has not been granted administrator access." />;
+    return <AdminShell title="No administrator access" subtitle="Your account is signed in, but it has not been granted administrator access." onLogout={logout} />;
   }
 
   return (
-    <AdminLayout tab={tab} setTab={setTab} message={message} adminUser={adminUser}>
+    <AdminLayout tab={tab} setTab={setTab} message={message} adminUser={adminUser} onLogout={logout}>
       <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={refreshAdminData} />
     </AdminLayout>
   );
@@ -189,12 +201,14 @@ function AdminLayout({
   setTab,
   message,
   adminUser,
+  onLogout,
   children
 }: {
   tab: AdminTab;
   setTab: (tab: AdminTab) => void;
   message: string;
   adminUser: AdminUser | null;
+  onLogout: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -205,14 +219,24 @@ function AdminLayout({
             <p className="text-xs font-bold uppercase text-white/65">League operations</p>
             <h1 className="text-2xl font-extrabold leading-tight">Admin console</h1>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <Badge variant="cyan">Administrator</Badge>
-            {adminUser ? <p className="max-w-[220px] truncate text-sm font-bold text-white/80">{adminUser.name}</p> : null}
+          <div className="flex items-center gap-3">
+            <div className="hidden flex-col items-end gap-1 sm:flex">
+              <Badge variant="cyan">Administrator</Badge>
+              {adminUser ? <p className="max-w-[220px] truncate text-sm font-bold text-white/80">{adminUser.name}</p> : null}
+            </div>
+            <button
+              type="button"
+              onClick={onLogout}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-4 text-sm font-extrabold text-white ring-1 ring-white/20 transition-colors hover:bg-white/20 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
           </div>
         </div>
       </header>
       <section className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-10">
-        <aside className="min-w-0 rounded-[18px] bg-white p-2 shadow-card lg:sticky lg:top-4 lg:self-start">
+        <aside className="flex min-w-0 gap-2 overflow-x-auto rounded-[18px] bg-white p-2 shadow-card lg:sticky lg:top-4 lg:block lg:self-start lg:overflow-visible">
           {[
             { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
             { id: "people" as const, label: "People", icon: UserPlus },
@@ -226,7 +250,7 @@ function AdminLayout({
               <button
                 key={item.id}
                 onClick={() => setTab(item.id)}
-                className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-4 text-sm font-bold ${tab === item.id ? "bg-[#10233f] text-white" : "text-[#25002b]"}`}
+                className={`flex min-h-11 shrink-0 items-center gap-3 rounded-lg px-4 text-sm font-bold lg:w-full ${tab === item.id ? "bg-[#10233f] text-white" : "text-[#25002b]"}`}
               >
                 <Icon className="h-5 w-5" />
                 {item.label}
@@ -1045,7 +1069,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   );
 }
 
-function AdminShell({ title, subtitle, children }: { title: string; subtitle: string; children?: React.ReactNode }) {
+function AdminShell({ title, subtitle, children, onLogout }: { title: string; subtitle: string; children?: React.ReactNode; onLogout?: () => void }) {
   return (
     <main className="grid min-h-screen place-items-center bg-[#f7f5fa] px-4 text-[#25002b]">
       <Card className="w-full max-w-md">
@@ -1056,6 +1080,12 @@ function AdminShell({ title, subtitle, children }: { title: string; subtitle: st
         <CardContent className="grid gap-3">
           <p className="text-sm font-semibold text-[#6c5a73]">{subtitle}</p>
           {children}
+          {onLogout ? (
+            <Button variant="dark" onClick={onLogout}>
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
     </main>
