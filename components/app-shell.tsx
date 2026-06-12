@@ -2105,7 +2105,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                   const actionLabel = active
                     ? "Close"
                     : canManageFixture
-                      ? bothPublished ? "Enter scores" : managedPublished ? "Published" : "Pick team"
+                      ? bothPublished ? "Enter scores" : managedPublished ? "Locked" : "Pick team"
                       : "";
 
                   return (
