@@ -167,6 +167,15 @@ export function AppShell({
     () => (matchResults ?? []).filter((result) => result.league === activeTeam.league && result.season === activeTeam.season),
     [activeTeam.league, activeTeam.season, matchResults]
   );
+  const activePlayerGameResults = useMemo(
+    () => playerGameResults.filter((result) => {
+      const seasonMatches = result.season === activeTeam.season;
+      const leagueMatches = result.league === activeTeam.league;
+      const teamMatches = result.homeTeamName === activeTeam.name || result.awayTeamName === activeTeam.name;
+      return seasonMatches && leagueMatches && teamMatches;
+    }),
+    [activeTeam.league, activeTeam.name, activeTeam.season, playerGameResults]
+  );
   const allMatchResults = matchResults ?? [];
   const clubMemberView = activeTeam.role === "Club Member";
   const showLeaguePanels = !clubMemberView && pagesWithLeagueAside.includes(activePage);
@@ -204,7 +213,7 @@ export function AppShell({
             activeTeam={activeTeam}
             standingsData={activeStandings}
             allStandingsData={standingsData}
-            playerGameResults={playerGameResults}
+            playerGameResults={activePlayerGameResults}
             matchResults={activeMatchResults}
             allMatchResults={allMatchResults}
             appearance={activeAppearance}

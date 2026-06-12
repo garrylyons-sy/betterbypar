@@ -46,6 +46,8 @@ export type TeamContext = {
 
 export type PlayerGameResult = {
   gameId: string;
+  season: string;
+  league: "A League" | "B League" | "C League";
   playerId: string;
   opponentId: string;
   opponentName: string;

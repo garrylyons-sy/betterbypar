@@ -660,6 +660,8 @@ export async function loadSessionPayload(user: AppUser) {
 
   const playerGameResults = (await dbQuery<{
     game_id: string;
+    season_name: string;
+    league_name: TeamContext["league"];
     player_1_id: string;
     player_1_name: string;
     player_2_id: string;
@@ -676,6 +678,8 @@ export async function loadSessionPayload(user: AppUser) {
   }>(
     `select
        game_id,
+       season_name,
+       league_name,
        player_1_id,
        player_1_name,
        player_2_id,
@@ -699,6 +703,8 @@ export async function loadSessionPayload(user: AppUser) {
     const won = isPlayerOne ? row.result === 1 : row.result === 0;
     return {
       gameId: row.game_id,
+      season: row.season_name,
+      league: row.league_name,
       playerId: user.personId,
       opponentId: isPlayerOne ? row.player_2_id : row.player_1_id,
       opponentName: isPlayerOne ? row.player_2_name : row.player_1_name,

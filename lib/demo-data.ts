@@ -50,6 +50,8 @@ export const recentResults: Fixture[] = [
 export const playerGameResults: PlayerGameResult[] = [
   {
     gameId: "garry-v-john-flavin",
+    season: "2025/26",
+    league: "A League",
     playerId: "garry-lyons",
     opponentId: "john-flavin",
     opponentName: "John Flavin",
@@ -64,6 +66,8 @@ export const playerGameResults: PlayerGameResult[] = [
   },
   {
     gameId: "jimmy-harlow-v-garry",
+    season: "2025/26",
+    league: "A League",
     playerId: "garry-lyons",
     opponentId: "jimmy-harlow",
     opponentName: "Jimmy Harlow",
@@ -78,6 +82,8 @@ export const playerGameResults: PlayerGameResult[] = [
   },
   {
     gameId: "garry-v-aidan-maher",
+    season: "2025/26",
+    league: "A League",
     playerId: "garry-lyons",
     opponentId: "aidan-maher",
     opponentName: "Aidan Maher",
