@@ -31,6 +31,7 @@ type SessionPayload = {
   standings?: Standing[];
   playerGameResults?: PlayerGameResult[];
   matchResults?: MatchResult[];
+  activeMatchCount?: number;
   appearance?: AppearanceConfig;
   error?: string;
 };
@@ -63,8 +64,8 @@ export function AuthGateway() {
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>(demoTeamOptions);
   const [activationInvite, setActivationInvite] = useState<ActivationInvite | null>(null);
 
-  const refreshSession = useCallback(async () => {
-    setLoading(true);
+  const refreshSession = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const payload = await authJsonFetch<SessionPayload>("/api/session");
       setSession(payload);
@@ -73,7 +74,7 @@ export function AuthGateway() {
       setSession({ authenticated: false });
       setMessage(error instanceof Error ? error.message : "");
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
   }, []);
 
@@ -113,6 +114,16 @@ export function AuthGateway() {
       })
       .catch(() => {});
   }, [refreshSession]);
+
+  useEffect(() => {
+    if (!session?.authenticated || !session.activeMatchCount) return;
+
+    const poll = window.setInterval(() => {
+      refreshSession({ silent: true });
+    }, 60000);
+
+    return () => window.clearInterval(poll);
+  }, [refreshSession, session?.activeMatchCount, session?.authenticated]);
 
   const recordPageVisit = useCallback((pageLabel: string, activeTeam: TeamContext) => {
     fetch("/api/page-visit", {
@@ -159,10 +170,12 @@ export function AuthGateway() {
             standingsData={session.standings ?? []}
             playerGameResults={session.playerGameResults ?? []}
             matchResults={session.matchResults ?? []}
+            activeMatchCount={session.activeMatchCount ?? 0}
             appearance={session.appearance}
             userLabel={session.user?.name ?? session.user?.email ?? "Signed in"}
             onSignOut={signOut}
             onPageVisit={recordPageVisit}
+            onDataRefresh={() => refreshSession({ silent: true })}
           />
         </>
       );

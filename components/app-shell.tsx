@@ -66,19 +66,23 @@ export function AppShell({
   standingsData = standings,
   playerGameResults = demoPlayerGameResults,
   matchResults,
+  activeMatchCount = 0,
   appearance,
   userLabel,
   onSignOut,
-  onPageVisit
+  onPageVisit,
+  onDataRefresh
 }: {
   contexts?: TeamContext[];
   standingsData?: Standing[];
   playerGameResults?: PlayerGameResult[];
   matchResults?: MatchResult[];
+  activeMatchCount?: number;
   appearance?: AppearanceConfig;
   userLabel?: string;
   onSignOut?: () => void;
   onPageVisit?: (pageLabel: string, activeTeam: TeamContext) => void;
+  onDataRefresh?: () => void;
 }) {
   const seasons = useMemo(() => Array.from(new Set(contexts.map((context) => context.season))).filter(Boolean), [contexts]);
   const preferredContextId = useMemo(() => {
@@ -194,7 +198,7 @@ export function AppShell({
       )}>
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} menuItems={activeAppearance.menuItems} />
         <div className="grid gap-4">
-          {clubMemberView && activePage !== "Interclub Leagues" ? <ClubMemberHero activeTeam={activeTeam} /> : <MatchdayHero activeTeam={activeTeam} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} />}
+          {clubMemberView && activePage !== "Interclub Leagues" ? <ClubMemberHero activeTeam={activeTeam} /> : <MatchdayHero activeTeam={activeTeam} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} activeMatchCount={activeMatchCount} />}
           <PageContent
             activePage={activePage}
             activeTeam={activeTeam}
@@ -207,6 +211,7 @@ export function AppShell({
             onNavigate={setActivePage}
             onSignOut={onSignOut}
             userLabel={userLabel}
+            onDataRefresh={onDataRefresh}
           />
         </div>
         {showLeaguePanels ? (
@@ -260,7 +265,8 @@ function PageContent({
   appearance,
   onNavigate,
   onSignOut,
-  userLabel
+  userLabel,
+  onDataRefresh
 }: {
   activePage: AppPage;
   activeTeam: TeamContext;
@@ -273,6 +279,7 @@ function PageContent({
   onNavigate: (page: AppPage) => void;
   onSignOut?: () => void;
   userLabel?: string;
+  onDataRefresh?: () => void;
 }) {
   const leagueTeamCount = standingsData.length;
 
@@ -285,7 +292,7 @@ function PageContent({
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} />;
-  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
+  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
@@ -547,7 +554,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { active
   );
 }
 
-function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false }: { activeTeam: TeamContext; leagueTeamCount: number; interclubView?: boolean }) {
+function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, activeMatchCount = 0 }: { activeTeam: TeamContext; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number }) {
   const manager = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
   const clubMember = activeTeam.role === "Club Member";
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
@@ -559,6 +566,11 @@ function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false }: { 
     <section className="overflow-hidden rounded-[18px] text-white shadow-card">
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
+        {activeMatchCount > 0 ? (
+          <div className="absolute right-3 top-3 z-10 rounded-md bg-[#00ff85] px-2 py-1 text-[11px] font-bold text-[#10233f] ring-1 ring-white/30">
+            Matches in play{activeMatchCount > 1 ? ` (${activeMatchCount})` : ""}
+          </div>
+        ) : null}
         <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] xl:items-end">
           <div className="flex min-w-0 items-start gap-3">
             <ClubLogoTile club={activeTeam.club} logoPath={activeTeam.logoPath} size="hero" />
@@ -1365,9 +1377,9 @@ function MoreMenu({
   );
 }
 
-function ManagerHome({ activeTeam, matchResults, onNavigate, leagueTeamCount, panels }: { activeTeam: TeamContext; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number; panels: AppearancePanelId[] }) {
+function ManagerHome({ activeTeam, matchResults, onNavigate, leagueTeamCount, panels, onDataRefresh }: { activeTeam: TeamContext; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number; panels: AppearancePanelId[]; onDataRefresh?: () => void }) {
   const renderPanel = (panel: AppearancePanelId) => {
-    if (panel === "matchPlanning") return <MatchPlanningCard key={panel} activeTeam={activeTeam} />;
+    if (panel === "matchPlanning") return <MatchPlanningCard key={panel} activeTeam={activeTeam} onDataRefresh={onDataRefresh} />;
     if (panel === "managerActions") return <ManagerActionCard key={panel} activeTeam={activeTeam} />;
     if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="Review season" leagueTeamCount={leagueTeamCount} />;
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
@@ -1386,8 +1398,8 @@ function ManagerHome({ activeTeam, matchResults, onNavigate, leagueTeamCount, pa
   );
 }
 
-function MatchPlanningCard({ activeTeam }: { activeTeam: TeamContext }) {
-  return <ManagerLineupCard activeTeam={activeTeam} />;
+function MatchPlanningCard({ activeTeam, onDataRefresh }: { activeTeam: TeamContext; onDataRefresh?: () => void }) {
+  return <ManagerLineupCard activeTeam={activeTeam} onDataRefresh={onDataRefresh} />;
 }
 
 function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panels }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number; panels: AppearancePanelId[] }) {
@@ -1908,7 +1920,7 @@ const defaultLineupSlots: ManagerLineupSlot[] = [
   { slotNumber: 6, gameType: "Singles", label: "Singles 6", player1Id: "", player2Id: "" }
 ];
 
-function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
+function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamContext; onDataRefresh?: () => void }) {
   const [payload, setPayload] = useState<ManagerLineupPayload | null>(null);
   const [slots, setSlots] = useState<ManagerLineupSlot[]>(defaultLineupSlots);
   const [message, setMessage] = useState("");
@@ -2014,6 +2026,7 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
       setPayload(data);
       setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
       setMessage(action === "publish" ? "Lineup published. It will be shared once the match card is ready." : "Draft lineup saved privately.");
+      onDataRefresh?.();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save lineup.");
     } finally {
@@ -2113,8 +2126,8 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex min-w-0 flex-wrap gap-1.5">
-                            <Badge variant={lineupStatusVariant(fixture.homeLineupStatus)}>{fixture.homeTeamName}: {lineupStatusLabel(fixture.homeLineupStatus)}</Badge>
-                            <Badge variant={lineupStatusVariant(fixture.awayLineupStatus)}>{fixture.awayTeamName}: {lineupStatusLabel(fixture.awayLineupStatus)}</Badge>
+                            <Badge variant={lineupStatusVariant(fixture.homeLineupStatus)}>{lineupStatusLabel(fixture.homeLineupStatus)}</Badge>
+                            <Badge variant={lineupStatusVariant(fixture.awayLineupStatus)}>{lineupStatusLabel(fixture.awayLineupStatus)}</Badge>
                           </div>
                           <span className="text-xs font-bold text-[#6c5a73]">
                             {isOwnFixture ? active ? "Close" : bothPublished ? "Open match" : "Pick team" : bothPublished ? "Score visible" : "Read only"}
@@ -2240,6 +2253,7 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
       setPayload(data);
       setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
       setMessage("Game result updated.");
+      onDataRefresh?.();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not update result.");
     } finally {

@@ -764,6 +764,13 @@ export async function loadSessionPayload(user: AppUser) {
     awayTeamScore: Number(row.away_team_score),
     status: row.status
   }));
+  const activeMatchCount = Number((await dbQuery<{ count: string }>(
+    `select count(*) as count
+     from public.fixture f
+     join public.match m on m.fixture_id = f.id
+     where f.status = 'Scheduled'
+       and f.fixture_date::date = current_date`
+  )).rows[0]?.count ?? 0);
 
   const appearance = await loadAppearanceConfig();
 
@@ -774,6 +781,7 @@ export async function loadSessionPayload(user: AppUser) {
     standings,
     playerGameResults,
     matchResults,
+    activeMatchCount,
     appearance
   };
 }
