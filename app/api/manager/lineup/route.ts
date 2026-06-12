@@ -217,7 +217,7 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
      order by g.game_number`,
     [fixture.fixture_id]
   )).rows;
-  const weekFixtures = (await dbQuery<{
+  const weekFixtureRows = (await dbQuery<{
     fixture_id: string;
     fixture_date: string;
     home_team_id: string;
@@ -265,7 +265,50 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
        wht.name,
        wat.name`,
     [fixture.fixture_id, teamId]
-  )).rows.map((row) => ({
+  )).rows;
+  const weekGameRows = (await dbQuery<{
+    fixture_id: string;
+    id: string;
+    game_number: number;
+    game_type: "Singles" | "Doubles";
+    points_awarded: number;
+    winner_team_id: string | null;
+    home_player_1_name: string;
+    home_player_2_name: string | null;
+    away_player_1_name: string;
+    away_player_2_name: string | null;
+  }>(
+    `select
+       wf.id as fixture_id,
+       g.id,
+       g.game_number,
+       g.game_type::text as game_type,
+       g.points_awarded,
+       g.winner_team_id,
+       concat_ws(' ', hp1.first_name, hp1.last_name) as home_player_1_name,
+       concat_ws(' ', hp2.first_name, hp2.last_name) as home_player_2_name,
+       concat_ws(' ', ap1.first_name, ap1.last_name) as away_player_1_name,
+       concat_ws(' ', ap2.first_name, ap2.last_name) as away_player_2_name
+     from public.fixture wf
+     join public.match m on m.fixture_id = wf.id
+     join public.game g on g.match_id = m.id
+     left join public.person hp1 on hp1.id = g.home_player_1_id
+     left join public.person hp2 on hp2.id = g.home_player_2_id
+     left join public.person ap1 on ap1.id = g.away_player_1_id
+     left join public.person ap2 on ap2.id = g.away_player_2_id
+     where wf.season_id = (
+         select season_id from public.fixture where id = $1
+       )
+       and wf.league_id = (
+         select league_id from public.fixture where id = $1
+       )
+       and wf.fixture_date::date = (
+         select fixture_date::date from public.fixture where id = $1
+       )
+     order by wf.fixture_date, g.game_number`,
+    [fixture.fixture_id]
+  )).rows;
+  const weekFixtures = weekFixtureRows.map((row) => ({
     id: row.fixture_id,
     fixtureDate: row.fixture_date,
     homeTeamId: row.home_team_id,
@@ -277,7 +320,20 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     homeTeamScore: row.home_team_score === null ? null : Number(row.home_team_score),
     awayTeamScore: row.away_team_score === null ? null : Number(row.away_team_score),
     homeLineupStatus: row.home_lineup_status,
-    awayLineupStatus: row.away_lineup_status
+    awayLineupStatus: row.away_lineup_status,
+    games: weekGameRows
+      .filter((game) => game.fixture_id === row.fixture_id)
+      .map((game) => ({
+        id: game.id,
+        game_number: game.game_number,
+        game_type: game.game_type,
+        points_awarded: game.points_awarded,
+        winner_team_id: game.winner_team_id,
+        home_player_1_name: game.home_player_1_name,
+        home_player_2_name: game.home_player_2_name,
+        away_player_1_name: game.away_player_1_name,
+        away_player_2_name: game.away_player_2_name
+      }))
   }));
 
   return {

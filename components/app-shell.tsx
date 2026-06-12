@@ -1871,6 +1871,18 @@ type ManagerLineupSlot = {
   player2Name?: string;
 };
 
+type ManagerLineupGame = {
+  id: string;
+  game_number: number;
+  game_type: "Singles" | "Doubles";
+  points_awarded: number;
+  winner_team_id: string | null;
+  home_player_1_name: string;
+  home_player_2_name: string | null;
+  away_player_1_name: string;
+  away_player_2_name: string | null;
+};
+
 type ManagerLineupPayload = {
   fixture: {
     id: string;
@@ -1901,18 +1913,9 @@ type ManagerLineupPayload = {
     awayTeamScore: number | null;
     homeLineupStatus: "Draft" | "Published" | null;
     awayLineupStatus: "Draft" | "Published" | null;
+    games: ManagerLineupGame[];
   }>;
-  games: Array<{
-    id: string;
-    game_number: number;
-    game_type: "Singles" | "Doubles";
-    points_awarded: number;
-    winner_team_id: string | null;
-    home_player_1_name: string;
-    home_player_2_name: string | null;
-    away_player_1_name: string;
-    away_player_2_name: string | null;
-  }>;
+  games: ManagerLineupGame[];
 };
 
 type LineupPickerTarget = {
@@ -2086,17 +2089,20 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                   homeTeamScore: null,
                   awayTeamScore: null,
                   homeLineupStatus: payload.fixture.homeTeamId === activeTeam.teamId ? ownStatus : payload.opponentStatus?.status ?? null,
-                  awayLineupStatus: payload.fixture.awayTeamId === activeTeam.teamId ? ownStatus : payload.opponentStatus?.status ?? null
+                  awayLineupStatus: payload.fixture.awayTeamId === activeTeam.teamId ? ownStatus : payload.opponentStatus?.status ?? null,
+                  games: []
                 }]).map((fixture) => {
                   const isOwnFixture = fixture.homeTeamId === activeTeam.teamId || fixture.awayTeamId === activeTeam.teamId;
                   const bothPublished = fixture.homeLineupStatus === "Published" && fixture.awayLineupStatus === "Published";
-                  const hasScore = bothPublished && fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
-                  const matchStarted = Boolean(fixture.matchId) || matchReady;
+                  const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
+                  const matchStarted = Boolean(fixture.matchId);
                   const active = fixture.id === openedFixtureId;
                   const canManageFixture = Boolean(payload.canManage && isOwnFixture);
-                  const actionLabel = canManageFixture
-                    ? active ? "Close" : bothPublished ? "Open match" : "Pick team"
-                    : hasScore ? "View score" : matchStarted ? "View live score" : "View match";
+                  const actionLabel = active
+                    ? "Close"
+                    : canManageFixture
+                      ? bothPublished ? "Enter scores" : "Pick team"
+                      : "";
 
                   return (
                     <div
@@ -2109,12 +2115,10 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                     >
                       <button
                         type="button"
-                        onClick={() => isOwnFixture ? setOpenedFixtureId((current) => current === fixture.id ? "" : fixture.id) : undefined}
-                        disabled={!isOwnFixture}
+                        onClick={() => setOpenedFixtureId((current) => current === fixture.id ? "" : fixture.id)}
                         aria-expanded={active}
                         className={cn(
-                          "grid w-full gap-2 p-3 text-left transition-colors",
-                          isOwnFixture ? "hover:bg-[#f7f5fa]" : "cursor-default opacity-90"
+                          "grid w-full gap-2 p-3 text-left transition-colors hover:bg-[#f7f5fa]"
                         )}
                       >
                         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -2133,21 +2137,26 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                           <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={matchStarted ? undefined : fixture.awayLineupStatus} />
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className={cn(
-                            "inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-extrabold uppercase tracking-wide",
-                            canManageFixture && !bothPublished
-                              ? "bg-[#1b8a72] text-white"
-                              : isOwnFixture
-                                ? "bg-[#10233f] text-white"
-                                : "bg-[#eeeaf2] text-[#6c5a73]"
-                          )}>
-                            {actionLabel}
-                          </span>
+                          {actionLabel ? (
+                            <span className={cn(
+                              "inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-extrabold uppercase tracking-wide",
+                              canManageFixture && !bothPublished
+                                ? "bg-[#1b8a72] text-white"
+                                : "bg-[#10233f] text-white"
+                            )}>
+                              {actionLabel}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-bold text-[#6c5a73]">
+                              {matchStarted ? "Lineups and frames available" : "Lineups appear when published"}
+                            </span>
+                          )}
+                          <ChevronDown className={cn("h-4 w-4 text-[#6c5a73] transition-transform", active && "rotate-180")} />
                         </div>
                       </button>
-                      {active && isOwnFixture ? (
+                      {active ? (
                         <div className="grid gap-3 border-t border-[#eeeaf2] bg-white p-3">
-                          {payload.opponentStatus ? (
+                          {isOwnFixture && payload.opponentStatus ? (
                             <div className="rounded-xl bg-[#f7f5fa] p-3">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div>
@@ -2165,8 +2174,9 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                               ) : null}
                             </div>
                           ) : null}
-                          {matchReady ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} pendingGameIds={pendingGameIds} /> : null}
-                          {!ownPublished && payload.canManage ? (
+                          {isOwnFixture && matchReady ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} pendingGameIds={pendingGameIds} /> : null}
+                          {!isOwnFixture ? <ReadOnlyFixtureDetails fixture={fixture} /> : null}
+                          {isOwnFixture && !ownPublished && payload.canManage ? (
                             <>
                               <div className="grid gap-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3">
@@ -2197,7 +2207,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                                 </Button>
                               </div>
                             </>
-                          ) : ownPublished ? (
+                          ) : isOwnFixture && ownPublished ? (
                             <div className="rounded-xl bg-[#f7f5fa] p-3">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div>
@@ -2210,8 +2220,8 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                               </div>
                             </div>
                           ) : null}
-                          {ownPublished ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
-                          {payload.opponentLineup ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
+                          {isOwnFixture && ownPublished ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
+                          {isOwnFixture && payload.opponentLineup ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
                         </div>
                       ) : null}
                     </div>
@@ -2352,7 +2362,10 @@ function applyOptimisticGameWinner(payload: ManagerLineupPayload, gameId: string
             ...weekFixture,
             status: completed ? "Completed" : weekFixture.status,
             homeTeamScore,
-            awayTeamScore
+            awayTeamScore,
+            games: weekFixture.games.map((game) => (
+              game.id === gameId ? { ...game, winner_team_id: winnerTeamId } : game
+            ))
           }
         : weekFixture
     ))
@@ -2515,6 +2528,54 @@ function PublishedLineupSummary({ title, slots }: { title: string; slots: Manage
             {slot.label}: {slot.player1Name || "TBC"}{slot.player2Name ? ` / ${slot.player2Name}` : ""}
           </p>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function ReadOnlyFixtureDetails({ fixture }: { fixture: ManagerLineupPayload["weekFixtures"][number] }) {
+  if (!fixture.games.length) {
+    return (
+      <div className="rounded-xl bg-[#f7f5fa] p-3">
+        <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Match details</p>
+        <p className="mt-1 text-sm font-bold text-[#10233f]">
+          Lineups and frame details will appear here once both teams have published.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl bg-[#10233f] p-3 text-white">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-extrabold uppercase text-white/60">Frame details</p>
+        <Badge variant={fixture.status === "Completed" ? "green" : "cyan"}>
+          {fixture.status === "Completed" ? "Final" : "Live"}
+        </Badge>
+      </div>
+      <div className="mt-2 grid gap-2">
+        {fixture.games.map((game) => {
+          const homeWon = game.winner_team_id === fixture.homeTeamId;
+          const awayWon = game.winner_team_id === fixture.awayTeamId;
+          return (
+            <div key={game.id} className="grid gap-2 rounded-lg bg-white/10 p-2 text-sm font-bold">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>Game {game.game_number}</span>
+                <span className="text-xs text-white/60">{game.game_type} - {game.points_awarded} pts</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                <p className={cn("rounded-lg px-2 py-1", homeWon ? "bg-[#00ff85] text-[#10233f]" : "bg-white/10")}>
+                  {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""}
+                </p>
+                <span className="text-center text-xs font-black uppercase text-white/60">v</span>
+                <p className={cn("rounded-lg px-2 py-1 sm:text-right", awayWon ? "bg-[#00ff85] text-[#10233f]" : "bg-white/10")}>
+                  {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}
+                </p>
+              </div>
+              {!game.winner_team_id ? <p className="text-xs font-semibold text-white/60">Awaiting result</p> : null}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
