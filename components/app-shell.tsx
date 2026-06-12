@@ -1929,6 +1929,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
   const [openedFixtureId, setOpenedFixtureId] = useState("");
   const dirtyDraftRef = useRef(false);
   const fixtureIdRef = useRef("");
+  const matchSnapshotRef = useRef("");
 
   useEffect(() => {
     if (!activeTeam.teamId) return;
@@ -1936,6 +1937,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
     let firstLoad = true;
     dirtyDraftRef.current = false;
     fixtureIdRef.current = "";
+    matchSnapshotRef.current = "";
 
     async function loadLineup() {
       if (!activeTeam.teamId) return;
@@ -1957,6 +1959,11 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
         if (firstLoad || fixtureChanged || lineupStatus === "Published" || !dirtyDraftRef.current) {
           setSlots(data.lineup?.slots?.length ? data.lineup.slots : defaultLineupSlots);
         }
+        const matchSnapshot = managerLineupSnapshot(data);
+        if (!firstLoad && matchSnapshotRef.current && matchSnapshotRef.current !== matchSnapshot) {
+          onDataRefresh?.();
+        }
+        matchSnapshotRef.current = matchSnapshot;
       } catch (error) {
         if (!cancelled && firstLoad) setMessage(error instanceof Error ? error.message : "Lineup unavailable.");
       } finally {
@@ -2268,6 +2275,27 @@ function lineupStatusVariant(status: "Draft" | "Published" | null): "green" | "c
   if (status === "Published") return "green";
   if (status === "Draft") return "cyan";
   return "muted";
+}
+
+function managerLineupSnapshot(payload: Partial<ManagerLineupPayload>) {
+  return JSON.stringify({
+    fixture: payload.fixture ? {
+      id: payload.fixture.id,
+      status: payload.fixture.status
+    } : null,
+    lineup: payload.lineup?.status ?? null,
+    opponent: payload.opponentStatus?.status ?? null,
+    games: (payload.games ?? []).map((game) => [game.id, game.winner_team_id]),
+    weekFixtures: (payload.weekFixtures ?? []).map((fixture) => [
+      fixture.id,
+      fixture.status,
+      fixture.matchId,
+      fixture.homeTeamScore,
+      fixture.awayTeamScore,
+      fixture.homeLineupStatus,
+      fixture.awayLineupStatus
+    ])
+  });
 }
 
 function LineupSlotRow({
