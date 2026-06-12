@@ -2102,11 +2102,9 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                   const managedLineupStatus = activeTeam.teamId === fixture.awayTeamId ? fixture.awayLineupStatus : fixture.homeLineupStatus;
                   const managedPublished = managedLineupStatus === "Published";
                   const showLineupStatus = isOwnFixture && !matchStarted;
-                  const actionLabel = active
-                    ? "Close"
-                    : canManageFixture
-                      ? bothPublished ? "Enter scores" : managedPublished ? "Locked" : "Pick team"
-                      : "";
+                  const actionLabel = canManageFixture && !active
+                    ? bothPublished ? "Enter scores" : managedPublished ? "" : "Pick team"
+                    : "";
 
                   return (
                     <div

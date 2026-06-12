@@ -437,6 +437,12 @@ from public.match m
 join public.fixture f on f.id = m.fixture_id
 left join public.game g on g.match_id = m.id
 where f.status = 'Completed'
+   or exists (
+    select 1
+    from public.game active_game
+    where active_game.match_id = m.id
+      and active_game.winner_team_id is not null
+  )
 group by m.id, f.id, f.season_id, f.league_id, f.home_team_id, f.away_team_id;
 
 create or replace function public.refresh_match_team_points(match_uuid uuid)
