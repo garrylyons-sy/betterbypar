@@ -2088,6 +2088,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                   const isOwnFixture = fixture.homeTeamId === activeTeam.teamId || fixture.awayTeamId === activeTeam.teamId;
                   const bothPublished = fixture.homeLineupStatus === "Published" && fixture.awayLineupStatus === "Published";
                   const hasScore = bothPublished && fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
+                  const matchStarted = Boolean(fixture.matchId) || matchReady;
                   const active = fixture.id === openedFixtureId;
 
                   return (
@@ -2110,7 +2111,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                         )}
                       >
                         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                          <FixtureTeamLabel teamName={fixture.homeTeamName} />
+                          <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={matchStarted ? undefined : fixture.homeLineupStatus} />
                           <div className="text-center">
                             {hasScore ? (
                               <span className="grid min-w-16 grid-cols-[auto_auto_auto] items-center gap-1 rounded-lg bg-[#10233f] px-2 py-1 text-white">
@@ -2122,13 +2123,9 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                               <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
                             )}
                           </div>
-                          <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" />
+                          <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={matchStarted ? undefined : fixture.awayLineupStatus} />
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex min-w-0 flex-wrap gap-1.5">
-                            <Badge variant={lineupStatusVariant(fixture.homeLineupStatus)}>{lineupStatusLabel(fixture.homeLineupStatus)}</Badge>
-                            <Badge variant={lineupStatusVariant(fixture.awayLineupStatus)}>{lineupStatusLabel(fixture.awayLineupStatus)}</Badge>
-                          </div>
                           <span className="text-xs font-bold text-[#6c5a73]">
                             {isOwnFixture ? active ? "Close" : bothPublished ? "Open match" : "Pick team" : bothPublished ? "Score visible" : "Read only"}
                           </span>
@@ -2262,14 +2259,19 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
   }
 }
 
-function FixtureTeamLabel({ teamName, align = "left" }: { teamName: string; align?: "left" | "right" }) {
+function FixtureTeamLabel({ teamName, align = "left", lineupStatus }: { teamName: string; align?: "left" | "right"; lineupStatus?: "Draft" | "Published" | null }) {
   const colors = teamColors(teamName);
 
   return (
     <div className={cn("min-w-0", align === "right" && "text-right")}>
-      <p className="break-words text-sm font-black leading-tight" style={{ color: colors.primaryColor }}>
-        {teamName}
-      </p>
+      <div className={cn("flex min-w-0 flex-wrap items-center gap-1.5", align === "right" && "justify-end")}>
+        <p className="break-words text-sm font-black leading-tight" style={{ color: colors.primaryColor }}>
+          {teamName}
+        </p>
+        {lineupStatus !== undefined ? (
+          <Badge variant={lineupStatusVariant(lineupStatus)}>{lineupStatusLabel(lineupStatus)}</Badge>
+        ) : null}
+      </div>
     </div>
   );
 }
