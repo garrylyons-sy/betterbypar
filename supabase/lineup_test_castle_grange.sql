@@ -114,7 +114,7 @@ manager_teams as (
   cross join garry
   join season s on s.id = t.season_id
   join league l on l.id = t.league_id
-  where t.name in ('Castle A', 'Grange A')
+  where t.name in ('Castle A', 'Grange A', 'Milltown A')
 )
 insert into public.team_membership (team_id, person_id, role, active)
 select team_id, person_id, 'Manager'::public.membership_role, true

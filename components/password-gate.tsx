@@ -35,7 +35,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
     setError("Incorrect password");
   }
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/lineup-test") || embedBypass) {
+  if (pathname.startsWith("/admin") || pathname.startsWith("/lineup-test") || pathname.startsWith("/3-lineup") || embedBypass) {
     return children;
   }
 

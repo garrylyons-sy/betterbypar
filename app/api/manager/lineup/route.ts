@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       });
 
       const payload = await loadLineupPayload(teamId, fixtureId);
-      return NextResponse.json({ ok: true, ...payload });
+      return NextResponse.json({ ok: true, ...payload, canManage: true });
     }
 
     await withTransaction(async (client) => {
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     });
 
     const payload = await loadLineupPayload(teamId, fixtureId);
-    return NextResponse.json({ ok: true, ...payload });
+    return NextResponse.json({ ok: true, ...payload, canManage: true });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not save lineup." },

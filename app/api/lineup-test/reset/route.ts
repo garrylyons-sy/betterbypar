@@ -28,42 +28,38 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await withTransaction(async (client) => {
-      const fixture = await client.query<{ id: string }>(
+      const fixtures = await client.query<{ id: string }>(
         `select f.id
          from public.fixture f
          join public.season s on s.id = f.season_id
          join public.league l on l.id = f.league_id
-         join public.team ht on ht.id = f.home_team_id
-         join public.team at on at.id = f.away_team_id
          where s.name = '2026/27'
            and l.name = 'A League'
-           and ht.name = 'Castle A'
-           and at.name = 'Grange A'
-         order by f.fixture_date
-         limit 1`
+           and f.fixture_date::date = '2026-09-03'::date
+         order by f.fixture_date`
       );
-      const fixtureId = fixture.rows[0]?.id;
-      if (!fixtureId) throw new Error("Castle A v Grange A 2026/27 fixture was not found.");
+      const fixtureIds = fixtures.rows.map((fixture) => fixture.id);
+      if (!fixtureIds.length) throw new Error("2026/27 A League Week 1 fixtures were not found.");
 
       const deletedLineups = await client.query(
         `delete from public.fixture_lineup
-         where fixture_id = $1`,
-        [fixtureId]
+         where fixture_id = any($1::uuid[])`,
+        [fixtureIds]
       );
       const deletedMatch = await client.query(
         `delete from public.match
-         where fixture_id = $1`,
-        [fixtureId]
+         where fixture_id = any($1::uuid[])`,
+        [fixtureIds]
       );
       await client.query(
         `update public.fixture
          set status = 'Scheduled'
-         where id = $1`,
-        [fixtureId]
+         where id = any($1::uuid[])`,
+        [fixtureIds]
       );
 
       return {
-        fixtureId,
+        fixtureCount: fixtureIds.length,
         lineupsDeleted: deletedLineups.rowCount ?? 0,
         matchesDeleted: deletedMatch.rowCount ?? 0
       };
