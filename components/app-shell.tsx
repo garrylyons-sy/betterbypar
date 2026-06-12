@@ -2099,10 +2099,11 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                   const active = fixture.id === openedFixtureId;
                   const canManageFixture = Boolean(payload.canManage && isOwnFixture);
                   const managerActionSide = activeTeam.teamId === fixture.awayTeamId ? "away" : "home";
+                  const showLineupStatus = isOwnFixture && !matchStarted;
                   const actionLabel = active
                     ? "Close"
                     : canManageFixture
-                      ? bothPublished ? "Enter scores" : "Pick team"
+                      ? bothPublished ? "Enter scores" : ownPublished ? "Published" : "Pick team"
                       : "";
 
                   return (
@@ -2123,7 +2124,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                         )}
                       >
                         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                          <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={matchStarted ? undefined : fixture.homeLineupStatus} />
+                          <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={showLineupStatus ? fixture.homeLineupStatus : undefined} />
                           <div className="text-center">
                             {hasScore ? (
                               <span className="grid min-w-16 grid-cols-[auto_auto_auto] items-center gap-1 rounded-lg bg-[#10233f] px-2 py-1 text-white">
@@ -2135,13 +2136,13 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                               <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
                             )}
                           </div>
-                          <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={matchStarted ? undefined : fixture.awayLineupStatus} />
+                          <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={showLineupStatus ? fixture.awayLineupStatus : undefined} />
                         </div>
                         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                           {actionLabel ? (
                             <span className={cn(
                               "inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-extrabold uppercase tracking-wide",
-                              canManageFixture && !bothPublished
+                              canManageFixture && !bothPublished && !ownPublished
                                 ? "bg-[#1b8a72] text-white"
                                 : "bg-[#10233f] text-white",
                               managerActionSide === "away" ? "col-start-3 justify-self-end" : "col-start-1 justify-self-start"
@@ -2150,7 +2151,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                             </span>
                           ) : (
                             <span className="col-span-2 text-xs font-bold text-[#6c5a73]">
-                              {matchStarted ? "Lineups and frames available" : "Lineups appear when published"}
+                              {matchStarted ? "Lineups and frames available" : "Scheduled"}
                             </span>
                           )}
                           <ChevronDown className={cn("col-start-2 row-start-1 h-4 w-4 justify-self-center text-[#6c5a73] transition-transform", active && "rotate-180")} />
@@ -2204,10 +2205,15 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                                 <Button variant="secondary" onClick={() => submitLineup("save")} disabled={busy}>
                                   Save draft
                                 </Button>
-                                <Button onClick={() => submitLineup("publish")} disabled={busy}>
-                                  Publish lineup
+                                <Button onClick={() => submitLineup("publish")} disabled={busy || selectedCount < 7}>
+                                  {selectedCount < 7 ? `Pick ${7 - selectedCount} more` : "Publish lineup"}
                                 </Button>
                               </div>
+                              {selectedCount < 7 ? (
+                                <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#6c5a73]">
+                                  Pick all 7 player slots before publishing. Drafts can still be saved.
+                                </p>
+                              ) : null}
                             </>
                           ) : isOwnFixture && ownPublished ? (
                             <div className="rounded-xl bg-[#f7f5fa] p-3">
@@ -2541,7 +2547,7 @@ function ReadOnlyFixtureDetails({ fixture }: { fixture: ManagerLineupPayload["we
       <div className="rounded-xl bg-[#f7f5fa] p-3">
         <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Match details</p>
         <p className="mt-1 text-sm font-bold text-[#10233f]">
-          Lineups and frame details will appear here once both teams have published.
+          Scores and frame details will appear here once the match card is active.
         </p>
       </div>
     );
