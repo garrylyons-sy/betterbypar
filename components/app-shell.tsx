@@ -2215,20 +2215,8 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                                 </p>
                               ) : null}
                             </>
-                          ) : isOwnFixture && managedPublished ? (
-                            <div className="rounded-xl bg-[#f7f5fa] p-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                  <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Your lineup</p>
-                                  <p className="text-sm font-bold text-[#10233f]">
-                                    Published and locked{matchReady ? ". Match card is ready." : ". Waiting for the opponent."}
-                                  </p>
-                                </div>
-                                <Badge variant="green">Locked</Badge>
-                              </div>
-                            </div>
                           ) : null}
-                          {isOwnFixture && ownPublished ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
+                          {isOwnFixture && managedPublished ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
                           {isOwnFixture && payload.opponentLineup ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
                         </div>
                       ) : null}
