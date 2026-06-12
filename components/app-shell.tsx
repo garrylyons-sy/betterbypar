@@ -2098,6 +2098,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                   const matchStarted = Boolean(fixture.matchId);
                   const active = fixture.id === openedFixtureId;
                   const canManageFixture = Boolean(payload.canManage && isOwnFixture);
+                  const managerActionSide = activeTeam.teamId === fixture.awayTeamId ? "away" : "home";
                   const actionLabel = active
                     ? "Close"
                     : canManageFixture
@@ -2136,22 +2137,23 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                           </div>
                           <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={matchStarted ? undefined : fixture.awayLineupStatus} />
                         </div>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                           {actionLabel ? (
                             <span className={cn(
                               "inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-extrabold uppercase tracking-wide",
                               canManageFixture && !bothPublished
                                 ? "bg-[#1b8a72] text-white"
-                                : "bg-[#10233f] text-white"
+                                : "bg-[#10233f] text-white",
+                              managerActionSide === "away" ? "col-start-3 justify-self-end" : "col-start-1 justify-self-start"
                             )}>
                               {actionLabel}
                             </span>
                           ) : (
-                            <span className="text-xs font-bold text-[#6c5a73]">
+                            <span className="col-span-2 text-xs font-bold text-[#6c5a73]">
                               {matchStarted ? "Lineups and frames available" : "Lineups appear when published"}
                             </span>
                           )}
-                          <ChevronDown className={cn("h-4 w-4 text-[#6c5a73] transition-transform", active && "rotate-180")} />
+                          <ChevronDown className={cn("col-start-2 row-start-1 h-4 w-4 justify-self-center text-[#6c5a73] transition-transform", active && "rotate-180")} />
                         </div>
                       </button>
                       {active ? (
