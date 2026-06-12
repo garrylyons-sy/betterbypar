@@ -600,7 +600,7 @@ function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, acti
           </div>
           <div className="grid grid-cols-3 gap-2">
             <HeroMetric label="Played" value={hasLeagueTable ? String(played) : "-"} />
-            <HeroMetric label="Won" value={hasLeagueTable ? String(won) : "-"} />
+            <HeroMetric label="Matches Won" value={hasLeagueTable ? String(won) : "-"} />
             <HeroMetric label="Pts" value={hasLeagueTable ? String(points) : "-"} />
           </div>
         </div>
@@ -2875,7 +2875,7 @@ function ClubTeamStructureCard() {
 function HeroMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur">
-      <p className="text-xs font-bold uppercase text-white/65">{label}</p>
+      <p className="text-[10px] font-bold uppercase leading-tight text-white/65">{label}</p>
       <p className="mt-1 text-3xl font-extrabold leading-none text-white">{value}</p>
     </div>
   );
