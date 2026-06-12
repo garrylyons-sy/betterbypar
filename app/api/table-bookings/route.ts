@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 const castleClubName = "Castle Golf Club";
 const minStartHour = 11;
 const maxStartHour = 22;
+const bookingTimeZone = "Europe/Dublin";
 
 type CastleAccessRow = {
   club_id: string;
@@ -69,6 +70,39 @@ function validStartHour(value: unknown) {
   return hour;
 }
 
+function dublinClock(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-IE", {
+    timeZone: bookingTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    date: `${value("year")}-${value("month")}-${value("day")}`,
+    minutes: Number(value("hour")) * 60 + Number(value("minute"))
+  };
+}
+
+function isPastBookingDate(bookingDate: string, now = new Date()) {
+  return bookingDate < dublinClock(now).date;
+}
+
+function isPastBookingSlot(bookingDate: string, startHour: number, now = new Date()) {
+  const clock = dublinClock(now);
+  if (bookingDate < clock.date) return true;
+  if (bookingDate > clock.date) return false;
+  return startHour * 60 <= clock.minutes;
+}
+
+function availableSlotHours(bookingDate: string, now = new Date()) {
+  const hours = Array.from({ length: maxStartHour - minStartHour + 1 }, (_, index) => minStartHour + index);
+  return hours.filter((hour) => !isPastBookingSlot(bookingDate, hour, now));
+}
+
 function timeForHour(hour: number) {
   return `${String(hour).padStart(2, "0")}:00`;
 }
@@ -94,6 +128,9 @@ export async function GET(request: NextRequest) {
 
     const bookingDate = validDate(request.nextUrl.searchParams.get("date"));
     if (!bookingDate) return NextResponse.json({ error: "A valid booking date is required." }, { status: 400 });
+    if (isPastBookingDate(bookingDate)) {
+      return NextResponse.json({ error: "Bookings are only available from today onwards." }, { status: 400 });
+    }
 
     const clubId = await castleClubForPerson(user.personId);
     if (!clubId) return NextResponse.json({ error: "Table bookings are currently available to Castle members only." }, { status: 403 });
@@ -132,7 +169,7 @@ export async function GET(request: NextRequest) {
       clubId,
       clubName: castleClubName,
       bookingDate,
-      slotHours: Array.from({ length: maxStartHour - minStartHour + 1 }, (_, index) => minStartHour + index),
+      slotHours: availableSlotHours(bookingDate),
       tables: tablesResult.rows.map((row) => ({
         tableId: row.table_id,
         tableName: row.table_name,
@@ -160,6 +197,9 @@ export async function POST(request: NextRequest) {
 
     if (!tableId || !bookingDate || startHour === null) {
       return NextResponse.json({ error: "Choose a table, date and hour between 11:00 and 22:00." }, { status: 400 });
+    }
+    if (isPastBookingSlot(bookingDate, startHour)) {
+      return NextResponse.json({ error: "That booking time has already passed." }, { status: 400 });
     }
 
     const clubId = await castleClubForPerson(user.personId);

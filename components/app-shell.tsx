@@ -854,6 +854,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
   const [message, setMessage] = useState("");
   const [busySlot, setBusySlot] = useState("");
   const currentLocalDate = localIsoDate();
+  const previousDateDisabled = bookingDate <= currentLocalDate;
 
   if (activeTeam.club !== "Castle Golf Club") {
     return (
@@ -893,6 +894,10 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
   useEffect(() => {
     void loadBookings();
   }, [bookingDate]);
+
+  useEffect(() => {
+    if (bookingDate < currentLocalDate) setBookingDate(currentLocalDate);
+  }, [bookingDate, currentLocalDate]);
 
   const bookingBySlot = useMemo(() => {
     const map = new Map<string, BookingSlot>();
@@ -957,7 +962,16 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
               </span>
             </div>
             <div className="mt-4 flex items-center gap-3">
-              <Button variant="secondary" size="icon" className="h-14 w-14 shrink-0" onClick={() => setBookingDate(isoDateFromOffset(bookingDate, -1))} aria-label="Previous day">
+              <Button
+                variant="secondary"
+                size="icon"
+                className="h-14 w-14 shrink-0"
+                onClick={() => {
+                  if (!previousDateDisabled) setBookingDate(isoDateFromOffset(bookingDate, -1));
+                }}
+                disabled={previousDateDisabled}
+                aria-label="Previous day"
+              >
                 <ChevronLeft className="h-5 w-5" />
               </Button>
               <label className="relative block min-w-0 flex-1">
@@ -968,6 +982,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
                 <input
                   type="date"
                   value={bookingDate}
+                  min={currentLocalDate}
                   onChange={(event) => setBookingDate(event.target.value)}
                   className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
@@ -1005,7 +1020,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
                 <Badge variant="cyan">{formatBookingDate(payload.bookingDate)}</Badge>
               </CardHeader>
               <CardContent className="grid gap-2">
-                {payload.slotHours.map((hour) => {
+                {payload.slotHours.length ? payload.slotHours.map((hour) => {
                   const startTime = `${String(hour).padStart(2, "0")}:00`;
                   const booking = bookingBySlot.get(`${table.tableId}-${startTime}`);
                   const busy = busySlot === `${table.tableId}-${hour}` || busySlot === booking?.id;
@@ -1042,7 +1057,11 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
                       )}
                     </div>
                   );
-                })}
+                }) : (
+                  <div className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-bold text-[#6c5a73]">
+                    No bookable slots remain for this date.
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -2519,9 +2538,11 @@ function PlayerPickerSheet({
                   disabled={unavailable}
                 >
                   <span>{player.name}</span>
-                  <span className="text-xs font-extrabold uppercase text-[#6c5a73]">
-                    {selected ? "Selected" : unavailable ? "Picked" : "Available"}
-                  </span>
+                  {selected || unavailable ? (
+                    <span className="text-xs font-extrabold uppercase text-[#6c5a73]">
+                      {selected ? "Selected" : "Picked"}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}

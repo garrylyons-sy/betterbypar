@@ -526,21 +526,28 @@ group by t.id, t.league_id, t.season_id;
 
 create or replace view public.player_statistics as
 with appearances as (
-  select g.id as game_id, unnest(array[g.home_player_1_id, g.home_player_2_id, g.away_player_1_id, g.away_player_2_id]) as person_id, g.winner_team_id
+  select
+    g.id as game_id,
+    player_appearance.person_id,
+    player_appearance.team_id,
+    g.winner_team_id
   from public.game g
   join public.match m on m.id = g.match_id
   join public.fixture f on f.id = m.fixture_id
+  cross join lateral (
+    values
+      (g.home_player_1_id, f.home_team_id),
+      (g.home_player_2_id, f.home_team_id),
+      (g.away_player_1_id, f.away_team_id),
+      (g.away_player_2_id, f.away_team_id)
+  ) as player_appearance(person_id, team_id)
   where g.winner_team_id is not null
+    and player_appearance.person_id is not null
 )
 select
   p.id as person_id,
   count(distinct a.game_id) as games_played,
-  count(distinct a.game_id) filter (
-    where exists (
-      select 1 from public.team_membership tm
-      where tm.person_id = p.id and tm.team_id = a.winner_team_id
-    )
-  ) as games_won,
+  count(distinct a.game_id) filter (where a.team_id = a.winner_team_id) as games_won,
   max(b.break_value) as highest_break,
   count(distinct b.id) as total_breaks,
   count(distinct b.id) filter (where b.break_value >= 50) as fifty_plus_breaks,
