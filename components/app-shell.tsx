@@ -2099,11 +2099,13 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                   const active = fixture.id === openedFixtureId;
                   const canManageFixture = Boolean(payload.canManage && isOwnFixture);
                   const managerActionSide = activeTeam.teamId === fixture.awayTeamId ? "away" : "home";
+                  const managedLineupStatus = activeTeam.teamId === fixture.awayTeamId ? fixture.awayLineupStatus : fixture.homeLineupStatus;
+                  const managedPublished = managedLineupStatus === "Published";
                   const showLineupStatus = isOwnFixture && !matchStarted;
                   const actionLabel = active
                     ? "Close"
                     : canManageFixture
-                      ? bothPublished ? "Enter scores" : ownPublished ? "Published" : "Pick team"
+                      ? bothPublished ? "Enter scores" : managedPublished ? "Published" : "Pick team"
                       : "";
 
                   return (
@@ -2142,7 +2144,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                           {actionLabel ? (
                             <span className={cn(
                               "inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-extrabold uppercase tracking-wide",
-                              canManageFixture && !bothPublished && !ownPublished
+                              canManageFixture && !bothPublished && !managedPublished
                                 ? "bg-[#1b8a72] text-white"
                                 : "bg-[#10233f] text-white",
                               managerActionSide === "away" ? "col-start-3 justify-self-end" : "col-start-1 justify-self-start"
@@ -2179,7 +2181,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                           ) : null}
                           {isOwnFixture && matchReady ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} pendingGameIds={pendingGameIds} /> : null}
                           {!isOwnFixture ? <ReadOnlyFixtureDetails fixture={fixture} /> : null}
-                          {isOwnFixture && !ownPublished && payload.canManage ? (
+                          {isOwnFixture && !managedPublished && payload.canManage ? (
                             <>
                               <div className="grid gap-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3">
@@ -2215,7 +2217,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                                 </p>
                               ) : null}
                             </>
-                          ) : isOwnFixture && ownPublished ? (
+                          ) : isOwnFixture && managedPublished ? (
                             <div className="rounded-xl bg-[#f7f5fa] p-3">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div>
