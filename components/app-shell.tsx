@@ -1879,6 +1879,12 @@ type ManagerLineupPayload = {
   }>;
 };
 
+type LineupPickerTarget = {
+  slotNumber: number;
+  key: "player1Id" | "player2Id";
+  label: string;
+} | null;
+
 const defaultLineupSlots: ManagerLineupSlot[] = [
   { slotNumber: 1, gameType: "Singles", label: "Singles 1", player1Id: "", player2Id: "" },
   { slotNumber: 2, gameType: "Singles", label: "Singles 2", player1Id: "", player2Id: "" },
@@ -1893,6 +1899,7 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
   const [slots, setSlots] = useState<ManagerLineupSlot[]>(defaultLineupSlots);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<LineupPickerTarget>(null);
   const dirtyDraftRef = useRef(false);
   const fixtureIdRef = useRef("");
 
@@ -1943,7 +1950,22 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
     setSlots((current) => current.map((slot) => slot.slotNumber === slotNumber ? { ...slot, [key]: value } : slot));
   }
 
-  function selectedPlayerIdsExcept(slotNumber: number, key: "player1Id" | "player2Id") {
+  function moveSinglesPlayer(slotNumber: number, direction: -1 | 1) {
+    dirtyDraftRef.current = true;
+    setSlots((current) => {
+      const singlesSlots = current.filter((slot) => slot.gameType === "Singles");
+      const fromIndex = singlesSlots.findIndex((slot) => slot.slotNumber === slotNumber);
+      const toSlot = singlesSlots[fromIndex + direction];
+      if (!toSlot) return current;
+      return current.map((slot) => {
+        if (slot.slotNumber === slotNumber) return { ...slot, player1Id: toSlot.player1Id };
+        if (slot.slotNumber === toSlot.slotNumber) return { ...slot, player1Id: current.find((item) => item.slotNumber === slotNumber)?.player1Id ?? "" };
+        return slot;
+      });
+    });
+  }
+
+  function selectedPlayerIdsExcept(slotNumber?: number, key?: "player1Id" | "player2Id") {
     return new Set(
       slots.flatMap((slot) => {
         const ids = [];
@@ -1992,6 +2014,7 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
   const opponentHasPublished = payload?.opponentStatus?.status === "Published";
   const canSeeOpponentLineup = ownStatus === "Published" && opponentHasPublished;
   const matchReady = Boolean(payload?.games.length);
+  const selectedCount = selectedPlayerIdsExcept().size;
 
   return (
     <Card>
@@ -2033,29 +2056,26 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
             {!ownPublished ? (
               <>
                 <div className="grid gap-2">
-                  {slots.map((slot) => (
-                    <div key={slot.slotNumber} className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-black text-[#10233f]">{slot.label}</p>
-                        <Badge variant={slot.gameType === "Doubles" ? "cyan" : "muted"}>{slot.gameType === "Doubles" ? "2 pts" : "1 pt"}</Badge>
-                      </div>
-                      <PlayerSelect
-                        label={slot.gameType === "Doubles" ? "Player 1" : "Player"}
-                        value={slot.player1Id}
-                        players={playerOptions}
-                        unavailablePlayerIds={selectedPlayerIdsExcept(slot.slotNumber, "player1Id")}
-                        onChange={(value) => updateSlot(slot.slotNumber, "player1Id", value)}
-                      />
-                      {slot.gameType === "Doubles" ? (
-                        <PlayerSelect
-                          label="Player 2"
-                          value={slot.player2Id}
-                          players={playerOptions}
-                          unavailablePlayerIds={selectedPlayerIdsExcept(slot.slotNumber, "player2Id")}
-                          onChange={(value) => updateSlot(slot.slotNumber, "player2Id", value)}
-                        />
-                      ) : null}
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3">
+                    <div>
+                      <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Team sheet</p>
+                      <p className="text-sm font-bold text-[#10233f]">
+                        Tap a slot to pick a player. Singles can be moved up or down.
+                      </p>
                     </div>
+                    <Badge variant="muted">{selectedCount}/7 picked</Badge>
+                  </div>
+                  {slots.map((slot) => (
+                    <LineupSlotRow
+                      key={slot.slotNumber}
+                      slot={slot}
+                      players={playerOptions}
+                      canMoveUp={slot.gameType === "Singles" && slots.filter((item) => item.gameType === "Singles").findIndex((item) => item.slotNumber === slot.slotNumber) > 0}
+                      canMoveDown={slot.gameType === "Singles" && slots.filter((item) => item.gameType === "Singles").findIndex((item) => item.slotNumber === slot.slotNumber) < slots.filter((item) => item.gameType === "Singles").length - 1}
+                      onPick={(key, label) => setPickerTarget({ slotNumber: slot.slotNumber, key, label })}
+                      onClear={(key) => updateSlot(slot.slotNumber, key, "")}
+                      onMove={moveSinglesPlayer}
+                    />
                   ))}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -2083,6 +2103,19 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
             {message ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">{message}</p> : null}
             {ownPublished ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
             {payload.opponentLineup ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
+            {pickerTarget ? (
+              <PlayerPickerSheet
+                target={pickerTarget}
+                players={playerOptions}
+                value={slots.find((slot) => slot.slotNumber === pickerTarget.slotNumber)?.[pickerTarget.key] ?? ""}
+                unavailablePlayerIds={selectedPlayerIdsExcept(pickerTarget.slotNumber, pickerTarget.key)}
+                onSelect={(playerId) => {
+                  updateSlot(pickerTarget.slotNumber, pickerTarget.key, playerId);
+                  setPickerTarget(null);
+                }}
+                onClose={() => setPickerTarget(null)}
+              />
+            ) : null}
           </>
         )}
       </CardContent>
@@ -2119,34 +2152,165 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
   }
 }
 
-function PlayerSelect({
-  label,
-  value,
+function LineupSlotRow({
+  slot,
   players,
-  unavailablePlayerIds,
-  onChange
+  canMoveUp,
+  canMoveDown,
+  onPick,
+  onClear,
+  onMove
 }: {
-  label: string;
-  value: string;
+  slot: ManagerLineupSlot;
   players: Array<{ id: string; name: string }>;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onPick: (key: "player1Id" | "player2Id", label: string) => void;
+  onClear: (key: "player1Id" | "player2Id") => void;
+  onMove: (slotNumber: number, direction: -1 | 1) => void;
+}) {
+  const playerName = (playerId: string) => players.find((player) => player.id === playerId)?.name ?? "";
+
+  return (
+    <div className="grid gap-3 rounded-xl border border-[#eeeaf2] bg-white p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase text-[#6c5a73]">Game {slot.slotNumber}</p>
+          <p className="font-black text-[#10233f]">{slot.label}</p>
+        </div>
+        <Badge variant={slot.gameType === "Doubles" ? "cyan" : "muted"}>{slot.gameType === "Doubles" ? "2 pts" : "1 pt"}</Badge>
+      </div>
+      <div className={cn("grid gap-2", slot.gameType === "Doubles" ? "sm:grid-cols-2" : "")}>
+        <PlayerSlotButton
+          label={slot.gameType === "Doubles" ? "Player 1" : "Player"}
+          value={playerName(slot.player1Id)}
+          onPick={() => onPick("player1Id", `${slot.label} ${slot.gameType === "Doubles" ? "Player 1" : "Player"}`)}
+          onClear={() => onClear("player1Id")}
+        />
+        {slot.gameType === "Doubles" ? (
+          <PlayerSlotButton
+            label="Player 2"
+            value={playerName(slot.player2Id)}
+            onPick={() => onPick("player2Id", `${slot.label} Player 2`)}
+            onClear={() => onClear("player2Id")}
+          />
+        ) : null}
+      </div>
+      {slot.gameType === "Singles" ? (
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="secondary" size="sm" onClick={() => onMove(slot.slotNumber, -1)} disabled={!canMoveUp}>
+            Move up
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => onMove(slot.slotNumber, 1)} disabled={!canMoveDown}>
+            Move down
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PlayerSlotButton({ label, value, onPick, onClear }: { label: string; value: string; onPick: () => void; onClear: () => void }) {
+  return (
+    <div className="grid gap-1">
+      <p className="text-xs font-bold uppercase text-[#6c5a73]">{label}</p>
+      <div className="flex min-h-12 items-center gap-2 rounded-xl border border-[#d8d3df] bg-[#f7f5fa] p-2">
+        <button
+          type="button"
+          className="min-h-10 min-w-0 flex-1 rounded-lg bg-white px-3 text-left text-sm font-bold text-[#10233f] shadow-sm transition-colors hover:bg-[#eef7f5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+          onClick={onPick}
+        >
+          {value || "Pick player"}
+        </button>
+        {value ? (
+          <button
+            type="button"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-[#6c5a73] transition-colors hover:bg-[#eeeaf2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+            onClick={onClear}
+            aria-label={`Clear ${value}`}
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function PlayerPickerSheet({
+  target,
+  players,
+  value,
+  unavailablePlayerIds,
+  onSelect,
+  onClose
+}: {
+  target: NonNullable<LineupPickerTarget>;
+  players: Array<{ id: string; name: string }>;
+  value: string;
   unavailablePlayerIds: Set<string>;
-  onChange: (value: string) => void;
+  onSelect: (playerId: string) => void;
+  onClose: () => void;
 }) {
   return (
-    <label className="grid gap-1">
-      <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
-      <select className="min-h-11 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold text-[#10233f]" value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">Select player</option>
-        {players.map((player) => {
-          const unavailable = player.id !== value && unavailablePlayerIds.has(player.id);
-          return (
-            <option key={player.id} value={player.id} disabled={unavailable}>
-              {player.name}{unavailable ? " - already picked" : ""}
-            </option>
-          );
-        })}
-      </select>
-    </label>
+    <div className="fixed inset-0 z-50 grid items-end bg-[#071426]/50 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label={`Pick player for ${target.label}`}>
+      <div className="mx-auto grid max-h-[82vh] w-full max-w-lg gap-3 overflow-hidden rounded-2xl bg-white p-4 shadow-elevated">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Pick player</p>
+            <h3 className="text-lg font-black text-[#10233f]">{target.label}</h3>
+          </div>
+          <button
+            type="button"
+            className="grid h-10 w-10 place-items-center rounded-lg bg-[#f7f5fa] text-[#10233f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+            onClick={onClose}
+            aria-label="Close player picker"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="overflow-y-auto pr-1">
+          <div className="grid gap-2">
+            {value ? (
+              <button
+                type="button"
+                className="min-h-11 rounded-xl border border-[#eeeaf2] bg-[#f7f5fa] px-3 text-left text-sm font-bold text-[#10233f]"
+                onClick={() => onSelect("")}
+              >
+                Clear this slot
+              </button>
+            ) : null}
+            {players.map((player) => {
+              const selected = player.id === value;
+              const unavailable = !selected && unavailablePlayerIds.has(player.id);
+              return (
+                <button
+                  key={player.id}
+                  type="button"
+                  className={cn(
+                    "flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 text-left text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]",
+                    selected
+                      ? "border-[#1b8a72] bg-[#e9f7f3] text-[#10233f]"
+                      : unavailable
+                        ? "border-[#eeeaf2] bg-[#f7f5fa] text-[#8a7d91] opacity-70"
+                        : "border-[#eeeaf2] bg-white text-[#10233f] hover:bg-[#eef7f5]"
+                  )}
+                  onClick={() => {
+                    if (!unavailable) onSelect(player.id);
+                  }}
+                  disabled={unavailable}
+                >
+                  <span>{player.name}</span>
+                  <span className="text-xs font-extrabold uppercase text-[#6c5a73]">
+                    {selected ? "Selected" : unavailable ? "Picked" : "Available"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
