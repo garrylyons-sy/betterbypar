@@ -75,9 +75,9 @@ from (
   cross join lateral (
     values
       (g.home_player_1_id, g.away_player_1_id, f.home_team_id),
-      (g.home_player_2_id, g.away_player_1_id, f.home_team_id),
+      (g.home_player_2_id, g.away_player_2_id, f.home_team_id),
       (g.away_player_1_id, g.home_player_1_id, f.away_team_id),
-      (g.away_player_2_id, g.home_player_1_id, f.away_team_id)
+      (g.away_player_2_id, g.home_player_2_id, f.away_team_id)
   ) as player_pair(player_1_id, player_2_id, player_1_team_id)
   where g.winner_team_id is not null
     and player_pair.player_1_id is not null

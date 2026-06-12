@@ -558,10 +558,12 @@ async function generateGamesIfBothPublished(client: PoolClient, fixtureId: strin
        )
        values ($1, $2, $3, $4, $5, $6, $7, $8)
        on conflict (match_id, game_number) do update
-       set home_player_1_id = case when public.game.winner_team_id is null then excluded.home_player_1_id else public.game.home_player_1_id end,
-           home_player_2_id = case when public.game.winner_team_id is null then excluded.home_player_2_id else public.game.home_player_2_id end,
-           away_player_1_id = case when public.game.winner_team_id is null then excluded.away_player_1_id else public.game.away_player_1_id end,
-           away_player_2_id = case when public.game.winner_team_id is null then excluded.away_player_2_id else public.game.away_player_2_id end`,
+       set home_player_1_id = excluded.home_player_1_id,
+           home_player_2_id = excluded.home_player_2_id,
+           away_player_1_id = excluded.away_player_1_id,
+           away_player_2_id = excluded.away_player_2_id,
+           game_type = excluded.game_type,
+           points_awarded = excluded.points_awarded`,
       [
         matchId,
         slot.gameType,

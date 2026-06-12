@@ -168,12 +168,12 @@ export function AppShell({
     [activeTeam.league, activeTeam.season, matchResults]
   );
   const activePlayerGameResults = useMemo(
-    () => playerGameResults.filter((result) => {
+    () => dedupePlayerGameResults(playerGameResults.filter((result) => {
       const seasonMatches = result.season === activeTeam.season;
       const leagueMatches = result.league === activeTeam.league;
       const teamMatches = result.homeTeamName === activeTeam.name || result.awayTeamName === activeTeam.name;
       return seasonMatches && leagueMatches && teamMatches;
-    }),
+    })),
     [activeTeam.league, activeTeam.name, activeTeam.season, playerGameResults]
   );
   const allMatchResults = matchResults ?? [];
@@ -305,6 +305,15 @@ function PageContent({
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
+}
+
+function dedupePlayerGameResults(results: PlayerGameResult[]) {
+  const seen = new Set<string>();
+  return results.filter((result) => {
+    if (seen.has(result.gameId)) return false;
+    seen.add(result.gameId);
+    return true;
+  });
 }
 
 function Header({
