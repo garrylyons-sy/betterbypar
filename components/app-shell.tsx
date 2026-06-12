@@ -1925,6 +1925,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
   const [slots, setSlots] = useState<ManagerLineupSlot[]>(defaultLineupSlots);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingGameIds, setPendingGameIds] = useState<Set<string>>(new Set());
   const [pickerTarget, setPickerTarget] = useState<LineupPickerTarget>(null);
   const [openedFixtureId, setOpenedFixtureId] = useState("");
   const dirtyDraftRef = useRef(false);
@@ -2143,7 +2144,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                               ) : null}
                             </div>
                           ) : null}
-                          {matchReady ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} busy={busy} /> : null}
+                          {matchReady ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} pendingGameIds={pendingGameIds} /> : null}
                           {!ownPublished ? (
                             <>
                               <div className="grid gap-2">
@@ -2219,7 +2220,10 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
 
   async function recordGameWinner(gameId: string, winnerTeamId: string) {
     if (!activeTeam.teamId || !payload?.fixture) return;
-    setBusy(true);
+    if (pendingGameIds.has(gameId)) return;
+    const previousPayload = payload;
+    setPendingGameIds((current) => new Set(current).add(gameId));
+    setPayload(applyOptimisticGameWinner(payload, gameId, winnerTeamId));
     setMessage("");
     try {
       const response = await fetch("/api/manager/lineup", {
@@ -2241,9 +2245,14 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
       setMessage("Game result updated.");
       onDataRefresh?.();
     } catch (error) {
+      setPayload(previousPayload);
       setMessage(error instanceof Error ? error.message : "Could not update result.");
     } finally {
-      setBusy(false);
+      setPendingGameIds((current) => {
+        const next = new Set(current);
+        next.delete(gameId);
+        return next;
+      });
     }
   }
 }
@@ -2296,6 +2305,37 @@ function managerLineupSnapshot(payload: Partial<ManagerLineupPayload>) {
       fixture.awayLineupStatus
     ])
   });
+}
+
+function applyOptimisticGameWinner(payload: ManagerLineupPayload, gameId: string, winnerTeamId: string): ManagerLineupPayload {
+  const fixture = payload.fixture;
+  if (!fixture) return payload;
+
+  const games = payload.games.map((game) => (
+    game.id === gameId ? { ...game, winner_team_id: winnerTeamId } : game
+  ));
+  const homeTeamScore = games.reduce((total, game) => total + (game.winner_team_id === fixture.homeTeamId ? game.points_awarded : 0), 0);
+  const awayTeamScore = games.reduce((total, game) => total + (game.winner_team_id === fixture.awayTeamId ? game.points_awarded : 0), 0);
+  const completed = games.length === 6 && games.every((game) => game.winner_team_id);
+
+  return {
+    ...payload,
+    fixture: {
+      ...fixture,
+      status: completed ? "Completed" : fixture.status
+    },
+    games,
+    weekFixtures: payload.weekFixtures.map((weekFixture) => (
+      weekFixture.id === fixture.id
+        ? {
+            ...weekFixture,
+            status: completed ? "Completed" : weekFixture.status,
+            homeTeamScore,
+            awayTeamScore
+          }
+        : weekFixture
+    ))
+  };
 }
 
 function LineupSlotRow({
@@ -2459,7 +2499,7 @@ function PublishedLineupSummary({ title, slots }: { title: string; slots: Manage
   );
 }
 
-function GeneratedMatchCard({ payload, onRecord, busy }: { payload: ManagerLineupPayload; onRecord: (gameId: string, winnerTeamId: string) => void; busy: boolean }) {
+function GeneratedMatchCard({ payload, onRecord, pendingGameIds }: { payload: ManagerLineupPayload; onRecord: (gameId: string, winnerTeamId: string) => void; pendingGameIds: Set<string> }) {
   const games = payload.games;
   const fixture = payload.fixture;
   if (!fixture) return null;
@@ -2474,11 +2514,11 @@ function GeneratedMatchCard({ payload, onRecord, busy }: { payload: ManagerLineu
               Game {game.game_number}: {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""} v {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""} ({game.points_awarded} pts)
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
-              <Button size="sm" disabled={busy} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
-                {fixture.homeTeamName} won
+              <Button size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
+                {pendingGameIds.has(game.id) && game.winner_team_id === fixture.homeTeamId ? "Updating..." : `${fixture.homeTeamName} won`}
               </Button>
-              <Button size="sm" disabled={busy} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
-                {fixture.awayTeamName} won
+              <Button size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
+                {pendingGameIds.has(game.id) && game.winner_team_id === fixture.awayTeamId ? "Updating..." : `${fixture.awayTeamName} won`}
               </Button>
             </div>
           </div>
