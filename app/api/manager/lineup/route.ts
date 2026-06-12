@@ -21,6 +21,15 @@ type LineupSlotInput = {
   player2Id?: string;
 };
 
+type GameBreakRow = {
+  id: string;
+  game_id: string;
+  player_id: string;
+  player_name: string;
+  break_value: number;
+  recorded_at: string;
+};
+
 async function requireTeamManager(teamId: string) {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated.");
@@ -97,6 +106,23 @@ export async function POST(request: NextRequest) {
       await withTransaction(async (client) => {
         await ensureFixtureTeam(client, fixtureId, teamId);
         await recordGameWinner(client, fixtureId, gameId, winnerTeamId);
+      });
+
+      const payload = await loadLineupPayload(teamId, fixtureId);
+      return NextResponse.json({ ok: true, ...payload, canManage: true });
+    }
+
+    if (action === "recordBreak") {
+      const gameId = String(body.gameId ?? "").trim();
+      const playerId = String(body.playerId ?? "").trim();
+      const breakValue = Number(body.breakValue);
+      if (!gameId || !playerId || !Number.isInteger(breakValue) || breakValue < 1 || breakValue > 147) {
+        return NextResponse.json({ error: "Choose a player and enter a break between 1 and 147." }, { status: 400 });
+      }
+
+      await withTransaction(async (client) => {
+        await ensureFixtureTeam(client, fixtureId, teamId);
+        await recordPlayerBreak(client, fixtureId, gameId, playerId, breakValue);
       });
 
       const payload = await loadLineupPayload(teamId, fixtureId);
@@ -273,9 +299,13 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     game_type: "Singles" | "Doubles";
     points_awarded: number;
     winner_team_id: string | null;
+    home_player_1_id: string | null;
     home_player_1_name: string;
+    home_player_2_id: string | null;
     home_player_2_name: string | null;
+    away_player_1_id: string | null;
     away_player_1_name: string;
+    away_player_2_id: string | null;
     away_player_2_name: string | null;
   }>(
     `select
@@ -285,9 +315,13 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
        g.game_type::text as game_type,
        g.points_awarded,
        g.winner_team_id,
+       hp1.id as home_player_1_id,
        concat_ws(' ', hp1.first_name, hp1.last_name) as home_player_1_name,
+       hp2.id as home_player_2_id,
        concat_ws(' ', hp2.first_name, hp2.last_name) as home_player_2_name,
+       ap1.id as away_player_1_id,
        concat_ws(' ', ap1.first_name, ap1.last_name) as away_player_1_name,
+       ap2.id as away_player_2_id,
        concat_ws(' ', ap2.first_name, ap2.last_name) as away_player_2_name
      from public.fixture wf
      join public.match m on m.fixture_id = wf.id
@@ -308,6 +342,30 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
      order by wf.fixture_date, g.game_number`,
     [fixture.fixture_id]
   )).rows;
+  const gameIds = [...games.map((game) => game.id), ...weekGameRows.map((game) => game.id)];
+  const breakRows = gameIds.length ? (await dbQuery<GameBreakRow>(
+    `select
+       b.id,
+       b.game_id,
+       b.player_id,
+       concat_ws(' ', p.first_name, p.last_name) as player_name,
+       b.break_value,
+       b.recorded_at::text
+     from public.break b
+     join public.person p on p.id = b.player_id
+     where b.game_id = any($1::uuid[])
+     order by b.break_value desc, b.recorded_at asc`,
+    [gameIds]
+  )).rows : [];
+  const breaksForGame = (gameId: string) => breakRows
+    .filter((row) => row.game_id === gameId)
+    .map((row) => ({
+      id: row.id,
+      playerId: row.player_id,
+      playerName: row.player_name,
+      breakValue: Number(row.break_value),
+      recordedAt: row.recorded_at
+    }));
   const weekFixtures = weekFixtureRows.map((row) => ({
     id: row.fixture_id,
     fixtureDate: row.fixture_date,
@@ -329,10 +387,15 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
         game_type: game.game_type,
         points_awarded: game.points_awarded,
         winner_team_id: game.winner_team_id,
+        home_player_1_id: game.home_player_1_id,
         home_player_1_name: game.home_player_1_name,
+        home_player_2_id: game.home_player_2_id,
         home_player_2_name: game.home_player_2_name,
+        away_player_1_id: game.away_player_1_id,
         away_player_1_name: game.away_player_1_name,
-        away_player_2_name: game.away_player_2_name
+        away_player_2_id: game.away_player_2_id,
+        away_player_2_name: game.away_player_2_name,
+        breaks: breaksForGame(game.id)
       }))
   }));
 
@@ -352,7 +415,10 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     lineup: own,
     opponentStatus,
     opponentLineup: opponent,
-    games,
+    games: games.map((game) => ({
+      ...game,
+      breaks: breaksForGame(game.id)
+    })),
     weekFixtures,
     canManage: false
   };
@@ -605,4 +671,25 @@ async function recordGameWinner(client: PoolClient, fixtureId: string, gameId: s
   if (Number(completion.rows[0]?.total_games ?? 0) === 6 && Number(completion.rows[0]?.completed_games ?? 0) === 6) {
     await client.query("update public.fixture set status = 'Completed' where id = $1", [fixtureId]);
   }
+}
+
+async function recordPlayerBreak(client: PoolClient, fixtureId: string, gameId: string, playerId: string, breakValue: number) {
+  const result = await client.query<{ game_id: string }>(
+    `select g.id as game_id
+     from public.fixture f
+     join public.match m on m.fixture_id = f.id
+     join public.game g on g.match_id = m.id
+     where f.id = $1
+       and g.id = $2
+       and $3::uuid in (g.home_player_1_id, g.home_player_2_id, g.away_player_1_id, g.away_player_2_id)
+     limit 1`,
+    [fixtureId, gameId, playerId]
+  );
+  if (!result.rowCount) throw new Error("Break player must be one of the players in this game.");
+
+  await client.query(
+    `insert into public.break (game_id, player_id, break_value, source_label)
+     values ($1, $2, $3, 'live-match-entry')`,
+    [gameId, playerId, breakValue]
+  );
 }

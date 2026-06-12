@@ -1914,10 +1914,21 @@ type ManagerLineupGame = {
   game_type: "Singles" | "Doubles";
   points_awarded: number;
   winner_team_id: string | null;
+  home_player_1_id: string | null;
   home_player_1_name: string;
+  home_player_2_id: string | null;
   home_player_2_name: string | null;
+  away_player_1_id: string | null;
   away_player_1_name: string;
+  away_player_2_id: string | null;
   away_player_2_name: string | null;
+  breaks?: Array<{
+    id: string;
+    playerId: string;
+    playerName: string;
+    breakValue: number;
+    recordedAt: string;
+  }>;
 };
 
 type ManagerLineupPayload = {
@@ -1961,6 +1972,11 @@ type LineupPickerTarget = {
   label: string;
 } | null;
 
+type BreakEntryTarget = {
+  game: ManagerLineupGame;
+  fixture: NonNullable<ManagerLineupPayload["fixture"]>;
+} | null;
+
 const defaultLineupSlots: ManagerLineupSlot[] = [
   { slotNumber: 1, gameType: "Singles", label: "Singles 1", player1Id: "", player2Id: "" },
   { slotNumber: 2, gameType: "Singles", label: "Singles 2", player1Id: "", player2Id: "" },
@@ -1976,7 +1992,9 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [pendingGameIds, setPendingGameIds] = useState<Set<string>>(new Set());
+  const [pendingBreak, setPendingBreak] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<LineupPickerTarget>(null);
+  const [breakTarget, setBreakTarget] = useState<BreakEntryTarget>(null);
   const [openedFixtureId, setOpenedFixtureId] = useState("");
   const dirtyDraftRef = useRef(false);
   const fixtureIdRef = useRef("");
@@ -2214,7 +2232,14 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                               ) : null}
                             </div>
                           ) : null}
-                          {isOwnFixture && matchReady ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} pendingGameIds={pendingGameIds} /> : null}
+                          {isOwnFixture && matchReady ? (
+                            <GeneratedMatchCard
+                              payload={payload}
+                              onRecord={recordGameWinner}
+                              onBreak={(game) => setBreakTarget({ game, fixture: payload.fixture! })}
+                              pendingGameIds={pendingGameIds}
+                            />
+                          ) : null}
                           {!isOwnFixture ? <ReadOnlyFixtureDetails fixture={fixture} /> : null}
                           {isOwnFixture && !managedPublished && payload.canManage ? (
                             <>
@@ -2276,6 +2301,14 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                 onClose={() => setPickerTarget(null)}
               />
             ) : null}
+            {breakTarget ? (
+              <BreakEntrySheet
+                target={breakTarget}
+                busy={pendingBreak}
+                onClose={() => setBreakTarget(null)}
+                onSave={(playerId, breakValue) => recordBreak(breakTarget.game.id, playerId, breakValue)}
+              />
+            ) : null}
           </>
         )}
       </CardContent>
@@ -2317,6 +2350,38 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
         next.delete(gameId);
         return next;
       });
+    }
+  }
+
+  async function recordBreak(gameId: string, playerId: string, breakValue: number) {
+    if (!activeTeam.teamId || !payload?.fixture) return;
+    setPendingBreak(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/manager/lineup", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          teamId: activeTeam.teamId,
+          fixtureId: payload.fixture.id,
+          action: "recordBreak",
+          gameId,
+          playerId,
+          breakValue
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not record break.");
+      setPayload(data);
+      setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
+      setBreakTarget(null);
+      setMessage("Break recorded.");
+      onDataRefresh?.();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not record break.");
+    } finally {
+      setPendingBreak(false);
     }
   }
 }
@@ -2607,6 +2672,15 @@ function ReadOnlyFixtureDetails({ fixture }: { fixture: ManagerLineupPayload["we
                   {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}
                 </p>
               </div>
+              {game.breaks?.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {game.breaks.map((item) => (
+                    <span key={item.id} className="rounded-lg bg-white/10 px-2 py-1 text-xs font-extrabold text-white">
+                      {item.playerName} {item.breakValue}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               {!game.winner_team_id ? <p className="text-xs font-semibold text-white/60">Awaiting result</p> : null}
             </div>
           );
@@ -2616,7 +2690,17 @@ function ReadOnlyFixtureDetails({ fixture }: { fixture: ManagerLineupPayload["we
   );
 }
 
-function GeneratedMatchCard({ payload, onRecord, pendingGameIds }: { payload: ManagerLineupPayload; onRecord: (gameId: string, winnerTeamId: string) => void; pendingGameIds: Set<string> }) {
+function GeneratedMatchCard({
+  payload,
+  onRecord,
+  onBreak,
+  pendingGameIds
+}: {
+  payload: ManagerLineupPayload;
+  onRecord: (gameId: string, winnerTeamId: string) => void;
+  onBreak: (game: ManagerLineupGame) => void;
+  pendingGameIds: Set<string>;
+}) {
   const games = payload.games;
   const fixture = payload.fixture;
   if (!fixture) return null;
@@ -2638,8 +2722,113 @@ function GeneratedMatchCard({ payload, onRecord, pendingGameIds }: { payload: Ma
                 {pendingGameIds.has(game.id) && game.winner_team_id === fixture.awayTeamId ? "Updating..." : `${fixture.awayTeamName} won`}
               </Button>
             </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/10 p-2">
+              <div className="min-w-0">
+                <p className="text-xs font-extrabold uppercase text-white/60">Breaks</p>
+                {game.breaks?.length ? (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {game.breaks.map((item) => (
+                      <span key={item.id} className="rounded-lg bg-white/10 px-2 py-1 text-xs font-extrabold text-white">
+                        {item.playerName} {item.breakValue}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs font-semibold text-white/60">None recorded</p>
+                )}
+              </div>
+              <Button size="sm" variant="secondary" onClick={() => onBreak(game)}>
+                <PlusCircle className="h-4 w-4" />
+                Break
+              </Button>
+            </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function gameBreakPlayers(game: ManagerLineupGame) {
+  return [
+    { id: game.home_player_1_id, name: game.home_player_1_name },
+    { id: game.home_player_2_id, name: game.home_player_2_name ?? "" },
+    { id: game.away_player_1_id, name: game.away_player_1_name },
+    { id: game.away_player_2_id, name: game.away_player_2_name ?? "" }
+  ].filter((player): player is { id: string; name: string } => Boolean(player.id && player.name));
+}
+
+function BreakEntrySheet({
+  target,
+  busy,
+  onSave,
+  onClose
+}: {
+  target: NonNullable<BreakEntryTarget>;
+  busy: boolean;
+  onSave: (playerId: string, breakValue: number) => void;
+  onClose: () => void;
+}) {
+  const players = gameBreakPlayers(target.game);
+  const [playerId, setPlayerId] = useState(players[0]?.id ?? "");
+  const [breakValue, setBreakValue] = useState("");
+  const numericBreak = Number(breakValue);
+  const canSave = Boolean(playerId && Number.isInteger(numericBreak) && numericBreak >= 1 && numericBreak <= 147);
+
+  return (
+    <div className="fixed inset-0 z-50 grid items-end bg-[#071426]/50 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label="Record break">
+      <div className="mx-auto grid max-h-[86vh] w-full max-w-lg gap-4 overflow-hidden rounded-2xl bg-white p-4 shadow-elevated">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Record break</p>
+            <h3 className="text-lg font-black text-[#10233f]">Game {target.game.game_number}</h3>
+            <p className="mt-1 text-sm font-bold text-[#6c5a73]">
+              {target.fixture.homeTeamName} v {target.fixture.awayTeamName}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="grid h-10 w-10 place-items-center rounded-lg bg-[#f7f5fa] text-[#10233f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+            onClick={onClose}
+            aria-label="Close break entry"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="grid gap-2">
+          <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Player</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {players.map((player) => (
+              <button
+                key={player.id}
+                type="button"
+                className={cn(
+                  "min-h-11 rounded-lg border px-3 text-left text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]",
+                  player.id === playerId ? "border-[#1b8a72] bg-[#e9f7f3] text-[#10233f]" : "border-[#eeeaf2] bg-white text-[#10233f] hover:bg-[#eef7f5]"
+                )}
+                onClick={() => setPlayerId(player.id)}
+              >
+                {player.name}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="grid gap-2">
+          <span className="text-xs font-extrabold uppercase text-[#6c5a73]">Break value</span>
+          <input
+            type="number"
+            min={1}
+            max={147}
+            inputMode="numeric"
+            value={breakValue}
+            onChange={(event) => setBreakValue(event.target.value)}
+            className="min-h-12 rounded-lg border border-[#d8d3df] bg-white px-3 text-lg font-black text-[#10233f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+            placeholder="e.g. 42"
+          />
+        </label>
+        <Button disabled={!canSave || busy} onClick={() => onSave(playerId, numericBreak)}>
+          {busy ? "Saving..." : "Save break"}
+        </Button>
       </div>
     </div>
   );
