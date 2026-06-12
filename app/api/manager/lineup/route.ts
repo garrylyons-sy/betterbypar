@@ -38,15 +38,31 @@ async function requireTeamManager(teamId: string) {
   return user;
 }
 
+async function requireTeamMember(teamId: string) {
+  const user = await currentUser();
+  if (!user) throw new Error("Not authenticated.");
+  const result = await dbQuery<{ membership_count: string; can_manage: boolean | null }>(
+    `select count(*) as membership_count,
+            bool_or(role in ('Manager', 'Assistant Manager')) as can_manage
+     from public.team_membership
+     where person_id = $1
+       and team_id = $2
+       and active = true`,
+    [user.personId, teamId]
+  );
+  if (Number(result.rows[0]?.membership_count ?? 0) === 0) throw new Error("Team access is required.");
+  return { user, canManage: Boolean(result.rows[0]?.can_manage) };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const teamId = request.nextUrl.searchParams.get("teamId")?.trim();
     const fixtureId = request.nextUrl.searchParams.get("fixtureId")?.trim();
     if (!teamId) return NextResponse.json({ error: "teamId is required." }, { status: 400 });
-    await requireTeamManager(teamId);
+    const { canManage } = await requireTeamMember(teamId);
 
     const payload = await loadLineupPayload(teamId, fixtureId || undefined);
-    return NextResponse.json(payload);
+    return NextResponse.json({ ...payload, canManage });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Lineup unavailable." },
@@ -243,8 +259,12 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
        and wf.fixture_date::date = (
          select fixture_date::date from public.fixture where id = $1
        )
-     order by wf.fixture_date, wht.name, wat.name`,
-    [fixture.fixture_id]
+     order by
+       case when wf.home_team_id = $2 or wf.away_team_id = $2 then 0 else 1 end,
+       wf.fixture_date,
+       wht.name,
+       wat.name`,
+    [fixture.fixture_id, teamId]
   )).rows.map((row) => ({
     id: row.fixture_id,
     fixtureDate: row.fixture_date,
@@ -277,7 +297,8 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     opponentStatus,
     opponentLineup: opponent,
     games,
-    weekFixtures
+    weekFixtures,
+    canManage: false
   };
 }
 

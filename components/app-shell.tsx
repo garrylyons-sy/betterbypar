@@ -1887,6 +1887,7 @@ type ManagerLineupPayload = {
   lineup: { id?: string; status: "Draft" | "Published"; publishedAt?: string | null; slots: ManagerLineupSlot[] } | null;
   opponentStatus: { teamName: string; status: "Draft" | "Published"; publishedAt?: string | null } | null;
   opponentLineup: { teamName: string; status: "Draft" | "Published"; slots: ManagerLineupSlot[] } | null;
+  canManage?: boolean;
   weekFixtures: Array<{
     id: string;
     fixtureDate: string;
@@ -2092,6 +2093,10 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                   const hasScore = bothPublished && fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                   const matchStarted = Boolean(fixture.matchId) || matchReady;
                   const active = fixture.id === openedFixtureId;
+                  const canManageFixture = Boolean(payload.canManage && isOwnFixture);
+                  const actionLabel = canManageFixture
+                    ? active ? "Close" : bothPublished ? "Open match" : "Pick team"
+                    : hasScore ? "View score" : matchStarted ? "View live score" : "View match";
 
                   return (
                     <div
@@ -2128,8 +2133,15 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                           <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={matchStarted ? undefined : fixture.awayLineupStatus} />
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-xs font-bold text-[#6c5a73]">
-                            {isOwnFixture ? active ? "Close" : bothPublished ? "Open match" : "Pick team" : bothPublished ? "Score visible" : "Read only"}
+                          <span className={cn(
+                            "inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-extrabold uppercase tracking-wide",
+                            canManageFixture && !bothPublished
+                              ? "bg-[#1b8a72] text-white"
+                              : isOwnFixture
+                                ? "bg-[#10233f] text-white"
+                                : "bg-[#eeeaf2] text-[#6c5a73]"
+                          )}>
+                            {actionLabel}
                           </span>
                         </div>
                       </button>
@@ -2154,7 +2166,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                             </div>
                           ) : null}
                           {matchReady ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} pendingGameIds={pendingGameIds} /> : null}
-                          {!ownPublished ? (
+                          {!ownPublished && payload.canManage ? (
                             <>
                               <div className="grid gap-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3">
@@ -2185,7 +2197,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                                 </Button>
                               </div>
                             </>
-                          ) : (
+                          ) : ownPublished ? (
                             <div className="rounded-xl bg-[#f7f5fa] p-3">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div>
@@ -2197,7 +2209,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                                 <Badge variant="green">Locked</Badge>
                               </div>
                             </div>
-                          )}
+                          ) : null}
                           {ownPublished ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
                           {payload.opponentLineup ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
                         </div>
