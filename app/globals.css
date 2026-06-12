@@ -100,12 +100,18 @@ body {
   animation: fade-up 0.8s ease-out both;
 }
 
+.live-dot {
+  animation: live-dot-pulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(0, 255, 133, 0.45);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .splash,
   .splash-glow,
   .fixture-line,
   .loading-line,
-  .fade-up {
+  .fade-up,
+  .live-dot {
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
   }
@@ -180,5 +186,20 @@ a.rounded-full {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes live-dot-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 133, 0.45);
+    transform: scale(1);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(0, 255, 133, 0);
+    transform: scale(1.08);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 133, 0);
+    transform: scale(1);
   }
 }
