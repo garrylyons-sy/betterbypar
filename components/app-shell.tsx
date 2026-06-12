@@ -2078,123 +2078,127 @@ function ManagerLineupCard({ activeTeam }: { activeTeam: TeamContext }) {
                   const active = fixture.id === openedFixtureId;
 
                   return (
-                    <button
+                    <div
                       key={fixture.id}
-                      type="button"
-                      onClick={() => isOwnFixture ? setOpenedFixtureId((current) => current === fixture.id ? "" : fixture.id) : undefined}
-                      disabled={!isOwnFixture}
                       className={cn(
-                        "grid gap-2 rounded-lg bg-white p-3 text-left ring-1 ring-[#eeeaf2] transition-colors",
-                        isOwnFixture ? "hover:bg-white" : "cursor-default opacity-90",
+                        "overflow-hidden rounded-lg bg-white ring-1 ring-[#eeeaf2]",
                         active && "ring-2"
                       )}
                       style={active ? { boxShadow: `0 0 0 2px ${activeTeam.primaryColor}22` } : undefined}
                     >
-                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                        <FixtureTeamLabel teamName={fixture.homeTeamName} />
-                        <div className="text-center">
-                          {hasScore ? (
-                            <span className="grid min-w-16 grid-cols-[auto_auto_auto] items-center gap-1 rounded-lg bg-[#10233f] px-2 py-1 text-white">
-                              <span className="font-black">{fixture.homeTeamScore}</span>
-                              <span className="text-xs font-bold text-white/60">-</span>
-                              <span className="font-black">{fixture.awayTeamScore}</span>
-                            </span>
+                      <button
+                        type="button"
+                        onClick={() => isOwnFixture ? setOpenedFixtureId((current) => current === fixture.id ? "" : fixture.id) : undefined}
+                        disabled={!isOwnFixture}
+                        aria-expanded={active}
+                        className={cn(
+                          "grid w-full gap-2 p-3 text-left transition-colors",
+                          isOwnFixture ? "hover:bg-[#f7f5fa]" : "cursor-default opacity-90"
+                        )}
+                      >
+                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                          <FixtureTeamLabel teamName={fixture.homeTeamName} />
+                          <div className="text-center">
+                            {hasScore ? (
+                              <span className="grid min-w-16 grid-cols-[auto_auto_auto] items-center gap-1 rounded-lg bg-[#10233f] px-2 py-1 text-white">
+                                <span className="font-black">{fixture.homeTeamScore}</span>
+                                <span className="text-xs font-bold text-white/60">-</span>
+                                <span className="font-black">{fixture.awayTeamScore}</span>
+                              </span>
+                            ) : (
+                              <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
+                            )}
+                          </div>
+                          <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" />
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex min-w-0 flex-wrap gap-1.5">
+                            <Badge variant={lineupStatusVariant(fixture.homeLineupStatus)}>{fixture.homeTeamName}: {lineupStatusLabel(fixture.homeLineupStatus)}</Badge>
+                            <Badge variant={lineupStatusVariant(fixture.awayLineupStatus)}>{fixture.awayTeamName}: {lineupStatusLabel(fixture.awayLineupStatus)}</Badge>
+                          </div>
+                          <span className="text-xs font-bold text-[#6c5a73]">
+                            {isOwnFixture ? active ? "Close" : bothPublished ? "Open match" : "Pick team" : bothPublished ? "Score visible" : "Read only"}
+                          </span>
+                        </div>
+                      </button>
+                      {active && isOwnFixture ? (
+                        <div className="grid gap-3 border-t border-[#eeeaf2] bg-white p-3">
+                          {payload.opponentStatus ? (
+                            <div className="rounded-xl bg-[#f7f5fa] p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Opponent lineup</p>
+                                  <p className="text-sm font-bold text-[#10233f]">
+                                    {payload.opponentStatus.teamName} {opponentHasPublished ? "has published" : "is still drafting"}
+                                  </p>
+                                </div>
+                                <Badge variant={opponentHasPublished ? "green" : "muted"}>{payload.opponentStatus.status}</Badge>
+                              </div>
+                              {opponentHasPublished && !canSeeOpponentLineup ? (
+                                <p className="mt-2 text-xs font-semibold text-[#6c5a73]">
+                                  Their player names unlock once you publish your lineup.
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          {matchReady ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} busy={busy} /> : null}
+                          {!ownPublished ? (
+                            <>
+                              <div className="grid gap-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3">
+                                  <div>
+                                    <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Team sheet</p>
+                                    <p className="text-sm font-bold text-[#10233f]">
+                                      Tap a slot to pick a player. Singles can be moved up or down.
+                                    </p>
+                                  </div>
+                                  <Badge variant="muted">{selectedCount}/7 picked</Badge>
+                                </div>
+                                {slots.map((slot) => (
+                                  <LineupSlotRow
+                                    key={slot.slotNumber}
+                                    slot={slot}
+                                    players={playerOptions}
+                                    canMoveUp={slot.gameType === "Singles" && slots.filter((item) => item.gameType === "Singles").findIndex((item) => item.slotNumber === slot.slotNumber) > 0}
+                                    canMoveDown={slot.gameType === "Singles" && slots.filter((item) => item.gameType === "Singles").findIndex((item) => item.slotNumber === slot.slotNumber) < slots.filter((item) => item.gameType === "Singles").length - 1}
+                                    onPick={(key, label) => setPickerTarget({ slotNumber: slot.slotNumber, key, label })}
+                                    onClear={(key) => updateSlot(slot.slotNumber, key, "")}
+                                    onMove={moveSinglesPlayer}
+                                  />
+                                ))}
+                              </div>
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <Button variant="secondary" onClick={() => submitLineup("save")} disabled={busy}>
+                                  Save draft
+                                </Button>
+                                <Button onClick={() => submitLineup("publish")} disabled={busy}>
+                                  Publish lineup
+                                </Button>
+                              </div>
+                            </>
                           ) : (
-                            <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
+                            <div className="rounded-xl bg-[#f7f5fa] p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Your lineup</p>
+                                  <p className="text-sm font-bold text-[#10233f]">
+                                    Published and locked{matchReady ? ". Match card is ready." : ". Waiting for the opponent."}
+                                  </p>
+                                </div>
+                                <Badge variant="green">Locked</Badge>
+                              </div>
+                            </div>
                           )}
+                          {ownPublished ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
+                          {payload.opponentLineup ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
                         </div>
-                        <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" />
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex min-w-0 flex-wrap gap-1.5">
-                          <Badge variant={lineupStatusVariant(fixture.homeLineupStatus)}>{fixture.homeTeamName}: {lineupStatusLabel(fixture.homeLineupStatus)}</Badge>
-                          <Badge variant={lineupStatusVariant(fixture.awayLineupStatus)}>{fixture.awayTeamName}: {lineupStatusLabel(fixture.awayLineupStatus)}</Badge>
-                        </div>
-                        <span className="text-xs font-bold text-[#6c5a73]">
-                          {isOwnFixture ? active ? "Close" : bothPublished ? "Open match" : "Pick team" : bothPublished ? "Score visible" : "Read only"}
-                        </span>
-                      </div>
-                    </button>
+                      ) : null}
+                    </div>
                   );
                 })}
               </div>
             </div>
-            {fixtureOpen && payload.opponentStatus ? (
-              <div className="rounded-xl bg-[#f7f5fa] p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Opponent lineup</p>
-                    <p className="text-sm font-bold text-[#10233f]">
-                      {payload.opponentStatus.teamName} {opponentHasPublished ? "has published" : "is still drafting"}
-                    </p>
-                  </div>
-                  <Badge variant={opponentHasPublished ? "green" : "muted"}>{payload.opponentStatus.status}</Badge>
-                </div>
-                {opponentHasPublished && !canSeeOpponentLineup ? (
-                  <p className="mt-2 text-xs font-semibold text-[#6c5a73]">
-                    Their player names unlock once you publish your lineup.
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-            {fixtureOpen ? (
-              <div className="rounded-xl bg-[#10233f] p-4 text-white">
-                <p className="text-xs font-extrabold uppercase text-white/60">Your next match</p>
-                <p className="mt-1 text-lg font-black">{activeTeam.name} v {opponentName}</p>
-                <p className="text-sm font-bold text-white/70">{formatFixtureDate(payload.fixture.fixtureDate)}</p>
-              </div>
-            ) : null}
-            {fixtureOpen && matchReady ? <GeneratedMatchCard payload={payload} onRecord={recordGameWinner} busy={busy} /> : null}
-            {fixtureOpen && !ownPublished ? (
-              <>
-                <div className="grid gap-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3">
-                    <div>
-                      <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Team sheet</p>
-                      <p className="text-sm font-bold text-[#10233f]">
-                        Tap a slot to pick a player. Singles can be moved up or down.
-                      </p>
-                    </div>
-                    <Badge variant="muted">{selectedCount}/7 picked</Badge>
-                  </div>
-                  {slots.map((slot) => (
-                    <LineupSlotRow
-                      key={slot.slotNumber}
-                      slot={slot}
-                      players={playerOptions}
-                      canMoveUp={slot.gameType === "Singles" && slots.filter((item) => item.gameType === "Singles").findIndex((item) => item.slotNumber === slot.slotNumber) > 0}
-                      canMoveDown={slot.gameType === "Singles" && slots.filter((item) => item.gameType === "Singles").findIndex((item) => item.slotNumber === slot.slotNumber) < slots.filter((item) => item.gameType === "Singles").length - 1}
-                      onPick={(key, label) => setPickerTarget({ slotNumber: slot.slotNumber, key, label })}
-                      onClear={(key) => updateSlot(slot.slotNumber, key, "")}
-                      onMove={moveSinglesPlayer}
-                    />
-                  ))}
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button variant="secondary" onClick={() => submitLineup("save")} disabled={busy}>
-                    Save draft
-                  </Button>
-                  <Button onClick={() => submitLineup("publish")} disabled={busy}>
-                    Publish lineup
-                  </Button>
-                </div>
-              </>
-            ) : fixtureOpen ? (
-              <div className="rounded-xl bg-[#f7f5fa] p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Your lineup</p>
-                    <p className="text-sm font-bold text-[#10233f]">
-                      Published and locked{matchReady ? ". Match card is ready." : ". Waiting for the opponent."}
-                    </p>
-                  </div>
-                  <Badge variant="green">Locked</Badge>
-                </div>
-              </div>
-            ) : null}
             {message ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">{message}</p> : null}
-            {fixtureOpen && ownPublished ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
-            {fixtureOpen && payload.opponentLineup ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
             {fixtureOpen && pickerTarget ? (
               <PlayerPickerSheet
                 target={pickerTarget}
