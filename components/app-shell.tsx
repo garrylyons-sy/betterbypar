@@ -1978,21 +1978,6 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
     setSlots((current) => current.map((slot) => slot.slotNumber === slotNumber ? { ...slot, [key]: value } : slot));
   }
 
-  function moveSinglesPlayer(slotNumber: number, direction: -1 | 1) {
-    dirtyDraftRef.current = true;
-    setSlots((current) => {
-      const singlesSlots = current.filter((slot) => slot.gameType === "Singles");
-      const fromIndex = singlesSlots.findIndex((slot) => slot.slotNumber === slotNumber);
-      const toSlot = singlesSlots[fromIndex + direction];
-      if (!toSlot) return current;
-      return current.map((slot) => {
-        if (slot.slotNumber === slotNumber) return { ...slot, player1Id: toSlot.player1Id };
-        if (slot.slotNumber === toSlot.slotNumber) return { ...slot, player1Id: current.find((item) => item.slotNumber === slotNumber)?.player1Id ?? "" };
-        return slot;
-      });
-    });
-  }
-
   function selectedPlayerIdsExcept(slotNumber?: number, key?: "player1Id" | "player2Id") {
     return new Set(
       slots.flatMap((slot) => {
@@ -2159,7 +2144,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                                   <div>
                                     <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Team sheet</p>
                                     <p className="text-sm font-bold text-[#10233f]">
-                                      Tap a slot to pick a player. Singles can be moved up or down.
+                                      Tap each slot to pick a player for the fixed match order.
                                     </p>
                                   </div>
                                   <Badge variant="muted">{selectedCount}/7 picked</Badge>
@@ -2169,11 +2154,8 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
                                     key={slot.slotNumber}
                                     slot={slot}
                                     players={playerOptions}
-                                    canMoveUp={slot.gameType === "Singles" && slots.filter((item) => item.gameType === "Singles").findIndex((item) => item.slotNumber === slot.slotNumber) > 0}
-                                    canMoveDown={slot.gameType === "Singles" && slots.filter((item) => item.gameType === "Singles").findIndex((item) => item.slotNumber === slot.slotNumber) < slots.filter((item) => item.gameType === "Singles").length - 1}
                                     onPick={(key, label) => setPickerTarget({ slotNumber: slot.slotNumber, key, label })}
                                     onClear={(key) => updateSlot(slot.slotNumber, key, "")}
-                                    onMove={moveSinglesPlayer}
                                   />
                                 ))}
                               </div>
@@ -2291,19 +2273,13 @@ function lineupStatusVariant(status: "Draft" | "Published" | null): "green" | "c
 function LineupSlotRow({
   slot,
   players,
-  canMoveUp,
-  canMoveDown,
   onPick,
-  onClear,
-  onMove
+  onClear
 }: {
   slot: ManagerLineupSlot;
   players: Array<{ id: string; name: string }>;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
   onPick: (key: "player1Id" | "player2Id", label: string) => void;
   onClear: (key: "player1Id" | "player2Id") => void;
-  onMove: (slotNumber: number, direction: -1 | 1) => void;
 }) {
   const playerName = (playerId: string) => players.find((player) => player.id === playerId)?.name ?? "";
 
@@ -2332,16 +2308,6 @@ function LineupSlotRow({
           />
         ) : null}
       </div>
-      {slot.gameType === "Singles" ? (
-        <div className="grid grid-cols-2 gap-2">
-          <Button variant="secondary" size="sm" onClick={() => onMove(slot.slotNumber, -1)} disabled={!canMoveUp}>
-            Move up
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => onMove(slot.slotNumber, 1)} disabled={!canMoveDown}>
-            Move down
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }
