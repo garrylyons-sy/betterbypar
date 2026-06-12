@@ -41,10 +41,11 @@ async function requireTeamManager(teamId: string) {
 export async function GET(request: NextRequest) {
   try {
     const teamId = request.nextUrl.searchParams.get("teamId")?.trim();
+    const fixtureId = request.nextUrl.searchParams.get("fixtureId")?.trim();
     if (!teamId) return NextResponse.json({ error: "teamId is required." }, { status: 400 });
     await requireTeamManager(teamId);
 
-    const payload = await loadLineupPayload(teamId);
+    const payload = await loadLineupPayload(teamId, fixtureId || undefined);
     return NextResponse.json(payload);
   } catch (error) {
     return NextResponse.json(
@@ -158,7 +159,7 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
   )).rows.map((row) => ({ id: row.person_id, name: row.player_name }));
 
   if (!fixture) {
-    return { fixture: null, players, lineup: null, opponentStatus: null, opponentLineup: null, games: [] };
+    return { fixture: null, players, lineup: null, opponentStatus: null, opponentLineup: null, games: [], weekFixtures: [] };
   }
 
   const lineupRows = (await dbQuery<LineupRow>(
@@ -200,6 +201,64 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
      order by g.game_number`,
     [fixture.fixture_id]
   )).rows;
+  const weekFixtures = (await dbQuery<{
+    fixture_id: string;
+    fixture_date: string;
+    home_team_id: string;
+    away_team_id: string;
+    home_team_name: string;
+    away_team_name: string;
+    status: "Scheduled" | "Completed";
+    match_id: string | null;
+    home_team_score: number | null;
+    away_team_score: number | null;
+    home_lineup_status: "Draft" | "Published" | null;
+    away_lineup_status: "Draft" | "Published" | null;
+  }>(
+    `select
+       wf.id as fixture_id,
+       wf.fixture_date,
+       wf.home_team_id,
+       wf.away_team_id,
+       wht.name as home_team_name,
+       wat.name as away_team_name,
+       wf.status::text as status,
+       m.id as match_id,
+       m.home_team_score,
+       m.away_team_score,
+       hfl.status as home_lineup_status,
+       afl.status as away_lineup_status
+     from public.fixture wf
+     join public.team wht on wht.id = wf.home_team_id
+     join public.team wat on wat.id = wf.away_team_id
+     left join public.match m on m.fixture_id = wf.id
+     left join public.fixture_lineup hfl on hfl.fixture_id = wf.id and hfl.team_id = wf.home_team_id
+     left join public.fixture_lineup afl on afl.fixture_id = wf.id and afl.team_id = wf.away_team_id
+     where wf.season_id = (
+         select season_id from public.fixture where id = $1
+       )
+       and wf.league_id = (
+         select league_id from public.fixture where id = $1
+       )
+       and wf.fixture_date::date = (
+         select fixture_date::date from public.fixture where id = $1
+       )
+     order by wf.fixture_date, wht.name, wat.name`,
+    [fixture.fixture_id]
+  )).rows.map((row) => ({
+    id: row.fixture_id,
+    fixtureDate: row.fixture_date,
+    homeTeamId: row.home_team_id,
+    awayTeamId: row.away_team_id,
+    homeTeamName: row.home_team_name,
+    awayTeamName: row.away_team_name,
+    status: row.status,
+    matchId: row.match_id,
+    homeTeamScore: row.home_team_score === null ? null : Number(row.home_team_score),
+    awayTeamScore: row.away_team_score === null ? null : Number(row.away_team_score),
+    homeLineupStatus: row.home_lineup_status,
+    awayLineupStatus: row.away_lineup_status
+  }));
 
   return {
     fixture: {
@@ -217,7 +276,8 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     lineup: own,
     opponentStatus,
     opponentLineup: opponent,
-    games
+    games,
+    weekFixtures
   };
 }
 
