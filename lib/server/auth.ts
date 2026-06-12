@@ -678,6 +678,7 @@ export async function loadSessionPayload(user: AppUser) {
     game_number: number | null;
     game_ordinal: number | null;
     is_doubles_partner_row: boolean;
+    source_key: string;
   }>(
     `select
        game_id,
@@ -695,9 +696,12 @@ export async function loadSessionPayload(user: AppUser) {
        away_team_score,
        game_number,
        game_ordinal,
-       is_doubles_partner_row
+       is_doubles_partner_row,
+       source_key
      from public.player_game_result_view
-     where player_1_id = $1 or player_2_id = $1
+     where
+       (source_key like 'live-%' and player_1_id = $1)
+       or (source_key not like 'live-%' and (player_1_id = $1 or player_2_id = $1))
      order by source_fixture_index desc, game_ordinal
      limit 120`,
     [user.personId]
