@@ -32,6 +32,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
+type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
 const RECENT_FORM_LIMIT = 3;
 const SIMULATION_CONTROLS_ENABLED = false;
@@ -108,6 +109,10 @@ export function AppShell({
   const [activePage, setActivePage] = useState<AppPage>("Home");
   const [simulatedRole, setSimulatedRole] = useState<Role>(contexts[0]?.role ?? teamContexts[0].role);
   const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
+  const [teamSummaryOverrides, setTeamSummaryOverrides] = useState<Record<string, TeamSummaryUpdate>>({});
+  useEffect(() => {
+    setTeamSummaryOverrides({});
+  }, [contexts]);
   const seasonContexts = useMemo(
     () => contexts.filter((context) => context.season === selectedSeason),
     [contexts, selectedSeason]
@@ -154,9 +159,22 @@ export function AppShell({
     setSimulatedClub(realActiveTeam.club);
   }, [realActiveTeam.id, realActiveTeam.role, realActiveTeam.club]);
 
-  const activeTeam = SIMULATION_CONTROLS_ENABLED
+  const activeTeamBase = SIMULATION_CONTROLS_ENABLED
     ? buildSimulatedContext(realActiveTeam, simulatedRole, simulatedClub, standingsData)
     : realActiveTeam;
+  const activeTeam = {
+    ...activeTeamBase,
+    ...(activeTeamBase.teamId ? teamSummaryOverrides[activeTeamBase.teamId] : undefined)
+  };
+  const updateTeamSummary = (teamId: string, summary: TeamSummaryUpdate) => {
+    setTeamSummaryOverrides((current) => ({
+      ...current,
+      [teamId]: {
+        ...current[teamId],
+        ...summary
+      }
+    }));
+  };
   const appearanceConfig = useMemo(() => normalizeAppearanceConfig(appearance ?? defaultAppearanceConfig), [appearance]);
   const activeAppearance = appearanceConfig[activeTeam.role] ?? defaultAppearanceConfig[activeTeam.role];
   const activeStandings = useMemo(() => {
@@ -221,6 +239,7 @@ export function AppShell({
             onSignOut={onSignOut}
             userLabel={userLabel}
             onDataRefresh={onDataRefresh}
+            onTeamSummaryUpdate={updateTeamSummary}
           />
         </div>
         {showLeaguePanels ? (
@@ -275,7 +294,8 @@ function PageContent({
   onNavigate,
   onSignOut,
   userLabel,
-  onDataRefresh
+  onDataRefresh,
+  onTeamSummaryUpdate
 }: {
   activePage: AppPage;
   activeTeam: TeamContext;
@@ -289,6 +309,7 @@ function PageContent({
   onSignOut?: () => void;
   userLabel?: string;
   onDataRefresh?: () => void;
+  onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   const leagueTeamCount = standingsData.length;
 
@@ -301,7 +322,7 @@ function PageContent({
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} />;
-  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} />;
+  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
@@ -1423,9 +1444,25 @@ function MoreMenu({
   );
 }
 
-function ManagerHome({ activeTeam, matchResults, onNavigate, leagueTeamCount, panels, onDataRefresh }: { activeTeam: TeamContext; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number; panels: AppearancePanelId[]; onDataRefresh?: () => void }) {
+function ManagerHome({
+  activeTeam,
+  matchResults,
+  onNavigate,
+  leagueTeamCount,
+  panels,
+  onDataRefresh,
+  onTeamSummaryUpdate
+}: {
+  activeTeam: TeamContext;
+  matchResults: MatchResult[];
+  onNavigate: (page: AppPage) => void;
+  leagueTeamCount: number;
+  panels: AppearancePanelId[];
+  onDataRefresh?: () => void;
+  onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
+}) {
   const renderPanel = (panel: AppearancePanelId) => {
-    if (panel === "matchPlanning") return <MatchPlanningCard key={panel} activeTeam={activeTeam} onDataRefresh={onDataRefresh} />;
+    if (panel === "matchPlanning") return <MatchPlanningCard key={panel} activeTeam={activeTeam} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
     if (panel === "managerActions") return <ManagerActionCard key={panel} activeTeam={activeTeam} />;
     if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="Review season" leagueTeamCount={leagueTeamCount} />;
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
@@ -1444,8 +1481,8 @@ function ManagerHome({ activeTeam, matchResults, onNavigate, leagueTeamCount, pa
   );
 }
 
-function MatchPlanningCard({ activeTeam, onDataRefresh }: { activeTeam: TeamContext; onDataRefresh?: () => void }) {
-  return <ManagerLineupCard activeTeam={activeTeam} onDataRefresh={onDataRefresh} />;
+function MatchPlanningCard({ activeTeam, onDataRefresh, onTeamSummaryUpdate }: { activeTeam: TeamContext; onDataRefresh?: () => void; onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void }) {
+  return <ManagerLineupCard activeTeam={activeTeam} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
 }
 
 function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panels }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number; panels: AppearancePanelId[] }) {
@@ -1986,7 +2023,15 @@ const defaultLineupSlots: ManagerLineupSlot[] = [
   { slotNumber: 6, gameType: "Singles", label: "Singles 6", player1Id: "", player2Id: "" }
 ];
 
-function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamContext; onDataRefresh?: () => void }) {
+function ManagerLineupCard({
+  activeTeam,
+  onDataRefresh,
+  onTeamSummaryUpdate
+}: {
+  activeTeam: TeamContext;
+  onDataRefresh?: () => void;
+  onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
+}) {
   const [payload, setPayload] = useState<ManagerLineupPayload | null>(null);
   const [slots, setSlots] = useState<ManagerLineupSlot[]>(defaultLineupSlots);
   const [message, setMessage] = useState("");
@@ -2319,8 +2364,19 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
     if (!activeTeam.teamId || !payload?.fixture) return;
     if (pendingGameIds.has(gameId)) return;
     const previousPayload = payload;
+    const nextPayload = applyOptimisticGameWinner(payload, gameId, winnerTeamId);
+    const previousTeamSummary: TeamSummaryUpdate = {
+      leagueMatchesPlayed: activeTeam.leagueMatchesPlayed,
+      matchesWon: activeTeam.matchesWon,
+      matchesLost: activeTeam.matchesLost,
+      pointsFor: activeTeam.pointsFor,
+      pointsAgainst: activeTeam.pointsAgainst,
+      leaguePoints: activeTeam.leaguePoints
+    };
     setPendingGameIds((current) => new Set(current).add(gameId));
-    setPayload(applyOptimisticGameWinner(payload, gameId, winnerTeamId));
+    setPayload(nextPayload);
+    const summaryUpdate = liveSummaryFromGameChange(activeTeam, previousPayload, nextPayload);
+    if (summaryUpdate && activeTeam.teamId) onTeamSummaryUpdate?.(activeTeam.teamId, summaryUpdate);
     setMessage("");
     try {
       const response = await fetch("/api/manager/lineup", {
@@ -2343,6 +2399,7 @@ function ManagerLineupCard({ activeTeam, onDataRefresh }: { activeTeam: TeamCont
       onDataRefresh?.();
     } catch (error) {
       setPayload(previousPayload);
+      if (activeTeam.teamId) onTeamSummaryUpdate?.(activeTeam.teamId, previousTeamSummary);
       setMessage(error instanceof Error ? error.message : "Could not update result.");
     } finally {
       setPendingGameIds((current) => {
@@ -2467,6 +2524,54 @@ function applyOptimisticGameWinner(payload: ManagerLineupPayload, gameId: string
           }
         : weekFixture
     ))
+  };
+}
+
+function fixtureScoreForTeam(payload: ManagerLineupPayload, teamId: string) {
+  const fixture = payload.fixture;
+  if (!fixture) return { pointsFor: 0, pointsAgainst: 0 };
+
+  return payload.games.reduce((score, game) => {
+    if (game.winner_team_id === fixture.homeTeamId) {
+      return {
+        pointsFor: score.pointsFor + (teamId === fixture.homeTeamId ? game.points_awarded : 0),
+        pointsAgainst: score.pointsAgainst + (teamId === fixture.awayTeamId ? game.points_awarded : 0)
+      };
+    }
+    if (game.winner_team_id === fixture.awayTeamId) {
+      return {
+        pointsFor: score.pointsFor + (teamId === fixture.awayTeamId ? game.points_awarded : 0),
+        pointsAgainst: score.pointsAgainst + (teamId === fixture.homeTeamId ? game.points_awarded : 0)
+      };
+    }
+    return score;
+  }, { pointsFor: 0, pointsAgainst: 0 });
+}
+
+function fixtureIsComplete(payload: ManagerLineupPayload) {
+  return payload.games.length === 6 && payload.games.every((game) => game.winner_team_id);
+}
+
+function liveSummaryFromGameChange(activeTeam: TeamContext, previousPayload: ManagerLineupPayload, nextPayload: ManagerLineupPayload): TeamSummaryUpdate | null {
+  if (!activeTeam.teamId || !nextPayload.fixture) return null;
+
+  const previousScore = fixtureScoreForTeam(previousPayload, activeTeam.teamId);
+  const nextScore = fixtureScoreForTeam(nextPayload, activeTeam.teamId);
+  const pointsFor = (activeTeam.pointsFor ?? 0) + nextScore.pointsFor - previousScore.pointsFor;
+  const pointsAgainst = (activeTeam.pointsAgainst ?? 0) + nextScore.pointsAgainst - previousScore.pointsAgainst;
+  const previousComplete = fixtureIsComplete(previousPayload);
+  const nextComplete = fixtureIsComplete(nextPayload);
+  const completedNow = !previousComplete && nextComplete;
+  const teamWon = nextScore.pointsFor > nextScore.pointsAgainst;
+  const teamLost = nextScore.pointsFor < nextScore.pointsAgainst;
+
+  return {
+    pointsFor,
+    pointsAgainst,
+    leaguePoints: pointsFor,
+    leagueMatchesPlayed: (activeTeam.leagueMatchesPlayed ?? 0) + (completedNow ? 1 : 0),
+    matchesWon: (activeTeam.matchesWon ?? 0) + (completedNow && teamWon ? 1 : 0),
+    matchesLost: (activeTeam.matchesLost ?? 0) + (completedNow && teamLost ? 1 : 0)
   };
 }
 
