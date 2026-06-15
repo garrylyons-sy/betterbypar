@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
+type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Competitions" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
 const RECENT_FORM_LIMIT = 3;
@@ -45,6 +45,7 @@ const menuIconMap: Record<AppearanceMenuId | "Menu", typeof Home> = {
   Results: ClipboardCheck,
   Table: Trophy,
   Bookings: CalendarPlus,
+  Competitions: Trophy,
   Players: Users,
   Stats: BarChart3,
   Messages: Mail,
@@ -314,6 +315,7 @@ function PageContent({
   const leagueTeamCount = standingsData.length;
 
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
+  if (activePage === "Competitions") return <CompetitionsPage activeTeam={activeTeam} />;
   if (activePage === "Fixtures") return <FixturesPage activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} />;
   if (activePage === "Results") return <ResultsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} />;
   if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} standingsData={standingsData} matchResults={matchResults} />;
@@ -323,7 +325,7 @@ function PageContent({
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
-  if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
+  if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onNavigate={onNavigate} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
 }
@@ -785,6 +787,11 @@ function formatFixtureDate(date: string) {
   }).format(new Date(date));
 }
 
+function formatSignedNumber(value: number) {
+  const rounded = Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
+  return value > 0 ? `+${rounded}` : rounded;
+}
+
 function ordinal(value: number) {
   const lastTwo = value % 100;
   if (lastTwo >= 11 && lastTwo <= 13) return `${value}th`;
@@ -1129,6 +1136,355 @@ function BookingsSkeleton() {
   );
 }
 
+type CompetitionSummary = {
+  id: string;
+  clubId: string | null;
+  clubName: string;
+  name: string;
+  competitionType: "Handicap" | "Scratch";
+  entryClosesAt: string;
+  rules: string;
+  status: string;
+  entrantCount: number;
+  isEntered: boolean;
+  canManage: boolean;
+};
+
+type CompetitionDetail = CompetitionSummary & {
+  rounds: Array<{ id: string; roundNumber: number; name: string; framesToPlay: number; playByDate: string }>;
+  entries: Array<{ id: string; clubMembershipId: string; personId: string; playerName: string; handicap: number | null; status: string }>;
+  matches: Array<{
+    id: string;
+    roundName: string;
+    roundNumber: number;
+    framesToPlay: number;
+    playByDate: string;
+    matchNumber: number;
+    player1Name: string;
+    player2Name: string;
+    player1Score: number | null;
+    player2Score: number | null;
+    status: string;
+    canReport: boolean;
+  }>;
+};
+
+type CompetitionMembership = {
+  club_membership_id: string;
+  club_id: string;
+  club_name: string;
+  handicap: string | null;
+};
+
+type ManageableClub = {
+  club_id: string;
+  club_name: string;
+};
+
+function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamContext; mode: "open" | "mine" | "draws" | "admin"; onNavigate: (page: AppPage) => void }) {
+  const [competitions, setCompetitions] = useState<CompetitionSummary[]>([]);
+  const [manageableClubs, setManageableClubs] = useState<ManageableClub[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/competitions", { credentials: "same-origin" })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!active) return;
+        setCompetitions(data.competitions ?? []);
+        setManageableClubs(data.manageableClubs ?? []);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const clubCompetitions = competitions.filter((competition) => competition.clubName === activeTeam.club || competition.canManage);
+  const visible = mode === "mine"
+    ? clubCompetitions.filter((competition) => competition.isEntered)
+    : mode === "draws"
+      ? clubCompetitions.filter((competition) => competition.status !== "Open" && competition.status !== "Draft")
+      : mode === "admin"
+        ? clubCompetitions.filter((competition) => competition.canManage)
+        : clubCompetitions.filter((competition) => competition.status === "Open");
+  const title = mode === "mine" ? "My Competition Matches" : mode === "draws" ? "Competition Draws" : mode === "admin" ? "Competition Admin" : "Open Competitions";
+  const badge = mode === "admin" ? `${manageableClubs.length} clubs` : `${visible.length}`;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <Badge variant={mode === "admin" && manageableClubs.length ? "green" : "muted"}>{loading ? "Loading" : badge}</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {(visible.length ? visible.slice(0, 3) : []).map((competition) => (
+          <button key={competition.id} type="button" onClick={() => onNavigate("Competitions")} className="rounded-xl bg-[#f7f5fa] p-3 text-left ring-1 ring-[#eeeaf2]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-black text-[#10233f]">{competition.name}</p>
+                <p className="text-xs font-bold text-[#6c5a73]">{competition.clubName} - {competition.competitionType}</p>
+              </div>
+              <Badge variant={competition.isEntered ? "green" : "cyan"}>{competition.status}</Badge>
+            </div>
+          </button>
+        ))}
+        {!visible.length ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            {loading ? "Loading competitions..." : mode === "admin" ? "No club-admin competitions need attention." : "No competitions to show yet."}
+          </p>
+        ) : null}
+        <Button variant="dark" className="w-full" onClick={() => onNavigate("Competitions")}>
+          <Trophy className="h-4 w-4" />
+          Open competitions
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
+  const [competitions, setCompetitions] = useState<CompetitionSummary[]>([]);
+  const [memberships, setMemberships] = useState<CompetitionMembership[]>([]);
+  const [manageableClubs, setManageableClubs] = useState<ManageableClub[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [detail, setDetail] = useState<CompetitionDetail | null>(null);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState("");
+  const [competitionType, setCompetitionType] = useState<"Handicap" | "Scratch">("Handicap");
+  const [entryClosesAt, setEntryClosesAt] = useState("");
+  const [rules, setRules] = useState("");
+  const [framesToPlay, setFramesToPlay] = useState("1");
+  const [playByDate, setPlayByDate] = useState("");
+
+  async function loadCompetitions(nextSelectedId = selectedId) {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/competitions", { credentials: "same-origin" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Competitions unavailable.");
+      setCompetitions(data.competitions ?? []);
+      setMemberships(data.memberships ?? []);
+      setManageableClubs(data.manageableClubs ?? []);
+      const nextId = nextSelectedId || data.competitions?.[0]?.id || "";
+      setSelectedId(nextId);
+      if (nextId) await loadDetail(nextId);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Competitions unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadDetail(competitionId: string) {
+    const response = await fetch(`/api/competitions/${competitionId}`, { credentials: "same-origin" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Competition unavailable.");
+    setDetail(data.competition);
+  }
+
+  useEffect(() => {
+    loadCompetitions();
+  }, []);
+
+  async function createCompetition() {
+    const club = manageableClubs.find((item) => item.club_name === activeTeam.club) ?? manageableClubs[0];
+    if (!club) {
+      setMessage("Club admin access is required to create competitions.");
+      return;
+    }
+    try {
+      const response = await fetch("/api/competitions", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clubId: club.club_id,
+          name,
+          competitionType,
+          entryClosesAt,
+          rules,
+          rounds: [
+            { name: "Round 1", framesToPlay: Number(framesToPlay || 1), playByDate: playByDate || entryClosesAt },
+            { name: "Semi Final", framesToPlay: Number(framesToPlay || 1), playByDate: playByDate || entryClosesAt },
+            { name: "Final", framesToPlay: Number(framesToPlay || 1), playByDate: playByDate || entryClosesAt }
+          ]
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not create competition.");
+      setName("");
+      setRules("");
+      setMessage("Competition created.");
+      await loadCompetitions(data.competitionId);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not create competition.");
+    }
+  }
+
+  async function competitionAction(path: string, body: Record<string, unknown> = {}) {
+    if (!selectedId) return;
+    try {
+      const response = await fetch(`/api/competitions/${selectedId}${path}`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not update competition.");
+      setDetail(data.competition);
+      await loadCompetitions(selectedId);
+      setMessage("Competition updated.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update competition.");
+    }
+  }
+
+  const activeMembership = memberships.find((membership) => membership.club_name === detail?.clubName) ?? memberships[0];
+  const canCreate = manageableClubs.length > 0;
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Competitions</CardTitle>
+            <Badge variant="cyan">{loading ? "Loading" : `${competitions.length}`}</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {message ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">{message}</p> : null}
+            {competitions.map((competition) => (
+              <button
+                key={competition.id}
+                onClick={async () => {
+                  setSelectedId(competition.id);
+                  await loadDetail(competition.id);
+                }}
+                className={cn("rounded-xl p-3 text-left ring-1 ring-[#eeeaf2]", selectedId === competition.id ? "bg-[#10233f] text-white" : "bg-white")}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-black">{competition.name}</p>
+                    <p className={cn("text-xs font-bold", selectedId === competition.id ? "text-white/70" : "text-[#6c5a73]")}>
+                      {competition.clubName} - {competition.competitionType} - closes {formatFixtureDate(competition.entryClosesAt)}
+                    </p>
+                  </div>
+                  <Badge variant={competition.isEntered ? "green" : "muted"}>{competition.status}</Badge>
+                </div>
+              </button>
+            ))}
+            {!competitions.length ? <p className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-semibold text-[#6c5a73]">No competitions have been created yet.</p> : null}
+          </CardContent>
+        </Card>
+
+        {detail ? (
+          <CompetitionDetailCard
+            competition={detail}
+            activeMembershipId={activeMembership?.club_membership_id ?? ""}
+            onEnter={() => competitionAction("/entries", { clubMembershipId: activeMembership?.club_membership_id })}
+            onDraw={() => competitionAction("/draw")}
+            onResult={(matchId, player1Score, player2Score) => competitionAction(`/matches/${matchId}`, { player1Score, player2Score })}
+          />
+        ) : null}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Club Admin</CardTitle>
+          <Badge variant={canCreate ? "green" : "muted"}>{canCreate ? "Enabled" : "Member"}</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {canCreate ? (
+            <>
+              <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={name} onChange={(event) => setName(event.target.value)} placeholder="Competition name" />
+              <select className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={competitionType} onChange={(event) => setCompetitionType(event.target.value as "Handicap" | "Scratch")}>
+                <option>Handicap</option>
+                <option>Scratch</option>
+              </select>
+              <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={entryClosesAt} onChange={(event) => setEntryClosesAt(event.target.value)} type="date" />
+              <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={playByDate} onChange={(event) => setPlayByDate(event.target.value)} type="date" />
+              <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={framesToPlay} onChange={(event) => setFramesToPlay(event.target.value)} type="number" min="1" max="35" placeholder="Frames per round" />
+              <textarea className="min-h-24 rounded-xl border border-[#eeeaf2] px-3 py-2 font-semibold" value={rules} onChange={(event) => setRules(event.target.value)} placeholder="Rules" />
+              <Button onClick={createCompetition} disabled={!name || !entryClosesAt}>
+                <PlusCircle className="h-4 w-4" />
+                Create competition
+              </Button>
+            </>
+          ) : (
+            <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+              Club admins can create competitions, add entrants, run draws and record results.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+function CompetitionDetailCard({ competition, activeMembershipId, onEnter, onDraw, onResult }: { competition: CompetitionDetail; activeMembershipId: string; onEnter: () => void; onDraw: () => void; onResult: (matchId: string, player1Score: number, player2Score: number) => void }) {
+  const [scores, setScores] = useState<Record<string, { p1: string; p2: string }>>({});
+  const canEnter = !competition.isEntered && competition.status === "Open" && activeMembershipId;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{competition.name}</CardTitle>
+        <Badge variant={competition.competitionType === "Handicap" ? "cyan" : "muted"}>{competition.competitionType}</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="rounded-xl bg-[#f7f5fa] p-3">
+          <p className="text-sm font-bold text-[#10233f]">{competition.clubName}</p>
+          <p className="text-xs font-semibold text-[#6c5a73]">Entries close {formatFixtureDate(competition.entryClosesAt)} - {competition.entrantCount} entrants</p>
+          {competition.rules ? <p className="mt-2 text-sm font-semibold text-[#6c5a73]">{competition.rules}</p> : null}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {canEnter ? <Button onClick={onEnter}><PlusCircle className="h-4 w-4" /> Enter</Button> : null}
+          {competition.canManage ? <Button variant="dark" onClick={onDraw} disabled={competition.status !== "Open"}><Trophy className="h-4 w-4" /> Run draw</Button> : null}
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {competition.entries.map((entry) => (
+            <div key={entry.id} className="rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
+              <p className="font-black">{entry.playerName}</p>
+              <p className="text-xs font-bold text-[#6c5a73]">Handicap {entry.handicap === null ? "-" : formatSignedNumber(entry.handicap)}</p>
+            </div>
+          ))}
+        </div>
+        <div className="grid gap-3">
+          {competition.matches.map((match) => {
+            const score = scores[match.id] ?? { p1: match.player1Score?.toString() ?? "", p2: match.player2Score?.toString() ?? "" };
+            return (
+              <div key={match.id} className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-[#6c5a73]">{match.roundName} - Best of {match.framesToPlay}</p>
+                    <p className="font-black">{match.player1Name} v {match.player2Name}</p>
+                    <p className="text-xs font-semibold text-[#6c5a73]">Play by {formatFixtureDate(match.playByDate)}</p>
+                  </div>
+                  <Badge variant={match.status === "Completed" ? "green" : "muted"}>{match.status}</Badge>
+                </div>
+                {match.canReport && match.status !== "Bye" ? (
+                  <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
+                    <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={score.p1} onChange={(event) => setScores((current) => ({ ...current, [match.id]: { ...score, p1: event.target.value } }))} type="number" min="0" />
+                    <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={score.p2} onChange={(event) => setScores((current) => ({ ...current, [match.id]: { ...score, p2: event.target.value } }))} type="number" min="0" />
+                    <Button onClick={() => onResult(match.id, Number(score.p1), Number(score.p2))}>Save</Button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          {!competition.matches.length ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">The draw has not been run yet.</p> : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function PlayerHome({ activeTeam, playerGameResults, matchResults, onNavigate, leagueTeamCount, panels }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number; panels: AppearancePanelId[] }) {
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
@@ -1136,6 +1492,9 @@ function PlayerHome({ activeTeam, playerGameResults, matchResults, onNavigate, l
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
     if (panel === "personalRecentForm") return <PersonalRecentFormCard key={panel} playerGameResults={playerGameResults} />;
     if (panel === "individualGames") return <PlayerGameResultsCard key={panel} results={playerGameResults} />;
+    if (panel === "openCompetitions") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />;
+    if (panel === "myCompetitionMatches") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="mine" onNavigate={onNavigate} />;
+    if (panel === "competitionDraws") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="draws" onNavigate={onNavigate} />;
     if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} />;
     return null;
   };
@@ -1167,6 +1526,10 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
       );
     }
     if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} />;
+    if (panel === "openCompetitions") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />;
+    if (panel === "myCompetitionMatches") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="mine" onNavigate={onNavigate} />;
+    if (panel === "competitionDraws") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="draws" onNavigate={onNavigate} />;
+    if (panel === "clubCompetitionAdmin") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="admin" onNavigate={onNavigate} />;
     if (panel === "interclubLeagues") {
       return (
         <Card key={panel}>
@@ -1211,6 +1574,7 @@ function MemberActionsCard({ activeTeam, onNavigate }: { activeTeam: TeamContext
         </Button>
         <button
           type="button"
+          onClick={() => onNavigate("Competitions")}
           className="grid min-h-[68px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left ring-1 ring-[#eeeaf2]"
         >
           <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
@@ -1218,7 +1582,7 @@ function MemberActionsCard({ activeTeam, onNavigate }: { activeTeam: TeamContext
           </span>
           <span>
             <span className="block font-black">Enter competitions</span>
-            <span className="block text-xs font-semibold text-[#6c5a73]">Coming soon</span>
+            <span className="block text-xs font-semibold text-[#6c5a73]">Club draws and entries</span>
           </span>
         </button>
       </CardContent>
@@ -1480,6 +1844,10 @@ function ManagerHome({
     if (panel === "squadManagement") return <SquadManagementCard key={panel} activeTeam={activeTeam} />;
     if (panel === "managerSnapshot") return <ManagerSeasonSnapshot key={panel} activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />;
     if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} />;
+    if (panel === "openCompetitions") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />;
+    if (panel === "myCompetitionMatches") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="mine" onNavigate={onNavigate} />;
+    if (panel === "competitionDraws") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="draws" onNavigate={onNavigate} />;
+    if (panel === "clubCompetitionAdmin") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="admin" onNavigate={onNavigate} />;
     if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
     if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
     return null;
@@ -1496,7 +1864,7 @@ function MatchPlanningCard({ activeTeam, onDataRefresh, onTeamSummaryUpdate }: {
   return <ManagerLineupCard activeTeam={activeTeam} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
 }
 
-function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panels }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number; panels: AppearancePanelId[] }) {
+function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panels, onNavigate }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number; panels: AppearancePanelId[]; onNavigate: (page: AppPage) => void }) {
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "assistantHub") {
       return (
@@ -1527,7 +1895,11 @@ function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panel
     if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
     if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={() => {}} leagueTeamCount={leagueTeamCount} />;
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
-    if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={() => {}} />;
+    if (panel === "openCompetitions") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />;
+    if (panel === "myCompetitionMatches") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="mine" onNavigate={onNavigate} />;
+    if (panel === "competitionDraws") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="draws" onNavigate={onNavigate} />;
+    if (panel === "clubCompetitionAdmin") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="admin" onNavigate={onNavigate} />;
+    if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} />;
     return null;
   };
 

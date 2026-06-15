@@ -18,6 +18,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const personId = String(body.personId ?? "").trim();
     const teamId = String(body.teamId ?? "").trim();
+    const clubId = String(body.clubId ?? "").trim();
     const role = String(body.role ?? "Player");
     const active = Boolean(body.active);
     const permissionType = String(body.permissionType ?? "team");
@@ -33,6 +34,22 @@ export async function POST(request: Request) {
          on conflict (person_id) do update
          set active = excluded.active`,
         [personId, active]
+      );
+
+      return NextResponse.json({ ok: true });
+    }
+
+    if (permissionType === "clubAdmin") {
+      if (!personId || !clubId) {
+        return NextResponse.json({ error: "Person and club are required." }, { status: 400 });
+      }
+
+      await dbQuery(
+        `insert into public.club_admin (person_id, club_id, active)
+         values ($1, $2, $3)
+         on conflict (club_id, person_id) do update
+         set active = excluded.active`,
+        [personId, clubId, active]
       );
 
       return NextResponse.json({ ok: true });

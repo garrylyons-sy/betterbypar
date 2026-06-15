@@ -31,6 +31,7 @@ type PersonOption = {
   phone?: string;
   admin?: boolean;
   clubHandicaps?: Array<{ club_id: string; club_name: string; handicap: number | string | null }>;
+  clubAdmins?: Array<{ club_id: string; club_name: string }>;
 };
 type InviteRoleRow = {
   id: string;
@@ -156,6 +157,7 @@ export function AdminConsole() {
             email: person.email ?? "",
             phone: person.phone ?? "",
             clubHandicaps: person.club_handicaps ?? [],
+            clubAdmins: person.club_admins ?? [],
             admin: Boolean(person.admin)
           });
         }
@@ -708,8 +710,11 @@ function PermissionsPanel({
 }) {
   const [personId, setPersonId] = useState(people[0]?.personId ?? "");
   const [adminPersonId, setAdminPersonId] = useState(people.find((person) => person.email.toLowerCase() === "garlyons@gmail.com")?.personId ?? people[0]?.personId ?? "");
+  const [clubAdminPersonId, setClubAdminPersonId] = useState(people.find((person) => person.email.toLowerCase() === "garlyons@gmail.com")?.personId ?? people[0]?.personId ?? "");
+  const [clubAdminClubId, setClubAdminClubId] = useState(uniqueClubs(teams)[0]?.clubId ?? "");
   const [teamId, setTeamId] = useState(teams[0]?.teamId ?? "");
   const [role, setRole] = useState<TeamRole>("Player");
+  const clubs = uniqueClubs(teams);
 
   useEffect(() => {
     if (people.some((person) => person.personId === adminPersonId)) return;
@@ -720,6 +725,16 @@ function PermissionsPanel({
     if (people.some((person) => person.personId === personId)) return;
     setPersonId(people[0]?.personId ?? "");
   }, [people, personId]);
+
+  useEffect(() => {
+    if (people.some((person) => person.personId === clubAdminPersonId)) return;
+    setClubAdminPersonId(people.find((person) => person.email.toLowerCase() === "garlyons@gmail.com")?.personId ?? people[0]?.personId ?? "");
+  }, [clubAdminPersonId, people]);
+
+  useEffect(() => {
+    if (clubs.some((club) => club.clubId === clubAdminClubId)) return;
+    setClubAdminClubId(clubs[0]?.clubId ?? "");
+  }, [clubAdminClubId, clubs]);
 
   async function savePermission(payload: Record<string, unknown>, successMessage: string) {
     if (demo) {
@@ -770,6 +785,37 @@ function PermissionsPanel({
             </Button>
             <Button variant="secondary" onClick={() => savePermission({ permissionType: "admin", personId: adminPersonId, active: false }, "Admin access revoked.")}>
               Revoke admin
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="min-w-0">
+        <CardHeader>
+          <CardTitle>Club admin access</CardTitle>
+          <Badge variant="green">Club scoped</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <AdminSelect
+            label="Person"
+            value={clubAdminPersonId}
+            onChange={setClubAdminPersonId}
+            options={people.map((person) => ({
+              value: person.personId,
+              label: `${person.name} ${person.email ? `- ${person.email}` : ""}${person.clubAdmins?.length ? ` - ${person.clubAdmins.map((club) => club.club_name.replace(" Golf Club", "")).join(", ")}` : ""}`
+            }))}
+          />
+          <AdminSelect label="Club" value={clubAdminClubId} onChange={setClubAdminClubId} options={clubs.map((club) => ({ value: club.clubId, label: club.clubName }))} />
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            Club admins can create competitions, add entrants, run draws and record results for this club.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button onClick={() => savePermission({ permissionType: "clubAdmin", personId: clubAdminPersonId, clubId: clubAdminClubId, active: true }, "Club admin access granted.")}>
+              <ShieldCheck className="h-4 w-4" />
+              Grant club admin
+            </Button>
+            <Button variant="secondary" onClick={() => savePermission({ permissionType: "clubAdmin", personId: clubAdminPersonId, clubId: clubAdminClubId, active: false }, "Club admin access revoked.")}>
+              Revoke club admin
             </Button>
           </div>
         </CardContent>

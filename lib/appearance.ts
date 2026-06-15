@@ -9,6 +9,10 @@ export const appearancePanelOptions: Array<{ id: AppearancePanelId; label: strin
   { id: "personalRecentForm", label: "Recent personal form", description: "Latest individual games.", roles: ["Player"] },
   { id: "individualGames", label: "Individual games", description: "Full personal game list.", roles: ["Player"] },
   { id: "memberActions", label: "Member actions", description: "Bookings and competition entry.", roles: ["Player", "Manager", "Assistant Manager", "Club Member"] },
+  { id: "openCompetitions", label: "Open competitions", description: "Club competitions currently open for entry.", roles: appearanceRoles },
+  { id: "myCompetitionMatches", label: "My competition matches", description: "Upcoming or active club competition ties.", roles: appearanceRoles },
+  { id: "competitionDraws", label: "Competition draws", description: "Latest club draws and previous rounds.", roles: appearanceRoles },
+  { id: "clubCompetitionAdmin", label: "Club competition admin", description: "Club admin competition setup and results.", roles: ["Manager", "Assistant Manager", "Club Member"] },
   { id: "clubAccess", label: "Club access", description: "Club-level member summary.", roles: ["Club Member"] },
   { id: "interclubLeagues", label: "Interclub leagues", description: "Shortcut to league tables and results.", roles: ["Club Member"] },
   { id: "messages", label: "Messages", description: "Team and club notices.", roles: ["Manager", "Assistant Manager", "Club Member"] },
@@ -26,6 +30,7 @@ export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string;
   { id: "Results", label: "Results", description: "Team and league results.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "Table", label: "Table", description: "League table.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "Bookings", label: "Bookings", description: "Club table bookings.", roles: appearanceRoles },
+  { id: "Competitions", label: "Competitions", description: "Club competition entries, draws and results.", roles: appearanceRoles },
   { id: "Players", label: "Players", description: "Players and squad views.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "Stats", label: "Stats", description: "Stats dashboard.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "Messages", label: "Messages", description: "Messages and account access.", roles: appearanceRoles },
@@ -35,23 +40,23 @@ export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string;
 export const defaultAppearanceConfig: AppearanceConfig = {
   Player: {
     role: "Player",
-    panels: ["matchPlanning", "teamStats", "myStats", "teamRecentForm", "personalRecentForm", "individualGames", "memberActions"],
-    menuItems: ["Home", "Fixtures", "Table", "Bookings", "Results", "Players", "Stats", "Messages", "Interclub Leagues"]
+    panels: ["matchPlanning", "teamStats", "myStats", "teamRecentForm", "personalRecentForm", "individualGames", "openCompetitions", "myCompetitionMatches", "memberActions"],
+    menuItems: ["Home", "Fixtures", "Table", "Bookings", "Competitions", "Results", "Players", "Stats", "Messages", "Interclub Leagues"]
   },
   Manager: {
     role: "Manager",
-    panels: ["matchPlanning", "managerActions", "seasonComplete", "teamRecentForm", "squadManagement", "managerSnapshot", "memberActions"],
-    menuItems: ["Home", "Fixtures", "Table", "Bookings", "Results", "Players", "Stats", "Messages", "Interclub Leagues"]
+    panels: ["matchPlanning", "managerActions", "seasonComplete", "teamRecentForm", "squadManagement", "managerSnapshot", "openCompetitions", "clubCompetitionAdmin", "memberActions"],
+    menuItems: ["Home", "Fixtures", "Table", "Bookings", "Competitions", "Results", "Players", "Stats", "Messages", "Interclub Leagues"]
   },
   "Assistant Manager": {
     role: "Assistant Manager",
-    panels: ["assistantHub", "seasonComplete", "managerSnapshot", "messages"],
-    menuItems: ["Home", "Fixtures", "Table", "Bookings", "Results", "Players", "Stats", "Messages", "Interclub Leagues"]
+    panels: ["assistantHub", "seasonComplete", "managerSnapshot", "openCompetitions", "messages"],
+    menuItems: ["Home", "Fixtures", "Table", "Bookings", "Competitions", "Results", "Players", "Stats", "Messages", "Interclub Leagues"]
   },
   "Club Member": {
     role: "Club Member",
-    panels: ["clubAccess", "memberActions", "interclubLeagues", "messages"],
-    menuItems: ["Home", "Bookings", "Messages", "Interclub Leagues"]
+    panels: ["clubAccess", "openCompetitions", "myCompetitionMatches", "memberActions", "interclubLeagues", "messages"],
+    menuItems: ["Home", "Bookings", "Competitions", "Messages", "Interclub Leagues"]
   }
 };
 

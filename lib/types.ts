@@ -8,6 +8,10 @@ export type AppearancePanelId =
   | "memberActions"
   | "clubAccess"
   | "interclubLeagues"
+  | "openCompetitions"
+  | "myCompetitionMatches"
+  | "competitionDraws"
+  | "clubCompetitionAdmin"
   | "messages"
   | "matchPlanning"
   | "managerActions"
@@ -15,7 +19,7 @@ export type AppearancePanelId =
   | "squadManagement"
   | "managerSnapshot"
   | "assistantHub";
-export type AppearanceMenuId = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Players" | "Stats" | "Messages" | "Interclub Leagues";
+export type AppearanceMenuId = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Competitions" | "Players" | "Stats" | "Messages" | "Interclub Leagues";
 export type RoleAppearance = {
   role: Role;
   panels: AppearancePanelId[];

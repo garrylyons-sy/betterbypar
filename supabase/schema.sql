@@ -52,6 +52,17 @@ create table public.app_operator (
 
 comment on table public.app_operator is 'Private backend/operator access for league operations such as invitations, permissions and audit logs. This is not a player or manager role.';
 
+create table public.club_admin (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid not null references public.club(id) on delete cascade,
+  person_id uuid not null references public.person(id) on delete cascade,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (club_id, person_id)
+);
+
+comment on table public.club_admin is 'Club-scoped administration permission for club competitions and club-level operations.';
+
 create table public.club (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
@@ -253,6 +264,57 @@ create index table_booking_club_date_idx on public.table_booking (club_id, booki
 create index table_booking_person_date_idx on public.table_booking (person_id, booking_date desc);
 
 comment on table public.table_booking is 'One-hour member snooker table bookings. Active bookings are unique per table, date and start time.';
+
+create table public.competition (
+  id uuid primary key default gen_random_uuid(),
+  club_id uuid references public.club(id) on delete cascade,
+  managed_by_platform boolean not null default false,
+  name text not null,
+  competition_type text not null check (competition_type in ('Handicap', 'Scratch')),
+  entry_closes_at date not null,
+  rules text not null default '',
+  status text not null default 'Draft' check (status in ('Draft', 'Open', 'Drawn', 'In Progress', 'Complete')),
+  created_by uuid references public.person(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (managed_by_platform = true or club_id is not null)
+);
+
+create table public.competition_round (
+  id uuid primary key default gen_random_uuid(),
+  competition_id uuid not null references public.competition(id) on delete cascade,
+  round_number integer not null check (round_number > 0),
+  name text not null,
+  frames_to_play integer not null default 1 check (frames_to_play > 0 and frames_to_play <= 35),
+  play_by_date date not null,
+  unique (competition_id, round_number)
+);
+
+create table public.competition_entry (
+  id uuid primary key default gen_random_uuid(),
+  competition_id uuid not null references public.competition(id) on delete cascade,
+  club_membership_id uuid not null references public.club_membership(id) on delete cascade,
+  entered_by uuid references public.person(id) on delete set null,
+  entered_at timestamptz not null default now(),
+  status text not null default 'Entered' check (status in ('Entered', 'Withdrawn')),
+  unique (competition_id, club_membership_id)
+);
+
+create table public.competition_match (
+  id uuid primary key default gen_random_uuid(),
+  competition_round_id uuid not null references public.competition_round(id) on delete cascade,
+  match_number integer not null check (match_number > 0),
+  player_1_entry_id uuid references public.competition_entry(id) on delete set null,
+  player_2_entry_id uuid references public.competition_entry(id) on delete set null,
+  player_1_score integer check (player_1_score is null or player_1_score >= 0),
+  player_2_score integer check (player_2_score is null or player_2_score >= 0),
+  winner_entry_id uuid references public.competition_entry(id) on delete set null,
+  status text not null default 'Scheduled' check (status in ('Scheduled', 'Bye', 'Completed')),
+  reported_by uuid references public.person(id) on delete set null,
+  reported_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (competition_round_id, match_number)
+);
 
 create table public.fixture (
   id uuid primary key default gen_random_uuid(),
@@ -1350,6 +1412,7 @@ alter table public.person enable row level security;
 alter table public.user_account enable row level security;
 alter table public.app_session enable row level security;
 alter table public.app_operator enable row level security;
+alter table public.club_admin enable row level security;
 alter table public.club enable row level security;
 alter table public.club_table enable row level security;
 alter table public.season enable row level security;
@@ -1373,6 +1436,10 @@ alter table public.fixture_lineup_slot enable row level security;
 alter table public.break enable row level security;
 alter table public.user_activity_log enable row level security;
 alter table public.table_booking enable row level security;
+alter table public.competition enable row level security;
+alter table public.competition_round enable row level security;
+alter table public.competition_entry enable row level security;
+alter table public.competition_match enable row level security;
 alter table public.conversation enable row level security;
 alter table public.conversation_participant enable row level security;
 alter table public.message enable row level security;
@@ -1438,6 +1505,8 @@ create policy "users can read their account" on public.user_account for select t
 create policy "operators can read user accounts" on public.user_account for select to authenticated using (public.is_app_operator());
 create policy "no client session access" on public.app_session for all to authenticated using (false) with check (false);
 create policy "operators can read operator markers" on public.app_operator for select to authenticated using (public.is_app_operator() or person_id = public.current_person_id());
+create policy "members can read club admins" on public.club_admin for select to authenticated using (active = true);
+create policy "operators can read all club admins" on public.club_admin for select to authenticated using (public.is_app_operator());
 create policy "authenticated users can read clubs" on public.club for select to authenticated using (active = true);
 create policy "authenticated users can read club tables" on public.club_table for select to authenticated using (active = true);
 create policy "authenticated users can read seasons" on public.season for select to authenticated using (true);
@@ -1462,6 +1531,10 @@ create policy "members can read breaks" on public.break for select to authentica
 create policy "users can read their own activity" on public.user_activity_log for select to authenticated using (auth_user_id = auth.uid());
 create policy "operators can read activity" on public.user_activity_log for select to authenticated using (public.is_app_operator());
 create policy "members can read table bookings" on public.table_booking for select to authenticated using (cancelled_at is null);
+create policy "members can read competitions" on public.competition for select to authenticated using (true);
+create policy "members can read competition rounds" on public.competition_round for select to authenticated using (true);
+create policy "members can read competition entries" on public.competition_entry for select to authenticated using (true);
+create policy "members can read competition matches" on public.competition_match for select to authenticated using (true);
 
 create policy "managers can create fixtures" on public.fixture for insert to authenticated
 with check (public.is_manager_for_team(home_team_id) or public.is_manager_for_team(away_team_id));
