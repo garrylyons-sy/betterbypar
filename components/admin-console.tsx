@@ -496,7 +496,13 @@ function DesktopAdminPanel({
                 </div>
               ))}
               {!competitions.length ? (
-                <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No competitions have been created yet.</p>
+                <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                  <p className="text-sm font-semibold text-[#6c5a73]">No competitions have been created yet.</p>
+                  <Button className="w-full justify-center" onClick={() => window.location.assign("/?page=Competitions")}>
+                    <PlusCircle className="h-4 w-4" />
+                    Create competition
+                  </Button>
+                </div>
               ) : null}
             </CardContent>
           </Card>

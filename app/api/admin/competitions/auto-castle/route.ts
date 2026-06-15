@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
-import { createCompetitionDraw } from "@/lib/server/competition-draw";
 import { withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -57,7 +56,7 @@ export async function POST() {
       const entryClosesAt = endOfJuneThisYear();
       const competition = await client.query<{ id: string }>(
         `insert into public.competition (club_id, managed_by_platform, name, competition_type, entry_closes_at, rules, status, created_by)
-         values ($1, false, $2, 'Scratch', $3::date, 'Auto-generated test competition with 8 Castle entrants.', 'Drawn', $4)
+         values ($1, false, $2, 'Scratch', $3::date, 'Auto-generated test competition with 8 Castle entrants.', 'Open', $4)
          returning id`,
         [clubId, competitionName, entryClosesAt, user.personId]
       );
@@ -84,23 +83,6 @@ export async function POST() {
           [competitionId, player.club_membership_id, user.personId]
         );
       }
-
-      const rounds = await client.query<{ id: string; round_number: number }>(
-        `select id, round_number
-         from public.competition_round
-         where competition_id = $1
-         order by round_number`,
-        [competitionId]
-      );
-      const entries = await client.query<{ id: string }>(
-        `select id
-         from public.competition_entry
-         where competition_id = $1
-           and status = 'Entered'
-         order by entered_at`,
-        [competitionId]
-      );
-      await createCompetitionDraw(client, rounds.rows, entries.rows);
 
       return {
         competitionId,

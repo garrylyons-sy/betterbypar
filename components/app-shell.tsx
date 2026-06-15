@@ -1478,7 +1478,22 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
                 </div>
               </button>
             ))}
-            {!competitions.length ? <p className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-semibold text-[#6c5a73]">No competitions have been created yet.</p> : null}
+            {!competitions.length ? (
+              <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-4 ring-1 ring-[#eeeaf2]">
+                <p className="text-sm font-semibold text-[#6c5a73]">
+                  {canCreate ? "No competitions have been created yet. Start with the club-admin form." : "No competitions have been created yet."}
+                </p>
+                {canCreate ? (
+                  <Button
+                    className="w-full justify-center"
+                    onClick={() => document.getElementById("competition-create-form")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Create competition
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -1494,7 +1509,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
         ) : null}
       </div>
 
-      <Card>
+      <Card id="competition-create-form">
         <CardHeader>
           <CardTitle>Club Admin</CardTitle>
           <Badge variant={canCreate ? "green" : "muted"}>{canCreate ? "Enabled" : "Member"}</Badge>
