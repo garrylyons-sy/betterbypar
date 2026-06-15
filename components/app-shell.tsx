@@ -596,7 +596,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { active
 function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, activeMatchCount = 0 }: { activeTeam: TeamContext; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number }) {
   const manager = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
   const clubMember = activeTeam.role === "Club Member";
-  const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
+  const hasTeamActivity = teamHasActivity(activeTeam);
   const played = activeTeam.leagueMatchesPlayed ?? 0;
   const won = activeTeam.matchesWon ?? 0;
   const points = activeTeam.leaguePoints ?? activeTeam.pointsFor ?? 0;
@@ -626,8 +626,8 @@ function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, acti
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="cyan">{activeTeam.role}</Badge>
                 <Badge variant="muted">{activeTeam.league}</Badge>
-                <Badge variant={hasLeagueTable ? qualificationBadgeVariant(qualification) : "muted"}>
-                  {hasLeagueTable ? `Position ${activeTeam.leaguePosition}` : "Table pending"}
+                <Badge variant={hasTeamActivity ? qualificationBadgeVariant(qualification) : "muted"}>
+                  {hasTeamActivity ? `Position ${activeTeam.leaguePosition}` : "Table pending"}
                 </Badge>
               </div>
               <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">
@@ -638,9 +638,9 @@ function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, acti
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <HeroMetric label="Played" value={hasLeagueTable ? String(played) : "-"} />
-            <HeroMetric label="Matches Won" value={hasLeagueTable ? String(won) : "-"} />
-            <HeroMetric label="Pts" value={hasLeagueTable ? String(points) : "-"} />
+            <HeroMetric label="Played" value={hasTeamActivity ? String(played) : "-"} />
+            <HeroMetric label="Matches Won" value={hasTeamActivity ? String(won) : "-"} />
+            <HeroMetric label="Pts" value={hasTeamActivity ? String(points) : "-"} />
           </div>
         </div>
         <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
@@ -655,6 +655,17 @@ function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, acti
         </div>
       </div>
     </section>
+  );
+}
+
+function teamHasActivity(team: TeamContext) {
+  return Boolean(
+    (team.leagueMatchesPlayed ?? 0) > 0 ||
+    (team.matchesWon ?? 0) > 0 ||
+    (team.matchesLost ?? 0) > 0 ||
+    (team.pointsFor ?? 0) > 0 ||
+    (team.pointsAgainst ?? 0) > 0 ||
+    (team.leaguePoints ?? 0) > 0
   );
 }
 
@@ -1528,7 +1539,7 @@ function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panel
 }
 
 function TeamStatsCard({ activeTeam, onNavigate, leagueTeamCount }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; leagueTeamCount: number }) {
-  const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
+  const hasLeagueTable = teamHasActivity(activeTeam);
   const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
 
   return (
