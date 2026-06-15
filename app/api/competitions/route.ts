@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
-import { canManageClub, clubAdminClubIds, clubMembershipsForPerson, insertDefaultRounds, isPlatformAdmin, listCompetitions } from "@/lib/server/competitions";
+import { canManageClub, clubAdminClubIds, clubMembershipsForPerson, isPlatformAdmin, listCompetitions } from "@/lib/server/competitions";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
-
-type RoundInput = {
-  name?: unknown;
-  framesToPlay?: unknown;
-  playByDate?: unknown;
-};
 
 function validDate(value: unknown) {
   const text = String(value ?? "").trim();
@@ -52,7 +46,6 @@ export async function POST(request: NextRequest) {
     const competitionType = String(body.competitionType ?? "Scratch").trim();
     const entryClosesAt = validDate(body.entryClosesAt);
     const rules = String(body.rules ?? "").trim();
-    const rounds: RoundInput[] = Array.isArray(body.rounds) ? body.rounds : [];
 
     if (!clubId || !name || !entryClosesAt) {
       return NextResponse.json({ error: "Club, name and closing date are required." }, { status: 400 });
@@ -71,15 +64,6 @@ export async function POST(request: NextRequest) {
          returning id`,
         [clubId, name, competitionType, entryClosesAt, rules, user.personId]
       );
-      const normalizedRounds = rounds.length ? rounds : [
-        { name: "Round 1", framesToPlay: 1, playByDate: entryClosesAt },
-        { name: "Final", framesToPlay: 1, playByDate: entryClosesAt }
-      ];
-      await insertDefaultRounds(client, result.rows[0].id, normalizedRounds.map((round, index) => ({
-        name: String(round.name ?? `Round ${index + 1}`).trim() || `Round ${index + 1}`,
-        framesToPlay: Math.max(1, Math.min(35, Number(round.framesToPlay ?? 1))),
-        playByDate: validDate(round.playByDate) || entryClosesAt
-      })));
       return result.rows[0].id;
     });
 

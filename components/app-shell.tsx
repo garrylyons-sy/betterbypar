@@ -1192,22 +1192,6 @@ type ManageableClub = {
   club_id: string;
   club_name: string;
 };
-type CompetitionRoundDraft = {
-  id: string;
-  name: string;
-  framesToPlay: string;
-  playByDate: string;
-};
-
-function defaultCompetitionRounds(): CompetitionRoundDraft[] {
-  return [
-    { id: "round-1", name: "Round 1", framesToPlay: "1", playByDate: "" },
-    { id: "quarter-final", name: "Quarter Final", framesToPlay: "1", playByDate: "" },
-    { id: "semi-final", name: "Semi Final", framesToPlay: "1", playByDate: "" },
-    { id: "final", name: "Final", framesToPlay: "1", playByDate: "" }
-  ];
-}
-
 function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamContext; mode: "open" | "mine" | "draws" | "admin"; onNavigate: (page: AppPage) => void }) {
   const [competitions, setCompetitions] = useState<CompetitionSummary[]>([]);
   const [manageableClubs, setManageableClubs] = useState<ManageableClub[]>([]);
@@ -1300,7 +1284,6 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [competitionType, setCompetitionType] = useState<"Handicap" | "Scratch">("Handicap");
   const [entryClosesAt, setEntryClosesAt] = useState("");
   const [rules, setRules] = useState("");
-  const [roundDrafts, setRoundDrafts] = useState<CompetitionRoundDraft[]>(defaultCompetitionRounds);
 
   async function loadCompetitions(nextSelectedId = selectedId) {
     setLoading(true);
@@ -1349,12 +1332,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
           name,
           competitionType,
           entryClosesAt,
-          rules,
-          rounds: roundDrafts.map((round) => ({
-            name: round.name,
-            framesToPlay: Number(round.framesToPlay || 1),
-            playByDate: round.playByDate || entryClosesAt
-          }))
+          rules
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -1362,7 +1340,6 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
       setName("");
       setRules("");
       setEntryClosesAt("");
-      setRoundDrafts(defaultCompetitionRounds());
       setMessage("Competition created.");
       await loadCompetitions(data.competitionId);
     } catch (error) {
@@ -1412,7 +1389,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const canCreate = manageableClubs.length > 0;
   const enteredCompetitions = competitions.filter((competition) => competition.isEntered);
   const orderedCompetitions = [...competitions].sort((left, right) => Number(right.isEntered) - Number(left.isEntered));
-  const canSubmitCompetition = Boolean(name && entryClosesAt && roundDrafts.length && roundDrafts.every((round) => round.name.trim() && round.playByDate));
+  const canSubmitCompetition = Boolean(name && entryClosesAt);
 
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -1539,70 +1516,8 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
                 </label>
               </div>
 
-              <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase text-[#6c5a73]">Round schedule</p>
-                    <p className="text-sm font-semibold text-[#10233f]">Set how many frames and when each round should be finished.</p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="h-10 w-10 shrink-0"
-                    onClick={() => setRoundDrafts((current) => [...current, { id: `round-${Date.now()}`, name: `Round ${current.length + 1}`, framesToPlay: "1", playByDate: "" }])}
-                    aria-label="Add round"
-                  >
-                    <PlusCircle className="h-4 w-4" />
-                  </Button>
-                </div>
-                {roundDrafts.map((round, index) => (
-                  <div key={round.id} className="grid gap-2 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-bold uppercase text-[#6c5a73]">Round {index + 1}</p>
-                      {roundDrafts.length > 1 ? (
-                        <Button
-                          variant="secondary"
-                          size="icon"
-                          className="h-9 w-9"
-                          onClick={() => setRoundDrafts((current) => current.filter((item) => item.id !== round.id))}
-                          aria-label={`Remove ${round.name}`}
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </Button>
-                      ) : null}
-                    </div>
-                    <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
-                      Round name
-                      <input
-                        className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 text-sm font-bold normal-case text-[#10233f]"
-                        value={round.name}
-                        onChange={(event) => setRoundDrafts((current) => current.map((item) => item.id === round.id ? { ...item, name: event.target.value } : item))}
-                      />
-                    </label>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
-                        Frames
-                        <input
-                          className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 text-sm font-bold normal-case text-[#10233f]"
-                          value={round.framesToPlay}
-                          onChange={(event) => setRoundDrafts((current) => current.map((item) => item.id === round.id ? { ...item, framesToPlay: event.target.value } : item))}
-                          type="number"
-                          min="1"
-                          max="35"
-                        />
-                      </label>
-                      <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
-                        Play by
-                        <input
-                          className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 text-sm font-bold normal-case text-[#10233f]"
-                          value={round.playByDate}
-                          onChange={(event) => setRoundDrafts((current) => current.map((item) => item.id === round.id ? { ...item, playByDate: event.target.value } : item))}
-                          type="date"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                ))}
+              <div className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73] ring-1 ring-[#eeeaf2]">
+                Rounds, byes and play-by dates are created automatically when you run the draw, based on the final number of entrants.
               </div>
 
               <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
@@ -1630,6 +1545,7 @@ function CompetitionDetailCard({ competition, activeMembershipId, onEnter, onDra
   const canEnter = !competition.isEntered && competition.status === "Open" && activeMembershipId;
   const canManageEntries = competition.canManage && competition.status === "Open" && !competition.matches.length;
   const canRunDraw = competition.canManage && competition.status === "Open" && competition.entrantCount >= 2;
+  const drawHasRun = competition.matches.length > 0;
   const roundsWithMatches = competition.rounds.map((round) => ({
     ...round,
     matches: competition.matches.filter((match) => match.roundNumber === round.roundNumber)
@@ -1654,6 +1570,11 @@ function CompetitionDetailCard({ competition, activeMembershipId, onEnter, onDra
         {competition.canManage && competition.status === "Open" && competition.entrantCount < 2 ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Add at least two players before making the draw.</p>
         ) : null}
+        {competition.status === "Open" ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            The bracket will be created when the draw is run. The app will calculate the number of rounds and byes from the final entrant count.
+          </p>
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-2">
           {competition.entries.map((entry) => (
             <div key={entry.id} className="flex items-start justify-between gap-3 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
@@ -1669,7 +1590,7 @@ function CompetitionDetailCard({ competition, activeMembershipId, onEnter, onDra
             </div>
           ))}
         </div>
-        <div className="grid gap-3">
+        {drawHasRun ? <div className="grid gap-3">
           {roundsWithMatches.map((round) => (
             <section key={round.id} className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
               <div className="flex items-start justify-between gap-3">
@@ -1711,8 +1632,7 @@ function CompetitionDetailCard({ competition, activeMembershipId, onEnter, onDra
               </div>
             </section>
           ))}
-          {!competition.matches.length ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">The draw has not been run yet.</p> : null}
-        </div>
+        </div> : null}
       </CardContent>
     </Card>
   );

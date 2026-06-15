@@ -62,20 +62,6 @@ export async function POST() {
       );
       const competitionId = competition.rows[0].id;
 
-      const roundDates = [
-        { name: "Quarter Final", frames: 1, date: `${new Date().getFullYear()}-07-14` },
-        { name: "Semi Final", frames: 1, date: `${new Date().getFullYear()}-07-31` },
-        { name: "Final", frames: 1, date: `${new Date().getFullYear()}-08-14` }
-      ];
-      for (let index = 0; index < roundDates.length; index += 1) {
-        const round = roundDates[index];
-        await client.query(
-          `insert into public.competition_round (competition_id, round_number, name, frames_to_play, play_by_date)
-           values ($1, $2, $3, $4, $5::date)`,
-          [competitionId, index + 1, round.name, round.frames, round.date]
-        );
-      }
-
       for (const player of playerResult.rows) {
         await client.query(
           `insert into public.competition_entry (competition_id, club_membership_id, entered_by, status)
