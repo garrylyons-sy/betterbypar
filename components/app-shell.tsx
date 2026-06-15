@@ -3319,41 +3319,49 @@ function GeneratedMatchCard({
     <div className="rounded-xl bg-[#10233f] p-3 text-white">
       <p className="text-xs font-extrabold uppercase text-white/60">Result entry</p>
       <div className="mt-2 grid gap-2">
-        {games.map((game) => (
-          <div key={game.id} className="grid gap-2 rounded-lg bg-white/10 p-2 text-sm font-bold sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-            <div className="min-w-0">
-              <p className="text-xs font-extrabold uppercase text-white/55">Game {game.game_number} - {game.points_awarded} pts</p>
-              <p className="mt-1 leading-tight">
-                {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""} <span className="text-white/55">v</span> {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}
-              </p>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5 sm:w-[260px]">
-              <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
-                {pendingGameIds.has(game.id) && game.winner_team_id === fixture.homeTeamId ? "..." : fixture.homeTeamName.replace(/ Golf Club/g, "")}
-              </Button>
-              <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
-                {pendingGameIds.has(game.id) && game.winner_team_id === fixture.awayTeamId ? "..." : fixture.awayTeamName.replace(/ Golf Club/g, "")}
-              </Button>
-              <Button className="min-h-9 px-2 py-1 text-xs" size="sm" variant="secondary" onClick={() => onBreak(game)}>
-                + Break
-              </Button>
-            </div>
-            {game.breaks?.length ? (
-              <div className="rounded-lg bg-[#071426]/35 px-2.5 py-2 ring-1 ring-white/10 sm:col-span-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wide text-white/55">Breaks recorded</span>
-                  {game.breaks.map((item) => (
-                    <span key={item.id} className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-1 text-xs font-extrabold text-white">
-                      <span className="h-1.5 w-1.5 rounded-full bg-[#7bc7d6]" />
-                      <span>{item.playerName}</span>
-                      <span className="rounded bg-white/15 px-1.5 py-0.5">{item.breakValue}</span>
-                    </span>
-                  ))}
+        {games.map((game) => {
+          const breaks = game.breaks ?? [];
+          return (
+            <div key={game.id} className="grid gap-2 rounded-lg bg-white/10 p-2 text-sm font-bold">
+              <div className="min-w-0">
+                <p className="text-xs font-extrabold uppercase text-white/55">Game {game.game_number} - {game.points_awarded} pts</p>
+                <p className="mt-1 leading-tight">
+                  {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""} <span className="text-white/55">v</span> {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
+                  {pendingGameIds.has(game.id) && game.winner_team_id === fixture.homeTeamId ? "..." : fixture.homeTeamName.replace(/ Golf Club/g, "")}
+                </Button>
+                <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
+                  {pendingGameIds.has(game.id) && game.winner_team_id === fixture.awayTeamId ? "..." : fixture.awayTeamName.replace(/ Golf Club/g, "")}
+                </Button>
+              </div>
+              <div className="rounded-lg bg-[#071426]/35 px-2.5 py-2 ring-1 ring-white/10">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wide text-white/55">Breaks</span>
+                    {breaks.map((item) => (
+                      <span key={item.id} className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-1 text-xs font-extrabold text-white">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#7bc7d6]" />
+                        <span>{item.playerName}</span>
+                        <span className="rounded bg-white/15 px-1.5 py-0.5">{item.breakValue}</span>
+                      </span>
+                    ))}
+                    {!breaks.length ? <span className="text-xs font-semibold text-white/45">None</span> : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onBreak(game)}
+                    className="min-h-8 rounded-md px-2 text-xs font-extrabold text-[#7bc7d6] transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+                  >
+                    Add break
+                  </button>
                 </div>
               </div>
-            ) : null}
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
