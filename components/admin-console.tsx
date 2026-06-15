@@ -511,6 +511,11 @@ function CompetitionsAdminPanel({
     }
   }
 
+  function returnToCompetitionList() {
+    setSelectedCompetitionId("");
+    setCompetitionDetail(null);
+  }
+
   async function createAutoCastleCompetition() {
     try {
       const response = await fetch("/api/admin/competitions/auto-castle", {
@@ -606,8 +611,32 @@ function CompetitionsAdminPanel({
     }
   }
 
+  if (selectedCompetitionId || competitionLoading) {
+    return (
+      <div className="grid min-w-0 gap-4">
+        <AdminCompetitionDetailCard
+          competition={competitionDetail}
+          loading={competitionLoading}
+          selectedCompetitionId={selectedCompetitionId}
+          onBack={returnToCompetitionList}
+          onRemoveEntry={removeCompetitionEntry}
+          onRunDraw={runCompetitionDraw}
+          onSaveRoundDates={saveCompetitionRoundDates}
+        />
+        {deleteTarget ? (
+          <ConfirmDeleteCompetitionModal
+            competition={deleteTarget}
+            busy={deleting}
+            onCancel={() => setDeleteTarget(null)}
+            onConfirm={deleteCompetition}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+    <div className="grid min-w-0 gap-4">
       <div className="grid min-w-0 gap-4">
         <Card>
           <CardHeader>
@@ -668,14 +697,6 @@ function CompetitionsAdminPanel({
           </CardContent>
         </Card>
       </div>
-      <AdminCompetitionDetailCard
-        competition={competitionDetail}
-        loading={competitionLoading}
-        selectedCompetitionId={selectedCompetitionId}
-        onRemoveEntry={removeCompetitionEntry}
-        onRunDraw={runCompetitionDraw}
-        onSaveRoundDates={saveCompetitionRoundDates}
-      />
       {deleteTarget ? (
         <ConfirmDeleteCompetitionModal
           competition={deleteTarget}
@@ -739,6 +760,7 @@ function AdminCompetitionDetailCard({
   competition,
   loading,
   selectedCompetitionId,
+  onBack,
   onRemoveEntry,
   onRunDraw,
   onSaveRoundDates
@@ -746,14 +768,17 @@ function AdminCompetitionDetailCard({
   competition: AdminCompetitionDetail | null;
   loading: boolean;
   selectedCompetitionId: string;
+  onBack: () => void;
   onRemoveEntry: (entryId: string) => void;
   onRunDraw: () => void;
   onSaveRoundDates: (rounds: Array<{ id: string; playByDate: string }>) => void;
 }) {
   const [roundDates, setRoundDates] = useState<Record<string, string>>({});
+  const [editingDates, setEditingDates] = useState(false);
 
   useEffect(() => {
     setRoundDates(Object.fromEntries((competition?.rounds ?? []).map((round) => [round.id, round.playByDate?.slice(0, 10) ?? ""])));
+    setEditingDates(false);
   }, [competition?.id, competition?.rounds]);
 
   if (!competition && !loading) {
@@ -779,7 +804,15 @@ function AdminCompetitionDetailCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{competition?.name ?? "Loading competition"}</CardTitle>
+        <div className="flex min-w-0 items-start gap-3">
+          <Button variant="secondary" size="sm" onClick={onBack}>
+            Back
+          </Button>
+          <div className="min-w-0">
+            <CardTitle>{competition?.name ?? "Loading competition"}</CardTitle>
+            {competition ? <p className="mt-1 text-sm font-semibold text-[#6c5a73]">{competition.clubName}</p> : null}
+          </div>
+        </div>
         <Badge variant={competition?.status === "Open" ? "green" : competition?.status === "Drawn" ? "cyan" : "muted"}>
           {loading ? "Loading" : competition?.status ?? "Selected"}
         </Badge>
@@ -789,13 +822,22 @@ function AdminCompetitionDetailCard({
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Loading competition details...</p>
         ) : competition ? (
           <>
-            <div className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
-              <p className="text-sm font-extrabold text-[#10233f]">{competition.clubName}</p>
-              <p className="text-xs font-bold text-[#6c5a73]">
-                {competition.competitionType} - entries close {formatAdminDate(competition.entryClosesAt)} - {competition.entrantCount} entrants
-              </p>
+            <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] sm:grid-cols-4">
+              {[
+                ["Type", competition.competitionType],
+                ["Entrants", competition.entrantCount.toString()],
+                ["Rounds", competition.rounds.length.toString()],
+                ["Matches", competition.matches.length.toString()]
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-lg bg-white px-3 py-2 ring-1 ring-[#eeeaf2]">
+                  <p className="text-[10px] font-bold uppercase text-[#6c5a73]">{label}</p>
+                  <p className="mt-1 text-lg font-extrabold leading-none text-[#10233f]">{value}</p>
+                </div>
+              ))}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
+              <Badge variant="muted">{competition.competitionType}</Badge>
+              <Badge variant="muted">Entries close {formatAdminDate(competition.entryClosesAt)}</Badge>
               <Button onClick={onRunDraw} disabled={!canRunDraw}>
                 <Trophy className="h-4 w-4" />
                 Run draw
@@ -810,28 +852,42 @@ function AdminCompetitionDetailCard({
             {drawHasRun ? (
               <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-bold uppercase text-[#6c5a73]">Round play-by dates</p>
-                  <Badge variant="cyan">{competition.rounds.length}</Badge>
+                  <div>
+                    <p className="text-xs font-bold uppercase text-[#6c5a73]">Round dates</p>
+                    <p className="mt-1 text-sm font-semibold text-[#10233f]">
+                      {competition.rounds.map((round) => `${round.name}: ${formatAdminDate(round.playByDate)}`).join(" / ")}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="secondary" onClick={() => setEditingDates((current) => !current)}>
+                    {editingDates ? "Hide dates" : "Edit dates"}
+                  </Button>
                 </div>
-                <div className="grid gap-2">
-                  {competition.rounds.map((round) => (
-                    <label key={round.id} className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73] sm:grid-cols-[1fr_160px] sm:items-center">
-                      <span>{round.name}</span>
-                      <input
-                        className="min-h-10 rounded-lg border border-[#eeeaf2] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
-                        type="date"
-                        value={roundDates[round.id] ?? ""}
-                        onChange={(event) => setRoundDates((current) => ({ ...current, [round.id]: event.target.value }))}
-                      />
-                    </label>
-                  ))}
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => onSaveRoundDates(competition.rounds.map((round) => ({ id: round.id, playByDate: roundDates[round.id] ?? "" })))}
-                >
-                  Save round dates
-                </Button>
+                {editingDates ? (
+                  <>
+                    <div className="grid gap-2">
+                      {competition.rounds.map((round) => (
+                        <label key={round.id} className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73] sm:grid-cols-[1fr_180px] sm:items-center">
+                          <span>{round.name}</span>
+                          <input
+                            className="min-h-10 rounded-lg border border-[#eeeaf2] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+                            type="date"
+                            value={roundDates[round.id] ?? ""}
+                            onChange={(event) => setRoundDates((current) => ({ ...current, [round.id]: event.target.value }))}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        onSaveRoundDates(competition.rounds.map((round) => ({ id: round.id, playByDate: roundDates[round.id] ?? "" })));
+                        setEditingDates(false);
+                      }}
+                    >
+                      Save round dates
+                    </Button>
+                  </>
+                ) : null}
               </div>
             ) : null}
             <div className="grid gap-2">
