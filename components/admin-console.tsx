@@ -206,8 +206,8 @@ export function AdminConsole() {
     refreshAdminData();
   }, []);
 
-  async function refreshAdminData() {
-    setLoading(true);
+  async function refreshAdminData(options?: { silent?: boolean }) {
+    if (!options?.silent) setLoading(true);
     try {
       const response = await fetchWithTimeout("/api/admin", { credentials: "same-origin" });
       const data = await response.json().catch(() => ({}));
@@ -249,7 +249,7 @@ export function AdminConsole() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Admin data unavailable.");
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
   }
 
@@ -279,7 +279,7 @@ export function AdminConsole() {
 
   return (
     <AdminLayout tab={tab} setTab={setTab} message={message} adminUser={adminUser} onLogout={logout}>
-      <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} invites={invites} competitions={competitions} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={refreshAdminData} />
+      <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} invites={invites} competitions={competitions} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
     </AdminLayout>
   );
 }
