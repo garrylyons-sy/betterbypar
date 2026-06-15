@@ -87,6 +87,7 @@ type AdminUser = {
 const roles: TeamRole[] = ["Player", "Manager", "Assistant Manager"];
 const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member"];
 const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
+const PREVIEW_ACCESS_STORAGE_KEY = "interclub-snooker-access-granted";
 const demoTeams: TeamOption[] = clubTeamStructure.flatMap((club) =>
   club.teams.map((team) => ({
     teamId: team,
@@ -426,6 +427,11 @@ function DesktopAdminPanel({
     }
   }
 
+  function openCompetitions(competitionId?: string) {
+    sessionStorage.setItem(PREVIEW_ACCESS_STORAGE_KEY, "true");
+    window.location.assign(competitionId ? `/?page=Competitions&competition=${competitionId}` : "/?page=Competitions");
+  }
+
   return (
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="grid min-w-0 gap-4">
@@ -484,7 +490,7 @@ function DesktopAdminPanel({
                     <AdminMiniMetric label="Matches" value={competition.match_count} />
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Button className="w-full justify-center" onClick={() => window.location.assign(`/?page=Competitions&competition=${competition.id}`)}>
+                    <Button className="w-full justify-center" onClick={() => openCompetitions(competition.id)}>
                       <Trophy className="h-4 w-4" />
                       Manage
                     </Button>
@@ -498,7 +504,7 @@ function DesktopAdminPanel({
               {!competitions.length ? (
                 <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
                   <p className="text-sm font-semibold text-[#6c5a73]">No competitions have been created yet.</p>
-                  <Button className="w-full justify-center" onClick={() => window.location.assign("/?page=Competitions")}>
+                  <Button className="w-full justify-center" onClick={() => openCompetitions()}>
                     <PlusCircle className="h-4 w-4" />
                     Create competition
                   </Button>
