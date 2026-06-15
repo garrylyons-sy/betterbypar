@@ -1510,15 +1510,6 @@ function CompetitionDetailCard({
   );
 }
 
-function competitionScoreOptions(framesToPlay: number) {
-  const winningScore = Math.max(1, Math.floor(framesToPlay / 2) + 1);
-  const losingScores = Array.from({ length: winningScore }, (_, index) => index);
-  return [
-    ...losingScores.map((score) => ({ label: `${winningScore}-${score}`, player1Score: winningScore, player2Score: score })),
-    ...losingScores.map((score) => ({ label: `${score}-${winningScore}`, player1Score: score, player2Score: winningScore }))
-  ];
-}
-
 function CompetitionMatchResultRow({
   match,
   onResult
@@ -1526,13 +1517,30 @@ function CompetitionMatchResultRow({
   match: CompetitionDetail["matches"][number];
   onResult: (matchId: string, player1Score: number, player2Score: number) => void;
 }) {
-  const options = competitionScoreOptions(match.framesToPlay);
   const completed = match.status === "Completed";
   const scoreText = match.player1Score !== null && match.player2Score !== null ? `${match.player1Score}-${match.player2Score}` : "";
+  const winningScore = Math.max(1, Math.floor(match.framesToPlay / 2) + 1);
+  const losingScores = Array.from({ length: winningScore }, (_, index) => index);
+  const initialWinner = match.player1Score !== null && match.player2Score !== null
+    ? match.player1Score > match.player2Score ? "p1" : "p2"
+    : "";
+  const initialLoserScore = match.player1Score !== null && match.player2Score !== null
+    ? Math.min(match.player1Score, match.player2Score).toString()
+    : losingScores[0]?.toString() ?? "0";
+  const [winner, setWinner] = useState<"p1" | "p2" | "">(initialWinner);
+  const [loserScore, setLoserScore] = useState(initialLoserScore);
+
+  useEffect(() => {
+    setWinner(initialWinner);
+    setLoserScore(initialLoserScore);
+  }, [initialWinner, initialLoserScore, match.id]);
+
+  const loserScoreNumber = Number(loserScore);
+  const canSave = Boolean(winner && Number.isInteger(loserScoreNumber) && loserScoreNumber >= 0 && loserScoreNumber < winningScore);
 
   return (
     <div className={cn("rounded-lg bg-white px-3 py-2 ring-1 ring-[#eeeaf2]", match.isPlaceholder ? "text-[#6c5a73]" : "")}>
-      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div className="grid gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Match {match.matchNumber}</p>
@@ -1545,18 +1553,53 @@ function CompetitionMatchResultRow({
           </p>
         </div>
         {match.canReport && !match.isPlaceholder && match.status !== "Bye" ? (
-          <div className="flex flex-wrap gap-1.5 sm:justify-end">
-            {options.map((option) => (
+          <div className="grid gap-2 rounded-lg bg-[#f7f5fa] p-2">
+            <div className="grid gap-1.5 sm:grid-cols-2">
               <Button
-                key={option.label}
                 size="sm"
-                variant={match.player1Score === option.player1Score && match.player2Score === option.player2Score ? "default" : "secondary"}
-                className="min-h-9 px-3 py-1 text-xs"
-                onClick={() => onResult(match.id, option.player1Score, option.player2Score)}
+                variant={winner === "p1" ? "default" : "secondary"}
+                className="min-h-10 justify-start px-3 py-2 text-left text-xs"
+                onClick={() => setWinner("p1")}
               >
-                {option.label}
+                {match.player1Name}
               </Button>
-            ))}
+              <Button
+                size="sm"
+                variant={winner === "p2" ? "default" : "secondary"}
+                className="min-h-10 justify-start px-3 py-2 text-left text-xs"
+                onClick={() => setWinner("p2")}
+              >
+                {match.player2Name}
+              </Button>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+              <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+                Frame score
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                  <div className="rounded-lg bg-white px-3 py-2 text-center text-sm font-black text-[#10233f]">{winner ? winningScore : "-"}</div>
+                  <span className="text-center text-sm font-black text-[#6c5a73]">-</span>
+                  <select
+                    className="min-h-10 rounded-lg border border-[#eeeaf2] bg-white px-3 text-center text-sm font-black text-[#10233f]"
+                    value={loserScore}
+                    onChange={(event) => setLoserScore(event.target.value)}
+                  >
+                    {losingScores.map((score) => (
+                      <option key={score} value={score}>{score}</option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+              <Button
+                size="sm"
+                disabled={!canSave}
+                onClick={() => {
+                  if (!canSave) return;
+                  onResult(match.id, winner === "p1" ? winningScore : loserScoreNumber, winner === "p2" ? winningScore : loserScoreNumber);
+                }}
+              >
+                Save result
+              </Button>
+            </div>
           </div>
         ) : null}
       </div>
@@ -3283,15 +3326,6 @@ function GeneratedMatchCard({
               <p className="mt-1 leading-tight">
                 {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""} <span className="text-white/55">v</span> {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}
               </p>
-              {game.breaks?.length ? (
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {game.breaks.map((item) => (
-                    <span key={item.id} className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-extrabold text-white">
-                      {item.playerName} {item.breakValue}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
             </div>
             <div className="grid grid-cols-3 gap-1.5 sm:w-[260px]">
               <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
@@ -3304,6 +3338,20 @@ function GeneratedMatchCard({
                 + Break
               </Button>
             </div>
+            {game.breaks?.length ? (
+              <div className="rounded-lg bg-[#071426]/35 px-2.5 py-2 ring-1 ring-white/10 sm:col-span-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wide text-white/55">Breaks recorded</span>
+                  {game.breaks.map((item) => (
+                    <span key={item.id} className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-1 text-xs font-extrabold text-white">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#7bc7d6]" />
+                      <span>{item.playerName}</span>
+                      <span className="rounded bg-white/15 px-1.5 py-0.5">{item.breakValue}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
