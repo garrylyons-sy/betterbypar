@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, Eye, KeyRound, LayoutPanelTop, LogOut, Mail, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, Eye, KeyRound, LayoutPanelTop, LogOut, Mail, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,18 @@ type AdminCompetitionRow = {
   round_count: number;
   match_count: number;
 };
+type AdminCompetitionDetail = {
+  id: string;
+  name: string;
+  clubName: string;
+  competitionType: string;
+  entryClosesAt: string;
+  status: string;
+  entrantCount: number;
+  entries: Array<{ id: string; playerName: string; handicap: number | null; status: string }>;
+  rounds: Array<{ id: string; name: string; roundNumber: number; playByDate: string; framesToPlay: number }>;
+  matches: Array<{ id: string; roundName: string; matchNumber: number; player1Name: string; player2Name: string; status: string; isPlaceholder?: boolean }>;
+};
 type AdminUser = {
   email: string;
   name: string;
@@ -87,7 +99,6 @@ type AdminUser = {
 const roles: TeamRole[] = ["Player", "Manager", "Assistant Manager"];
 const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member"];
 const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
-const PREVIEW_ACCESS_STORAGE_KEY = "interclub-snooker-access-granted";
 const demoTeams: TeamOption[] = clubTeamStructure.flatMap((club) =>
   club.teams.map((team) => ({
     teamId: team,
@@ -394,6 +405,24 @@ function DesktopAdminPanel({
 }) {
   const admins = people.filter((person) => person.admin).length;
   const clubs = uniqueClubs(teams).length;
+  const [selectedCompetitionId, setSelectedCompetitionId] = useState("");
+  const [competitionDetail, setCompetitionDetail] = useState<AdminCompetitionDetail | null>(null);
+  const [competitionLoading, setCompetitionLoading] = useState(false);
+
+  async function loadCompetitionDetail(competitionId: string) {
+    setCompetitionLoading(true);
+    try {
+      const response = await fetch(`/api/competitions/${competitionId}`, { credentials: "same-origin" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not load competition.");
+      setSelectedCompetitionId(competitionId);
+      setCompetitionDetail(data.competition);
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not load competition.");
+    } finally {
+      setCompetitionLoading(false);
+    }
+  }
 
   async function createAutoCastleCompetition() {
     try {
@@ -405,6 +434,7 @@ function DesktopAdminPanel({
       if (!response.ok) throw new Error(data.error || "Could not create auto competition.");
       onMessage(`${data.competitionName} created with ${data.players?.length ?? 8} Castle entrants. Entries close ${data.entryClosesAt}.`);
       onRefresh();
+      if (data.competitionId) loadCompetitionDetail(data.competitionId);
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not create auto competition.");
     }
@@ -427,9 +457,40 @@ function DesktopAdminPanel({
     }
   }
 
-  function openCompetitions(competitionId?: string) {
-    sessionStorage.setItem(PREVIEW_ACCESS_STORAGE_KEY, "true");
-    window.location.assign(competitionId ? `/?page=Competitions&competition=${competitionId}&admin=1` : "/?page=Competitions&admin=1");
+  async function removeCompetitionEntry(entryId: string) {
+    if (!competitionDetail) return;
+    try {
+      const response = await fetch(`/api/competitions/${competitionDetail.id}/entries`, {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ entryId })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not remove player.");
+      setCompetitionDetail(data.competition);
+      onMessage("Player removed from competition.");
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not remove player.");
+    }
+  }
+
+  async function runCompetitionDraw() {
+    if (!competitionDetail) return;
+    try {
+      const response = await fetch(`/api/competitions/${competitionDetail.id}/draw`, {
+        method: "POST",
+        credentials: "same-origin"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not run draw.");
+      setCompetitionDetail(data.competition);
+      onMessage("Draw created.");
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not run draw.");
+    }
   }
 
   return (
@@ -490,7 +551,7 @@ function DesktopAdminPanel({
                     <AdminMiniMetric label="Matches" value={competition.match_count} />
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Button className="w-full justify-center" onClick={() => openCompetitions(competition.id)}>
+                    <Button className="w-full justify-center" onClick={() => loadCompetitionDetail(competition.id)}>
                       <Trophy className="h-4 w-4" />
                       Manage
                     </Button>
@@ -504,14 +565,21 @@ function DesktopAdminPanel({
               {!competitions.length ? (
                 <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
                   <p className="text-sm font-semibold text-[#6c5a73]">No competitions have been created yet.</p>
-                  <Button className="w-full justify-center" onClick={() => openCompetitions()}>
+                  <Button className="w-full justify-center" onClick={createAutoCastleCompetition}>
                     <PlusCircle className="h-4 w-4" />
-                    Create competition
+                    Auto-create Castle competition
                   </Button>
                 </div>
               ) : null}
             </CardContent>
           </Card>
+          <AdminCompetitionDetailCard
+            competition={competitionDetail}
+            loading={competitionLoading}
+            selectedCompetitionId={selectedCompetitionId}
+            onRemoveEntry={removeCompetitionEntry}
+            onRunDraw={runCompetitionDraw}
+          />
           <Card>
             <CardHeader>
               <CardTitle>Admin flow</CardTitle>
@@ -575,6 +643,119 @@ function AdminMetric({ label, value }: { label: string; value: number }) {
       <p className="text-xs font-bold uppercase text-white/60">{label}</p>
       <p className="mt-1 text-3xl font-extrabold">{value}</p>
     </div>
+  );
+}
+
+function AdminCompetitionDetailCard({
+  competition,
+  loading,
+  selectedCompetitionId,
+  onRemoveEntry,
+  onRunDraw
+}: {
+  competition: AdminCompetitionDetail | null;
+  loading: boolean;
+  selectedCompetitionId: string;
+  onRemoveEntry: (entryId: string) => void;
+  onRunDraw: () => void;
+}) {
+  if (!competition && !loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Manage Competition</CardTitle>
+          <Badge variant="muted">Select</Badge>
+        </CardHeader>
+        <CardContent>
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            Select Manage on a competition above to edit entrants, run the draw and review matches.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const drawHasRun = Boolean(competition?.matches.length);
+  const canRemoveEntries = Boolean(competition && competition.status === "Open" && !drawHasRun);
+  const canRunDraw = Boolean(competition && competition.status === "Open" && competition.entrantCount >= 2 && !drawHasRun);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{competition?.name ?? "Loading competition"}</CardTitle>
+        <Badge variant={competition?.status === "Open" ? "green" : competition?.status === "Drawn" ? "cyan" : "muted"}>
+          {loading ? "Loading" : competition?.status ?? "Selected"}
+        </Badge>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        {loading ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Loading competition details...</p>
+        ) : competition ? (
+          <>
+            <div className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+              <p className="text-sm font-extrabold text-[#10233f]">{competition.clubName}</p>
+              <p className="text-xs font-bold text-[#6c5a73]">
+                {competition.competitionType} - entries close {formatAdminDate(competition.entryClosesAt)} - {competition.entrantCount} entrants
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={onRunDraw} disabled={!canRunDraw}>
+                <Trophy className="h-4 w-4" />
+                Run draw
+              </Button>
+              {!canRemoveEntries && drawHasRun ? (
+                <Badge variant="muted">Draw already made</Badge>
+              ) : null}
+            </div>
+            {competition.status === "Open" && competition.entrantCount < 2 ? (
+              <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Add at least two entrants before running a draw.</p>
+            ) : null}
+            <div className="grid gap-2">
+              <p className="text-xs font-bold uppercase text-[#6c5a73]">Entrants</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {competition.entries.map((entry) => (
+                  <div key={entry.id} className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
+                    <div className="min-w-0">
+                      <p className="font-extrabold text-[#10233f]">{entry.playerName}</p>
+                      <p className="text-xs font-bold text-[#6c5a73]">Handicap {entry.handicap === null ? "-" : entry.handicap}</p>
+                    </div>
+                    {canRemoveEntries ? (
+                      <Button variant="secondary" size="icon" className="h-10 w-10 shrink-0" onClick={() => onRemoveEntry(entry.id)} aria-label={`Remove ${entry.playerName}`}>
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              {!competition.entries.length ? (
+                <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No active entrants.</p>
+              ) : null}
+            </div>
+            {drawHasRun ? (
+              <div className="grid gap-2">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">Draw</p>
+                {competition.matches.slice(0, 8).map((match) => (
+                  <div key={match.id} className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase text-[#6c5a73]">{match.roundName} - Match {match.matchNumber}</p>
+                        <p className="font-extrabold text-[#10233f]">{match.player1Name} v {match.player2Name}</p>
+                      </div>
+                      <Badge variant={match.status === "Completed" ? "green" : match.status === "Bye" ? "cyan" : "muted"}>{match.status}</Badge>
+                    </div>
+                  </div>
+                ))}
+                {competition.matches.length > 8 ? (
+                  <p className="text-xs font-bold text-[#6c5a73]">Showing first 8 of {competition.matches.length} matches.</p>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Competition {selectedCompetitionId} could not be loaded.</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
