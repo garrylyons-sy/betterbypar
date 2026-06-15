@@ -56,7 +56,7 @@ export async function POST() {
       const entryClosesAt = endOfJuneThisYear();
       const competition = await client.query<{ id: string }>(
         `insert into public.competition (club_id, managed_by_platform, name, competition_type, entry_closes_at, rules, status, created_by)
-         values ($1, false, $2, 'Scratch', $3::date, 'Auto-generated test competition with 8 Castle entrants.', 'Open', $4)
+         values ($1, false, $2, 'Scratch', $3::date, 'Auto-generated test competition with 8 Castle entrants.', 'Drawn', $4)
          returning id`,
         [clubId, competitionName, entryClosesAt, user.personId]
       );
@@ -81,6 +81,33 @@ export async function POST() {
           `insert into public.competition_entry (competition_id, club_membership_id, entered_by, status)
            values ($1, $2, $3, 'Entered')`,
           [competitionId, player.club_membership_id, user.personId]
+        );
+      }
+
+      const firstRound = await client.query<{ id: string }>(
+        `select id
+         from public.competition_round
+         where competition_id = $1
+           and round_number = 1
+         limit 1`,
+        [competitionId]
+      );
+      const shuffledPlayers = [...playerResult.rows].sort(() => Math.random() - 0.5);
+      for (let index = 0; index < shuffledPlayers.length; index += 2) {
+        const player1 = shuffledPlayers[index];
+        const player2 = shuffledPlayers[index + 1];
+        const entryResult = await client.query<{ entry_id: string }>(
+          `select ce.id as entry_id
+           from public.competition_entry ce
+           where ce.competition_id = $1
+             and ce.club_membership_id in ($2, $3)
+           order by case when ce.club_membership_id = $2 then 1 else 2 end`,
+          [competitionId, player1.club_membership_id, player2.club_membership_id]
+        );
+        await client.query(
+          `insert into public.competition_match (competition_round_id, match_number, player_1_entry_id, player_2_entry_id, status)
+           values ($1, $2, $3, $4, 'Scheduled')`,
+          [firstRound.rows[0].id, Math.floor(index / 2) + 1, entryResult.rows[0].entry_id, entryResult.rows[1].entry_id]
         );
       }
 

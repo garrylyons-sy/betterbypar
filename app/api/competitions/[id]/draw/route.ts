@@ -42,6 +42,10 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
         [id]
       );
       if (entries.rows.length < 2) throw new Error("At least two entrants are needed to run a draw.");
+      const bracketCapacity = 2 ** rounds.rows.length;
+      if (entries.rows.length > bracketCapacity) {
+        throw new Error(`${entries.rows.length} entrants need more than ${rounds.rows.length} rounds. Add an earlier round before running the draw.`);
+      }
 
       const drawn = shuffle(entries.rows);
       for (let index = 0; index < drawn.length; index += 2) {
