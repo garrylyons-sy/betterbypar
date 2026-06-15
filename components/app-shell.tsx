@@ -1188,6 +1188,21 @@ type ManageableClub = {
   club_id: string;
   club_name: string;
 };
+type CompetitionRoundDraft = {
+  id: string;
+  name: string;
+  framesToPlay: string;
+  playByDate: string;
+};
+
+function defaultCompetitionRounds(): CompetitionRoundDraft[] {
+  return [
+    { id: "round-1", name: "Round 1", framesToPlay: "1", playByDate: "" },
+    { id: "quarter-final", name: "Quarter Final", framesToPlay: "1", playByDate: "" },
+    { id: "semi-final", name: "Semi Final", framesToPlay: "1", playByDate: "" },
+    { id: "final", name: "Final", framesToPlay: "1", playByDate: "" }
+  ];
+}
 
 function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamContext; mode: "open" | "mine" | "draws" | "admin"; onNavigate: (page: AppPage) => void }) {
   const [competitions, setCompetitions] = useState<CompetitionSummary[]>([]);
@@ -1276,8 +1291,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [competitionType, setCompetitionType] = useState<"Handicap" | "Scratch">("Handicap");
   const [entryClosesAt, setEntryClosesAt] = useState("");
   const [rules, setRules] = useState("");
-  const [framesToPlay, setFramesToPlay] = useState("1");
-  const [playByDate, setPlayByDate] = useState("");
+  const [roundDrafts, setRoundDrafts] = useState<CompetitionRoundDraft[]>(defaultCompetitionRounds);
 
   async function loadCompetitions(nextSelectedId = selectedId) {
     setLoading(true);
@@ -1326,17 +1340,19 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
           competitionType,
           entryClosesAt,
           rules,
-          rounds: [
-            { name: "Round 1", framesToPlay: Number(framesToPlay || 1), playByDate: playByDate || entryClosesAt },
-            { name: "Semi Final", framesToPlay: Number(framesToPlay || 1), playByDate: playByDate || entryClosesAt },
-            { name: "Final", framesToPlay: Number(framesToPlay || 1), playByDate: playByDate || entryClosesAt }
-          ]
+          rounds: roundDrafts.map((round) => ({
+            name: round.name,
+            framesToPlay: Number(round.framesToPlay || 1),
+            playByDate: round.playByDate || entryClosesAt
+          }))
         })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not create competition.");
       setName("");
       setRules("");
+      setEntryClosesAt("");
+      setRoundDrafts(defaultCompetitionRounds());
       setMessage("Competition created.");
       await loadCompetitions(data.competitionId);
     } catch (error) {
@@ -1386,6 +1402,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const canCreate = manageableClubs.length > 0;
   const enteredCompetitions = competitions.filter((competition) => competition.isEntered);
   const orderedCompetitions = [...competitions].sort((left, right) => Number(right.isEntered) - Number(left.isEntered));
+  const canSubmitCompetition = Boolean(name && entryClosesAt && roundDrafts.length && roundDrafts.every((round) => round.name.trim() && round.playByDate));
 
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -1475,16 +1492,99 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
         <CardContent className="grid gap-3">
           {canCreate ? (
             <>
-              <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={name} onChange={(event) => setName(event.target.value)} placeholder="Competition name" />
-              <select className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={competitionType} onChange={(event) => setCompetitionType(event.target.value as "Handicap" | "Scratch")}>
-                <option>Handicap</option>
-                <option>Scratch</option>
-              </select>
-              <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={entryClosesAt} onChange={(event) => setEntryClosesAt(event.target.value)} type="date" />
-              <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={playByDate} onChange={(event) => setPlayByDate(event.target.value)} type="date" />
-              <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={framesToPlay} onChange={(event) => setFramesToPlay(event.target.value)} type="number" min="1" max="35" placeholder="Frames per round" />
-              <textarea className="min-h-24 rounded-xl border border-[#eeeaf2] px-3 py-2 font-semibold" value={rules} onChange={(event) => setRules(event.target.value)} placeholder="Rules" />
-              <Button onClick={createCompetition} disabled={!name || !entryClosesAt}>
+              <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                <div>
+                  <p className="text-xs font-bold uppercase text-[#6c5a73]">Competition details</p>
+                  <p className="text-sm font-semibold text-[#10233f]">Name, format and entry deadline.</p>
+                </div>
+                <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+                  Competition name
+                  <input className="min-h-11 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold normal-case text-[#10233f]" value={name} onChange={(event) => setName(event.target.value)} placeholder="Castle Club Championship" />
+                </label>
+                <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+                  Competition type
+                  <select className="min-h-11 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold normal-case text-[#10233f]" value={competitionType} onChange={(event) => setCompetitionType(event.target.value as "Handicap" | "Scratch")}>
+                    <option>Handicap</option>
+                    <option>Scratch</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+                  Entries close
+                  <input className="min-h-11 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold normal-case text-[#10233f]" value={entryClosesAt} onChange={(event) => setEntryClosesAt(event.target.value)} type="date" />
+                </label>
+              </div>
+
+              <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase text-[#6c5a73]">Round schedule</p>
+                    <p className="text-sm font-semibold text-[#10233f]">Set how many frames and when each round should be finished.</p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-10 w-10 shrink-0"
+                    onClick={() => setRoundDrafts((current) => [...current, { id: `round-${Date.now()}`, name: `Round ${current.length + 1}`, framesToPlay: "1", playByDate: "" }])}
+                    aria-label="Add round"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+                {roundDrafts.map((round, index) => (
+                  <div key={round.id} className="grid gap-2 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase text-[#6c5a73]">Round {index + 1}</p>
+                      {roundDrafts.length > 1 ? (
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-9 w-9"
+                          onClick={() => setRoundDrafts((current) => current.filter((item) => item.id !== round.id))}
+                          aria-label={`Remove ${round.name}`}
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </div>
+                    <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+                      Round name
+                      <input
+                        className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 text-sm font-bold normal-case text-[#10233f]"
+                        value={round.name}
+                        onChange={(event) => setRoundDrafts((current) => current.map((item) => item.id === round.id ? { ...item, name: event.target.value } : item))}
+                      />
+                    </label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+                        Frames
+                        <input
+                          className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 text-sm font-bold normal-case text-[#10233f]"
+                          value={round.framesToPlay}
+                          onChange={(event) => setRoundDrafts((current) => current.map((item) => item.id === round.id ? { ...item, framesToPlay: event.target.value } : item))}
+                          type="number"
+                          min="1"
+                          max="35"
+                        />
+                      </label>
+                      <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+                        Play by
+                        <input
+                          className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 text-sm font-bold normal-case text-[#10233f]"
+                          value={round.playByDate}
+                          onChange={(event) => setRoundDrafts((current) => current.map((item) => item.id === round.id ? { ...item, playByDate: event.target.value } : item))}
+                          type="date"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">Rules</p>
+                <textarea className="min-h-24 rounded-xl border border-[#eeeaf2] bg-white px-3 py-2 text-sm font-semibold text-[#10233f]" value={rules} onChange={(event) => setRules(event.target.value)} placeholder="Competition rules" />
+              </div>
+              <Button onClick={createCompetition} disabled={!canSubmitCompetition}>
                 <PlusCircle className="h-4 w-4" />
                 Create competition
               </Button>
