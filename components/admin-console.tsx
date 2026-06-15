@@ -462,24 +462,33 @@ function DesktopAdminPanel({
               <CardTitle>Competitions</CardTitle>
               <Badge variant="muted">{competitions.length}</Badge>
             </CardHeader>
-            <CardContent className="grid gap-2">
+            <CardContent className="grid gap-3">
               {(competitions.length ? competitions : []).map((competition) => (
-                <div key={competition.id} className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                  <div className="min-w-0">
-                    <p className="truncate font-extrabold text-[#10233f]">{competition.name}</p>
-                    <p className="text-xs font-bold text-[#6c5a73]">
-                      {competition.club_name} - {competition.competition_type} - {competition.status}
-                    </p>
-                    <p className="text-xs font-semibold text-[#6c5a73]">
-                      {competition.entrant_count} entrants - {competition.round_count} rounds - {competition.match_count} matches
-                    </p>
+                <div key={competition.id} className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words text-base font-extrabold leading-tight text-[#10233f]">{competition.name}</p>
+                      <p className="mt-1 text-xs font-bold uppercase text-[#6c5a73]">{competition.club_name}</p>
+                    </div>
+                    <Badge variant={competition.status === "Drawn" ? "cyan" : competition.status === "Open" ? "green" : "muted"}>
+                      {competition.status}
+                    </Badge>
                   </div>
-                  <div className="flex flex-wrap gap-2 sm:justify-end">
-                    <Button onClick={() => window.location.assign(`/?page=Competitions&competition=${competition.id}`)}>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="muted">{competition.competition_type}</Badge>
+                    <Badge variant="muted">Closes {formatAdminDate(competition.entry_closes_at)}</Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <AdminMiniMetric label="Entrants" value={competition.entrant_count} />
+                    <AdminMiniMetric label="Rounds" value={competition.round_count} />
+                    <AdminMiniMetric label="Matches" value={competition.match_count} />
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button className="w-full justify-center" onClick={() => window.location.assign(`/?page=Competitions&competition=${competition.id}`)}>
                       <Trophy className="h-4 w-4" />
                       Manage
                     </Button>
-                    <Button variant="secondary" onClick={() => deleteCompetition(competition)}>
+                    <Button className="w-full justify-center" variant="secondary" onClick={() => deleteCompetition(competition)}>
                       <Trash2 className="h-4 w-4" />
                       Delete
                     </Button>
@@ -553,6 +562,15 @@ function AdminMetric({ label, value }: { label: string; value: number }) {
     <div className="rounded-xl bg-[#10233f] p-4 text-white">
       <p className="text-xs font-bold uppercase text-white/60">{label}</p>
       <p className="mt-1 text-3xl font-extrabold">{value}</p>
+    </div>
+  );
+}
+
+function AdminMiniMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-white px-3 py-2 text-center ring-1 ring-[#eeeaf2]">
+      <p className="text-lg font-extrabold leading-none text-[#10233f]">{value}</p>
+      <p className="mt-1 text-[10px] font-bold uppercase text-[#6c5a73]">{label}</p>
     </div>
   );
 }
