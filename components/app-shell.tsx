@@ -107,7 +107,11 @@ export function AppShell({
   );
   const [selectedId, setSelectedId] = useState(preferredContextId);
   const [selectedSeason, setSelectedSeason] = useState(preferredContext.season);
-  const [activePage, setActivePage] = useState<AppPage>("Home");
+  const [activePage, setActivePage] = useState<AppPage>(() => {
+    if (typeof window === "undefined") return "Home";
+    const requestedPage = new URLSearchParams(window.location.search).get("page");
+    return requestedPage === "Competitions" ? "Competitions" : "Home";
+  });
   const [simulatedRole, setSimulatedRole] = useState<Role>(contexts[0]?.role ?? teamContexts[0].role);
   const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
   const [teamSummaryOverrides, setTeamSummaryOverrides] = useState<Record<string, TeamSummaryUpdate>>({});
@@ -1279,11 +1283,16 @@ function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamCo
   );
 }
 
+function selectedCompetitionFromUrl() {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("competition")?.trim() ?? "";
+}
+
 function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [competitions, setCompetitions] = useState<CompetitionSummary[]>([]);
   const [memberships, setMemberships] = useState<CompetitionMembership[]>([]);
   const [manageableClubs, setManageableClubs] = useState<ManageableClub[]>([]);
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedId, setSelectedId] = useState(selectedCompetitionFromUrl);
   const [detail, setDetail] = useState<CompetitionDetail | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1302,7 +1311,8 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
       setCompetitions(data.competitions ?? []);
       setMemberships(data.memberships ?? []);
       setManageableClubs(data.manageableClubs ?? []);
-      const nextId = nextSelectedId || data.competitions?.[0]?.id || "";
+      const requestedCompetitionId = selectedCompetitionFromUrl();
+      const nextId = nextSelectedId || requestedCompetitionId || data.competitions?.[0]?.id || "";
       setSelectedId(nextId);
       if (nextId) await loadDetail(nextId);
     } catch (error) {

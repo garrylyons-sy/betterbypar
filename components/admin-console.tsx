@@ -474,10 +474,16 @@ function DesktopAdminPanel({
                       {competition.entrant_count} entrants - {competition.round_count} rounds - {competition.match_count} matches
                     </p>
                   </div>
-                  <Button variant="secondary" onClick={() => deleteCompetition(competition)}>
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </Button>
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
+                    <Button onClick={() => window.location.assign(`/?page=Competitions&competition=${competition.id}`)}>
+                      <Trophy className="h-4 w-4" />
+                      Manage
+                    </Button>
+                    <Button variant="secondary" onClick={() => deleteCompetition(competition)}>
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               ))}
               {!competitions.length ? (
