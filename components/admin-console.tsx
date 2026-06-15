@@ -122,6 +122,59 @@ const demoLogs: ActivityRow[] = [
   }
 ];
 
+function logPersonName(log: ActivityRow) {
+  if (!log.person) return "Unknown user";
+  const name = `${log.person.first_name ?? ""} ${log.person.last_name ?? ""}`.trim();
+  return name || log.person.email || "Unknown user";
+}
+
+function formatAdminLogTime(value: string) {
+  return new Date(value).toLocaleString("en-IE", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function metadataText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function activityLabel(activityType: string) {
+  if (activityType === "Page Visit") return "Page visit";
+  if (activityType === "Login") return "Login";
+  return activityType.replace(/_/g, " ");
+}
+
+function activitySummary(log: ActivityRow) {
+  if (log.activity_type === "Page Visit") {
+    return `Visited ${log.page_label || log.page_path || "the app"}`;
+  }
+  if (log.activity_type === "Login") {
+    const provider = metadataText(log.metadata?.provider);
+    return `Signed in${provider ? ` with ${provider === "google" ? "Google" : provider}` : ""}`;
+  }
+  return activityLabel(log.activity_type);
+}
+
+function activityContext(log: ActivityRow) {
+  const teamName = metadataText(log.metadata?.team_name);
+  const role = metadataText(log.metadata?.role);
+  const pagePath = log.page_path && log.page_path !== "/" ? log.page_path : "";
+  const pieces = [
+    teamName && role ? `${teamName} - ${role}` : teamName || role,
+    pagePath
+  ].filter(Boolean);
+  return pieces.length ? pieces.join(" - ") : "Session activity";
+}
+
+function activityBadgeVariant(log: ActivityRow): "cyan" | "green" | "muted" {
+  if (log.activity_type === "Page Visit") return "cyan";
+  if (log.activity_type === "Login") return "green";
+  return "muted";
+}
+
 export function AdminConsole() {
   const [tab, setTab] = useState<AdminTab>("desktop");
   const [authenticated, setAuthenticated] = useState(false);
@@ -456,8 +509,14 @@ function DesktopAdminPanel({
             <CardContent className="grid gap-2">
               {logs.slice(0, 5).map((log) => (
                 <div key={log.id} className="rounded-xl bg-[#f7f5fa] p-3">
-                  <p className="font-bold">{log.activity_type}</p>
-                  <p className="text-xs font-semibold text-[#6c5a73]">{new Date(log.created_at).toLocaleString()}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-[#10233f]">{activitySummary(log)}</p>
+                      <p className="truncate text-xs font-semibold text-[#6c5a73]">{logPersonName(log)} - {activityContext(log)}</p>
+                    </div>
+                    <Badge variant={activityBadgeVariant(log)}>{activityLabel(log.activity_type)}</Badge>
+                  </div>
+                  <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{formatAdminLogTime(log.created_at)}</p>
                 </div>
               ))}
             </CardContent>
@@ -1269,25 +1328,39 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
   return (
     <Card className="min-w-0">
       <CardHeader>
-        <CardTitle>User logs</CardTitle>
+        <CardTitle>User activity</CardTitle>
         <Badge variant="muted">{logs.length}</Badge>
       </CardHeader>
       <CardContent className="grid gap-2">
         {logs.map((log) => (
           <div key={log.id} className="rounded-xl bg-[#f7f5fa] p-3">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-extrabold">{log.activity_type}</p>
+              <div className="min-w-0">
+                <p className="font-extrabold text-[#10233f]">{activitySummary(log)}</p>
                 <p className="text-xs font-bold text-[#6c5a73]">
-                  {log.person ? `${log.person.first_name} ${log.person.last_name}` : "Unknown user"}
+                  {logPersonName(log)}
                 </p>
               </div>
-              <span className="text-right text-xs font-bold text-[#6c5a73]">{new Date(log.created_at).toLocaleString()}</span>
+              <div className="grid justify-items-end gap-1">
+                <Badge variant={activityBadgeVariant(log)}>{activityLabel(log.activity_type)}</Badge>
+                <span className="text-right text-xs font-bold text-[#6c5a73]">{formatAdminLogTime(log.created_at)}</span>
+              </div>
             </div>
-            <p className="mt-2 text-sm font-bold text-[#10233f]">{log.page_label ?? log.page_path ?? "Session"}</p>
-            <p className="mt-1 truncate text-xs font-semibold text-[#6c5a73]">{JSON.stringify(log.metadata)}</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-[#eeeaf2]">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">Context</p>
+                <p className="text-sm font-bold text-[#10233f]">{activityContext(log)}</p>
+              </div>
+              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-[#eeeaf2]">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">Page</p>
+                <p className="text-sm font-bold text-[#10233f]">{log.page_label || log.page_path || "Session"}</p>
+              </div>
+            </div>
           </div>
         ))}
+        {!logs.length ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No activity has been recorded yet.</p>
+        ) : null}
       </CardContent>
     </Card>
   );
