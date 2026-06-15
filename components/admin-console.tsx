@@ -67,6 +67,18 @@ type InviteRow = {
   club_name: string | null;
   roles: Array<{ role: string; team_name: string; league_name: string }>;
 };
+type AdminCompetitionRow = {
+  id: string;
+  name: string;
+  competition_type: string;
+  status: string;
+  entry_closes_at: string;
+  created_at: string;
+  club_name: string;
+  entrant_count: number;
+  round_count: number;
+  match_count: number;
+};
 type AdminUser = {
   email: string;
   name: string;
@@ -122,6 +134,7 @@ export function AdminConsole() {
   const [logs, setLogs] = useState<ActivityRow[]>(demoLogs);
   const [requests, setRequests] = useState<InviteRequestRow[]>([]);
   const [invites, setInvites] = useState<InviteRow[]>([]);
+  const [competitions, setCompetitions] = useState<AdminCompetitionRow[]>([]);
   const [appearance, setAppearance] = useState<AppearanceConfig>(defaultAppearanceConfig);
 
   useEffect(() => {
@@ -165,6 +178,7 @@ export function AdminConsole() {
         setLogs(data.logs ?? []);
         setRequests(data.requests ?? []);
         setInvites(data.invites ?? []);
+        setCompetitions(data.competitions ?? []);
         setAppearance(normalizeAppearanceConfig(data.appearance ?? defaultAppearanceConfig));
       }
     } catch (error) {
@@ -200,7 +214,7 @@ export function AdminConsole() {
 
   return (
     <AdminLayout tab={tab} setTab={setTab} message={message} adminUser={adminUser} onLogout={logout}>
-      <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} invites={invites} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={refreshAdminData} />
+      <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} invites={invites} competitions={competitions} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={refreshAdminData} />
     </AdminLayout>
   );
 }
@@ -292,13 +306,14 @@ function AdminTabPanel(props: {
   logs: ActivityRow[];
   requests: InviteRequestRow[];
   invites: InviteRow[];
+  competitions: AdminCompetitionRow[];
   appearance: AppearanceConfig;
   demo?: boolean;
   onAppearanceChange: (appearance: AppearanceConfig) => void;
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
-  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} competitions={props.competitions} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
   if (props.tab === "permissions") return <PermissionsPanel {...props} />;
   if (props.tab === "appearance") return <AppearancePanel {...props} />;
@@ -311,6 +326,7 @@ function DesktopAdminPanel({
   people,
   requests,
   logs,
+  competitions,
   onMessage,
   onRefresh
 }: {
@@ -318,6 +334,7 @@ function DesktopAdminPanel({
   people: PersonOption[];
   requests: InviteRequestRow[];
   logs: ActivityRow[];
+  competitions: AdminCompetitionRow[];
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
@@ -336,6 +353,23 @@ function DesktopAdminPanel({
       onRefresh();
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not create auto competition.");
+    }
+  }
+
+  async function deleteCompetition(competition: AdminCompetitionRow) {
+    const confirmed = window.confirm(`Delete ${competition.name} and all associated rounds, entries, matches and results?`);
+    if (!confirmed) return;
+    try {
+      const response = await fetch(`/api/admin/competitions/${competition.id}`, {
+        method: "DELETE",
+        credentials: "same-origin"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not delete competition.");
+      onMessage(`${data.name ?? competition.name} deleted.`);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not delete competition.");
     }
   }
 
@@ -368,6 +402,34 @@ function DesktopAdminPanel({
                 <Trophy className="h-4 w-4" />
                 Auto-create Castle competition
               </Button>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Competitions</CardTitle>
+              <Badge variant="muted">{competitions.length}</Badge>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              {(competitions.length ? competitions : []).map((competition) => (
+                <div key={competition.id} className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="min-w-0">
+                    <p className="truncate font-extrabold text-[#10233f]">{competition.name}</p>
+                    <p className="text-xs font-bold text-[#6c5a73]">
+                      {competition.club_name} - {competition.competition_type} - {competition.status}
+                    </p>
+                    <p className="text-xs font-semibold text-[#6c5a73]">
+                      {competition.entrant_count} entrants - {competition.round_count} rounds - {competition.match_count} matches
+                    </p>
+                  </div>
+                  <Button variant="secondary" onClick={() => deleteCompetition(competition)}>
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
+              ))}
+              {!competitions.length ? (
+                <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No competitions have been created yet.</p>
+              ) : null}
             </CardContent>
           </Card>
           <Card>

@@ -22,7 +22,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ authenticated: false, administrator: false }, { status: 401 });
     if (!administrator) return NextResponse.json({ authenticated: true, administrator: false, user }, { status: 403 });
 
-    const [teams, peopleResult, logsResult, requestsResult, invitesResult, appearance] = await Promise.all([
+    const [teams, peopleResult, logsResult, requestsResult, invitesResult, competitionsResult, appearance] = await Promise.all([
       loadTeamOptions(),
       dbQuery(
         `select distinct on (p.id)
@@ -129,6 +129,27 @@ export async function GET() {
          order by i.created_at desc
          limit 50`
       ),
+      dbQuery(
+        `select
+           c.id,
+           c.name,
+           c.competition_type,
+           c.status,
+           c.entry_closes_at::text,
+           c.created_at,
+           coalesce(cl.name, 'Interclub') as club_name,
+           count(distinct ce.id) filter (where ce.status = 'Entered')::int as entrant_count,
+           count(distinct cr.id)::int as round_count,
+           count(distinct cm.id)::int as match_count
+         from public.competition c
+         left join public.club cl on cl.id = c.club_id
+         left join public.competition_entry ce on ce.competition_id = c.id
+         left join public.competition_round cr on cr.competition_id = c.id
+         left join public.competition_match cm on cm.competition_round_id = cr.id
+         group by c.id, cl.name
+         order by c.created_at desc
+         limit 50`
+      ),
       loadAppearanceConfig()
     ]);
 
@@ -153,6 +174,7 @@ export async function GET() {
       })),
       requests: requestsResult.rows,
       invites: invitesResult.rows,
+      competitions: competitionsResult.rows,
       appearance
     });
   } catch (error) {
