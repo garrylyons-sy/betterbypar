@@ -269,7 +269,7 @@ export async function listCompetitions(user: AppUser): Promise<CompetitionSummar
        left join public.club_membership cm2 on cm2.id = e2.club_membership_id
        left join public.person p2 on p2.id = cm2.person_id
        where r.competition_id = c.id
-         and m.status <> 'Completed'
+         and m.status not in ('Completed', 'Bye')
          and (cm1.person_id = $1 or cm2.person_id = $1)
        order by r.round_number, m.match_number
        limit 1
@@ -433,7 +433,7 @@ export async function loadCompetitionDetail(user: AppUser, competitionId: string
     winnerEntryId: row.winner_entry_id,
     status: row.status,
     canReport: Boolean(row.player_1_entry_id && row.player_2_entry_id)
-      && (summary.canManage || row.player_1_person_id === user.personId || row.player_2_person_id === user.personId)
+      && (row.player_1_person_id === user.personId || row.player_2_person_id === user.personId)
   }));
 
   return {

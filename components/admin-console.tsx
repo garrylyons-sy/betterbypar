@@ -493,6 +493,25 @@ function DesktopAdminPanel({
     }
   }
 
+  async function saveCompetitionRoundDates(rounds: Array<{ id: string; playByDate: string }>) {
+    if (!competitionDetail) return;
+    try {
+      const response = await fetch(`/api/admin/competitions/${competitionDetail.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ rounds })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not update round dates.");
+      onMessage("Round dates updated.");
+      await loadCompetitionDetail(competitionDetail.id);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not update round dates.");
+    }
+  }
+
   return (
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="grid min-w-0 gap-4">
@@ -579,6 +598,7 @@ function DesktopAdminPanel({
             selectedCompetitionId={selectedCompetitionId}
             onRemoveEntry={removeCompetitionEntry}
             onRunDraw={runCompetitionDraw}
+            onSaveRoundDates={saveCompetitionRoundDates}
           />
           <Card>
             <CardHeader>
@@ -651,14 +671,22 @@ function AdminCompetitionDetailCard({
   loading,
   selectedCompetitionId,
   onRemoveEntry,
-  onRunDraw
+  onRunDraw,
+  onSaveRoundDates
 }: {
   competition: AdminCompetitionDetail | null;
   loading: boolean;
   selectedCompetitionId: string;
   onRemoveEntry: (entryId: string) => void;
   onRunDraw: () => void;
+  onSaveRoundDates: (rounds: Array<{ id: string; playByDate: string }>) => void;
 }) {
+  const [roundDates, setRoundDates] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setRoundDates(Object.fromEntries((competition?.rounds ?? []).map((round) => [round.id, round.playByDate?.slice(0, 10) ?? ""])));
+  }, [competition?.id, competition?.rounds]);
+
   if (!competition && !loading) {
     return (
       <Card>
@@ -709,6 +737,33 @@ function AdminCompetitionDetailCard({
             </div>
             {competition.status === "Open" && competition.entrantCount < 2 ? (
               <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Add at least two entrants before running a draw.</p>
+            ) : null}
+            {drawHasRun ? (
+              <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold uppercase text-[#6c5a73]">Round play-by dates</p>
+                  <Badge variant="cyan">{competition.rounds.length}</Badge>
+                </div>
+                <div className="grid gap-2">
+                  {competition.rounds.map((round) => (
+                    <label key={round.id} className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73] sm:grid-cols-[1fr_160px] sm:items-center">
+                      <span>{round.name}</span>
+                      <input
+                        className="min-h-10 rounded-lg border border-[#eeeaf2] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+                        type="date"
+                        value={roundDates[round.id] ?? ""}
+                        onChange={(event) => setRoundDates((current) => ({ ...current, [round.id]: event.target.value }))}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => onSaveRoundDates(competition.rounds.map((round) => ({ id: round.id, playByDate: roundDates[round.id] ?? "" })))}
+                >
+                  Save round dates
+                </Button>
+              </div>
             ) : null}
             <div className="grid gap-2">
               <p className="text-xs font-bold uppercase text-[#6c5a73]">Entrants</p>

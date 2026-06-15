@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
-import { canManageCompetition, loadCompetitionDetail } from "@/lib/server/competitions";
+import { loadCompetitionDetail } from "@/lib/server/competitions";
 import { withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -21,38 +21,64 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await withTransaction(async (client) => {
       const matchResult = await client.query<{
         id: string;
+        competition_round_id: string;
         match_number: number;
-        round_number: number;
         player_1_entry_id: string | null;
         player_2_entry_id: string | null;
-        player_1_person_id: string | null;
-        player_2_person_id: string | null;
+        status: string;
       }>(
         `select
            m.id,
+           m.competition_round_id,
            m.match_number,
-           r.round_number,
            m.player_1_entry_id,
            m.player_2_entry_id,
-           cm1.person_id as player_1_person_id,
-           cm2.person_id as player_2_person_id
+           m.status
          from public.competition_match m
          join public.competition_round r on r.id = m.competition_round_id
-         left join public.competition_entry e1 on e1.id = m.player_1_entry_id
-         left join public.club_membership cm1 on cm1.id = e1.club_membership_id
-         left join public.competition_entry e2 on e2.id = m.player_2_entry_id
-         left join public.club_membership cm2 on cm2.id = e2.club_membership_id
          where m.id = $1
            and r.competition_id = $2
-         for update`,
+         for update of m`,
         [matchId, id]
       );
       const match = matchResult.rows[0];
       if (!match || !match.player_1_entry_id || !match.player_2_entry_id) throw new Error("Match not found.");
 
-      const canManage = await canManageCompetition(user, id);
-      const canReport = canManage || match.player_1_person_id === user.personId || match.player_2_person_id === user.personId;
+      const playerResult = await client.query<{
+        player_1_person_id: string | null;
+        player_2_person_id: string | null;
+        round_number: number;
+      }>(
+        `select
+           r.round_number,
+           cm1.person_id as player_1_person_id,
+           cm2.person_id as player_2_person_id
+         from public.competition_match m
+         join public.competition_round r on r.id = m.competition_round_id
+         join public.competition_entry e1 on e1.id = m.player_1_entry_id
+         join public.club_membership cm1 on cm1.id = e1.club_membership_id
+         join public.competition_entry e2 on e2.id = m.player_2_entry_id
+         join public.club_membership cm2 on cm2.id = e2.club_membership_id
+         where m.id = $1`,
+        [matchId]
+      );
+      const players = playerResult.rows[0];
+      if (!players) throw new Error("Match players could not be loaded.");
+
+      const canReport = players.player_1_person_id === user.personId || players.player_2_person_id === user.personId;
       if (!canReport) throw new Error("You can only report your own competition match.");
+
+      const roundResult = await client.query<{ frames_to_play: number }>(
+        `select frames_to_play
+         from public.competition_round
+         where id = $1`,
+        [match.competition_round_id]
+      );
+      const framesToPlay = roundResult.rows[0]?.frames_to_play ?? 1;
+      const winningScore = Math.floor(framesToPlay / 2) + 1;
+      if (Math.max(player1Score, player2Score) !== winningScore || Math.min(player1Score, player2Score) >= winningScore) {
+        throw new Error(`Enter a valid best-of-${framesToPlay} score.`);
+      }
 
       const winnerEntryId = player1Score > player2Score ? match.player_1_entry_id : match.player_2_entry_id;
       await client.query(
@@ -73,7 +99,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
          where competition_id = $1
            and round_number = $2
          limit 1`,
-        [id, match.round_number + 1]
+        [id, players.round_number + 1]
       );
       if (nextRound.rows[0]) {
         const nextMatchNumber = Math.ceil(match.match_number / 2);

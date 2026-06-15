@@ -1192,6 +1192,19 @@ type CompetitionMembership = {
   handicap: string | null;
 };
 
+function shortRoundName(roundName?: string | null) {
+  const normalized = (roundName ?? "").toLowerCase();
+  if (!normalized) return "";
+  if (normalized.includes("final") && !normalized.includes("semi") && !normalized.includes("quarter")) return "F";
+  if (normalized.includes("semi")) return "SF";
+  if (normalized.includes("quarter")) return "QF";
+  const roundOf = normalized.match(/round of\s+(\d+)/);
+  if (roundOf?.[1]) return `R${roundOf[1]}`;
+  const roundNumber = normalized.match(/round\s+(\d+)/);
+  if (roundNumber?.[1]) return `${roundNumber[1]}R`;
+  return roundName?.slice(0, 3).toUpperCase() ?? "";
+}
+
 function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamContext; mode: "open" | "mine" | "draws"; onNavigate: (page: AppPage) => void }) {
   const [competitions, setCompetitions] = useState<CompetitionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1218,8 +1231,8 @@ function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamCo
     ? clubCompetitions.filter((competition) => competition.isEntered)
     : mode === "draws"
       ? clubCompetitions.filter((competition) => competition.status !== "Open" && competition.status !== "Draft")
-      : clubCompetitions.filter((competition) => competition.status === "Open");
-  const title = mode === "mine" ? "My Competition Matches" : mode === "draws" ? "Competition Draws" : "Open Competitions";
+      : clubCompetitions;
+  const title = mode === "mine" ? "My Competition Matches" : mode === "draws" ? "Competition Draws" : "Competitions";
   const badge = `${visible.length}`;
 
   return (
@@ -1229,13 +1242,13 @@ function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamCo
         <Badge variant="muted">{loading ? "Loading" : badge}</Badge>
       </CardHeader>
       <CardContent className="grid gap-2">
-        {(visible.length ? visible.slice(0, 3) : []).map((competition) => (
+        {visible.map((competition) => (
           <button key={competition.id} type="button" onClick={() => onNavigate("Competitions")} className="rounded-xl bg-[#f7f5fa] p-3 text-left ring-1 ring-[#eeeaf2]">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-black text-[#10233f]">{competition.name}</p>
                 <p className="text-xs font-bold text-[#6c5a73]">{competition.clubName} - {competition.competitionType}</p>
-                {mode === "mine" ? (
+                {competition.isEntered ? (
                   <p className="mt-2 text-sm font-semibold text-[#10233f]">
                     {competition.nextMatch
                       ? `${competition.nextMatch.roundName}: ${competition.nextMatch.opponentName} by ${formatFixtureDate(competition.nextMatch.playByDate)}`
@@ -1245,7 +1258,10 @@ function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamCo
                   </p>
                 ) : null}
               </div>
-              <Badge variant={competition.isEntered ? "green" : "cyan"}>{competition.status}</Badge>
+              <div className="flex shrink-0 flex-col items-end gap-1.5">
+                {competition.isEntered && competition.nextMatch?.roundName ? <Badge variant="cyan">{shortRoundName(competition.nextMatch.roundName)}</Badge> : null}
+                <Badge variant={competition.isEntered ? "green" : "cyan"}>{competition.isEntered ? "Entered" : competition.status}</Badge>
+              </div>
             </div>
           </button>
         ))}
@@ -1392,6 +1408,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
                       ) : null}
                     </button>
                     <div className="flex shrink-0 flex-col items-end gap-2">
+                      {competition.isEntered && competition.nextMatch?.roundName ? <Badge variant="cyan">{shortRoundName(competition.nextMatch.roundName)}</Badge> : null}
                       <Badge variant={competition.isEntered ? "green" : "muted"}>{competition.isEntered ? "Entered" : competition.status}</Badge>
                       {canEnter ? (
                         <Button size="sm" onClick={() => setConfirmingEntryId(competition.id)} disabled={enteringId === competition.id}>
@@ -1466,18 +1483,6 @@ function CompetitionDetailCard({
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
             Entries are open. Use the competition list above to enter; entrants will be hidden until the draw is made.
           </p>
-        ) : null}
-        {drawHasRun ? (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {competition.entries.map((entry) => (
-              <div key={entry.id} className="flex items-start justify-between gap-3 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
-                <div className="min-w-0">
-                  <p className="font-black">{entry.playerName}</p>
-                  <p className="text-xs font-bold text-[#6c5a73]">Handicap {entry.handicap === null ? "-" : formatSignedNumber(entry.handicap)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         ) : null}
         {drawHasRun ? <div className="grid gap-3">
           {roundsWithMatches.map((round) => (
