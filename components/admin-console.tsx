@@ -10,7 +10,7 @@ import { appearanceMenuOptions, appearancePanelOptions, defaultAppearanceConfig,
 import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, Role as AppRole } from "@/lib/types";
 
-type AdminTab = "desktop" | "people" | "invites" | "permissions" | "appearance" | "logs";
+type AdminTab = "desktop" | "competitions" | "people" | "invites" | "permissions" | "appearance" | "logs";
 type TeamRole = "Player" | "Manager" | "Assistant Manager";
 type InviteRole = "Player" | "Manager" | "Club Member";
 type TeamOption = {
@@ -191,6 +191,7 @@ export function AdminConsole() {
   const [tab, setTab] = useState<AdminTab>("desktop");
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [adminDataLoaded, setAdminDataLoaded] = useState(false);
   const [administrator, setAdministrator] = useState(false);
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [message, setMessage] = useState("");
@@ -219,6 +220,7 @@ export function AdminConsole() {
       } : null);
 
       if (response.ok) {
+        setAdminDataLoaded(true);
         setTeams((data.teams ?? []).map((team: { club_id: string; team_id: string; team_name: string; club_name: string; league_name: string }) => ({
           teamId: team.team_id,
           clubId: team.club_id,
@@ -260,6 +262,7 @@ export function AdminConsole() {
       setAuthenticated(false);
       setAdministrator(false);
       setAdminUser(null);
+      setAdminDataLoaded(false);
       setMessage("Signed out.");
       window.location.assign("/admin");
     }
@@ -279,7 +282,7 @@ export function AdminConsole() {
 
   return (
     <AdminLayout tab={tab} setTab={setTab} message={message} adminUser={adminUser} onLogout={logout}>
-      <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} invites={invites} competitions={competitions} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
+      <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} invites={invites} competitions={competitions} competitionsLoading={!adminDataLoaded} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
     </AdminLayout>
   );
 }
@@ -336,6 +339,7 @@ function AdminLayout({
         <aside className="flex min-w-0 gap-2 overflow-x-auto rounded-[18px] bg-white p-2 shadow-card lg:sticky lg:top-4 lg:block lg:self-start lg:overflow-visible">
           {[
             { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
+            { id: "competitions" as const, label: "Competitions", icon: Trophy },
             { id: "people" as const, label: "People", icon: UserPlus },
             { id: "invites" as const, label: "Invites", icon: KeyRound },
             { id: "permissions" as const, label: "Permissions", icon: Users },
@@ -372,13 +376,15 @@ function AdminTabPanel(props: {
   requests: InviteRequestRow[];
   invites: InviteRow[];
   competitions: AdminCompetitionRow[];
+  competitionsLoading: boolean;
   appearance: AppearanceConfig;
   demo?: boolean;
   onAppearanceChange: (appearance: AppearanceConfig) => void;
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
-  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} competitions={props.competitions} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} />;
+  if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
   if (props.tab === "permissions") return <PermissionsPanel {...props} />;
   if (props.tab === "appearance") return <AppearancePanel {...props} />;
@@ -390,24 +396,105 @@ function DesktopAdminPanel({
   teams,
   people,
   requests,
-  logs,
-  competitions,
-  onMessage,
-  onRefresh
+  logs
 }: {
   teams: TeamOption[];
   people: PersonOption[];
   requests: InviteRequestRow[];
   logs: ActivityRow[];
-  competitions: AdminCompetitionRow[];
-  onMessage: (message: string) => void;
-  onRefresh: () => void;
 }) {
   const admins = people.filter((person) => person.admin).length;
   const clubs = uniqueClubs(teams).length;
+
+  return (
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid min-w-0 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Platform administration</CardTitle>
+            <Badge variant="cyan">Desktop console</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <AdminMetric label="Clubs" value={clubs} />
+            <AdminMetric label="Teams" value={teams.length} />
+            <AdminMetric label="People" value={people.length} />
+            <AdminMetric label="Admins" value={admins} />
+          </CardContent>
+        </Card>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Admin flow</CardTitle>
+              <Badge variant="green">Ready</Badge>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              {[
+                "Add people without creating logins",
+                "Create branded invites with multiple role rows",
+                "Grant administrator access to any person",
+                "Control each role's home panels and menus"
+              ].map((item) => (
+                <div key={item} className="rounded-xl bg-[#f7f5fa] px-4 py-3 text-sm font-bold text-[#10233f]">{item}</div>
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent logs</CardTitle>
+              <Badge variant="muted">{logs.length}</Badge>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              {logs.slice(0, 5).map((log) => (
+                <div key={log.id} className="rounded-xl bg-[#f7f5fa] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-[#10233f]">{activitySummary(log)}</p>
+                      <p className="truncate text-xs font-semibold text-[#6c5a73]">{logPersonName(log)} - {activityContext(log)}</p>
+                    </div>
+                    <Badge variant={activityBadgeVariant(log)}>{activityLabel(log.activity_type)}</Badge>
+                  </div>
+                  <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{formatAdminLogTime(log.created_at)}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Invite requests</CardTitle>
+          <Badge variant="muted">{requests.length}</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-2">
+          {(requests.length ? requests : [{ id: "no-requests", requested_person_name: "No pending requests", email: "New requests will appear here", status: "Clear", message: null, created_at: new Date().toISOString() }]).slice(0, 8).map((request) => (
+            <div key={request.id} className="rounded-xl bg-[#f7f5fa] p-3">
+              <p className="font-extrabold">{request.requested_person_name}</p>
+              <p className="text-xs font-bold text-[#6c5a73]">{request.email}</p>
+              <Badge variant={request.status === "Pending" ? "cyan" : "muted"}>{request.status}</Badge>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function CompetitionsAdminPanel({
+  competitions,
+  loading,
+  onMessage,
+  onRefresh
+}: {
+  competitions: AdminCompetitionRow[];
+  loading: boolean;
+  onMessage: (message: string) => void;
+  onRefresh: () => void;
+}) {
   const [selectedCompetitionId, setSelectedCompetitionId] = useState("");
   const [competitionDetail, setCompetitionDetail] = useState<AdminCompetitionDetail | null>(null);
   const [competitionLoading, setCompetitionLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AdminCompetitionRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function loadCompetitionDetail(competitionId: string) {
     setCompetitionLoading(true);
@@ -440,20 +527,27 @@ function DesktopAdminPanel({
     }
   }
 
-  async function deleteCompetition(competition: AdminCompetitionRow) {
-    const confirmed = window.confirm(`Delete ${competition.name} and all associated rounds, entries, matches and results?`);
-    if (!confirmed) return;
+  async function deleteCompetition() {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      const response = await fetch(`/api/admin/competitions/${competition.id}`, {
+      const response = await fetch(`/api/admin/competitions/${deleteTarget.id}`, {
         method: "DELETE",
         credentials: "same-origin"
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not delete competition.");
-      onMessage(`${data.name ?? competition.name} deleted.`);
+      if (selectedCompetitionId === deleteTarget.id) {
+        setSelectedCompetitionId("");
+        setCompetitionDetail(null);
+      }
+      onMessage(`${data.name ?? deleteTarget.name} deleted.`);
+      setDeleteTarget(null);
       onRefresh();
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not delete competition.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -513,146 +607,83 @@ function DesktopAdminPanel({
   }
 
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
       <div className="grid min-w-0 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>Platform administration</CardTitle>
-            <Badge variant="cyan">Desktop console</Badge>
+            <CardTitle>Competitions</CardTitle>
+            <Badge variant="muted">{competitions.length}</Badge>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <AdminMetric label="Clubs" value={clubs} />
-            <AdminMetric label="Teams" value={teams.length} />
-            <AdminMetric label="People" value={people.length} />
-            <AdminMetric label="Admins" value={admins} />
-          </CardContent>
-        </Card>
-        <div className="grid gap-4 xl:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Competition test data</CardTitle>
-              <Badge variant="cyan">Castle</Badge>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-                Create a scratch Castle competition with a random name, entries closing at the end of June, and 8 Castle players excluding you.
+          <CardContent className="grid gap-3">
+            <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] sm:grid-cols-[1fr_auto] sm:items-center">
+              <p className="text-sm font-semibold text-[#6c5a73]">
+                Manage club competitions, entrants, draws, round dates and results from this screen.
               </p>
               <Button onClick={createAutoCastleCompetition}>
-                <Trophy className="h-4 w-4" />
+                <PlusCircle className="h-4 w-4" />
                 Auto-create Castle competition
               </Button>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Competitions</CardTitle>
-              <Badge variant="muted">{competitions.length}</Badge>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              {(competitions.length ? competitions : []).map((competition) => (
-                <div key={competition.id} className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="break-words text-base font-extrabold leading-tight text-[#10233f]">{competition.name}</p>
-                      <p className="mt-1 text-xs font-bold uppercase text-[#6c5a73]">{competition.club_name}</p>
-                    </div>
-                    <Badge variant={competition.status === "Drawn" ? "cyan" : competition.status === "Open" ? "green" : "muted"}>
-                      {competition.status}
-                    </Badge>
+            </div>
+            {competitions.map((competition) => (
+              <div key={competition.id} className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-base font-extrabold leading-tight text-[#10233f]">{competition.name}</p>
+                    <p className="mt-1 text-xs font-bold uppercase text-[#6c5a73]">{competition.club_name}</p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="muted">{competition.competition_type}</Badge>
-                    <Badge variant="muted">Closes {formatAdminDate(competition.entry_closes_at)}</Badge>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <AdminMiniMetric label="Entrants" value={competition.entrant_count} />
-                    <AdminMiniMetric label="Rounds" value={competition.round_count} />
-                    <AdminMiniMetric label="Matches" value={competition.match_count} />
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Button className="w-full justify-center" onClick={() => loadCompetitionDetail(competition.id)}>
-                      <Trophy className="h-4 w-4" />
-                      Manage
-                    </Button>
-                    <Button className="w-full justify-center" variant="secondary" onClick={() => deleteCompetition(competition)}>
-                      <Trash2 className="h-4 w-4" />
-                      Delete
-                    </Button>
-                  </div>
+                  <Badge variant={competition.status === "Drawn" ? "cyan" : competition.status === "Open" ? "green" : "muted"}>
+                    {competition.status}
+                  </Badge>
                 </div>
-              ))}
-              {!competitions.length ? (
-                <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
-                  <p className="text-sm font-semibold text-[#6c5a73]">No competitions have been created yet.</p>
-                  <Button className="w-full justify-center" onClick={createAutoCastleCompetition}>
-                    <PlusCircle className="h-4 w-4" />
-                    Auto-create Castle competition
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="muted">{competition.competition_type}</Badge>
+                  <Badge variant="muted">Closes {formatAdminDate(competition.entry_closes_at)}</Badge>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <AdminMiniMetric label="Entrants" value={competition.entrant_count} />
+                  <AdminMiniMetric label="Rounds" value={competition.round_count} />
+                  <AdminMiniMetric label="Matches" value={competition.match_count} />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button className="w-full justify-center" onClick={() => loadCompetitionDetail(competition.id)}>
+                    <Trophy className="h-4 w-4" />
+                    Manage
+                  </Button>
+                  <Button className="w-full justify-center" variant="secondary" onClick={() => setDeleteTarget(competition)}>
+                    <Trash2 className="h-4 w-4" />
+                    Delete
                   </Button>
                 </div>
-              ) : null}
-            </CardContent>
-          </Card>
-          <AdminCompetitionDetailCard
-            competition={competitionDetail}
-            loading={competitionLoading}
-            selectedCompetitionId={selectedCompetitionId}
-            onRemoveEntry={removeCompetitionEntry}
-            onRunDraw={runCompetitionDraw}
-            onSaveRoundDates={saveCompetitionRoundDates}
-          />
-          <Card>
-            <CardHeader>
-              <CardTitle>Admin flow</CardTitle>
-              <Badge variant="green">Ready</Badge>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              {[
-                "Add people without creating logins",
-                "Create branded invites with multiple role rows",
-                "Grant administrator access to any person",
-                "Control each role's home panels and menus"
-              ].map((item) => (
-                <div key={item} className="rounded-xl bg-[#f7f5fa] px-4 py-3 text-sm font-bold text-[#10233f]">{item}</div>
-              ))}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent logs</CardTitle>
-              <Badge variant="muted">{logs.length}</Badge>
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              {logs.slice(0, 5).map((log) => (
-                <div key={log.id} className="rounded-xl bg-[#f7f5fa] p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-bold text-[#10233f]">{activitySummary(log)}</p>
-                      <p className="truncate text-xs font-semibold text-[#6c5a73]">{logPersonName(log)} - {activityContext(log)}</p>
-                    </div>
-                    <Badge variant={activityBadgeVariant(log)}>{activityLabel(log.activity_type)}</Badge>
-                  </div>
-                  <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{formatAdminLogTime(log.created_at)}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+              </div>
+            ))}
+            {loading ? (
+              <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                <p className="text-sm font-semibold text-[#6c5a73]">Loading...</p>
+              </div>
+            ) : !competitions.length ? (
+              <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                <p className="text-sm font-semibold text-[#6c5a73]">No competitions have been created yet.</p>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Invite requests</CardTitle>
-          <Badge variant="muted">{requests.length}</Badge>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          {(requests.length ? requests : [{ id: "no-requests", requested_person_name: "No pending requests", email: "New requests will appear here", status: "Clear", message: null, created_at: new Date().toISOString() }]).slice(0, 8).map((request) => (
-            <div key={request.id} className="rounded-xl bg-[#f7f5fa] p-3">
-              <p className="font-extrabold">{request.requested_person_name}</p>
-              <p className="text-xs font-bold text-[#6c5a73]">{request.email}</p>
-              <Badge variant={request.status === "Pending" ? "cyan" : "muted"}>{request.status}</Badge>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <AdminCompetitionDetailCard
+        competition={competitionDetail}
+        loading={competitionLoading}
+        selectedCompetitionId={selectedCompetitionId}
+        onRemoveEntry={removeCompetitionEntry}
+        onRunDraw={runCompetitionDraw}
+        onSaveRoundDates={saveCompetitionRoundDates}
+      />
+      {deleteTarget ? (
+        <ConfirmDeleteCompetitionModal
+          competition={deleteTarget}
+          busy={deleting}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={deleteCompetition}
+        />
+      ) : null}
     </div>
   );
 }
@@ -662,6 +693,44 @@ function AdminMetric({ label, value }: { label: string; value: number }) {
     <div className="rounded-xl bg-[#10233f] p-4 text-white">
       <p className="text-xs font-bold uppercase text-white/60">{label}</p>
       <p className="mt-1 text-3xl font-extrabold">{value}</p>
+    </div>
+  );
+}
+
+function ConfirmDeleteCompetitionModal({
+  competition,
+  busy,
+  onCancel,
+  onConfirm
+}: {
+  competition: AdminCompetitionRow;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Delete competition">
+      <div className="w-full max-w-md rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase text-[#6c5a73]">Confirm delete</p>
+            <h2 className="mt-1 text-xl font-extrabold leading-tight text-[#10233f]">{competition.name}</h2>
+          </div>
+          <Badge variant="muted">{competition.status}</Badge>
+        </div>
+        <p className="mt-3 rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+          This removes the competition, entries, rounds, matches and recorded results. This cannot be undone.
+        </p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <Button variant="secondary" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm} disabled={busy} className="bg-[#b42318] hover:bg-[#8f1d14]">
+            <Trash2 className="h-4 w-4" />
+            {busy ? "Deleting..." : "Delete competition"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -691,7 +760,7 @@ function AdminCompetitionDetailCard({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Manage Competition</CardTitle>
+          <CardTitle>Competition details</CardTitle>
           <Badge variant="muted">Select</Badge>
         </CardHeader>
         <CardContent>
