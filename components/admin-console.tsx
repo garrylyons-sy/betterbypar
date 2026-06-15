@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, Eye, KeyRound, LayoutPanelTop, LogOut, Mail, PlusCircle, ShieldCheck, Smartphone, Trash2, UserPlus, Users } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, Eye, KeyRound, LayoutPanelTop, LogOut, Mail, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -298,7 +298,7 @@ function AdminTabPanel(props: {
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
-  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} onSetTab={() => props.onMessage("")} />;
+  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
   if (props.tab === "permissions") return <PermissionsPanel {...props} />;
   if (props.tab === "appearance") return <AppearancePanel {...props} />;
@@ -310,16 +310,34 @@ function DesktopAdminPanel({
   teams,
   people,
   requests,
-  logs
+  logs,
+  onMessage,
+  onRefresh
 }: {
   teams: TeamOption[];
   people: PersonOption[];
   requests: InviteRequestRow[];
   logs: ActivityRow[];
-  onSetTab: () => void;
+  onMessage: (message: string) => void;
+  onRefresh: () => void;
 }) {
   const admins = people.filter((person) => person.admin).length;
   const clubs = uniqueClubs(teams).length;
+
+  async function createAutoCastleCompetition() {
+    try {
+      const response = await fetch("/api/admin/competitions/auto-castle", {
+        method: "POST",
+        credentials: "same-origin"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not create auto competition.");
+      onMessage(`${data.competitionName} created with ${data.players?.length ?? 8} Castle entrants. Entries close ${data.entryClosesAt}.`);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not create auto competition.");
+    }
+  }
 
   return (
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -337,6 +355,21 @@ function DesktopAdminPanel({
           </CardContent>
         </Card>
         <div className="grid gap-4 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Competition test data</CardTitle>
+              <Badge variant="cyan">Castle</Badge>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+                Create a scratch Castle competition with a random name, entries closing at the end of June, and 8 Castle players excluding you.
+              </p>
+              <Button onClick={createAutoCastleCompetition}>
+                <Trophy className="h-4 w-4" />
+                Auto-create Castle competition
+              </Button>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle>Admin flow</CardTitle>
