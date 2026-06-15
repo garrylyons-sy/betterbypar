@@ -429,7 +429,7 @@ function DesktopAdminPanel({
 
   function openCompetitions(competitionId?: string) {
     sessionStorage.setItem(PREVIEW_ACCESS_STORAGE_KEY, "true");
-    window.location.assign(competitionId ? `/?page=Competitions&competition=${competitionId}` : "/?page=Competitions");
+    window.location.assign(competitionId ? `/?page=Competitions&competition=${competitionId}&admin=1` : "/?page=Competitions&admin=1");
   }
 
   return (
