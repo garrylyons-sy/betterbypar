@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
+import { createCompetitionDraw } from "@/lib/server/competition-draw";
 import { canManageCompetition, loadCompetitionDetail } from "@/lib/server/competitions";
 import { withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
-
-function shuffle<T>(items: T[]) {
-  return [...items].sort(() => Math.random() - 0.5);
-}
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -30,8 +27,6 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
          order by round_number`,
         [id]
       );
-      const firstRound = rounds.rows[0];
-      if (!firstRound) throw new Error("Add at least one round before running a draw.");
 
       const entries = await client.query<{ id: string }>(
         `select id
@@ -41,29 +36,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
          order by entered_at`,
         [id]
       );
-      if (entries.rows.length < 2) throw new Error("At least two entrants are needed to run a draw.");
-      const bracketCapacity = 2 ** rounds.rows.length;
-      if (entries.rows.length > bracketCapacity) {
-        throw new Error(`${entries.rows.length} entrants need more than ${rounds.rows.length} rounds. Add an earlier round before running the draw.`);
-      }
-
-      const drawn = shuffle(entries.rows);
-      for (let index = 0; index < drawn.length; index += 2) {
-        const player1 = drawn[index];
-        const player2 = drawn[index + 1] ?? null;
-        await client.query(
-          `insert into public.competition_match (
-             competition_round_id,
-             match_number,
-             player_1_entry_id,
-             player_2_entry_id,
-             winner_entry_id,
-             status
-           )
-           values ($1, $2, $3, $4, $5, $6)`,
-          [firstRound.id, Math.floor(index / 2) + 1, player1.id, player2?.id ?? null, player2 ? null : player1.id, player2 ? "Scheduled" : "Bye"]
-        );
-      }
+      await createCompetitionDraw(client, rounds.rows, entries.rows);
 
       await client.query("update public.competition set status = 'Drawn', updated_at = now() where id = $1", [id]);
     });

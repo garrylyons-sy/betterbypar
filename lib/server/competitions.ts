@@ -15,6 +15,13 @@ export type CompetitionSummary = {
   entrantCount: number;
   isEntered: boolean;
   canManage: boolean;
+  nextMatch: {
+    id: string;
+    roundName: string;
+    playByDate: string;
+    opponentName: string;
+    status: string;
+  } | null;
 };
 
 export type CompetitionDetail = CompetitionSummary & {
@@ -214,6 +221,11 @@ export async function listCompetitions(user: AppUser): Promise<CompetitionSummar
     status: CompetitionSummary["status"];
     entrant_count: string;
     is_entered: boolean;
+    next_match_id: string | null;
+    next_round_name: string | null;
+    next_play_by_date: string | null;
+    next_opponent_name: string | null;
+    next_match_status: string | null;
   }>(
     `select
        c.id,
@@ -225,15 +237,47 @@ export async function listCompetitions(user: AppUser): Promise<CompetitionSummar
        c.rules,
        c.status,
        count(ce.id)::text as entrant_count,
-       bool_or(cm.person_id = $1 and ce.status = 'Entered') as is_entered
+       bool_or(cm.person_id = $1 and ce.status = 'Entered') as is_entered,
+       nm.match_id as next_match_id,
+       nm.round_name as next_round_name,
+       nm.play_by_date as next_play_by_date,
+       nm.opponent_name as next_opponent_name,
+       nm.status as next_match_status
      from public.competition c
      left join public.club cl on cl.id = c.club_id
      left join public.competition_entry ce on ce.competition_id = c.id and ce.status = 'Entered'
      left join public.club_membership cm on cm.id = ce.club_membership_id
+     left join lateral (
+       select
+         m.id as match_id,
+         r.name as round_name,
+         r.play_by_date::text,
+         m.status,
+         case
+           when cm1.person_id = $1 and m.status = 'Bye' then 'Bye'
+           when cm2.person_id = $1 and m.status = 'Bye' then 'Bye'
+           when cm1.person_id = $1 then coalesce(nullif(concat_ws(' ', p2.first_name, p2.last_name), ''), 'Awaiting opponent')
+           when cm2.person_id = $1 then coalesce(nullif(concat_ws(' ', p1.first_name, p1.last_name), ''), 'Awaiting opponent')
+           else 'Awaiting opponent'
+         end as opponent_name
+       from public.competition_match m
+       join public.competition_round r on r.id = m.competition_round_id
+       left join public.competition_entry e1 on e1.id = m.player_1_entry_id
+       left join public.club_membership cm1 on cm1.id = e1.club_membership_id
+       left join public.person p1 on p1.id = cm1.person_id
+       left join public.competition_entry e2 on e2.id = m.player_2_entry_id
+       left join public.club_membership cm2 on cm2.id = e2.club_membership_id
+       left join public.person p2 on p2.id = cm2.person_id
+       where r.competition_id = c.id
+         and m.status <> 'Completed'
+         and (cm1.person_id = $1 or cm2.person_id = $1)
+       order by r.round_number, m.match_number
+       limit 1
+     ) nm on true
      where $2::boolean = true
         or c.managed_by_platform = true
         or c.club_id = any($3::uuid[])
-     group by c.id, cl.name
+     group by c.id, cl.name, nm.match_id, nm.round_name, nm.play_by_date, nm.opponent_name, nm.status
      order by c.created_at desc`,
     [user.personId, platformAdmin, memberClubIds]
   );
@@ -249,7 +293,16 @@ export async function listCompetitions(user: AppUser): Promise<CompetitionSummar
     status: row.status,
     entrantCount: Number(row.entrant_count ?? 0),
     isEntered: Boolean(row.is_entered),
-    canManage: platformAdmin || Boolean(row.club_id && adminClubIds.has(row.club_id))
+    canManage: platformAdmin || Boolean(row.club_id && adminClubIds.has(row.club_id)),
+    nextMatch: row.next_match_id && row.next_round_name && row.next_play_by_date && row.next_opponent_name && row.next_match_status
+      ? {
+          id: row.next_match_id,
+          roundName: row.next_round_name,
+          playByDate: row.next_play_by_date,
+          opponentName: row.next_opponent_name,
+          status: row.next_match_status
+        }
+      : null
   }));
 }
 
@@ -378,7 +431,8 @@ export async function loadCompetitionDetail(user: AppUser, competitionId: string
     player2Score: row.player_2_score,
     winnerEntryId: row.winner_entry_id,
     status: row.status,
-    canReport: summary.canManage || row.player_1_person_id === user.personId || row.player_2_person_id === user.personId
+    canReport: Boolean(row.player_1_entry_id && row.player_2_entry_id)
+      && (summary.canManage || row.player_1_person_id === user.personId || row.player_2_person_id === user.personId)
   }));
 
   return {

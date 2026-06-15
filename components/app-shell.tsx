@@ -1148,6 +1148,13 @@ type CompetitionSummary = {
   entrantCount: number;
   isEntered: boolean;
   canManage: boolean;
+  nextMatch: {
+    id: string;
+    roundName: string;
+    playByDate: string;
+    opponentName: string;
+    status: string;
+  } | null;
 };
 
 type CompetitionDetail = CompetitionSummary & {
@@ -1229,6 +1236,15 @@ function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamCo
               <div className="min-w-0">
                 <p className="font-black text-[#10233f]">{competition.name}</p>
                 <p className="text-xs font-bold text-[#6c5a73]">{competition.clubName} - {competition.competitionType}</p>
+                {mode === "mine" ? (
+                  <p className="mt-2 text-sm font-semibold text-[#10233f]">
+                    {competition.nextMatch
+                      ? `${competition.nextMatch.roundName}: ${competition.nextMatch.opponentName} by ${formatFixtureDate(competition.nextMatch.playByDate)}`
+                      : competition.status === "Open"
+                        ? "Entered - draw not run yet"
+                        : "Entered - next tie to be confirmed"}
+                  </p>
+                ) : null}
               </div>
               <Badge variant={competition.isEntered ? "green" : "cyan"}>{competition.status}</Badge>
             </div>

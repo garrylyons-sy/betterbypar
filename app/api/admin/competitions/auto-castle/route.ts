@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
+import { createCompetitionDraw } from "@/lib/server/competition-draw";
 import { withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -84,32 +85,22 @@ export async function POST() {
         );
       }
 
-      const firstRound = await client.query<{ id: string }>(
-        `select id
+      const rounds = await client.query<{ id: string; round_number: number }>(
+        `select id, round_number
          from public.competition_round
          where competition_id = $1
-           and round_number = 1
-         limit 1`,
+         order by round_number`,
         [competitionId]
       );
-      const shuffledPlayers = [...playerResult.rows].sort(() => Math.random() - 0.5);
-      for (let index = 0; index < shuffledPlayers.length; index += 2) {
-        const player1 = shuffledPlayers[index];
-        const player2 = shuffledPlayers[index + 1];
-        const entryResult = await client.query<{ entry_id: string }>(
-          `select ce.id as entry_id
-           from public.competition_entry ce
-           where ce.competition_id = $1
-             and ce.club_membership_id in ($2, $3)
-           order by case when ce.club_membership_id = $2 then 1 else 2 end`,
-          [competitionId, player1.club_membership_id, player2.club_membership_id]
-        );
-        await client.query(
-          `insert into public.competition_match (competition_round_id, match_number, player_1_entry_id, player_2_entry_id, status)
-           values ($1, $2, $3, $4, 'Scheduled')`,
-          [firstRound.rows[0].id, Math.floor(index / 2) + 1, entryResult.rows[0].entry_id, entryResult.rows[1].entry_id]
-        );
-      }
+      const entries = await client.query<{ id: string }>(
+        `select id
+         from public.competition_entry
+         where competition_id = $1
+           and status = 'Entered'
+         order by entered_at`,
+        [competitionId]
+      );
+      await createCompetitionDraw(client, rounds.rows, entries.rows);
 
       return {
         competitionId,
