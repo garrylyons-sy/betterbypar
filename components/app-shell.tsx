@@ -1166,6 +1166,7 @@ type CompetitionDetail = CompetitionSummary & {
     player2Score: number | null;
     status: string;
     canReport: boolean;
+    isPlaceholder?: boolean;
   }>;
 };
 
@@ -1430,6 +1431,10 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
 function CompetitionDetailCard({ competition, activeMembershipId, onEnter, onDraw, onResult }: { competition: CompetitionDetail; activeMembershipId: string; onEnter: () => void; onDraw: () => void; onResult: (matchId: string, player1Score: number, player2Score: number) => void }) {
   const [scores, setScores] = useState<Record<string, { p1: string; p2: string }>>({});
   const canEnter = !competition.isEntered && competition.status === "Open" && activeMembershipId;
+  const roundsWithMatches = competition.rounds.map((round) => ({
+    ...round,
+    matches: competition.matches.filter((match) => match.roundNumber === round.roundNumber)
+  }));
 
   return (
     <Card>
@@ -1456,28 +1461,47 @@ function CompetitionDetailCard({ competition, activeMembershipId, onEnter, onDra
           ))}
         </div>
         <div className="grid gap-3">
-          {competition.matches.map((match) => {
-            const score = scores[match.id] ?? { p1: match.player1Score?.toString() ?? "", p2: match.player2Score?.toString() ?? "" };
-            return (
-              <div key={match.id} className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase text-[#6c5a73]">{match.roundName} - Best of {match.framesToPlay}</p>
-                    <p className="font-black">{match.player1Name} v {match.player2Name}</p>
-                    <p className="text-xs font-semibold text-[#6c5a73]">Play by {formatFixtureDate(match.playByDate)}</p>
-                  </div>
-                  <Badge variant={match.status === "Completed" ? "green" : "muted"}>{match.status}</Badge>
+          {roundsWithMatches.map((round) => (
+            <section key={round.id} className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-[#10233f]">{round.name}</p>
+                  <p className="text-xs font-semibold text-[#6c5a73]">Play by {formatFixtureDate(round.playByDate)}</p>
                 </div>
-                {match.canReport && match.status !== "Bye" ? (
-                  <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
-                    <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={score.p1} onChange={(event) => setScores((current) => ({ ...current, [match.id]: { ...score, p1: event.target.value } }))} type="number" min="0" />
-                    <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={score.p2} onChange={(event) => setScores((current) => ({ ...current, [match.id]: { ...score, p2: event.target.value } }))} type="number" min="0" />
-                    <Button onClick={() => onResult(match.id, Number(score.p1), Number(score.p2))}>Save</Button>
-                  </div>
+                <Badge variant="muted">Best of {round.framesToPlay}</Badge>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {round.matches.map((match) => {
+                  const score = scores[match.id] ?? { p1: match.player1Score?.toString() ?? "", p2: match.player2Score?.toString() ?? "" };
+                  return (
+                    <div key={match.id} className={cn("rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]", match.isPlaceholder ? "text-[#6c5a73]" : "")}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold uppercase text-[#6c5a73]">Match {match.matchNumber}</p>
+                          <p className="font-black text-[#10233f]">{match.player1Name}</p>
+                          <p className="text-xs font-bold uppercase text-[#6c5a73]">v</p>
+                          <p className="font-black text-[#10233f]">{match.player2Name}</p>
+                        </div>
+                        <Badge variant={match.status === "Completed" ? "green" : match.isPlaceholder ? "muted" : "cyan"}>
+                          {match.isPlaceholder ? "Pending" : match.status}
+                        </Badge>
+                      </div>
+                      {match.canReport && !match.isPlaceholder && match.status !== "Bye" ? (
+                        <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
+                          <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={score.p1} onChange={(event) => setScores((current) => ({ ...current, [match.id]: { ...score, p1: event.target.value } }))} type="number" min="0" />
+                          <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={score.p2} onChange={(event) => setScores((current) => ({ ...current, [match.id]: { ...score, p2: event.target.value } }))} type="number" min="0" />
+                          <Button onClick={() => onResult(match.id, Number(score.p1), Number(score.p2))}>Save</Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {!round.matches.length ? (
+                  <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[#6c5a73]">Draw places will appear here once this round is known.</p>
                 ) : null}
               </div>
-            );
-          })}
+            </section>
+          ))}
           {!competition.matches.length ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">The draw has not been run yet.</p> : null}
         </div>
       </CardContent>

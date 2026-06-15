@@ -52,8 +52,89 @@ export type CompetitionDetail = CompetitionSummary & {
     winnerEntryId: string | null;
     status: string;
     canReport: boolean;
+    isPlaceholder?: boolean;
   }>;
 };
+
+type CompetitionRoundDetail = CompetitionDetail["rounds"][number];
+type CompetitionMatchDetail = CompetitionDetail["matches"][number];
+
+function missingCompetitionPlayerName(roundNumber: number, matchNumber: number, slot: 1 | 2) {
+  if (roundNumber <= 1) return "Bye";
+  const sourceMatchNumber = (matchNumber - 1) * 2 + slot;
+  return `Winner Match ${sourceMatchNumber}`;
+}
+
+function buildDisplayCompetitionMatches(rounds: CompetitionRoundDetail[], actualMatches: CompetitionMatchDetail[]) {
+  if (!actualMatches.length || !rounds.length) return actualMatches;
+
+  const firstRoundNumber = rounds[0].roundNumber;
+  const actualMatchesByRound = new Map<number, CompetitionMatchDetail[]>();
+  const actualMatchByKey = new Map<string, CompetitionMatchDetail>();
+
+  for (const match of actualMatches) {
+    const roundMatches = actualMatchesByRound.get(match.roundNumber) ?? [];
+    roundMatches.push(match);
+    actualMatchesByRound.set(match.roundNumber, roundMatches);
+    actualMatchByKey.set(`${match.roundNumber}:${match.matchNumber}`, match);
+  }
+
+  const expectedCounts = new Map<number, number>();
+  let previousRoundCount = 0;
+
+  for (const round of rounds) {
+    const actualCount = actualMatchesByRound.get(round.roundNumber)?.length ?? 0;
+    const expectedCount = round.roundNumber === firstRoundNumber
+      ? actualCount
+      : Math.max(actualCount, Math.ceil(previousRoundCount / 2));
+    expectedCounts.set(round.roundNumber, expectedCount);
+    previousRoundCount = expectedCount;
+  }
+
+  const displayMatches: CompetitionMatchDetail[] = [];
+
+  for (const round of rounds) {
+    const expectedCount = expectedCounts.get(round.roundNumber) ?? 0;
+
+    for (let matchNumber = 1; matchNumber <= expectedCount; matchNumber += 1) {
+      const actual = actualMatchByKey.get(`${round.roundNumber}:${matchNumber}`);
+
+      if (actual) {
+        displayMatches.push({
+          ...actual,
+          player1Name: actual.player1EntryId ? actual.player1Name : missingCompetitionPlayerName(round.roundNumber, matchNumber, 1),
+          player2Name: actual.player2EntryId ? actual.player2Name : missingCompetitionPlayerName(round.roundNumber, matchNumber, 2),
+          isPlaceholder: false
+        });
+        continue;
+      }
+
+      displayMatches.push({
+        id: `placeholder-${round.id}-${matchNumber}`,
+        roundId: round.id,
+        roundNumber: round.roundNumber,
+        roundName: round.name,
+        framesToPlay: round.framesToPlay,
+        playByDate: round.playByDate,
+        matchNumber,
+        player1EntryId: null,
+        player1Name: missingCompetitionPlayerName(round.roundNumber, matchNumber, 1),
+        player1PersonId: null,
+        player2EntryId: null,
+        player2Name: missingCompetitionPlayerName(round.roundNumber, matchNumber, 2),
+        player2PersonId: null,
+        player1Score: null,
+        player2Score: null,
+        winnerEntryId: null,
+        status: "Pending",
+        canReport: false,
+        isPlaceholder: true
+      });
+    }
+  }
+
+  return displayMatches;
+}
 
 export async function isPlatformAdmin(personId: string) {
   const { rowCount } = await dbQuery(
@@ -264,43 +345,47 @@ export async function loadCompetitionDetail(user: AppUser, competitionId: string
     )
   ]);
 
+  const rounds = roundsResult.rows.map((row) => ({
+    id: row.id,
+    roundNumber: row.round_number,
+    name: row.name,
+    framesToPlay: row.frames_to_play,
+    playByDate: row.play_by_date
+  }));
+  const entries = entriesResult.rows.map((row) => ({
+    id: row.id,
+    clubMembershipId: row.club_membership_id,
+    personId: row.person_id,
+    playerName: row.player_name,
+    handicap: row.handicap === null ? null : Number(row.handicap),
+    status: row.status
+  }));
+  const matches = matchesResult.rows.map((row) => ({
+    id: row.id,
+    roundId: row.round_id,
+    roundNumber: row.round_number,
+    roundName: row.round_name,
+    framesToPlay: row.frames_to_play,
+    playByDate: row.play_by_date,
+    matchNumber: row.match_number,
+    player1EntryId: row.player_1_entry_id,
+    player1Name: row.player_1_name ?? "Bye",
+    player1PersonId: row.player_1_person_id,
+    player2EntryId: row.player_2_entry_id,
+    player2Name: row.player_2_name ?? "Bye",
+    player2PersonId: row.player_2_person_id,
+    player1Score: row.player_1_score,
+    player2Score: row.player_2_score,
+    winnerEntryId: row.winner_entry_id,
+    status: row.status,
+    canReport: summary.canManage || row.player_1_person_id === user.personId || row.player_2_person_id === user.personId
+  }));
+
   return {
     ...summary,
-    rounds: roundsResult.rows.map((row) => ({
-      id: row.id,
-      roundNumber: row.round_number,
-      name: row.name,
-      framesToPlay: row.frames_to_play,
-      playByDate: row.play_by_date
-    })),
-    entries: entriesResult.rows.map((row) => ({
-      id: row.id,
-      clubMembershipId: row.club_membership_id,
-      personId: row.person_id,
-      playerName: row.player_name,
-      handicap: row.handicap === null ? null : Number(row.handicap),
-      status: row.status
-    })),
-    matches: matchesResult.rows.map((row) => ({
-      id: row.id,
-      roundId: row.round_id,
-      roundNumber: row.round_number,
-      roundName: row.round_name,
-      framesToPlay: row.frames_to_play,
-      playByDate: row.play_by_date,
-      matchNumber: row.match_number,
-      player1EntryId: row.player_1_entry_id,
-      player1Name: row.player_1_name ?? "Bye",
-      player1PersonId: row.player_1_person_id,
-      player2EntryId: row.player_2_entry_id,
-      player2Name: row.player_2_name ?? "Bye",
-      player2PersonId: row.player_2_person_id,
-      player1Score: row.player_1_score,
-      player2Score: row.player_2_score,
-      winnerEntryId: row.winner_entry_id,
-      status: row.status,
-      canReport: summary.canManage || row.player_1_person_id === user.personId || row.player_2_person_id === user.personId
-    }))
+    rounds,
+    entries,
+    matches: buildDisplayCompetitionMatches(rounds, matches)
   };
 }
 
