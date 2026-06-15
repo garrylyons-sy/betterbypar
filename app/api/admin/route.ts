@@ -31,9 +31,24 @@ export async function GET() {
            p.last_name,
            p.email,
            p.phone,
+           coalesce(ch.club_handicaps, '[]'::jsonb) as club_handicaps,
            coalesce(ao.active, false) as admin
          from public.person p
          left join public.app_operator ao on ao.person_id = p.id
+         left join lateral (
+           select jsonb_agg(
+             jsonb_build_object(
+               'club_id', c.id,
+               'club_name', c.name,
+               'handicap', cm.handicap
+             )
+             order by c.name
+           ) as club_handicaps
+           from public.club_membership cm
+           join public.club c on c.id = cm.club_id
+           where cm.person_id = p.id
+             and cm.active = true
+         ) ch on true
          where p.active = true
          order by p.id, p.last_name nulls last, p.first_name`
       ),

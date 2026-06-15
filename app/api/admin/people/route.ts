@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
     const clubId = String(body.clubId ?? "").trim();
     const teamId = String(body.teamId ?? "").trim();
     const role = String(body.role ?? "Player").trim();
+    const handicapInput = String(body.handicap ?? "").trim();
+    const handicap = handicapInput === "" ? null : Number(handicapInput);
     const admin = Boolean(body.admin);
 
     if (!firstName || !lastName) {
@@ -34,6 +36,9 @@ export async function POST(request: NextRequest) {
     }
     if (role === "Club Member" && !clubId) {
       return NextResponse.json({ error: "A club is required for club members." }, { status: 400 });
+    }
+    if (handicap !== null && (!Number.isFinite(handicap) || handicap < -200 || handicap > 200)) {
+      return NextResponse.json({ error: "Handicap must be between -200 and 200, or left blank." }, { status: 400 });
     }
 
     const person = await withTransaction(async (client) => {
@@ -69,10 +74,12 @@ export async function POST(request: NextRequest) {
       const personId = personResult.rows[0].id;
       if (role === "Club Member") {
         await client.query(
-          `insert into public.club_membership (club_id, person_id, role, active)
-           values ($1, $2, 'Club Member', true)
-           on conflict (club_id, person_id, role) do update set active = true`,
-          [clubId, personId]
+          `insert into public.club_membership (club_id, person_id, role, handicap, active)
+           values ($1, $2, 'Club Member', $3, true)
+           on conflict (club_id, person_id, role) do update
+           set active = true,
+               handicap = excluded.handicap`,
+          [clubId, personId, handicap]
         );
       } else {
         await client.query(
@@ -82,11 +89,12 @@ export async function POST(request: NextRequest) {
              where id = $1
            ),
            club_member as (
-             insert into public.club_membership (club_id, person_id, role, active)
-             select club_id, $2, 'Club Member', true
+             insert into public.club_membership (club_id, person_id, role, handicap, active)
+             select club_id, $2, 'Club Member', $4, true
              from team_scope
              on conflict (club_id, person_id, role) do update
-             set active = true
+             set active = true,
+                 handicap = coalesce(excluded.handicap, public.club_membership.handicap)
              returning id, club_id
            )
            insert into public.person_team_role (club_membership_id, person_id, club_id, league_id, team_name, role, active)
@@ -94,7 +102,7 @@ export async function POST(request: NextRequest) {
            from team_scope ts
            join club_member cm on cm.club_id = ts.club_id
            on conflict (club_membership_id, league_id, team_name, role) do update set active = true`,
-          [teamId, personId, role]
+          [teamId, personId, role, handicap]
         );
 
         await client.query(

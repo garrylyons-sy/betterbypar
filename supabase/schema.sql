@@ -116,12 +116,15 @@ create table public.club_membership (
   person_id uuid not null references public.person(id) on delete cascade,
   role text not null default 'Club Member' check (role = 'Club Member'),
   joined_date date not null default current_date,
+  handicap numeric(6,2),
   active boolean not null default true,
   created_at timestamptz not null default now(),
+  constraint club_membership_handicap_range check (handicap is null or (handicap >= -200 and handicap <= 200)),
   unique (club_id, person_id, role)
 );
 
 comment on table public.club_membership is 'Club-level membership for people who can receive club messages and book club tables without belonging to a league team.';
+comment on column public.club_membership.handicap is 'Club-specific handicap for internal club competitions. It is not used for interclub league fixtures, results, standings or player statistics.';
 
 create table public.person_team_role (
   id uuid primary key default gen_random_uuid(),

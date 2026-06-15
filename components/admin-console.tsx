@@ -30,6 +30,7 @@ type PersonOption = {
   email: string;
   phone?: string;
   admin?: boolean;
+  clubHandicaps?: Array<{ club_id: string; club_name: string; handicap: number | string | null }>;
 };
 type InviteRoleRow = {
   id: string;
@@ -154,6 +155,7 @@ export function AdminConsole() {
             name: `${person.first_name} ${person.last_name}`.trim(),
             email: person.email ?? "",
             phone: person.phone ?? "",
+            clubHandicaps: person.club_handicaps ?? [],
             admin: Boolean(person.admin)
           });
         }
@@ -411,6 +413,7 @@ function PeoplePanel({
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [handicap, setHandicap] = useState("");
   const [clubId, setClubId] = useState(clubs[0]?.clubId ?? "");
   const clubTeams = teams.filter((team) => team.clubId === clubId);
   const [teamId, setTeamId] = useState(clubTeams[0]?.teamId ?? "");
@@ -435,7 +438,7 @@ function PeoplePanel({
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, phone, clubId, teamId, role, admin })
+        body: JSON.stringify({ firstName, lastName, email, phone, handicap, clubId, teamId, role, admin })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not add person.");
@@ -443,6 +446,7 @@ function PeoplePanel({
       setLastName("");
       setEmail("");
       setPhone("");
+      setHandicap("");
       setAdmin(false);
       onMessage("Person added. No login was created.");
       onRefresh();
@@ -467,6 +471,7 @@ function PeoplePanel({
             <AdminInput label="Email" value={email} onChange={setEmail} type="email" />
             <AdminInput label="Phone" value={phone} onChange={setPhone} type="tel" />
           </div>
+          <AdminInput label="Club handicap" value={handicap} onChange={setHandicap} type="number" placeholder="Blank if none" />
           <div className="grid gap-3 sm:grid-cols-3">
             <AdminSelect label="Club" value={clubId} onChange={setClubId} options={clubs.map((club) => ({ value: club.clubId, label: club.clubName }))} />
             <AdminSelect label="Role" value={role} onChange={(value) => setRole(value as InviteRole)} options={inviteRoles.map((item) => ({ value: item, label: item }))} />
@@ -494,6 +499,17 @@ function PeoplePanel({
                   <p className="truncate font-extrabold">{person.name}</p>
                   <p className="truncate text-xs font-bold text-[#6c5a73]">{person.email || "No email yet"}</p>
                   {person.phone ? <p className="text-xs font-semibold text-[#6c5a73]">{person.phone}</p> : null}
+                  {person.clubHandicaps?.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {person.clubHandicaps
+                        .filter((item) => item.handicap !== null && item.handicap !== undefined)
+                        .map((item) => (
+                          <Badge key={item.club_id} variant="muted">
+                            {item.club_name.replace(" Golf Club", "")}: {formatHandicap(item.handicap)}
+                          </Badge>
+                        ))}
+                    </div>
+                  ) : null}
                 </div>
                 {person.admin ? <Badge variant="green">Admin</Badge> : null}
               </div>
@@ -1167,13 +1183,20 @@ function AdminShell({ title, subtitle, children, onLogout }: { title: string; su
   );
 }
 
-function AdminInput({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+function AdminInput({ label, value, onChange, type = "text", placeholder = "" }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string }) {
   return (
     <label className="grid min-w-0 gap-1.5">
       <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
-      <input className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)} type={type} />
+      <input className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)} type={type} placeholder={placeholder} />
     </label>
   );
+}
+
+function formatHandicap(value: number | string | null) {
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric)) return String(value ?? "");
+  const rounded = Number.isInteger(numeric) ? numeric.toFixed(0) : numeric.toFixed(1);
+  return numeric > 0 ? `+${rounded}` : rounded;
 }
 
 function AdminSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
