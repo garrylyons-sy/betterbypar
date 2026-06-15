@@ -369,11 +369,24 @@ export async function claimInvitationForAccount({
 
     for (const membership of membershipResult.rows) {
       await client.query(
-        `insert into public.person_team_role (person_id, club_id, league_id, team_name, role, active)
-         select $2, t.club_id, t.league_id, t.name, $3, true
-         from public.team t
-         where t.id = $1
-         on conflict (person_id, club_id, league_id, team_name, role) do update
+        `with team_scope as (
+           select club_id, league_id, name as team_name
+           from public.team
+           where id = $1
+         ),
+         club_member as (
+           insert into public.club_membership (club_id, person_id, role, active)
+           select club_id, $2, 'Club Member', true
+           from team_scope
+           on conflict (club_id, person_id, role) do update
+           set active = true
+           returning id, club_id
+         )
+         insert into public.person_team_role (club_membership_id, person_id, club_id, league_id, team_name, role, active)
+         select cm.id, $2, ts.club_id, ts.league_id, ts.team_name, $3, true
+         from team_scope ts
+         join club_member cm on cm.club_id = ts.club_id
+         on conflict (club_membership_id, league_id, team_name, role) do update
          set active = true`,
         [membership.team_id, person.id, membership.role]
       );
@@ -538,14 +551,15 @@ export async function loadSessionPayload(user: AppUser) {
     `with role_assignments as (
        select
          ptr.id::text as role_assignment_id,
-         ptr.person_id,
-         ptr.club_id,
+         cm.person_id,
+         cm.club_id,
          ptr.league_id,
          ptr.team_name,
          ptr.role,
          ptr.active
        from public.person_team_role ptr
-       where ptr.person_id = $1
+       join public.club_membership cm on cm.id = ptr.club_membership_id and cm.active = true
+       where cm.person_id = $1
          and ptr.active = true
        union all
        select
@@ -563,8 +577,9 @@ export async function loadSessionPayload(user: AppUser) {
          and not exists (
            select 1
            from public.person_team_role ptr
-           where ptr.person_id = tm.person_id
-             and ptr.club_id = t.club_id
+           join public.club_membership cm on cm.id = ptr.club_membership_id
+           where cm.person_id = tm.person_id
+             and cm.club_id = t.club_id
              and ptr.league_id = t.league_id
              and ptr.team_name = t.name
              and ptr.role = tm.role
@@ -642,9 +657,10 @@ export async function loadSessionPayload(user: AppUser) {
        and not exists (
          select 1
          from public.person_team_role ptr
-         where ptr.person_id = cm.person_id
+         join public.club_membership role_cm on role_cm.id = ptr.club_membership_id
+         where role_cm.person_id = cm.person_id
            and ptr.active = true
-           and ptr.club_id = cm.club_id
+           and role_cm.club_id = cm.club_id
        )
      order by c.name`,
     [user.personId]

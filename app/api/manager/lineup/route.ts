@@ -37,11 +37,14 @@ async function requireTeamManager(teamId: string) {
     `select 1
      from public.team target_team
      join public.person_team_role ptr
-       on ptr.club_id = target_team.club_id
-      and ptr.league_id = target_team.league_id
+       on ptr.league_id = target_team.league_id
       and ptr.team_name = target_team.name
+     join public.club_membership cm
+       on cm.id = ptr.club_membership_id
+      and cm.club_id = target_team.club_id
+      and cm.active = true
      where target_team.id = $2
-       and ptr.person_id = $1
+       and cm.person_id = $1
        and ptr.role in ('Manager', 'Assistant Manager')
        and ptr.active = true
      union
@@ -67,11 +70,14 @@ async function requireTeamMember(teamId: string) {
          select 1
          from public.team target_team
          join public.person_team_role ptr
-           on ptr.club_id = target_team.club_id
-          and ptr.league_id = target_team.league_id
+           on ptr.league_id = target_team.league_id
           and ptr.team_name = target_team.name
+         join public.club_membership cm
+           on cm.id = ptr.club_membership_id
+          and cm.club_id = target_team.club_id
+          and cm.active = true
          where target_team.id = $2
-           and ptr.person_id = $1
+           and cm.person_id = $1
            and ptr.active = true
        ) or exists (
          select 1
@@ -84,11 +90,14 @@ async function requireTeamMember(teamId: string) {
          select 1
          from public.team target_team
          join public.person_team_role ptr
-           on ptr.club_id = target_team.club_id
-          and ptr.league_id = target_team.league_id
+           on ptr.league_id = target_team.league_id
           and ptr.team_name = target_team.name
+         join public.club_membership cm
+           on cm.id = ptr.club_membership_id
+          and cm.club_id = target_team.club_id
+          and cm.active = true
          where target_team.id = $2
-           and ptr.person_id = $1
+           and cm.person_id = $1
            and ptr.role in ('Manager', 'Assistant Manager')
            and ptr.active = true
        ) or exists (
@@ -234,10 +243,13 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     `select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name
      from public.team target_team
      join public.person_team_role ptr
-       on ptr.club_id = target_team.club_id
-      and ptr.league_id = target_team.league_id
+       on ptr.league_id = target_team.league_id
       and ptr.team_name = target_team.name
-     join public.person p on p.id = ptr.person_id
+     join public.club_membership cm
+       on cm.id = ptr.club_membership_id
+      and cm.club_id = target_team.club_id
+      and cm.active = true
+     join public.person p on p.id = cm.person_id
      where target_team.id = $1
        and ptr.role = 'Player'
        and ptr.active = true
@@ -579,12 +591,15 @@ async function ensureFixtureTeam(client: PoolClient, fixtureId: string, teamId: 
 
 async function loadTeamPlayerIds(client: PoolClient, teamId: string) {
   const result = await client.query<{ person_id: string }>(
-    `select ptr.person_id
+    `select cm.person_id
      from public.team target_team
      join public.person_team_role ptr
-       on ptr.club_id = target_team.club_id
-      and ptr.league_id = target_team.league_id
+       on ptr.league_id = target_team.league_id
       and ptr.team_name = target_team.name
+     join public.club_membership cm
+       on cm.id = ptr.club_membership_id
+      and cm.club_id = target_team.club_id
+      and cm.active = true
      where target_team.id = $1
        and ptr.role = 'Player'
        and ptr.active = true
