@@ -43,6 +43,16 @@ export async function POST(request: Request) {
     }
 
     await dbQuery(
+      `insert into public.person_team_role (person_id, club_id, league_id, team_name, role, active)
+       select $1, t.club_id, t.league_id, t.name, $3, $4
+       from public.team t
+       where t.id = $2
+       on conflict (person_id, club_id, league_id, team_name, role) do update
+       set active = excluded.active`,
+      [personId, teamId, role, active]
+    );
+
+    await dbQuery(
       `insert into public.team_membership (person_id, team_id, role, active)
        values ($1, $2, $3, $4)
        on conflict (team_id, person_id, role) do update

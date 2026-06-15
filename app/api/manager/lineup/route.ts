@@ -35,11 +35,22 @@ async function requireTeamManager(teamId: string) {
   if (!user) throw new Error("Not authenticated.");
   const { rowCount } = await dbQuery(
     `select 1
-     from public.team_membership
-     where person_id = $1
-       and team_id = $2
-       and role in ('Manager', 'Assistant Manager')
-       and active = true
+     from public.team target_team
+     join public.person_team_role ptr
+       on ptr.club_id = target_team.club_id
+      and ptr.league_id = target_team.league_id
+      and ptr.team_name = target_team.name
+     where target_team.id = $2
+       and ptr.person_id = $1
+       and ptr.role in ('Manager', 'Assistant Manager')
+       and ptr.active = true
+     union
+     select 1
+     from public.team_membership tm
+     where tm.person_id = $1
+       and tm.team_id = $2
+       and tm.role in ('Manager', 'Assistant Manager')
+       and tm.active = true
      limit 1`,
     [user.personId, teamId]
   );
@@ -50,16 +61,47 @@ async function requireTeamManager(teamId: string) {
 async function requireTeamMember(teamId: string) {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated.");
-  const result = await dbQuery<{ membership_count: string; can_manage: boolean | null }>(
-    `select count(*) as membership_count,
-            bool_or(role in ('Manager', 'Assistant Manager')) as can_manage
-     from public.team_membership
-     where person_id = $1
-       and team_id = $2
-       and active = true`,
+  const result = await dbQuery<{ has_membership: boolean; can_manage: boolean }>(
+    `select
+       exists (
+         select 1
+         from public.team target_team
+         join public.person_team_role ptr
+           on ptr.club_id = target_team.club_id
+          and ptr.league_id = target_team.league_id
+          and ptr.team_name = target_team.name
+         where target_team.id = $2
+           and ptr.person_id = $1
+           and ptr.active = true
+       ) or exists (
+         select 1
+         from public.team_membership tm
+         where tm.person_id = $1
+           and tm.team_id = $2
+           and tm.active = true
+       ) as has_membership,
+       exists (
+         select 1
+         from public.team target_team
+         join public.person_team_role ptr
+           on ptr.club_id = target_team.club_id
+          and ptr.league_id = target_team.league_id
+          and ptr.team_name = target_team.name
+         where target_team.id = $2
+           and ptr.person_id = $1
+           and ptr.role in ('Manager', 'Assistant Manager')
+           and ptr.active = true
+       ) or exists (
+         select 1
+         from public.team_membership tm
+         where tm.person_id = $1
+           and tm.team_id = $2
+           and tm.role in ('Manager', 'Assistant Manager')
+           and tm.active = true
+       ) as can_manage`,
     [user.personId, teamId]
   );
-  if (Number(result.rows[0]?.membership_count ?? 0) === 0) throw new Error("Team access is required.");
+  if (!result.rows[0]?.has_membership) throw new Error("Team access is required.");
   return { user, canManage: Boolean(result.rows[0]?.can_manage) };
 }
 
@@ -190,6 +232,18 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
   const fixture = fixtureResult.rows[0];
   const players = (await dbQuery<{ person_id: string; player_name: string }>(
     `select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name
+     from public.team target_team
+     join public.person_team_role ptr
+       on ptr.club_id = target_team.club_id
+      and ptr.league_id = target_team.league_id
+      and ptr.team_name = target_team.name
+     join public.person p on p.id = ptr.person_id
+     where target_team.id = $1
+       and ptr.role = 'Player'
+       and ptr.active = true
+       and p.active = true
+     union
+     select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name
      from public.team_membership tm
      join public.person p on p.id = tm.person_id
      where tm.team_id = $1
@@ -525,11 +579,21 @@ async function ensureFixtureTeam(client: PoolClient, fixtureId: string, teamId: 
 
 async function loadTeamPlayerIds(client: PoolClient, teamId: string) {
   const result = await client.query<{ person_id: string }>(
-    `select person_id
-     from public.team_membership
-     where team_id = $1
-       and role = 'Player'
-       and active = true`,
+    `select ptr.person_id
+     from public.team target_team
+     join public.person_team_role ptr
+       on ptr.club_id = target_team.club_id
+      and ptr.league_id = target_team.league_id
+      and ptr.team_name = target_team.name
+     where target_team.id = $1
+       and ptr.role = 'Player'
+       and ptr.active = true
+     union
+     select tm.person_id
+     from public.team_membership tm
+     where tm.team_id = $1
+       and tm.role = 'Player'
+       and tm.active = true`,
     [teamId]
   );
   return new Set(result.rows.map((row) => row.person_id));

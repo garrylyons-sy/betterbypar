@@ -369,6 +369,16 @@ export async function claimInvitationForAccount({
 
     for (const membership of membershipResult.rows) {
       await client.query(
+        `insert into public.person_team_role (person_id, club_id, league_id, team_name, role, active)
+         select $2, t.club_id, t.league_id, t.name, $3, true
+         from public.team t
+         where t.id = $1
+         on conflict (person_id, club_id, league_id, team_name, role) do update
+         set active = true`,
+        [membership.team_id, person.id, membership.role]
+      );
+
+      await client.query(
         `insert into public.team_membership (team_id, person_id, role, active)
          values ($1, $2, $3, true)
          on conflict (team_id, person_id, role) do update
@@ -506,7 +516,8 @@ export async function loadTeamOptions() {
 
 export async function loadSessionPayload(user: AppUser) {
   const teamContexts = (await dbQuery<{
-    membership_id: string;
+    context_id: string;
+    role_assignment_id: string;
     team_id: string;
     role: Role;
     team_name: string;
@@ -524,10 +535,46 @@ export async function loadSessionPayload(user: AppUser) {
     points_against: number | null;
     league_points: number | null;
   }>(
-    `select
-       tm.id as membership_id,
+    `with role_assignments as (
+       select
+         ptr.id::text as role_assignment_id,
+         ptr.person_id,
+         ptr.club_id,
+         ptr.league_id,
+         ptr.team_name,
+         ptr.role,
+         ptr.active
+       from public.person_team_role ptr
+       where ptr.person_id = $1
+         and ptr.active = true
+       union all
+       select
+         tm.id::text as role_assignment_id,
+         tm.person_id,
+         t.club_id,
+         t.league_id,
+         t.name as team_name,
+         tm.role,
+         tm.active
+       from public.team_membership tm
+       join public.team t on t.id = tm.team_id
+       where tm.person_id = $1
+         and tm.active = true
+         and not exists (
+           select 1
+           from public.person_team_role ptr
+           where ptr.person_id = tm.person_id
+             and ptr.club_id = t.club_id
+             and ptr.league_id = t.league_id
+             and ptr.team_name = t.name
+             and ptr.role = tm.role
+         )
+     )
+     select
+       ra.role_assignment_id || ':' || t.id::text as context_id,
+       ra.role_assignment_id,
        t.id as team_id,
-       tm.role,
+       ra.role,
        t.name as team_name,
        c.name as club_name,
        c.logo_path,
@@ -542,18 +589,20 @@ export async function loadSessionPayload(user: AppUser) {
        ltv.points_for,
        ltv.points_against,
        ltv.league_points
-     from public.team_membership tm
-     join public.team t on t.id = tm.team_id and t.active = true
+     from role_assignments ra
+     join public.team t
+       on t.club_id = ra.club_id
+      and t.league_id = ra.league_id
+      and t.name = ra.team_name
+      and t.active = true
      join public.club c on c.id = t.club_id and c.active = true
      join public.league l on l.id = t.league_id
      join public.season s on s.id = t.season_id
      left join public.league_table_view ltv on ltv.team_id = t.id
-     where tm.person_id = $1
-       and tm.active = true
-     order by coalesce(ltv.matches_played, 0) desc, s.name desc, l.name, t.name`,
+     order by coalesce(s.active, false) desc, s.name desc, l.name, t.name, ra.role`,
     [user.personId]
   )).rows.map((row) => ({
-    id: row.membership_id,
+    id: row.context_id,
     personId: user.personId,
     teamId: row.team_id,
     name: row.team_name,
@@ -592,11 +641,10 @@ export async function loadSessionPayload(user: AppUser) {
        and cm.active = true
        and not exists (
          select 1
-         from public.team_membership tm
-         join public.team t on t.id = tm.team_id
-         where tm.person_id = cm.person_id
-           and tm.active = true
-           and t.club_id = cm.club_id
+         from public.person_team_role ptr
+         where ptr.person_id = cm.person_id
+           and ptr.active = true
+           and ptr.club_id = cm.club_id
        )
      order by c.name`,
     [user.personId]

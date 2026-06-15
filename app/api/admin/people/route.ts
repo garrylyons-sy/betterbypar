@@ -76,6 +76,15 @@ export async function POST(request: NextRequest) {
         );
       } else {
         await client.query(
+          `insert into public.person_team_role (person_id, club_id, league_id, team_name, role, active)
+           select $2, t.club_id, t.league_id, t.name, $3, true
+           from public.team t
+           where t.id = $1
+           on conflict (person_id, club_id, league_id, team_name, role) do update set active = true`,
+          [teamId, personId, role]
+        );
+
+        await client.query(
           `insert into public.team_membership (team_id, person_id, role, active)
            values ($1, $2, $3, true)
            on conflict (team_id, person_id, role) do update set active = true`,

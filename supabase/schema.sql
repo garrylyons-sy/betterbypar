@@ -110,6 +110,21 @@ create table public.team_membership (
   unique (team_id, person_id, role)
 );
 
+create table public.person_team_role (
+  id uuid primary key default gen_random_uuid(),
+  person_id uuid not null references public.person(id) on delete cascade,
+  club_id uuid not null references public.club(id) on delete cascade,
+  league_id uuid not null references public.league(id) on delete restrict,
+  team_name text not null,
+  role membership_role not null,
+  joined_date date not null default current_date,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (person_id, club_id, league_id, team_name, role)
+);
+
+comment on table public.person_team_role is 'Season-independent team role assignments. Roles follow a person across seasons and resolve to the matching season team for fixtures, tables and match planning.';
+
 create table public.club_membership (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null references public.club(id) on delete cascade,
@@ -699,23 +714,27 @@ select
   p.first_name,
   p.last_name,
   ua.username,
-  tm.id as membership_id,
-  tm.role,
+  ptr.id as membership_id,
+  ptr.role,
   t.id as team_id,
   t.name as team_name,
   c.id as club_id,
   c.name as club_name,
   c.logo_path,
   c.primary_color,
-  c.accent_color,
   l.id as league_id,
   l.name as league_name,
   s.id as season_id,
-  s.name as season_name
+  s.name as season_name,
+  c.accent_color
 from public.user_account ua
 join public.person p on p.id = ua.person_id
-join public.team_membership tm on tm.person_id = p.id and tm.active = true
-join public.team t on t.id = tm.team_id and t.active = true
+join public.person_team_role ptr on ptr.person_id = p.id and ptr.active = true
+join public.team t
+  on t.club_id = ptr.club_id
+ and t.league_id = ptr.league_id
+ and t.name = ptr.team_name
+ and t.active = true
 join public.club c on c.id = t.club_id and c.active = true
 join public.league l on l.id = t.league_id
 join public.season s on s.id = t.season_id
@@ -729,10 +748,10 @@ select
   p.email,
   p.phone,
   p.active as person_active,
-  tm.id as membership_id,
-  tm.role,
-  tm.joined_date,
-  tm.active as membership_active,
+  ptr.id as membership_id,
+  ptr.role,
+  ptr.joined_date,
+  ptr.active as membership_active,
   t.id as team_id,
   t.name as team_name,
   c.id as club_id,
@@ -742,13 +761,16 @@ select
   s.id as season_id,
   s.name as season_name
 from public.person p
-left join public.team_membership tm on tm.person_id = p.id
-left join public.team t on t.id = tm.team_id
+left join public.person_team_role ptr on ptr.person_id = p.id
+left join public.team t
+  on t.club_id = ptr.club_id
+ and t.league_id = ptr.league_id
+ and t.name = ptr.team_name
 left join public.club c on c.id = t.club_id
 left join public.league l on l.id = t.league_id
 left join public.season s on s.id = t.season_id;
 
-comment on view public.membership_management_view is 'Backend management view for people and their Player, Manager and Assistant Manager team memberships.';
+comment on view public.membership_management_view is 'Backend management view for people and their season-independent Player, Manager and Assistant Manager team roles, projected onto available season teams.';
 
 create or replace function public.resolve_login_identifier(login_identifier text)
 returns text
@@ -872,6 +894,14 @@ begin
       username = excluded.username,
       last_login = now(),
       active = true;
+
+  insert into public.person_team_role (person_id, club_id, league_id, team_name, role, active)
+  select target_person_id, t.club_id, t.league_id, t.name, im.role, true
+  from public.invitation_membership im
+  join public.team t on t.id = im.team_id
+  where im.invitation_id = invitation_record.id
+  on conflict (person_id, club_id, league_id, team_name, role) do update
+  set active = true;
 
   insert into public.team_membership (team_id, person_id, role, active)
   select im.team_id, target_person_id, im.role, true
@@ -1242,6 +1272,13 @@ begin
     raise exception 'Operator access is required.';
   end if;
 
+  insert into public.person_team_role (person_id, club_id, league_id, team_name, role, active)
+  select person_id_input, t.club_id, t.league_id, t.name, role_input, coalesce(active_input, true)
+  from public.team t
+  where t.id = team_id_input
+  on conflict (person_id, club_id, league_id, team_name, role) do update
+  set active = excluded.active;
+
   insert into public.team_membership (person_id, team_id, role, active)
   values (person_id_input, team_id_input, role_input, coalesce(active_input, true))
   on conflict (team_id, person_id, role) do update
@@ -1286,6 +1323,7 @@ alter table public.season enable row level security;
 alter table public.league enable row level security;
 alter table public.team enable row level security;
 alter table public.team_membership enable row level security;
+alter table public.person_team_role enable row level security;
 alter table public.club_membership enable row level security;
 alter table public.invitation enable row level security;
 alter table public.invitation_membership enable row level security;
@@ -1339,11 +1377,22 @@ security definer
 set search_path = public
 as $$
   select exists (
-    select 1 from public.team_membership
-    where team_id = team_uuid
-      and person_id = public.current_person_id()
-      and role in ('Manager', 'Assistant Manager')
-      and active = true
+    select 1
+    from public.team target_team
+    join public.person_team_role ptr
+      on ptr.club_id = target_team.club_id
+     and ptr.league_id = target_team.league_id
+     and ptr.team_name = target_team.name
+    where target_team.id = team_uuid
+      and ptr.person_id = public.current_person_id()
+      and ptr.role in ('Manager', 'Assistant Manager')
+      and ptr.active = true
+  ) or exists (
+    select 1 from public.team_membership tm
+    where tm.team_id = team_uuid
+      and tm.person_id = public.current_person_id()
+      and tm.role in ('Manager', 'Assistant Manager')
+      and tm.active = true
   )
 $$;
 
@@ -1360,6 +1409,8 @@ create policy "authenticated users can read leagues" on public.league for select
 create policy "authenticated users can read teams" on public.team for select to authenticated using (active = true);
 create policy "members can read memberships" on public.team_membership for select to authenticated using (active = true);
 create policy "operators can read all memberships" on public.team_membership for select to authenticated using (public.is_app_operator());
+create policy "members can read person team roles" on public.person_team_role for select to authenticated using (active = true);
+create policy "operators can read all person team roles" on public.person_team_role for select to authenticated using (public.is_app_operator());
 create policy "members can read club memberships" on public.club_membership for select to authenticated using (active = true);
 create policy "operators can read all club memberships" on public.club_membership for select to authenticated using (public.is_app_operator());
 create policy "operators can read invitations" on public.invitation for select to authenticated using (public.is_app_operator());

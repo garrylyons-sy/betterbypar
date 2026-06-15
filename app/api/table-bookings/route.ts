@@ -37,6 +37,13 @@ async function castleClubForPerson(personId: string) {
     `select club_id
      from (
        select c.id as club_id
+       from public.person_team_role ptr
+       join public.club c on c.id = ptr.club_id and c.active = true
+       where ptr.person_id = $1
+         and ptr.active = true
+         and c.name = $2
+       union
+       select c.id as club_id
        from public.team_membership tm
        join public.team t on t.id = tm.team_id and t.active = true
        join public.club c on c.id = t.club_id and c.active = true
