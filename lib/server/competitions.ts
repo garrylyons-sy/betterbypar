@@ -344,6 +344,7 @@ export async function loadCompetitionDetail(user: AppUser, competitionId: string
        join public.club_membership cm on cm.id = ce.club_membership_id
        join public.person p on p.id = cm.person_id
        where ce.competition_id = $1
+        and ce.status = 'Entered'
        order by ce.entered_at, player_name`,
       [competitionId]
     ),
