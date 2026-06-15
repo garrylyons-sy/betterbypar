@@ -1363,8 +1363,29 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
     }
   }
 
+  async function removeCompetitionEntry(entryId: string) {
+    if (!selectedId) return;
+    try {
+      const response = await fetch(`/api/competitions/${selectedId}/entries`, {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ entryId })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not remove player.");
+      setDetail(data.competition);
+      await loadCompetitions(selectedId);
+      setMessage("Player removed from competition.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not remove player.");
+    }
+  }
+
   const activeMembership = memberships.find((membership) => membership.club_name === detail?.clubName) ?? memberships[0];
   const canCreate = manageableClubs.length > 0;
+  const enteredCompetitions = competitions.filter((competition) => competition.isEntered);
+  const orderedCompetitions = [...competitions].sort((left, right) => Number(right.isEntered) - Number(left.isEntered));
 
   return (
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -1376,7 +1397,36 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
           </CardHeader>
           <CardContent className="grid gap-2">
             {message ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">{message}</p> : null}
-            {competitions.map((competition) => (
+            {enteredCompetitions.length ? (
+              <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">Competitions you are in</p>
+                {enteredCompetitions.map((competition) => (
+                  <button
+                    key={`mine-${competition.id}`}
+                    onClick={async () => {
+                      setSelectedId(competition.id);
+                      await loadDetail(competition.id);
+                    }}
+                    className="rounded-xl bg-white p-3 text-left ring-1 ring-[#eeeaf2]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-black text-[#10233f]">{competition.name}</p>
+                        <p className="text-sm font-semibold text-[#10233f]">
+                          {competition.nextMatch
+                            ? `${competition.nextMatch.roundName}: ${competition.nextMatch.opponentName} by ${formatFixtureDate(competition.nextMatch.playByDate)}`
+                            : competition.status === "Open"
+                              ? "Entered - draw not run yet"
+                              : "Entered - next tie to be confirmed"}
+                        </p>
+                      </div>
+                      <Badge variant="green">{competition.status}</Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {orderedCompetitions.map((competition) => (
               <button
                 key={competition.id}
                 onClick={async () => {
@@ -1391,6 +1441,11 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
                     <p className={cn("text-xs font-bold", selectedId === competition.id ? "text-white/70" : "text-[#6c5a73]")}>
                       {competition.clubName} - {competition.competitionType} - closes {formatFixtureDate(competition.entryClosesAt)}
                     </p>
+                    {competition.isEntered ? (
+                      <p className={cn("mt-1 text-xs font-bold", selectedId === competition.id ? "text-white/80" : "text-[#10233f]")}>
+                        You are entered
+                      </p>
+                    ) : null}
                   </div>
                   <Badge variant={competition.isEntered ? "green" : "muted"}>{competition.status}</Badge>
                 </div>
@@ -1406,6 +1461,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
             activeMembershipId={activeMembership?.club_membership_id ?? ""}
             onEnter={() => competitionAction("/entries", { clubMembershipId: activeMembership?.club_membership_id })}
             onDraw={() => competitionAction("/draw")}
+            onRemoveEntry={removeCompetitionEntry}
             onResult={(matchId, player1Score, player2Score) => competitionAction(`/matches/${matchId}`, { player1Score, player2Score })}
           />
         ) : null}
@@ -1444,9 +1500,11 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   );
 }
 
-function CompetitionDetailCard({ competition, activeMembershipId, onEnter, onDraw, onResult }: { competition: CompetitionDetail; activeMembershipId: string; onEnter: () => void; onDraw: () => void; onResult: (matchId: string, player1Score: number, player2Score: number) => void }) {
+function CompetitionDetailCard({ competition, activeMembershipId, onEnter, onDraw, onRemoveEntry, onResult }: { competition: CompetitionDetail; activeMembershipId: string; onEnter: () => void; onDraw: () => void; onRemoveEntry: (entryId: string) => void; onResult: (matchId: string, player1Score: number, player2Score: number) => void }) {
   const [scores, setScores] = useState<Record<string, { p1: string; p2: string }>>({});
   const canEnter = !competition.isEntered && competition.status === "Open" && activeMembershipId;
+  const canManageEntries = competition.canManage && competition.status === "Open" && !competition.matches.length;
+  const canRunDraw = competition.canManage && competition.status === "Open" && competition.entrantCount >= 2;
   const roundsWithMatches = competition.rounds.map((round) => ({
     ...round,
     matches: competition.matches.filter((match) => match.roundNumber === round.roundNumber)
@@ -1466,13 +1524,23 @@ function CompetitionDetailCard({ competition, activeMembershipId, onEnter, onDra
         </div>
         <div className="flex flex-wrap gap-2">
           {canEnter ? <Button onClick={onEnter}><PlusCircle className="h-4 w-4" /> Enter</Button> : null}
-          {competition.canManage ? <Button variant="dark" onClick={onDraw} disabled={competition.status !== "Open"}><Trophy className="h-4 w-4" /> Run draw</Button> : null}
+          {competition.canManage ? <Button variant="dark" onClick={onDraw} disabled={!canRunDraw}><Trophy className="h-4 w-4" /> Run draw</Button> : null}
         </div>
+        {competition.canManage && competition.status === "Open" && competition.entrantCount < 2 ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Add at least two players before making the draw.</p>
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-2">
           {competition.entries.map((entry) => (
-            <div key={entry.id} className="rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
-              <p className="font-black">{entry.playerName}</p>
-              <p className="text-xs font-bold text-[#6c5a73]">Handicap {entry.handicap === null ? "-" : formatSignedNumber(entry.handicap)}</p>
+            <div key={entry.id} className="flex items-start justify-between gap-3 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
+              <div className="min-w-0">
+                <p className="font-black">{entry.playerName}</p>
+                <p className="text-xs font-bold text-[#6c5a73]">Handicap {entry.handicap === null ? "-" : formatSignedNumber(entry.handicap)}</p>
+              </div>
+              {canManageEntries ? (
+                <Button variant="secondary" size="icon" className="h-10 w-10 shrink-0" onClick={() => onRemoveEntry(entry.id)} aria-label={`Remove ${entry.playerName}`}>
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              ) : null}
             </div>
           ))}
         </div>
