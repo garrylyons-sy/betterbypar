@@ -1444,7 +1444,6 @@ function CompetitionDetailCard({
   competition: CompetitionDetail;
   onResult: (matchId: string, player1Score: number, player2Score: number) => void;
 }) {
-  const [scores, setScores] = useState<Record<string, { p1: string; p2: string }>>({});
   const drawHasRun = competition.matches.length > 0;
   const roundsWithMatches = competition.rounds.map((round) => ({
     ...round,
@@ -1491,31 +1490,9 @@ function CompetitionDetailCard({
                 <Badge variant="muted">Best of {round.framesToPlay}</Badge>
               </div>
               <div className="mt-3 grid gap-2">
-                {round.matches.map((match) => {
-                  const score = scores[match.id] ?? { p1: match.player1Score?.toString() ?? "", p2: match.player2Score?.toString() ?? "" };
-                  return (
-                    <div key={match.id} className={cn("rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]", match.isPlaceholder ? "text-[#6c5a73]" : "")}>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold uppercase text-[#6c5a73]">Match {match.matchNumber}</p>
-                          <p className="font-black text-[#10233f]">{match.player1Name}</p>
-                          <p className="text-xs font-bold uppercase text-[#6c5a73]">v</p>
-                          <p className="font-black text-[#10233f]">{match.player2Name}</p>
-                        </div>
-                        <Badge variant={match.status === "Completed" ? "green" : match.isPlaceholder ? "muted" : "cyan"}>
-                          {match.isPlaceholder ? "Pending" : match.status}
-                        </Badge>
-                      </div>
-                      {match.canReport && !match.isPlaceholder && match.status !== "Bye" ? (
-                        <div className="mt-3 grid grid-cols-[1fr_1fr_auto] gap-2">
-                          <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={score.p1} onChange={(event) => setScores((current) => ({ ...current, [match.id]: { ...score, p1: event.target.value } }))} type="number" min="0" />
-                          <input className="min-h-11 rounded-xl border border-[#eeeaf2] px-3 font-bold" value={score.p2} onChange={(event) => setScores((current) => ({ ...current, [match.id]: { ...score, p2: event.target.value } }))} type="number" min="0" />
-                          <Button onClick={() => onResult(match.id, Number(score.p1), Number(score.p2))}>Save</Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
+                {round.matches.map((match) => (
+                  <CompetitionMatchResultRow key={match.id} match={match} onResult={onResult} />
+                ))}
                 {!round.matches.length ? (
                   <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[#6c5a73]">Draw places will appear here once this round is known.</p>
                 ) : null}
@@ -1525,6 +1502,60 @@ function CompetitionDetailCard({
         </div> : null}
       </CardContent>
     </Card>
+  );
+}
+
+function competitionScoreOptions(framesToPlay: number) {
+  const winningScore = Math.max(1, Math.floor(framesToPlay / 2) + 1);
+  const losingScores = Array.from({ length: winningScore }, (_, index) => index);
+  return [
+    ...losingScores.map((score) => ({ label: `${winningScore}-${score}`, player1Score: winningScore, player2Score: score })),
+    ...losingScores.map((score) => ({ label: `${score}-${winningScore}`, player1Score: score, player2Score: winningScore }))
+  ];
+}
+
+function CompetitionMatchResultRow({
+  match,
+  onResult
+}: {
+  match: CompetitionDetail["matches"][number];
+  onResult: (matchId: string, player1Score: number, player2Score: number) => void;
+}) {
+  const options = competitionScoreOptions(match.framesToPlay);
+  const completed = match.status === "Completed";
+  const scoreText = match.player1Score !== null && match.player2Score !== null ? `${match.player1Score}-${match.player2Score}` : "";
+
+  return (
+    <div className={cn("rounded-lg bg-white px-3 py-2 ring-1 ring-[#eeeaf2]", match.isPlaceholder ? "text-[#6c5a73]" : "")}>
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-bold uppercase text-[#6c5a73]">Match {match.matchNumber}</p>
+            <Badge variant={completed ? "green" : match.isPlaceholder ? "muted" : "cyan"}>
+              {match.isPlaceholder ? "Pending" : completed && scoreText ? scoreText : match.status}
+            </Badge>
+          </div>
+          <p className="mt-1 text-sm font-black leading-tight text-[#10233f]">
+            {match.player1Name} <span className="text-[#6c5a73]">v</span> {match.player2Name}
+          </p>
+        </div>
+        {match.canReport && !match.isPlaceholder && match.status !== "Bye" ? (
+          <div className="flex flex-wrap gap-1.5 sm:justify-end">
+            {options.map((option) => (
+              <Button
+                key={option.label}
+                size="sm"
+                variant={match.player1Score === option.player1Score && match.player2Score === option.player2Score ? "default" : "secondary"}
+                className="min-h-9 px-3 py-1 text-xs"
+                onClick={() => onResult(match.id, option.player1Score, option.player2Score)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -3238,39 +3269,34 @@ function GeneratedMatchCard({
 
   return (
     <div className="rounded-xl bg-[#10233f] p-3 text-white">
-      <p className="text-xs font-extrabold uppercase text-white/60">Match card generated</p>
+      <p className="text-xs font-extrabold uppercase text-white/60">Result entry</p>
       <div className="mt-2 grid gap-2">
         {games.map((game) => (
-          <div key={game.id} className="grid gap-2 rounded-lg bg-white/10 p-2 text-sm font-bold">
-            <div>
-              Game {game.game_number}: {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""} v {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""} ({game.points_awarded} pts)
+          <div key={game.id} className="grid gap-2 rounded-lg bg-white/10 p-2 text-sm font-bold sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <div className="min-w-0">
+              <p className="text-xs font-extrabold uppercase text-white/55">Game {game.game_number} - {game.points_awarded} pts</p>
+              <p className="mt-1 leading-tight">
+                {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""} <span className="text-white/55">v</span> {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}
+              </p>
+              {game.breaks?.length ? (
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  {game.breaks.map((item) => (
+                    <span key={item.id} className="rounded-md bg-white/10 px-2 py-0.5 text-xs font-extrabold text-white">
+                      {item.playerName} {item.breakValue}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Button size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
-                {pendingGameIds.has(game.id) && game.winner_team_id === fixture.homeTeamId ? "Updating..." : `${fixture.homeTeamName} won`}
+            <div className="grid grid-cols-3 gap-1.5 sm:w-[260px]">
+              <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
+                {pendingGameIds.has(game.id) && game.winner_team_id === fixture.homeTeamId ? "..." : fixture.homeTeamName.replace(/ Golf Club/g, "")}
               </Button>
-              <Button size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
-                {pendingGameIds.has(game.id) && game.winner_team_id === fixture.awayTeamId ? "Updating..." : `${fixture.awayTeamName} won`}
+              <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
+                {pendingGameIds.has(game.id) && game.winner_team_id === fixture.awayTeamId ? "..." : fixture.awayTeamName.replace(/ Golf Club/g, "")}
               </Button>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/10 p-2">
-              <div className="min-w-0">
-                <p className="text-xs font-extrabold uppercase text-white/60">Breaks</p>
-                {game.breaks?.length ? (
-                  <div className="mt-1 flex flex-wrap gap-1.5">
-                    {game.breaks.map((item) => (
-                      <span key={item.id} className="rounded-lg bg-white/10 px-2 py-1 text-xs font-extrabold text-white">
-                        {item.playerName} {item.breakValue}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-xs font-semibold text-white/60">None recorded</p>
-                )}
-              </div>
-              <Button size="sm" variant="secondary" onClick={() => onBreak(game)}>
-                <PlusCircle className="h-4 w-4" />
-                Break
+              <Button className="min-h-9 px-2 py-1 text-xs" size="sm" variant="secondary" onClick={() => onBreak(game)}>
+                + Break
               </Button>
             </div>
           </div>
