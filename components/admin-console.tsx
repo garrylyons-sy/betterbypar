@@ -215,6 +215,12 @@ function logPersonOptionName(person: LogPersonOption) {
   return name || person.email || "Unknown user";
 }
 
+function isoDateDaysAgo(daysAgo: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return date.toISOString().slice(0, 10);
+}
+
 export function AdminConsole() {
   const [tab, setTab] = useState<AdminTab>("desktop");
   const [authenticated, setAuthenticated] = useState(false);
@@ -1780,12 +1786,13 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
   const [areaOptions, setAreaOptions] = useState<string[]>([]);
   const [personFilter, setPersonFilter] = useState("all");
   const [areaFilter, setAreaFilter] = useState("all");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(() => isoDateDaysAgo(7));
+  const [toDate, setToDate] = useState(() => isoDateDaysAgo(0));
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [total, setTotal] = useState(logs.length);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   useEffect(() => {
@@ -1803,8 +1810,13 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
     setLoading(true);
+    setLoadError("");
     fetch(`/api/admin/logs?${params.toString()}`, { credentials: "same-origin" })
-      .then((response) => response.json())
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Activity logs unavailable.");
+        return data;
+      })
       .then((data) => {
         if (!active) return;
         setActivityLogs(data.logs ?? []);
@@ -1812,7 +1824,12 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
         setAreaOptions(data.areas ?? []);
         setTotal(Number(data.total ?? 0));
       })
-      .catch(() => undefined)
+      .catch((error) => {
+        if (!active) return;
+        setActivityLogs([]);
+        setTotal(0);
+        setLoadError(error instanceof Error ? error.message : "Activity logs unavailable.");
+      })
       .finally(() => {
         if (active) setLoading(false);
       });
@@ -1886,6 +1903,24 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
             </select>
           </label>
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-bold uppercase text-[#6c5a73]">
+            Showing {fromDate || "start"} to {toDate || "today"}
+          </p>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setFromDate(isoDateDaysAgo(7));
+              setToDate(isoDateDaysAgo(0));
+            }}
+          >
+            Last 7 days
+          </Button>
+        </div>
+        {loadError ? (
+          <p className="rounded-xl bg-[#fff8eb] p-3 text-sm font-semibold text-[#8a5a00] ring-1 ring-[#ffb00055]">{loadError}</p>
+        ) : null}
         <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
           <div className="hidden grid-cols-[130px_170px_120px_minmax(0,1fr)] gap-3 bg-[#10233f] px-3 py-2 text-xs font-bold uppercase text-white/70 md:grid">
             <span>When</span>
@@ -1922,7 +1957,7 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
         {!activityLogs.length && total > 0 ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No activity matches those filters.</p>
         ) : null}
-        {!activityLogs.length && total === 0 ? (
+        {!activityLogs.length && total === 0 && !loadError ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No activity has been recorded yet.</p>
         ) : null}
       </CardContent>

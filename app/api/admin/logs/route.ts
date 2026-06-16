@@ -116,9 +116,13 @@ export async function GET(request: NextRequest) {
          order by p.first_name nulls last, p.last_name nulls last, p.email nulls last`
       ),
       dbQuery<{ area: string }>(
-        `select distinct
-           coalesce(case when activity_type = 'Login' then 'Login' else nullif(page_label, '') end, nullif(page_path, ''), activity_type) as area
-         from public.user_activity_log
+        `select area
+         from (
+           select coalesce(case when activity_type = 'Login' then 'Login' else nullif(page_label, '') end, nullif(page_path, ''), activity_type) as area
+           from public.user_activity_log
+         ) areas
+         where area is not null
+         group by area
          order by area`
       )
     ]);
