@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
     }
     if (area && area !== "all") {
       values.push(area);
-      where.push(`coalesce(case when l.activity_type = 'Login' then 'Login' else nullif(l.page_label, '') end, nullif(l.page_path, ''), l.activity_type) = $${values.length}`);
+      where.push(`coalesce(case when l.activity_type = 'Login' then 'Login' else nullif(l.page_label, '') end, nullif(l.page_path, ''), l.activity_type::text) = $${values.length}`);
     }
 
     const whereSql = where.length ? `where ${where.join(" and ")}` : "";
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
       dbQuery<{ area: string }>(
         `select area
          from (
-           select coalesce(case when activity_type = 'Login' then 'Login' else nullif(page_label, '') end, nullif(page_path, ''), activity_type) as area
+           select coalesce(case when activity_type = 'Login' then 'Login' else nullif(page_label, '') end, nullif(page_path, ''), activity_type::text) as area
            from public.user_activity_log
          ) areas
          where area is not null
