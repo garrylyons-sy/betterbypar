@@ -1387,12 +1387,23 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
       const response = await fetch("/api/competitions", { credentials: "same-origin" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Competitions unavailable.");
-      setCompetitions(data.competitions ?? []);
+      const nextCompetitions = data.competitions ?? [];
+      setCompetitions(nextCompetitions);
       setMemberships(data.memberships ?? []);
       const requestedCompetitionId = selectedCompetitionFromUrl();
-      const nextId = nextSelectedId || requestedCompetitionId || data.competitions?.[0]?.id || "";
+      const preferredId = nextSelectedId || requestedCompetitionId;
+      const preferredIsVisible = preferredId
+        ? nextCompetitions.some((competition: CompetitionSummary) => competition.id === preferredId)
+        : false;
+      const nextId = preferredIsVisible ? preferredId : nextCompetitions[0]?.id || "";
       setSelectedId(nextId);
-      if (nextId) await loadDetail(nextId);
+      setDetail(null);
+      if (nextId) {
+        await loadDetail(nextId);
+        if (preferredId && preferredId !== nextId) {
+          setMessage("That competition is no longer available, so I opened the latest available competition.");
+        }
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Competitions unavailable.");
     } finally {
