@@ -189,6 +189,20 @@ function activityBadgeVariant(log: ActivityRow): "cyan" | "green" | "muted" {
   return "muted";
 }
 
+function activityArea(log: ActivityRow) {
+  if (log.activity_type === "Login") return "Login";
+  return log.page_label || log.page_path || activityLabel(log.activity_type);
+}
+
+function compactActivityLine(log: ActivityRow) {
+  const area = activityArea(log);
+  const context = activityContext(log);
+  if (log.activity_type === "Page Visit") {
+    return context === "Session activity" ? area : `${area} - ${context}`;
+  }
+  return activitySummary(log);
+}
+
 export function AdminConsole() {
   const [tab, setTab] = useState<AdminTab>("desktop");
   const [authenticated, setAuthenticated] = useState(false);
@@ -1749,39 +1763,74 @@ function AdminCheckbox({
 }
 
 function LogsPanel({ logs }: { logs: ActivityRow[] }) {
+  const [personFilter, setPersonFilter] = useState("all");
+  const [areaFilter, setAreaFilter] = useState("all");
+  const personOptions = Array.from(new Set(logs.map(logPersonName))).sort((left, right) => left.localeCompare(right));
+  const areaOptions = Array.from(new Set(logs.map(activityArea))).sort((left, right) => left.localeCompare(right));
+  const filteredLogs = logs.filter((log) => {
+    const personMatches = personFilter === "all" || logPersonName(log) === personFilter;
+    const areaMatches = areaFilter === "all" || activityArea(log) === areaFilter;
+    return personMatches && areaMatches;
+  });
+
   return (
     <Card className="min-w-0">
       <CardHeader>
         <CardTitle>User activity</CardTitle>
-        <Badge variant="muted">{logs.length}</Badge>
+        <Badge variant="muted">{filteredLogs.length} / {logs.length}</Badge>
       </CardHeader>
-      <CardContent className="grid gap-2">
-        {logs.map((log) => (
-          <div key={log.id} className="rounded-xl bg-[#f7f5fa] p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-extrabold text-[#10233f]">{activitySummary(log)}</p>
-                <p className="text-xs font-bold text-[#6c5a73]">
-                  {logPersonName(log)}
-                </p>
-              </div>
-              <div className="grid justify-items-end gap-1">
-                <Badge variant={activityBadgeVariant(log)}>{activityLabel(log.activity_type)}</Badge>
-                <span className="text-right text-xs font-bold text-[#6c5a73]">{formatAdminLogTime(log.created_at)}</span>
-              </div>
-            </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-[#eeeaf2]">
-                <p className="text-xs font-bold uppercase text-[#6c5a73]">Context</p>
-                <p className="text-sm font-bold text-[#10233f]">{activityContext(log)}</p>
-              </div>
-              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-[#eeeaf2]">
-                <p className="text-xs font-bold uppercase text-[#6c5a73]">Page</p>
-                <p className="text-sm font-bold text-[#10233f]">{log.page_label || log.page_path || "Session"}</p>
-              </div>
-            </div>
+      <CardContent className="grid gap-3">
+        <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] sm:grid-cols-2">
+          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+            Person
+            <select
+              className="min-h-10 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+              value={personFilter}
+              onChange={(event) => setPersonFilter(event.target.value)}
+            >
+              <option value="all">All people</option>
+              {personOptions.map((person) => (
+                <option key={person} value={person}>{person}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+            Area visited
+            <select
+              className="min-h-10 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+              value={areaFilter}
+              onChange={(event) => setAreaFilter(event.target.value)}
+            >
+              <option value="all">All areas</option>
+              {areaOptions.map((area) => (
+                <option key={area} value={area}>{area}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
+          <div className="hidden grid-cols-[130px_170px_120px_minmax(0,1fr)] gap-3 bg-[#10233f] px-3 py-2 text-xs font-bold uppercase text-white/70 md:grid">
+            <span>When</span>
+            <span>Person</span>
+            <span>Area</span>
+            <span>Visit detail</span>
           </div>
-        ))}
+          <div className="grid divide-y divide-[#eeeaf2] bg-white">
+            {filteredLogs.map((log) => (
+              <div key={log.id} className="grid gap-1 px-3 py-2 text-sm md:grid-cols-[130px_170px_120px_minmax(0,1fr)] md:items-center md:gap-3">
+                <span className="text-xs font-bold text-[#6c5a73] md:text-sm">{formatAdminLogTime(log.created_at)}</span>
+                <span className="min-w-0 truncate font-bold text-[#10233f]">{logPersonName(log)}</span>
+                <span className="min-w-0">
+                  <Badge variant={activityBadgeVariant(log)}>{activityArea(log)}</Badge>
+                </span>
+                <span className="min-w-0 truncate font-semibold text-[#6c5a73]">{compactActivityLine(log)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {!filteredLogs.length && logs.length ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No activity matches those filters.</p>
+        ) : null}
         {!logs.length ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No activity has been recorded yet.</p>
         ) : null}

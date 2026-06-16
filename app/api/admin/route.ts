@@ -166,7 +166,7 @@ export async function GET() {
         page_path: row.page_path,
         created_at: row.created_at,
         metadata: row.metadata,
-        person: row.first_name ? {
+        person: row.first_name || row.last_name || row.email ? {
           first_name: row.first_name,
           last_name: row.last_name,
           email: row.email
