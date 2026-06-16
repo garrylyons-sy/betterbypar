@@ -52,9 +52,11 @@ export type CompetitionDetail = CompetitionSummary & {
     player1EntryId: string | null;
     player1Name: string;
     player1PersonId: string | null;
+    player1Handicap: number | null;
     player2EntryId: string | null;
     player2Name: string;
     player2PersonId: string | null;
+    player2Handicap: number | null;
     player1Score: number | null;
     player2Score: number | null;
     winnerEntryId: string | null;
@@ -128,9 +130,11 @@ function buildDisplayCompetitionMatches(rounds: CompetitionRoundDetail[], actual
         player1EntryId: null,
         player1Name: missingCompetitionPlayerName(round.roundNumber, matchNumber, 1),
         player1PersonId: null,
+        player1Handicap: null,
         player2EntryId: null,
         player2Name: missingCompetitionPlayerName(round.roundNumber, matchNumber, 2),
         player2PersonId: null,
+        player2Handicap: null,
         player1Score: null,
         player2Score: null,
         winnerEntryId: null,
@@ -363,9 +367,11 @@ export async function loadCompetitionDetail(user: AppUser, competitionId: string
       player_1_entry_id: string | null;
       player_1_name: string | null;
       player_1_person_id: string | null;
+      player_1_handicap: string | null;
       player_2_entry_id: string | null;
       player_2_name: string | null;
       player_2_person_id: string | null;
+      player_2_handicap: string | null;
       player_1_score: number | null;
       player_2_score: number | null;
       winner_entry_id: string | null;
@@ -382,9 +388,11 @@ export async function loadCompetitionDetail(user: AppUser, competitionId: string
          m.player_1_entry_id,
          concat_ws(' ', p1.first_name, p1.last_name) as player_1_name,
          cm1.person_id as player_1_person_id,
+         cm1.handicap::text as player_1_handicap,
          m.player_2_entry_id,
          concat_ws(' ', p2.first_name, p2.last_name) as player_2_name,
          cm2.person_id as player_2_person_id,
+         cm2.handicap::text as player_2_handicap,
          m.player_1_score,
          m.player_2_score,
          m.winner_entry_id,
@@ -429,9 +437,11 @@ export async function loadCompetitionDetail(user: AppUser, competitionId: string
     player1EntryId: row.player_1_entry_id,
     player1Name: row.player_1_name ?? "Bye",
     player1PersonId: row.player_1_person_id,
+    player1Handicap: row.player_1_handicap === null ? null : Number(row.player_1_handicap),
     player2EntryId: row.player_2_entry_id,
     player2Name: row.player_2_name ?? "Bye",
     player2PersonId: row.player_2_person_id,
+    player2Handicap: row.player_2_handicap === null ? null : Number(row.player_2_handicap),
     player1Score: row.player_1_score,
     player2Score: row.player_2_score,
     winnerEntryId: row.winner_entry_id,

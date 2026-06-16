@@ -1177,7 +1177,9 @@ type CompetitionDetail = CompetitionSummary & {
     playByDate: string;
     matchNumber: number;
     player1Name: string;
+    player1Handicap: number | null;
     player2Name: string;
+    player2Handicap: number | null;
     player1Score: number | null;
     player2Score: number | null;
     status: string;
@@ -1206,6 +1208,52 @@ function shortRoundName(roundName?: string | null) {
   return roundName?.slice(0, 3).toUpperCase() ?? "";
 }
 
+function competitionStatusText(competition: CompetitionSummary) {
+  if (!competition.isEntered) return competition.status === "Open" ? "Open for entry" : competition.status;
+  if (competition.nextMatch) {
+    return `${competition.nextMatch.roundName}: ${competition.nextMatch.opponentName}`;
+  }
+  if (competition.status === "Open") return "Entered - awaiting draw";
+  if (competition.status === "Complete") return "Competition complete";
+  return "Entered - next tie to be confirmed";
+}
+
+function competitionDateText(competition: CompetitionSummary) {
+  if (competition.nextMatch) return `Play by ${formatFixtureDate(competition.nextMatch.playByDate)}`;
+  if (competition.status === "Open") return `Entries close ${formatFixtureDate(competition.entryClosesAt)}`;
+  return competition.status;
+}
+
+function CompetitionListItem({ competition, onNavigate }: { competition: CompetitionSummary; onNavigate: (page: AppPage) => void }) {
+  const roundCode = competition.nextMatch?.roundName ? shortRoundName(competition.nextMatch.roundName) : "";
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigate("Competitions")}
+      className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 text-left ring-1 ring-[#eeeaf2] transition hover:bg-[#eef3f5]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="break-words font-extrabold leading-tight text-[#10233f]">{competition.name}</p>
+          <p className="mt-1 text-xs font-bold text-[#6c5a73]">
+            {competition.clubName} - {competition.competitionType}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {roundCode ? <Badge variant="cyan">{roundCode}</Badge> : null}
+          <Badge variant={competition.isEntered ? "green" : competition.status === "Open" ? "cyan" : "muted"}>
+            {competition.isEntered ? "Entered" : competition.status}
+          </Badge>
+        </div>
+      </div>
+      <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-[#eeeaf2]">
+        <p className="text-sm font-bold text-[#10233f]">{competitionStatusText(competition)}</p>
+        <p className="mt-0.5 text-xs font-semibold text-[#6c5a73]">{competitionDateText(competition)}</p>
+      </div>
+    </button>
+  );
+}
+
 function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamContext; mode: "open" | "mine" | "draws"; onNavigate: (page: AppPage) => void }) {
   const [competitions, setCompetitions] = useState<CompetitionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1228,13 +1276,16 @@ function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamCo
   }, []);
 
   const clubCompetitions = competitions.filter((competition) => competition.clubName === activeTeam.club || competition.canManage);
+  const enteredCompetitions = clubCompetitions.filter((competition) => competition.isEntered);
+  const openCompetitions = clubCompetitions.filter((competition) => competition.status === "Open" && !competition.isEntered);
   const visible = mode === "mine"
     ? clubCompetitions.filter((competition) => competition.isEntered)
     : mode === "draws"
       ? clubCompetitions.filter((competition) => competition.status !== "Open" && competition.status !== "Draft")
       : clubCompetitions;
-  const title = mode === "mine" ? "My Competition Matches" : mode === "draws" ? "Competition Draws" : "Competitions";
+  const title = mode === "mine" ? "My Competitions" : mode === "draws" ? "Competition Draws" : "Competitions";
   const badge = `${visible.length}`;
+  const hasItems = mode === "open" ? Boolean(enteredCompetitions.length || openCompetitions.length) : Boolean(visible.length);
 
   return (
     <Card>
@@ -1243,30 +1294,31 @@ function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamCo
         <Badge variant="muted">{loading ? "Loading" : badge}</Badge>
       </CardHeader>
       <CardContent className="grid gap-2">
-        {visible.map((competition) => (
-          <button key={competition.id} type="button" onClick={() => onNavigate("Competitions")} className="rounded-xl bg-[#f7f5fa] p-3 text-left ring-1 ring-[#eeeaf2]">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-black text-[#10233f]">{competition.name}</p>
-                <p className="text-xs font-bold text-[#6c5a73]">{competition.clubName} - {competition.competitionType}</p>
-                {competition.isEntered ? (
-                  <p className="mt-2 text-sm font-semibold text-[#10233f]">
-                    {competition.nextMatch
-                      ? `${competition.nextMatch.roundName}: ${competition.nextMatch.opponentName} by ${formatFixtureDate(competition.nextMatch.playByDate)}`
-                      : competition.status === "Open"
-                        ? "Entered - draw not run yet"
-                        : "Entered - next tie to be confirmed"}
-                  </p>
-                ) : null}
+        {mode === "open" ? (
+          <>
+            {enteredCompetitions.length ? (
+              <div className="grid gap-2">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">You are in</p>
+                {enteredCompetitions.map((competition) => (
+                  <CompetitionListItem key={competition.id} competition={competition} onNavigate={onNavigate} />
+                ))}
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
-                {competition.isEntered && competition.nextMatch?.roundName ? <Badge variant="cyan">{shortRoundName(competition.nextMatch.roundName)}</Badge> : null}
-                <Badge variant={competition.isEntered ? "green" : "cyan"}>{competition.isEntered ? "Entered" : competition.status}</Badge>
+            ) : null}
+            {openCompetitions.length ? (
+              <div className="grid gap-2">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">Open to enter</p>
+                {openCompetitions.map((competition) => (
+                  <CompetitionListItem key={competition.id} competition={competition} onNavigate={onNavigate} />
+                ))}
               </div>
-            </div>
-          </button>
-        ))}
-        {!visible.length ? (
+            ) : null}
+          </>
+        ) : (
+          visible.map((competition) => (
+            <CompetitionListItem key={competition.id} competition={competition} onNavigate={onNavigate} />
+          ))
+        )}
+        {!hasItems ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
             {loading ? "Loading competitions..." : "No competitions to show yet."}
           </p>
@@ -1369,6 +1421,9 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   }
 
   const orderedCompetitions = [...competitions].sort((left, right) => Number(right.isEntered) - Number(left.isEntered));
+  const enteredCompetitions = orderedCompetitions.filter((competition) => competition.isEntered);
+  const enterableCompetitions = orderedCompetitions.filter((competition) => competition.status === "Open" && !competition.isEntered && Boolean(membershipForCompetition(competition)));
+  const otherCompetitions = orderedCompetitions.filter((competition) => !competition.isEntered && !enterableCompetitions.some((enterable) => enterable.id === competition.id));
 
   return (
     <section className="grid gap-4">
@@ -1379,7 +1434,14 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
           </CardHeader>
           <CardContent className="grid gap-2">
             {message ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">{message}</p> : null}
-            {orderedCompetitions.map((competition) => {
+            {[
+              ["You are in", enteredCompetitions],
+              ["Open to enter", enterableCompetitions],
+              ["Other competitions", otherCompetitions]
+            ].map(([sectionTitle, sectionCompetitions]) => (sectionCompetitions as CompetitionSummary[]).length ? (
+              <div key={sectionTitle as string} className="grid gap-2">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">{sectionTitle as string}</p>
+                {(sectionCompetitions as CompetitionSummary[]).map((competition) => {
               const selected = selectedId === competition.id;
               const membership = membershipForCompetition(competition);
               const canEnter = competition.status === "Open" && !competition.isEntered && Boolean(membership);
@@ -1405,6 +1467,10 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
                       {competition.nextMatch ? (
                         <p className={cn("mt-1 text-sm font-semibold", selected ? "text-white/80" : "text-[#10233f]")}>
                           {competition.nextMatch.roundName}: {competition.nextMatch.opponentName} by {formatFixtureDate(competition.nextMatch.playByDate)}
+                        </p>
+                      ) : competition.isEntered ? (
+                        <p className={cn("mt-1 text-sm font-semibold", selected ? "text-white/80" : "text-[#10233f]")}>
+                          {competition.status === "Open" ? "Entered - awaiting draw" : "Entered - next tie to be confirmed"}
                         </p>
                       ) : null}
                     </button>
@@ -1434,11 +1500,13 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
                   ) : null}
                 </article>
               );
-            })}
+                })}
+              </div>
+            ) : null)}
             {!competitions.length ? (
               <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-4 ring-1 ring-[#eeeaf2]">
                 <p className="text-sm font-semibold text-[#6c5a73]">
-                  No competitions have been created yet.
+                  {loading ? "Loading..." : "No competitions have been created yet."}
                 </p>
               </div>
             ) : null}
@@ -1468,6 +1536,7 @@ function CompetitionDetailCard({
     ...round,
     matches: competition.matches.filter((match) => match.roundNumber === round.roundNumber)
   }));
+  const roundFormatSummary = competition.rounds.map((round) => `${shortRoundName(round.name) || round.name}: best of ${round.framesToPlay}`).join(" / ");
 
   return (
     <Card>
@@ -1479,6 +1548,11 @@ function CompetitionDetailCard({
         <div className="rounded-xl bg-[#f7f5fa] p-3">
           <p className="text-sm font-bold text-[#10233f]">{competition.clubName}</p>
           <p className="text-xs font-semibold text-[#6c5a73]">Entries close {formatFixtureDate(competition.entryClosesAt)} - {competition.entrantCount} entrants</p>
+          {drawHasRun && roundFormatSummary ? (
+            <p className="mt-2 rounded-lg bg-white px-3 py-2 text-xs font-bold text-[#10233f] ring-1 ring-[#eeeaf2]">
+              {roundFormatSummary}
+            </p>
+          ) : null}
           {competition.rules ? <p className="mt-2 text-sm font-semibold text-[#6c5a73]">{competition.rules}</p> : null}
         </div>
         {competition.status === "Open" ? (
@@ -1498,7 +1572,7 @@ function CompetitionDetailCard({
               </div>
               <div className="mt-3 grid gap-2">
                 {round.matches.map((match) => (
-                  <CompetitionMatchResultRow key={match.id} match={match} onOpenScore={setScoreMatch} />
+                  <CompetitionMatchResultRow key={match.id} competitionType={competition.competitionType} match={match} onOpenScore={setScoreMatch} />
                 ))}
                 {!round.matches.length ? (
                   <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[#6c5a73]">Draw places will appear here once this round is known.</p>
@@ -1524,13 +1598,16 @@ function CompetitionDetailCard({
 
 function CompetitionMatchResultRow({
   match,
+  competitionType,
   onOpenScore
 }: {
   match: CompetitionDetail["matches"][number];
+  competitionType: CompetitionSummary["competitionType"];
   onOpenScore: (match: CompetitionDetail["matches"][number]) => void;
 }) {
   const completed = match.status === "Completed";
   const scoreText = match.player1Score !== null && match.player2Score !== null ? `${match.player1Score}-${match.player2Score}` : "";
+  const showHandicap = competitionType === "Handicap";
 
   return (
     <div className={cn("rounded-lg bg-white px-3 py-2 ring-1 ring-[#eeeaf2]", match.isPlaceholder ? "text-[#6c5a73]" : "")}>
@@ -1542,9 +1619,11 @@ function CompetitionMatchResultRow({
               {match.isPlaceholder ? "Pending" : completed && scoreText ? scoreText : match.status}
             </Badge>
           </div>
-          <p className="mt-1 text-sm font-black leading-tight text-[#10233f]">
-            {match.player1Name} <span className="text-[#6c5a73]">v</span> {match.player2Name}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm font-black leading-tight text-[#10233f]">
+            <CompetitionPlayerName name={match.player1Name} handicap={showHandicap ? match.player1Handicap : null} />
+            <span className="text-[#6c5a73]">v</span>
+            <CompetitionPlayerName name={match.player2Name} handicap={showHandicap ? match.player2Handicap : null} />
+          </div>
         </div>
         {match.canReport && !match.isPlaceholder && match.status !== "Bye" ? (
           <Button size="sm" variant={completed ? "secondary" : "default"} onClick={() => onOpenScore(match)}>
@@ -1553,6 +1632,19 @@ function CompetitionMatchResultRow({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function CompetitionPlayerName({ name, handicap }: { name: string; handicap: number | null }) {
+  return (
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-1">
+      <span>{name}</span>
+      {handicap !== null ? (
+        <span className="rounded-md bg-[#eef3f5] px-1.5 py-0.5 text-[10px] font-extrabold uppercase text-[#6c5a73]">
+          Hcp {handicap}
+        </span>
+      ) : null}
+    </span>
   );
 }
 
@@ -3415,9 +3507,9 @@ function GeneratedMatchCard({
                   <button
                     type="button"
                     onClick={() => onBreak(game)}
-                    className="min-h-8 rounded-md px-2 text-xs font-extrabold text-[#7bc7d6] transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+                    className="min-h-8 rounded-md bg-white/10 px-2 text-xs font-extrabold text-[#7bc7d6] transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
                   >
-                    Add break
+                    Record break
                   </button>
                 </div>
               </div>

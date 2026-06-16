@@ -922,7 +922,9 @@ function AdminCompetitionDetailCard({
                   <div key={entry.id} className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
                     <div className="min-w-0">
                       <p className="font-extrabold text-[#10233f]">{entry.playerName}</p>
-                      <p className="text-xs font-bold text-[#6c5a73]">Handicap {entry.handicap === null ? "-" : entry.handicap}</p>
+                      {competition.competitionType === "Handicap" ? (
+                        <p className="text-xs font-bold text-[#6c5a73]">Handicap {entry.handicap === null ? "-" : entry.handicap}</p>
+                      ) : null}
                     </div>
                     {canRemoveEntries ? (
                       <Button variant="secondary" size="icon" className="h-10 w-10 shrink-0" onClick={() => onRemoveEntry(entry.id)} aria-label={`Remove ${entry.playerName}`}>
