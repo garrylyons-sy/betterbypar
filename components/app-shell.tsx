@@ -115,6 +115,7 @@ export function AppShell({
   const [simulatedRole, setSimulatedRole] = useState<Role>(contexts[0]?.role ?? teamContexts[0].role);
   const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
   const [teamSummaryOverrides, setTeamSummaryOverrides] = useState<Record<string, TeamSummaryUpdate>>({});
+  const [enteredCompetitionCount, setEnteredCompetitionCount] = useState(0);
   useEffect(() => {
     setTeamSummaryOverrides({});
   }, [contexts]);
@@ -182,6 +183,39 @@ export function AppShell({
   };
   const appearanceConfig = useMemo(() => normalizeAppearanceConfig(appearance ?? defaultAppearanceConfig), [appearance]);
   const activeAppearance = appearanceConfig[activeTeam.role] ?? defaultAppearanceConfig[activeTeam.role];
+  useEffect(() => {
+    let active = true;
+    if (activeTeam.role !== "Club Member") {
+      setEnteredCompetitionCount(0);
+      return () => {
+        active = false;
+      };
+    }
+    fetch("/api/competitions", { credentials: "same-origin" })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!active) return;
+        const entered = (data.competitions ?? []).filter((competition: CompetitionSummary) =>
+          competition.isEntered && (competition.clubName === activeTeam.club || competition.canManage)
+        );
+        setEnteredCompetitionCount(entered.length);
+      })
+      .catch(() => {
+        if (active) setEnteredCompetitionCount(0);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeTeam.club, activeTeam.role]);
+  const activeMenuItems = useMemo(() => {
+    const configured = activeAppearance.menuItems;
+    if (activeTeam.role !== "Club Member" || enteredCompetitionCount <= 0 || configured.includes("Competitions")) {
+      return configured;
+    }
+    const bookingIndex = configured.indexOf("Bookings");
+    const insertAt = bookingIndex >= 0 ? bookingIndex + 1 : Math.min(2, configured.length);
+    return [...configured.slice(0, insertAt), "Competitions" as AppearanceMenuId, ...configured.slice(insertAt)];
+  }, [activeAppearance.menuItems, activeTeam.role, enteredCompetitionCount]);
   const activeStandings = useMemo(() => {
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
     return filtered.length ? filtered : standingsData === standings ? standings : [];
@@ -228,7 +262,7 @@ export function AppShell({
         "mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:items-start lg:gap-6 lg:px-8 xl:px-10",
         showLeaguePanels ? "lg:grid-cols-[220px_minmax(0,1fr)_380px] xl:grid-cols-[230px_minmax(0,1fr)_400px]" : "lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]"
       )}>
-        <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} menuItems={activeAppearance.menuItems} />
+        <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} menuItems={activeMenuItems} />
         <div className="grid gap-4">
           {clubMemberView && activePage !== "Interclub Leagues" ? (
             <ClubMemberHero activeTeam={activeTeam} />
@@ -243,7 +277,7 @@ export function AppShell({
             playerGameResults={activePlayerGameResults}
             matchResults={activeMatchResults}
             allMatchResults={allMatchResults}
-            appearance={activeAppearance}
+            appearance={{ ...activeAppearance, menuItems: activeMenuItems }}
             onNavigate={setActivePage}
             onSignOut={onSignOut}
             userLabel={userLabel}
@@ -258,7 +292,7 @@ export function AppShell({
           </aside>
         ) : null}
       </section>
-      <BottomNav activePage={activePage} activeTeam={activeTeam} onNavigate={setActivePage} menuItems={activeAppearance.menuItems} />
+      <BottomNav activePage={activePage} activeTeam={activeTeam} onNavigate={setActivePage} menuItems={activeMenuItems} />
     </main>
   );
 }
@@ -1837,6 +1871,31 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
 }
 
 function MemberActionsCard({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+  const [competitions, setCompetitions] = useState<CompetitionSummary[]>([]);
+  const [loadingCompetitions, setLoadingCompetitions] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingCompetitions(true);
+    fetch("/api/competitions", { credentials: "same-origin" })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!active) return;
+        setCompetitions(data.competitions ?? []);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setLoadingCompetitions(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeTeam.club]);
+
+  const clubCompetitions = competitions.filter((competition) => competition.clubName === activeTeam.club || competition.canManage);
+  const enteredCompetitions = clubCompetitions.filter((competition) => competition.isEntered);
+  const openCompetitions = clubCompetitions.filter((competition) => competition.status === "Open" && !competition.isEntered);
+
   return (
     <Card>
       <CardHeader>
@@ -1848,6 +1907,39 @@ function MemberActionsCard({ activeTeam, onNavigate }: { activeTeam: TeamContext
           <CalendarPlus className="h-4 w-4" />
           Book table
         </Button>
+        {enteredCompetitions.length ? (
+          <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-bold uppercase text-[#6c5a73]">Competitions you are in</p>
+              <Badge variant="green">{enteredCompetitions.length}</Badge>
+            </div>
+            {enteredCompetitions.slice(0, 3).map((competition) => (
+              <button
+                key={competition.id}
+                type="button"
+                onClick={() => onNavigate("Competitions")}
+                className="grid gap-1 rounded-lg bg-white px-3 py-2 text-left ring-1 ring-[#eeeaf2]"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 break-words text-sm font-extrabold leading-tight text-[#10233f]">{competition.name}</p>
+                  {competition.nextMatch?.roundName ? <Badge variant="cyan">{shortRoundName(competition.nextMatch.roundName)}</Badge> : null}
+                </div>
+                <p className="text-xs font-semibold text-[#6c5a73]">
+                  {competition.nextMatch
+                    ? `${competition.nextMatch.opponentName} - play by ${formatFixtureDate(competition.nextMatch.playByDate)}`
+                    : competition.status === "Open"
+                      ? "Entered - awaiting draw"
+                      : "Next tie to be confirmed"}
+                </p>
+              </button>
+            ))}
+            {enteredCompetitions.length > 3 ? (
+              <button type="button" onClick={() => onNavigate("Competitions")} className="text-left text-xs font-extrabold uppercase text-[#10233f]">
+                View all competitions
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <button
           type="button"
           onClick={() => onNavigate("Competitions")}
@@ -1858,7 +1950,15 @@ function MemberActionsCard({ activeTeam, onNavigate }: { activeTeam: TeamContext
           </span>
           <span>
             <span className="block font-black">Enter competitions</span>
-            <span className="block text-xs font-semibold text-[#6c5a73]">Club draws and entries</span>
+            <span className="block text-xs font-semibold text-[#6c5a73]">
+              {loadingCompetitions
+                ? "Checking club competitions..."
+                : openCompetitions.length
+                  ? `${openCompetitions.length} open for entry`
+                  : enteredCompetitions.length
+                    ? "View draws, rounds and results"
+                    : "Club draws and entries"}
+            </span>
           </span>
         </button>
       </CardContent>
