@@ -46,7 +46,14 @@ type ActivityRow = {
   page_path: string | null;
   created_at: string;
   metadata: Record<string, unknown>;
+  personId?: string | null;
   person?: { first_name: string; last_name: string; email: string | null } | null;
+};
+type LogPersonOption = {
+  person_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
 };
 type InviteRequestRow = {
   id: string;
@@ -201,6 +208,11 @@ function compactActivityLine(log: ActivityRow) {
     return context === "Session activity" ? area : `${area} - ${context}`;
   }
   return activitySummary(log);
+}
+
+function logPersonOptionName(person: LogPersonOption) {
+  const name = `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim();
+  return name || person.email || "Unknown user";
 }
 
 export function AdminConsole() {
@@ -1763,24 +1775,60 @@ function AdminCheckbox({
 }
 
 function LogsPanel({ logs }: { logs: ActivityRow[] }) {
+  const [activityLogs, setActivityLogs] = useState<ActivityRow[]>(logs);
+  const [personOptions, setPersonOptions] = useState<LogPersonOption[]>([]);
+  const [areaOptions, setAreaOptions] = useState<string[]>([]);
   const [personFilter, setPersonFilter] = useState("all");
   const [areaFilter, setAreaFilter] = useState("all");
-  const personOptions = Array.from(new Set(logs.map(logPersonName))).sort((left, right) => left.localeCompare(right));
-  const areaOptions = Array.from(new Set(logs.map(activityArea))).sort((left, right) => left.localeCompare(right));
-  const filteredLogs = logs.filter((log) => {
-    const personMatches = personFilter === "all" || logPersonName(log) === personFilter;
-    const areaMatches = areaFilter === "all" || activityArea(log) === areaFilter;
-    return personMatches && areaMatches;
-  });
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [total, setTotal] = useState(logs.length);
+  const [loading, setLoading] = useState(false);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [personFilter, areaFilter, fromDate, toDate, pageSize]);
+
+  useEffect(() => {
+    let active = true;
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize)
+    });
+    if (personFilter !== "all") params.set("personId", personFilter);
+    if (areaFilter !== "all") params.set("area", areaFilter);
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    setLoading(true);
+    fetch(`/api/admin/logs?${params.toString()}`, { credentials: "same-origin" })
+      .then((response) => response.json())
+      .then((data) => {
+        if (!active) return;
+        setActivityLogs(data.logs ?? []);
+        setPersonOptions(data.people ?? []);
+        setAreaOptions(data.areas ?? []);
+        setTotal(Number(data.total ?? 0));
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [areaFilter, fromDate, page, pageSize, personFilter, toDate]);
 
   return (
     <Card className="min-w-0">
       <CardHeader>
         <CardTitle>User activity</CardTitle>
-        <Badge variant="muted">{filteredLogs.length} / {logs.length}</Badge>
+        <Badge variant="muted">{loading ? "Loading" : `${total}`}</Badge>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] sm:grid-cols-2">
+        <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-5">
           <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
             Person
             <select
@@ -1790,7 +1838,7 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
             >
               <option value="all">All people</option>
               {personOptions.map((person) => (
-                <option key={person} value={person}>{person}</option>
+                <option key={person.person_id} value={person.person_id}>{logPersonOptionName(person)}</option>
               ))}
             </select>
           </label>
@@ -1807,6 +1855,36 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
               ))}
             </select>
           </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+            From
+            <input
+              className="min-h-10 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+              type="date"
+              value={fromDate}
+              onChange={(event) => setFromDate(event.target.value)}
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+            To
+            <input
+              className="min-h-10 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+              type="date"
+              value={toDate}
+              onChange={(event) => setToDate(event.target.value)}
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+            Rows
+            <select
+              className="min-h-10 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+            >
+              {[25, 50, 100].map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
           <div className="hidden grid-cols-[130px_170px_120px_minmax(0,1fr)] gap-3 bg-[#10233f] px-3 py-2 text-xs font-bold uppercase text-white/70 md:grid">
@@ -1816,7 +1894,7 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
             <span>Visit detail</span>
           </div>
           <div className="grid divide-y divide-[#eeeaf2] bg-white">
-            {filteredLogs.map((log) => (
+            {activityLogs.map((log) => (
               <div key={log.id} className="grid gap-1 px-3 py-2 text-sm md:grid-cols-[130px_170px_120px_minmax(0,1fr)] md:items-center md:gap-3">
                 <span className="text-xs font-bold text-[#6c5a73] md:text-sm">{formatAdminLogTime(log.created_at)}</span>
                 <span className="min-w-0 truncate font-bold text-[#10233f]">{logPersonName(log)}</span>
@@ -1828,10 +1906,23 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
             ))}
           </div>
         </div>
-        {!filteredLogs.length && logs.length ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+          <p className="text-sm font-bold text-[#6c5a73]">
+            Page {page} of {totalPages} - {total} matching visits
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1 || loading}>
+              Previous
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages || loading}>
+              Next
+            </Button>
+          </div>
+        </div>
+        {!activityLogs.length && total > 0 ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No activity matches those filters.</p>
         ) : null}
-        {!logs.length ? (
+        {!activityLogs.length && total === 0 ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No activity has been recorded yet.</p>
         ) : null}
       </CardContent>
