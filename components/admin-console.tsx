@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { appearanceMenuOptions, appearancePanelOptions, defaultAppearanceConfig, normalizeAppearanceConfig } from "@/lib/appearance";
 import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, Role as AppRole } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type AdminTab = "desktop" | "competitions" | "people" | "invites" | "permissions" | "appearance" | "logs";
 type TeamRole = "Player" | "Manager" | "Assistant Manager";
@@ -86,6 +87,7 @@ type AdminCompetitionDetail = {
   competitionType: string;
   entryClosesAt: string;
   status: string;
+  roundSettingsConfirmed: boolean;
   entrantCount: number;
   entries: Array<{ id: string; playerName: string; handicap: number | null; status: string }>;
   rounds: Array<{ id: string; name: string; roundNumber: number; playByDate: string; framesToPlay: number }>;
@@ -592,7 +594,7 @@ function CompetitionsAdminPanel({
     }
   }
 
-  async function saveCompetitionRoundDates(rounds: Array<{ id: string; playByDate: string }>) {
+  async function saveCompetitionRoundSetup(rounds: Array<{ id: string; framesToPlay: number; playByDate: string }>) {
     if (!competitionDetail) return;
     try {
       const response = await fetch(`/api/admin/competitions/${competitionDetail.id}`, {
@@ -602,12 +604,12 @@ function CompetitionsAdminPanel({
         body: JSON.stringify({ rounds })
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Could not update round dates.");
-      onMessage("Round dates updated.");
+      if (!response.ok) throw new Error(data.error || "Could not update round setup.");
+      onMessage("Round setup saved.");
       await loadCompetitionDetail(competitionDetail.id);
       onRefresh();
     } catch (error) {
-      onMessage(error instanceof Error ? error.message : "Could not update round dates.");
+      onMessage(error instanceof Error ? error.message : "Could not update round setup.");
     }
   }
 
@@ -621,7 +623,7 @@ function CompetitionsAdminPanel({
           onBack={returnToCompetitionList}
           onRemoveEntry={removeCompetitionEntry}
           onRunDraw={runCompetitionDraw}
-          onSaveRoundDates={saveCompetitionRoundDates}
+          onSaveRoundSetup={saveCompetitionRoundSetup}
         />
         {deleteTarget ? (
           <ConfirmDeleteCompetitionModal
@@ -763,7 +765,7 @@ function AdminCompetitionDetailCard({
   onBack,
   onRemoveEntry,
   onRunDraw,
-  onSaveRoundDates
+  onSaveRoundSetup
 }: {
   competition: AdminCompetitionDetail | null;
   loading: boolean;
@@ -771,14 +773,16 @@ function AdminCompetitionDetailCard({
   onBack: () => void;
   onRemoveEntry: (entryId: string) => void;
   onRunDraw: () => void;
-  onSaveRoundDates: (rounds: Array<{ id: string; playByDate: string }>) => void;
+  onSaveRoundSetup: (rounds: Array<{ id: string; framesToPlay: number; playByDate: string }>) => void;
 }) {
   const [roundDates, setRoundDates] = useState<Record<string, string>>({});
+  const [roundFrames, setRoundFrames] = useState<Record<string, string>>({});
   const [editingDates, setEditingDates] = useState(false);
 
   useEffect(() => {
     setRoundDates(Object.fromEntries((competition?.rounds ?? []).map((round) => [round.id, round.playByDate?.slice(0, 10) ?? ""])));
-    setEditingDates(false);
+    setRoundFrames(Object.fromEntries((competition?.rounds ?? []).map((round) => [round.id, String(round.framesToPlay || 1)])));
+    setEditingDates(Boolean(competition?.matches.length && !competition?.roundSettingsConfirmed));
   }, [competition?.id, competition?.rounds]);
 
   if (!competition && !loading) {
@@ -800,6 +804,7 @@ function AdminCompetitionDetailCard({
   const drawHasRun = Boolean(competition?.matches.length);
   const canRemoveEntries = Boolean(competition && competition.status === "Open" && !drawHasRun);
   const canRunDraw = Boolean(competition && competition.status === "Open" && competition.entrantCount >= 2 && !drawHasRun);
+  const setupNeedsAttention = Boolean(competition && drawHasRun && !competition.roundSettingsConfirmed);
 
   return (
     <Card>
@@ -850,41 +855,61 @@ function AdminCompetitionDetailCard({
               <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Add at least two entrants before running a draw.</p>
             ) : null}
             {drawHasRun ? (
-              <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+              <div className={cn("grid gap-2 rounded-xl p-3 ring-1", setupNeedsAttention ? "bg-[#fff8eb] ring-[#ffb00055]" : "bg-[#f7f5fa] ring-[#eeeaf2]")}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold uppercase text-[#6c5a73]">Round dates</p>
+                    <p className="text-xs font-bold uppercase text-[#6c5a73]">{setupNeedsAttention ? "Round setup needed" : "Round setup"}</p>
                     <p className="mt-1 text-sm font-semibold text-[#10233f]">
-                      {competition.rounds.map((round) => `${round.name}: ${formatAdminDate(round.playByDate)}`).join(" / ")}
+                      {competition.rounds.map((round) => `${round.name}: best of ${round.framesToPlay}, ${formatAdminDate(round.playByDate)}`).join(" / ")}
                     </p>
                   </div>
                   <Button size="sm" variant="secondary" onClick={() => setEditingDates((current) => !current)}>
-                    {editingDates ? "Hide dates" : "Edit dates"}
+                    {editingDates ? "Hide setup" : "Edit setup"}
                   </Button>
                 </div>
+                {setupNeedsAttention ? (
+                  <p className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[#6c5a73] ring-1 ring-[#eeeaf2]">
+                    Set the best-of format and finish date for each round. Once saved, this panel will collapse.
+                  </p>
+                ) : null}
                 {editingDates ? (
                   <>
                     <div className="grid gap-2">
                       {competition.rounds.map((round) => (
-                        <label key={round.id} className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73] sm:grid-cols-[1fr_180px] sm:items-center">
-                          <span>{round.name}</span>
-                          <input
-                            className="min-h-10 rounded-lg border border-[#eeeaf2] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
-                            type="date"
-                            value={roundDates[round.id] ?? ""}
-                            onChange={(event) => setRoundDates((current) => ({ ...current, [round.id]: event.target.value }))}
-                          />
-                        </label>
+                        <div key={round.id} className="grid gap-2 rounded-lg bg-white p-3 ring-1 ring-[#eeeaf2] sm:grid-cols-[1fr_120px_180px] sm:items-end">
+                          <p className="text-sm font-extrabold text-[#10233f]">{round.name}</p>
+                          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+                            Best of
+                            <select
+                              className="min-h-10 rounded-lg border border-[#eeeaf2] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+                              value={roundFrames[round.id] ?? "1"}
+                              onChange={(event) => setRoundFrames((current) => ({ ...current, [round.id]: event.target.value }))}
+                            >
+                              {[1, 3, 5, 7, 9, 11].map((frames) => (
+                                <option key={frames} value={frames}>{frames}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+                            Finish by
+                            <input
+                              className="min-h-10 rounded-lg border border-[#eeeaf2] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+                              type="date"
+                              value={roundDates[round.id] ?? ""}
+                              onChange={(event) => setRoundDates((current) => ({ ...current, [round.id]: event.target.value }))}
+                            />
+                          </label>
+                        </div>
                       ))}
                     </div>
                     <Button
                       size="sm"
                       onClick={() => {
-                        onSaveRoundDates(competition.rounds.map((round) => ({ id: round.id, playByDate: roundDates[round.id] ?? "" })));
+                        onSaveRoundSetup(competition.rounds.map((round) => ({ id: round.id, framesToPlay: Number(roundFrames[round.id] ?? round.framesToPlay), playByDate: roundDates[round.id] ?? "" })));
                         setEditingDates(false);
                       }}
                     >
-                      Save round dates
+                      Save round setup
                     </Button>
                   </>
                 ) : null}

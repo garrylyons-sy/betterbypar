@@ -72,7 +72,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
       await createCompetitionDraw(client, generatedRounds, entries.rows);
 
-      await client.query("update public.competition set status = 'Drawn', updated_at = now() where id = $1", [id]);
+      await client.query("update public.competition set status = 'Drawn', round_settings_confirmed = false, updated_at = now() where id = $1", [id]);
     });
 
     return NextResponse.json({ ok: true, competition: await loadCompetitionDetail(user, id) });

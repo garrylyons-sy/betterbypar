@@ -43,6 +43,12 @@ function validDate(value: unknown) {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
 }
 
+function validBestOf(value: unknown) {
+  const frames = Number(value);
+  if (!Number.isInteger(frames) || frames < 1 || frames > 35 || frames % 2 === 0) return 0;
+  return frames;
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user, administrator } = await requireAdministrator();
@@ -58,17 +64,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       for (const round of rounds) {
         const roundId = String(round.id ?? "").trim();
         const playByDate = validDate(round.playByDate);
-        if (!roundId || !playByDate) throw new Error("Each round needs a valid play-by date.");
+        const framesToPlay = validBestOf(round.framesToPlay);
+        if (!roundId || !playByDate || !framesToPlay) throw new Error("Each round needs an odd best-of value and a valid play-by date.");
         const updated = await client.query(
           `update public.competition_round
-           set play_by_date = $3::date
+           set frames_to_play = $3,
+               play_by_date = $4::date
            where id = $1
              and competition_id = $2`,
-          [roundId, id, playByDate]
+          [roundId, id, framesToPlay, playByDate]
         );
         if (!updated.rowCount) throw new Error("Round not found.");
       }
-      await client.query("update public.competition set updated_at = now() where id = $1", [id]);
+      await client.query("update public.competition set round_settings_confirmed = true, updated_at = now() where id = $1", [id]);
     });
 
     return NextResponse.json({ ok: true });

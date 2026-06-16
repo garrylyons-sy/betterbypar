@@ -15,6 +15,7 @@ export type CompetitionSummary = {
   entrantCount: number;
   isEntered: boolean;
   canManage: boolean;
+  roundSettingsConfirmed: boolean;
   nextMatch: {
     id: string;
     roundName: string;
@@ -219,6 +220,7 @@ export async function listCompetitions(user: AppUser): Promise<CompetitionSummar
     entry_closes_at: string;
     rules: string;
     status: CompetitionSummary["status"];
+    round_settings_confirmed: boolean;
     entrant_count: string;
     is_entered: boolean;
     next_match_id: string | null;
@@ -236,6 +238,7 @@ export async function listCompetitions(user: AppUser): Promise<CompetitionSummar
        c.entry_closes_at::text,
        c.rules,
        c.status,
+       c.round_settings_confirmed,
        count(ce.id)::text as entrant_count,
        bool_or(cm.person_id = $1 and ce.status = 'Entered') as is_entered,
        nm.match_id as next_match_id,
@@ -291,6 +294,7 @@ export async function listCompetitions(user: AppUser): Promise<CompetitionSummar
     entryClosesAt: row.entry_closes_at,
     rules: row.rules,
     status: row.status,
+    roundSettingsConfirmed: Boolean(row.round_settings_confirmed),
     entrantCount: Number(row.entrant_count ?? 0),
     isEntered: Boolean(row.is_entered),
     canManage: platformAdmin || Boolean(row.club_id && adminClubIds.has(row.club_id)),

@@ -1156,6 +1156,7 @@ type CompetitionSummary = {
   entrantCount: number;
   isEntered: boolean;
   canManage: boolean;
+  roundSettingsConfirmed: boolean;
   nextMatch: {
     id: string;
     roundName: string;
@@ -1459,8 +1460,9 @@ function CompetitionDetailCard({
   onResult
 }: {
   competition: CompetitionDetail;
-  onResult: (matchId: string, player1Score: number, player2Score: number) => void;
+  onResult: (matchId: string, player1Score: number, player2Score: number) => Promise<boolean>;
 }) {
+  const [scoreMatch, setScoreMatch] = useState<CompetitionDetail["matches"][number] | null>(null);
   const drawHasRun = competition.matches.length > 0;
   const roundsWithMatches = competition.rounds.map((round) => ({
     ...round,
@@ -1496,7 +1498,7 @@ function CompetitionDetailCard({
               </div>
               <div className="mt-3 grid gap-2">
                 {round.matches.map((match) => (
-                  <CompetitionMatchResultRow key={match.id} match={match} onResult={onResult} />
+                  <CompetitionMatchResultRow key={match.id} match={match} onOpenScore={setScoreMatch} />
                 ))}
                 {!round.matches.length ? (
                   <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[#6c5a73]">Draw places will appear here once this round is known.</p>
@@ -1505,6 +1507,16 @@ function CompetitionDetailCard({
             </section>
           ))}
         </div> : null}
+        {scoreMatch ? (
+          <CompetitionScoreModal
+            match={scoreMatch}
+            onCancel={() => setScoreMatch(null)}
+            onSave={async (matchId, player1Score, player2Score) => {
+              const saved = await onResult(matchId, player1Score, player2Score);
+              if (saved) setScoreMatch(null);
+            }}
+          />
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -1512,35 +1524,17 @@ function CompetitionDetailCard({
 
 function CompetitionMatchResultRow({
   match,
-  onResult
+  onOpenScore
 }: {
   match: CompetitionDetail["matches"][number];
-  onResult: (matchId: string, player1Score: number, player2Score: number) => void;
+  onOpenScore: (match: CompetitionDetail["matches"][number]) => void;
 }) {
   const completed = match.status === "Completed";
   const scoreText = match.player1Score !== null && match.player2Score !== null ? `${match.player1Score}-${match.player2Score}` : "";
-  const winningScore = Math.max(1, Math.floor(match.framesToPlay / 2) + 1);
-  const losingScores = Array.from({ length: winningScore }, (_, index) => index);
-  const initialWinner = match.player1Score !== null && match.player2Score !== null
-    ? match.player1Score > match.player2Score ? "p1" : "p2"
-    : "";
-  const initialLoserScore = match.player1Score !== null && match.player2Score !== null
-    ? Math.min(match.player1Score, match.player2Score).toString()
-    : losingScores[0]?.toString() ?? "0";
-  const [winner, setWinner] = useState<"p1" | "p2" | "">(initialWinner);
-  const [loserScore, setLoserScore] = useState(initialLoserScore);
-
-  useEffect(() => {
-    setWinner(initialWinner);
-    setLoserScore(initialLoserScore);
-  }, [initialWinner, initialLoserScore, match.id]);
-
-  const loserScoreNumber = Number(loserScore);
-  const canSave = Boolean(winner && Number.isInteger(loserScoreNumber) && loserScoreNumber >= 0 && loserScoreNumber < winningScore);
 
   return (
     <div className={cn("rounded-lg bg-white px-3 py-2 ring-1 ring-[#eeeaf2]", match.isPlaceholder ? "text-[#6c5a73]" : "")}>
-      <div className="grid gap-3">
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Match {match.matchNumber}</p>
@@ -1553,55 +1547,123 @@ function CompetitionMatchResultRow({
           </p>
         </div>
         {match.canReport && !match.isPlaceholder && match.status !== "Bye" ? (
-          <div className="grid gap-2 rounded-lg bg-[#f7f5fa] p-2">
-            <div className="grid gap-1.5 sm:grid-cols-2">
-              <Button
-                size="sm"
-                variant={winner === "p1" ? "default" : "secondary"}
-                className="min-h-10 justify-start px-3 py-2 text-left text-xs"
-                onClick={() => setWinner("p1")}
-              >
-                {match.player1Name}
-              </Button>
-              <Button
-                size="sm"
-                variant={winner === "p2" ? "default" : "secondary"}
-                className="min-h-10 justify-start px-3 py-2 text-left text-xs"
-                onClick={() => setWinner("p2")}
-              >
-                {match.player2Name}
-              </Button>
+          <Button size="sm" variant={completed ? "secondary" : "default"} onClick={() => onOpenScore(match)}>
+            {completed ? "Edit score" : "Enter score"}
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CompetitionScoreModal({
+  match,
+  onCancel,
+  onSave
+}: {
+  match: CompetitionDetail["matches"][number];
+  onCancel: () => void;
+  onSave: (matchId: string, player1Score: number, player2Score: number) => Promise<void>;
+}) {
+  const winningScore = Math.max(1, Math.floor(match.framesToPlay / 2) + 1);
+  const initialWinner = match.player1Score !== null && match.player2Score !== null
+    ? match.player1Score > match.player2Score ? "p1" : "p2"
+    : "";
+  const initialLoserScore = match.player1Score !== null && match.player2Score !== null
+    ? Math.min(match.player1Score, match.player2Score)
+    : 0;
+  const [winner, setWinner] = useState<"p1" | "p2" | "">(initialWinner);
+  const [loserScore, setLoserScore] = useState(initialLoserScore);
+  const [saving, setSaving] = useState(false);
+  const canSave = Boolean(winner && loserScore >= 0 && loserScore < winningScore);
+  const winnerName = winner === "p1" ? match.player1Name : winner === "p2" ? match.player2Name : "Select winner";
+  const player1Score = winner === "p1" ? winningScore : loserScore;
+  const player2Score = winner === "p2" ? winningScore : loserScore;
+
+  async function saveResult() {
+    if (!canSave || saving) return;
+    setSaving(true);
+    try {
+      await onSave(match.id, player1Score, player2Score);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/60 p-4" role="dialog" aria-modal="true" aria-label="Enter competition score">
+      <div className="w-full max-w-md rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase text-[#6c5a73]">{match.roundName} - Match {match.matchNumber}</p>
+            <h2 className="mt-1 text-xl font-extrabold leading-tight text-[#10233f]">Enter score</h2>
+          </div>
+          <Badge variant="muted">Best of {match.framesToPlay}</Badge>
+        </div>
+        <div className="mt-4 grid gap-2">
+          {([
+            ["p1", match.player1Name],
+            ["p2", match.player2Name]
+          ] as const).map(([value, name]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setWinner(value)}
+              className={cn(
+                "flex min-h-12 items-center justify-between rounded-xl px-3 text-left font-extrabold ring-1 transition",
+                winner === value ? "bg-[#10233f] text-white ring-[#10233f]" : "bg-[#f7f5fa] text-[#10233f] ring-[#eeeaf2]"
+              )}
+            >
+              <span>{name}</span>
+              <span className={cn("text-xs font-bold uppercase", winner === value ? "text-white/70" : "text-[#6c5a73]")}>
+                {winner === value ? "Winner" : "Tap to choose"}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+          <p className="text-xs font-bold uppercase text-[#6c5a73]">Frame score</p>
+          <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <div className="rounded-xl bg-white p-3 text-center ring-1 ring-[#eeeaf2]">
+              <p className="text-[10px] font-bold uppercase text-[#6c5a73]">{winnerName}</p>
+              <p className="text-3xl font-extrabold text-[#10233f]">{winner ? winningScore : "-"}</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-              <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
-                Frame score
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                  <div className="rounded-lg bg-white px-3 py-2 text-center text-sm font-black text-[#10233f]">{winner ? winningScore : "-"}</div>
-                  <span className="text-center text-sm font-black text-[#6c5a73]">-</span>
-                  <select
-                    className="min-h-10 rounded-lg border border-[#eeeaf2] bg-white px-3 text-center text-sm font-black text-[#10233f]"
-                    value={loserScore}
-                    onChange={(event) => setLoserScore(event.target.value)}
-                  >
-                    {losingScores.map((score) => (
-                      <option key={score} value={score}>{score}</option>
-                    ))}
-                  </select>
-                </div>
-              </label>
-              <Button
-                size="sm"
-                disabled={!canSave}
-                onClick={() => {
-                  if (!canSave) return;
-                  onResult(match.id, winner === "p1" ? winningScore : loserScoreNumber, winner === "p2" ? winningScore : loserScoreNumber);
-                }}
-              >
-                Save result
-              </Button>
+            <span className="text-xl font-extrabold text-[#6c5a73]">-</span>
+            <div className="rounded-xl bg-white p-3 text-center ring-1 ring-[#eeeaf2]">
+              <p className="text-[10px] font-bold uppercase text-[#6c5a73]">Other player</p>
+              <div className="mt-1 grid grid-cols-[40px_1fr_40px] items-center gap-2">
+                <button
+                  type="button"
+                  className="grid h-10 place-items-center rounded-lg bg-[#eeeaf2] text-xl font-extrabold text-[#10233f]"
+                  onClick={() => setLoserScore((score) => Math.max(0, score - 1))}
+                  aria-label="Decrease losing score"
+                >
+                  -
+                </button>
+                <span className="text-3xl font-extrabold text-[#10233f]">{loserScore}</span>
+                <button
+                  type="button"
+                  className="grid h-10 place-items-center rounded-lg bg-[#eeeaf2] text-xl font-extrabold text-[#10233f]"
+                  onClick={() => setLoserScore((score) => Math.min(winningScore - 1, score + 1))}
+                  aria-label="Increase losing score"
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
-        ) : null}
+          <p className="mt-2 text-center text-sm font-bold text-[#6c5a73]">
+            {winner ? `${match.player1Name} ${player1Score} - ${player2Score} ${match.player2Name}` : "Choose the winner first."}
+          </p>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <Button variant="secondary" onClick={onCancel} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={saveResult} disabled={!canSave || saving}>
+            {saving ? "Saving..." : "Save result"}
+          </Button>
+        </div>
       </div>
     </div>
   );

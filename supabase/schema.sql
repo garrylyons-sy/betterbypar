@@ -274,6 +274,7 @@ create table public.competition (
   entry_closes_at date not null,
   rules text not null default '',
   status text not null default 'Draft' check (status in ('Draft', 'Open', 'Drawn', 'In Progress', 'Complete')),
+  round_settings_confirmed boolean not null default false,
   created_by uuid references public.person(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
