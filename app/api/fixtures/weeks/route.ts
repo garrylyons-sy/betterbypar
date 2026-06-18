@@ -86,6 +86,80 @@ export async function GET(request: NextRequest) {
        order by fw.week_number, f.fixture_date, ht.name`,
       [leagueName, seasonName]
     );
+    const fixtureIds = rows.rows.map((row) => row.fixture_id);
+    const gameRows = fixtureIds.length ? (await dbQuery<{
+      fixture_id: string;
+      id: string;
+      game_number: number;
+      game_type: "Singles" | "Doubles";
+      points_awarded: number;
+      winner_team_id: string | null;
+      home_player_1_id: string | null;
+      home_player_1_name: string;
+      home_player_2_id: string | null;
+      home_player_2_name: string | null;
+      away_player_1_id: string | null;
+      away_player_1_name: string;
+      away_player_2_id: string | null;
+      away_player_2_name: string | null;
+    }>(
+      `select
+         f.id as fixture_id,
+         g.id,
+         g.game_number,
+         g.game_type::text as game_type,
+         g.points_awarded,
+         g.winner_team_id,
+         hp1.id as home_player_1_id,
+         concat_ws(' ', hp1.first_name, hp1.last_name) as home_player_1_name,
+         hp2.id as home_player_2_id,
+         concat_ws(' ', hp2.first_name, hp2.last_name) as home_player_2_name,
+         ap1.id as away_player_1_id,
+         concat_ws(' ', ap1.first_name, ap1.last_name) as away_player_1_name,
+         ap2.id as away_player_2_id,
+         concat_ws(' ', ap2.first_name, ap2.last_name) as away_player_2_name
+       from public.fixture f
+       join public.match m on m.fixture_id = f.id
+       join public.game g on g.match_id = m.id
+       left join public.person hp1 on hp1.id = g.home_player_1_id
+       left join public.person hp2 on hp2.id = g.home_player_2_id
+       left join public.person ap1 on ap1.id = g.away_player_1_id
+       left join public.person ap2 on ap2.id = g.away_player_2_id
+       where f.id = any($1::uuid[])
+       order by f.fixture_date, g.game_number`,
+      [fixtureIds]
+    )).rows : [];
+    const gameIds = gameRows.map((game) => game.id);
+    const breakRows = gameIds.length ? (await dbQuery<{
+      id: string;
+      game_id: string;
+      player_id: string;
+      player_name: string;
+      break_value: number;
+      recorded_at: string;
+    }>(
+      `select
+         b.id,
+         b.game_id,
+         b.player_id,
+         concat_ws(' ', p.first_name, p.last_name) as player_name,
+         b.break_value,
+         b.recorded_at::text
+       from public.break b
+       join public.person p on p.id = b.player_id
+       where b.game_id = any($1::uuid[])
+       order by b.break_value desc, b.recorded_at asc`,
+      [gameIds]
+    )).rows : [];
+    const breaksForGame = (gameId: string) => breakRows
+      .filter((row) => row.game_id === gameId)
+      .map((row) => ({
+        id: row.id,
+        playerId: row.player_id,
+        playerName: row.player_name,
+        breakValue: Number(row.break_value),
+        recordedAt: row.recorded_at
+      }));
 
     const weeks = new Map<string, {
       id: string;
@@ -108,6 +182,22 @@ export async function GET(request: NextRequest) {
         completedGames: number;
         totalGames: number;
         isOwnFixture: boolean;
+        games: Array<{
+          id: string;
+          game_number: number;
+          game_type: "Singles" | "Doubles";
+          points_awarded: number;
+          winner_team_id: string | null;
+          home_player_1_id: string | null;
+          home_player_1_name: string;
+          home_player_2_id: string | null;
+          home_player_2_name: string | null;
+          away_player_1_id: string | null;
+          away_player_1_name: string;
+          away_player_2_id: string | null;
+          away_player_2_name: string | null;
+          breaks: Array<{ id: string; playerId: string; playerName: string; breakValue: number; recordedAt: string }>;
+        }>;
       }>;
     }>();
 
@@ -134,7 +224,25 @@ export async function GET(request: NextRequest) {
         awayLineupStatus: row.away_lineup_status,
         completedGames: Number(row.completed_games ?? 0),
         totalGames: Number(row.total_games ?? 0),
-        isOwnFixture: Boolean(teamId && (row.home_team_id === teamId || row.away_team_id === teamId))
+        isOwnFixture: Boolean(teamId && (row.home_team_id === teamId || row.away_team_id === teamId)),
+        games: gameRows
+          .filter((game) => game.fixture_id === row.fixture_id)
+          .map((game) => ({
+            id: game.id,
+            game_number: game.game_number,
+            game_type: game.game_type,
+            points_awarded: Number(game.points_awarded),
+            winner_team_id: game.winner_team_id,
+            home_player_1_id: game.home_player_1_id,
+            home_player_1_name: game.home_player_1_name,
+            home_player_2_id: game.home_player_2_id,
+            home_player_2_name: game.home_player_2_name,
+            away_player_1_id: game.away_player_1_id,
+            away_player_1_name: game.away_player_1_name,
+            away_player_2_id: game.away_player_2_id,
+            away_player_2_name: game.away_player_2_name,
+            breaks: breaksForGame(game.id)
+          }))
       });
       weeks.set(row.week_id, week);
     }

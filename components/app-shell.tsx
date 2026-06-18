@@ -3084,6 +3084,7 @@ type FixtureWeekFixture = {
   completedGames: number;
   totalGames: number;
   isOwnFixture: boolean;
+  games: ManagerLineupGame[];
 };
 
 type FixtureWeek = {
@@ -3113,6 +3114,10 @@ function fixtureWeekShouldPoll(week?: FixtureWeek) {
     const lineupStarted = Boolean(fixture.homeLineupStatus || fixture.awayLineupStatus);
     return inProgressMatch || lineupStarted;
   });
+}
+
+function fixtureHasStarted(fixture: FixtureWeekFixture) {
+  return Boolean(fixture.matchId || fixture.totalGames > 0 || fixture.homeTeamScore !== null || fixture.awayTeamScore !== null);
 }
 
 function FixtureWeekCarouselCard({
@@ -3218,7 +3223,10 @@ function FixtureWeekCarouselCard({
               {week.fixtures.map((fixture) => {
                 const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                 const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
-                const canManage = Boolean(onSelectFixture && fixture.isOwnFixture);
+                const managerOwnFixture = fixture.isOwnFixture && (activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager");
+                const canManage = Boolean(onOpenFixture && managerOwnFixture);
+                const canInspect = fixtureHasStarted(fixture);
+                const canOpenRow = canManage || canInspect;
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
                 return (
@@ -3229,15 +3237,19 @@ function FixtureWeekCarouselCard({
                   >
                     <button
                       type="button"
-                      className="grid w-full gap-2 p-3 text-left transition-colors hover:bg-[#f7f5fa]"
+                      disabled={!canOpenRow}
+                      className={cn(
+                        "grid w-full gap-2 p-3 text-left transition-colors",
+                        canOpenRow ? "hover:bg-[#f7f5fa]" : "cursor-default"
+                      )}
                       onClick={() => {
-                        if (onOpenFixture) {
+                        if (canManage) {
                           onSelectFixture?.(fixture.id);
-                          onOpenFixture(fixture.id);
+                          onOpenFixture?.(fixture.id);
                           return;
                         }
+                        if (!canInspect) return;
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
-                        if (canManage) onSelectFixture?.(fixture.id);
                       }}
                     >
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
@@ -3255,15 +3267,9 @@ function FixtureWeekCarouselCard({
                         </span>
                       ) : null}
                     </button>
-                    {expanded ? (
+                    {expanded && canInspect ? (
                       <div className="border-t border-[#eeeaf2] bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-                        {hasScore ? (
-                          <p>Final score: {fixture.homeTeamName} {fixture.homeTeamScore}, {fixture.awayTeamName} {fixture.awayTeamScore}</p>
-                        ) : fixture.totalGames > 0 ? (
-                          <p>{fixture.completedGames} of {fixture.totalGames} games completed.</p>
-                        ) : (
-                          <p>Fixture scheduled. Scores will appear here once the match starts.</p>
-                        )}
+                        <ReadOnlyFixtureDetails fixture={fixture} />
                       </div>
                     ) : null}
                   </article>
@@ -4021,7 +4027,7 @@ function PublishedLineupSummary({ title, slots }: { title: string; slots: Manage
   );
 }
 
-function ReadOnlyFixtureDetails({ fixture }: { fixture: ManagerLineupPayload["weekFixtures"][number] }) {
+function ReadOnlyFixtureDetails({ fixture }: { fixture: { games: ManagerLineupGame[]; status: string; homeTeamId: string; awayTeamId: string } }) {
   if (!fixture.games.length) {
     return (
       <div className="rounded-xl bg-[#f7f5fa] p-3">
