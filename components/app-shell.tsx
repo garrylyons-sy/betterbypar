@@ -3000,7 +3000,7 @@ function FixtureWeekCarouselCard({
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-2 ring-1 ring-[#eeeaf2]">
+            <div className="overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]">
               {week.fixtures.map((fixture) => {
                 const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                 const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
@@ -3008,12 +3008,12 @@ function FixtureWeekCarouselCard({
                 return (
                   <article
                     key={fixture.id}
-                    className={cn("overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]", fixture.isOwnFixture && "ring-2")}
-                    style={fixture.isOwnFixture ? { boxShadow: `0 0 0 2px ${activeTeam.primaryColor}22` } : undefined}
+                    className={cn("border-b border-[#eeeaf2] last:border-b-0", fixture.isOwnFixture && "bg-[#f7f5fa]")}
+                    style={fixture.isOwnFixture ? { borderLeft: `5px solid ${activeTeam.primaryColor}` } : undefined}
                   >
                     <button
                       type="button"
-                      className="grid w-full gap-3 p-3 text-left transition-colors hover:bg-white/70"
+                      className="grid w-full gap-2 p-3 text-left transition-colors hover:bg-[#f7f5fa]"
                       onClick={() => {
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                         if (canManage) onSelectFixture?.(fixture.id);
@@ -3022,7 +3022,7 @@ function FixtureWeekCarouselCard({
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                         <div className="min-w-0">
                           <p className="break-words text-sm font-extrabold leading-tight text-[#10233f]">{fixture.homeTeamName}</p>
-                          {fixture.isOwnFixture ? <Badge variant="green">Your match</Badge> : null}
+                          {fixture.isOwnFixture ? <span className="mt-1 block text-[11px] font-bold uppercase text-[#6c5a73]">Your match</span> : null}
                         </div>
                         {hasScore ? (
                           <span className="rounded-lg bg-[#10233f] px-2 py-1 text-sm font-black text-white">{fixture.homeTeamScore}-{fixture.awayTeamScore}</span>
@@ -3031,7 +3031,7 @@ function FixtureWeekCarouselCard({
                         )}
                         <div className="min-w-0 text-right">
                           <p className="break-words text-sm font-extrabold leading-tight text-[#10233f]">{fixture.awayTeamName}</p>
-                          <Badge variant={fixtureStatusLabel(fixture) === "Result" ? "green" : "muted"}>{fixtureStatusLabel(fixture)}</Badge>
+                          <span className="mt-1 block text-[11px] font-bold uppercase text-[#6c5a73]">{fixtureStatusLabel(fixture)}</span>
                         </div>
                       </div>
                       {canManage ? (
