@@ -3000,12 +3000,15 @@ function weekDistanceFromToday(week: FixtureWeek) {
   return Math.abs(today.getTime() - starts.getTime());
 }
 
-function fixtureStatusLabel(fixture: FixtureWeekFixture) {
-  if (fixture.homeTeamScore !== null && fixture.awayTeamScore !== null) return "Result";
-  if (fixture.totalGames > 0) return `${fixture.completedGames}/${fixture.totalGames}`;
-  if (fixture.homeLineupStatus === "Published" && fixture.awayLineupStatus === "Published") return "Ready";
-  if (fixture.homeLineupStatus === "Published" || fixture.awayLineupStatus === "Published") return "Picked";
-  return fixture.status;
+function fixtureWeekShouldPoll(week?: FixtureWeek) {
+  if (!week) return false;
+  const today = localIsoDate();
+  const weekStarts = week.startsOn.slice(0, 10);
+  return weekStarts === today || week.fixtures.some((fixture) => {
+    const inProgressMatch = fixture.totalGames > 0 && fixture.completedGames < fixture.totalGames;
+    const lineupStarted = Boolean(fixture.homeLineupStatus || fixture.awayLineupStatus);
+    return inProgressMatch || lineupStarted;
+  });
 }
 
 function FixtureWeekCarouselCard({
@@ -3026,29 +3029,50 @@ function FixtureWeekCarouselCard({
   const [expandedFixtureId, setExpandedFixtureId] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const activeIndexRef = useRef(0);
+
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
 
   useEffect(() => {
     let active = true;
+    let pollId: number | undefined;
     setLoading(true);
     setMessage("");
-    const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season });
-    if (activeTeam.teamId) params.set("teamId", activeTeam.teamId);
-    fetch(`/api/fixtures/weeks?${params.toString()}`, { credentials: "same-origin" })
-      .then(async (response) => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Fixtures unavailable.");
-        return data;
-      })
-      .then((data) => {
-        if (!active) return;
-        const nextWeeks: FixtureWeek[] = data.weeks ?? [];
-        setWeeks(nextWeeks);
-        if (nextWeeks.length) {
-          const currentIndex = nextWeeks.reduce((bestIndex, week, index) =>
-            weekDistanceFromToday(week) < weekDistanceFromToday(nextWeeks[bestIndex]) ? index : bestIndex,
+
+    async function loadWeeks(showLoading: boolean) {
+      if (showLoading) setLoading(true);
+      const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season });
+      if (activeTeam.teamId) params.set("teamId", activeTeam.teamId);
+      const response = await fetch(`/api/fixtures/weeks?${params.toString()}`, { credentials: "same-origin" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Fixtures unavailable.");
+      if (!active) return;
+      const nextWeeks: FixtureWeek[] = data.weeks ?? [];
+      setWeeks(nextWeeks);
+      if (nextWeeks.length) {
+        setActiveIndex((current) => {
+          if (current >= 0 && current < nextWeeks.length && !showLoading) return current;
+          return nextWeeks.reduce((bestIndex, item, index) =>
+            weekDistanceFromToday(item) < weekDistanceFromToday(nextWeeks[bestIndex]) ? index : bestIndex,
           0);
-          setActiveIndex(currentIndex);
-        }
+        });
+      }
+      setMessage("");
+    }
+
+    loadWeeks(true)
+      .then(() => {
+        if (!active) return;
+        pollId = window.setInterval(() => {
+          setWeeks((currentWeeks) => {
+            if (fixtureWeekShouldPoll(currentWeeks[activeIndexRef.current])) {
+              loadWeeks(false).catch(() => undefined);
+            }
+            return currentWeeks;
+          });
+        }, 8000);
       })
       .catch((error) => {
         if (active) setMessage(error instanceof Error ? error.message : "Fixtures unavailable.");
@@ -3058,6 +3082,7 @@ function FixtureWeekCarouselCard({
       });
     return () => {
       active = false;
+      if (pollId) window.clearInterval(pollId);
     };
   }, [activeTeam.league, activeTeam.season, activeTeam.teamId]);
 
@@ -3112,19 +3137,13 @@ function FixtureWeekCarouselCard({
                       }}
                     >
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                        <div className="min-w-0">
-                          <p className="break-words text-sm font-extrabold leading-tight text-[#10233f]">{fixture.homeTeamName}</p>
-                          {fixture.isOwnFixture ? <span className="mt-1 block text-[11px] font-bold uppercase text-[#6c5a73]">Your match</span> : null}
-                        </div>
+                        <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={fixture.matchId ? undefined : fixture.homeLineupStatus} />
                         {hasScore ? (
                           <span className="rounded-lg bg-[#10233f] px-2 py-1 text-sm font-black text-white">{fixture.homeTeamScore}-{fixture.awayTeamScore}</span>
                         ) : (
                           <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
                         )}
-                        <div className="min-w-0 text-right">
-                          <p className="break-words text-sm font-extrabold leading-tight text-[#10233f]">{fixture.awayTeamName}</p>
-                          <span className="mt-1 block text-[11px] font-bold uppercase text-[#6c5a73]">{fixtureStatusLabel(fixture)}</span>
-                        </div>
+                        <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={fixture.matchId ? undefined : fixture.awayLineupStatus} />
                       </div>
                       {canManage ? (
                         <span className="justify-self-start rounded-lg px-3 py-2 text-xs font-extrabold uppercase text-white" style={{ backgroundColor: activeTeam.primaryColor }}>
