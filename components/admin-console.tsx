@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 type AdminTab = "desktop" | "competitions" | "people" | "invites" | "permissions" | "appearance" | "logs";
 type TeamRole = "Player" | "Manager" | "Assistant Manager";
-type InviteRole = "Player" | "Manager" | "Club Member";
+type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin";
 type TeamOption = {
   teamId: string;
   clubId: string;
@@ -106,8 +106,9 @@ type AdminUser = {
 };
 
 const roles: TeamRole[] = ["Player", "Manager", "Assistant Manager"];
-const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member"];
-const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
+const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Admin"];
+const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Assistant Manager", "Club Member", "Club Admin"];
+const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin"];
 const demoTeams: TeamOption[] = clubTeamStructure.flatMap((club) =>
   club.teams.map((team) => ({
     teamId: team,
@@ -1087,12 +1088,12 @@ function PeoplePanel({
           <div className="grid gap-3 sm:grid-cols-3">
             <AdminSelect label="Club" value={clubId} onChange={setClubId} options={clubs.map((club) => ({ value: club.clubId, label: club.clubName }))} />
             <AdminSelect label="Role" value={role} onChange={(value) => setRole(value as InviteRole)} options={inviteRoles.map((item) => ({ value: item, label: item }))} />
-            {role === "Club Member" ? null : (
+            {clubLevelInviteRoles.includes(role) ? null : (
               <AdminSelect label="Team" value={teamId} onChange={setTeamId} options={clubTeams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.leagueName}` }))} />
             )}
           </div>
           <AdminCheckbox label="Make administrator" checked={admin} onChange={setAdmin} description="Administrators can access the admin console once they have a login." />
-          <Button onClick={addPerson} disabled={!firstName || !lastName || (role !== "Club Member" && !teamId)}>
+          <Button onClick={addPerson} disabled={!firstName || !lastName || (!clubLevelInviteRoles.includes(role) && !teamId)}>
             <UserPlus className="h-4 w-4" />
             Add person
           </Button>
@@ -1161,7 +1162,7 @@ function InvitesPanel({
 
   useEffect(() => {
     setRoleRows((rows) => rows.map((row) => {
-      if (row.role === "Club Member") return { ...row, teamId: "" };
+      if (clubLevelInviteRoles.includes(row.role)) return { ...row, teamId: "" };
       if (clubTeams.some((team) => team.teamId === row.teamId)) return row;
       return { ...row, teamId: clubTeams[0]?.teamId ?? "" };
     }));
@@ -1178,7 +1179,7 @@ function InvitesPanel({
       return {
         ...row,
         ...next,
-        teamId: nextRole === "Club Member" ? "" : (next.teamId || row.teamId || clubTeams[0]?.teamId || "")
+        teamId: clubLevelInviteRoles.includes(nextRole) ? "" : (next.teamId || row.teamId || clubTeams[0]?.teamId || "")
       };
     }));
   }
@@ -1251,10 +1252,12 @@ function InvitesPanel({
               {roleRows.map((row, index) => (
                 <div key={row.id} className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] lg:grid-cols-[160px_minmax(0,1fr)_44px]">
                   <AdminSelect label={`Role ${index + 1}`} value={row.role} onChange={(value) => updateRoleRow(row.id, { role: value as InviteRole })} options={inviteRoles.map((item) => ({ value: item, label: item }))} />
-                  {row.role === "Club Member" ? (
+                  {clubLevelInviteRoles.includes(row.role) ? (
                     <div className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-[#10233f] ring-1 ring-[#eeeaf2]">
-                      Club-wide member access
-                      <span className="block text-xs font-semibold text-[#6c5a73]">Can book club tables and receive messages.</span>
+                      {row.role === "Club Admin" ? "Club administration access" : "Club-wide member access"}
+                      <span className="block text-xs font-semibold text-[#6c5a73]">
+                        {row.role === "Club Admin" ? "Can manage club members, invites, competitions and bookings." : "Can book club tables and receive messages."}
+                      </span>
                     </div>
                   ) : (
                     <AdminSelect label="Team" value={row.teamId} onChange={(value) => updateRoleRow(row.id, { teamId: value })} options={clubTeams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.leagueName}` }))} />
@@ -1746,7 +1749,7 @@ function newInviteRoleRow(role: InviteRole, teamId: string): InviteRoleRow {
   return {
     id: typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
     role,
-    teamId: role === "Club Member" ? "" : teamId
+    teamId: clubLevelInviteRoles.includes(role) ? "" : teamId
   };
 }
 

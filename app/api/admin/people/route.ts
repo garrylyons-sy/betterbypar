@@ -31,11 +31,13 @@ export async function POST(request: NextRequest) {
     if (!firstName || !lastName) {
       return NextResponse.json({ error: "First name and last name are required." }, { status: 400 });
     }
-    if (role !== "Club Member" && !teamId) {
+    const clubLevelRole = role === "Club Member" || role === "Club Admin";
+
+    if (!clubLevelRole && !teamId) {
       return NextResponse.json({ error: "A team is required for player and manager roles." }, { status: 400 });
     }
-    if (role === "Club Member" && !clubId) {
-      return NextResponse.json({ error: "A club is required for club members." }, { status: 400 });
+    if (clubLevelRole && !clubId) {
+      return NextResponse.json({ error: "A club is required for club roles." }, { status: 400 });
     }
     if (handicap !== null && (!Number.isFinite(handicap) || handicap < -200 || handicap > 200)) {
       return NextResponse.json({ error: "Handicap must be between -200 and 200, or left blank." }, { status: 400 });
@@ -72,15 +74,24 @@ export async function POST(request: NextRequest) {
       }
 
       const personId = personResult.rows[0].id;
-      if (role === "Club Member") {
+      if (clubLevelRole) {
         await client.query(
-          `insert into public.club_membership (club_id, person_id, role, handicap, active)
-           values ($1, $2, 'Club Member', $3, true)
+          `insert into public.club_membership (club_id, person_id, role, handicap, is_club_admin, active)
+           values ($1, $2, 'Club Member', $3, $4, true)
            on conflict (club_id, person_id, role) do update
            set active = true,
-               handicap = excluded.handicap`,
-          [clubId, personId, handicap]
+               handicap = excluded.handicap,
+               is_club_admin = public.club_membership.is_club_admin or excluded.is_club_admin`,
+          [clubId, personId, handicap, role === "Club Admin"]
         );
+        if (role === "Club Admin") {
+          await client.query(
+            `insert into public.club_admin (club_id, person_id, active)
+             values ($1, $2, true)
+             on conflict (club_id, person_id) do update set active = true`,
+            [clubId, personId]
+          );
+        }
       } else {
         await client.query(
           `with team_scope as (

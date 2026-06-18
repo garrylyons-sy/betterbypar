@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         teamId: String(item.teamId ?? "").trim(),
         clubId: String(item.clubId ?? clubId).trim()
       }))
-      .filter((item) => ["Player", "Manager", "Club Member"].includes(item.role));
+      .filter((item) => ["Player", "Manager", "Club Member", "Club Admin"].includes(item.role));
 
     if (!normalizedRoles.length && !administratorInvite) {
       return NextResponse.json({ error: "Add at least one role or administrator access." }, { status: 400 });
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       if (!club) throw new Error("Club not found.");
 
       const teamRoles = normalizedRoles.filter((item) => item.role === "Player" || item.role === "Manager");
-      const memberRoles = normalizedRoles.filter((item) => item.role === "Club Member");
+      const memberRoles = normalizedRoles.filter((item) => item.role === "Club Member" || item.role === "Club Admin");
       const invitedRole = teamRoles[0]?.role ?? "Player";
 
       const invitationResult = await client.query(
@@ -77,15 +77,15 @@ export async function POST(request: NextRequest) {
 
       for (const inviteRole of memberRoles) {
         await client.query(
-          "insert into public.invitation_club_membership (invitation_id, club_id, role) values ($1, $2, 'Club Member') on conflict do nothing",
-          [invitationId, inviteRole.clubId || clubId]
+          "insert into public.invitation_club_membership (invitation_id, club_id, role) values ($1, $2, $3) on conflict do nothing",
+          [invitationId, inviteRole.clubId || clubId, inviteRole.role]
         );
       }
 
       const activationUrl = new URL(`/activate?invite=${encodeURIComponent(invitationResult.rows[0].invitation_code)}`, request.url).toString();
       const roleSummary = [
         ...teamRoles.map((item) => `${item.role} role`),
-        ...memberRoles.map(() => "Club Member"),
+        ...memberRoles.map((item) => item.role),
         administratorInvite ? "Administrator" : ""
       ].filter(Boolean).join(", ");
       const subject = "You have been invited to join Interclub Snooker";

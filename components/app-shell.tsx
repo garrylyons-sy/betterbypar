@@ -33,11 +33,15 @@ import { cn } from "@/lib/utils";
 
 type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Bookings" | "Competitions" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
-const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
+const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member", "Club Admin"];
 const RECENT_FORM_LIMIT = 3;
 const SIMULATION_CONTROLS_ENABLED = false;
 const leagueOrder: TeamContext["league"][] = ["A League", "B League", "C League"];
 const pagesWithLeagueAside: AppPage[] = ["Home", "Fixtures", "Results", "Players", "Stats"];
+
+function isClubOnlyRole(role: Role) {
+  return role === "Club Member" || role === "Club Admin";
+}
 
 const menuIconMap: Record<AppearanceMenuId | "Menu", typeof Home> = {
   Home,
@@ -120,8 +124,8 @@ export function AppShell({
   useEffect(() => {
     setTeamSummaryOverrides({});
   }, [contexts]);
-  const seasonContexts = useMemo(
-    () => contexts.filter((context) => context.season === selectedSeason),
+  const visibleContexts = useMemo(
+    () => contexts.filter((context) => context.season === selectedSeason || isClubOnlyRole(context.role)),
     [contexts, selectedSeason]
   );
 
@@ -144,10 +148,10 @@ export function AppShell({
       setSelectedSeason(preferredContext.season);
       return;
     }
-    if (!seasonContexts.some((team) => team.id === selectedId)) {
-      setSelectedId(seasonContexts[0]?.id ?? preferredContextId);
+    if (!visibleContexts.some((team) => team.id === selectedId)) {
+      setSelectedId(visibleContexts[0]?.id ?? preferredContextId);
     }
-  }, [preferredContext.season, preferredContextId, seasonContexts, seasons, selectedId, selectedSeason]);
+  }, [preferredContext.season, preferredContextId, visibleContexts, seasons, selectedId, selectedSeason]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -158,8 +162,8 @@ export function AppShell({
   }, [preferredContext.season, preferredContextId, selectedId]);
 
   const realActiveTeam = useMemo(
-    () => seasonContexts.find((team) => team.id === selectedId) ?? seasonContexts[0] ?? contexts[0] ?? teamContexts[0],
-    [contexts, seasonContexts, selectedId]
+    () => visibleContexts.find((team) => team.id === selectedId) ?? visibleContexts[0] ?? contexts[0] ?? teamContexts[0],
+    [contexts, visibleContexts, selectedId]
   );
   useEffect(() => {
     setSimulatedRole(realActiveTeam.role);
@@ -186,7 +190,7 @@ export function AppShell({
   const activeAppearance = appearanceConfig[activeTeam.role] ?? defaultAppearanceConfig[activeTeam.role];
   useEffect(() => {
     let active = true;
-    if (activeTeam.role !== "Club Member") {
+    if (!isClubOnlyRole(activeTeam.role)) {
       setEnteredCompetitionCount(0);
       return () => {
         active = false;
@@ -210,7 +214,7 @@ export function AppShell({
   }, [activeTeam.club, activeTeam.role]);
   const activeMenuItems = useMemo(() => {
     const configured = activeAppearance.menuItems;
-    if (activeTeam.role !== "Club Member" || enteredCompetitionCount <= 0 || configured.includes("Competitions")) {
+    if (!isClubOnlyRole(activeTeam.role) || enteredCompetitionCount <= 0 || configured.includes("Competitions")) {
       return configured;
     }
     const bookingIndex = configured.indexOf("Bookings");
@@ -235,8 +239,8 @@ export function AppShell({
     [activeTeam.league, activeTeam.name, activeTeam.season, playerGameResults]
   );
   const allMatchResults = matchResults ?? [];
-  const clubMemberView = activeTeam.role === "Club Member";
-  const showLeaguePanels = !clubMemberView && pagesWithLeagueAside.includes(activePage);
+  const clubOnlyView = isClubOnlyRole(activeTeam.role);
+  const showLeaguePanels = !clubOnlyView && pagesWithLeagueAside.includes(activePage);
   const navigateToPage = (page: AppPage) => {
     if (page !== "Match") setSelectedFixtureId("");
     setActivePage(page);
@@ -254,7 +258,7 @@ export function AppShell({
     <main className="min-h-screen app-bg pb-24 text-[#10233f]">
       <Header
         activeTeam={activeTeam}
-        contexts={seasonContexts.length ? seasonContexts : contexts}
+        contexts={visibleContexts.length ? visibleContexts : contexts}
         selectedId={selectedId}
         onContextChange={setSelectedId}
         seasons={seasons}
@@ -266,6 +270,7 @@ export function AppShell({
         onClubChange={setSimulatedClub}
         onSignOut={onSignOut}
         userLabel={userLabel}
+        showSeasonSwitcher={!clubOnlyView}
       />
       <section className={cn(
         "mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:items-start lg:gap-6 lg:px-8 xl:px-10",
@@ -273,7 +278,7 @@ export function AppShell({
       )}>
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={navigateToPage} menuItems={activeMenuItems} />
         <div className="grid gap-4">
-          {clubMemberView && activePage !== "Interclub Leagues" ? (
+          {clubOnlyView && activePage !== "Interclub Leagues" ? (
             <ClubMemberHero activeTeam={activeTeam} />
           ) : (
             <MatchdayHero activeTeam={activeTeam} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} activeMatchCount={activeMatchCount} />
@@ -315,7 +320,7 @@ function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: stri
   const preferredTeam = club.teams.find((team) => team.endsWith(` ${suffix}`)) ?? club.teams[0] ?? club.club;
   const standing = tableRows.find((row) => row.team === preferredTeam && row.league === baseTeam.league && row.season === baseTeam.season)
     ?? tableRows.find((row) => row.team === preferredTeam);
-  const clubMember = role === "Club Member";
+  const clubMember = isClubOnlyRole(role);
 
   return {
     ...baseTeam,
@@ -370,6 +375,11 @@ function PageContent({
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   const leagueTeamCount = standingsData.length;
+  const memberRestrictedPages: AppPage[] = ["Fixtures", "Match", "Results", "Table", "Players", "Stats", "Interclub Leagues"];
+
+  if (activeTeam.role === "Club Member" && memberRestrictedPages.includes(activePage)) {
+    return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
+  }
 
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Competitions") return <CompetitionsPage activeTeam={activeTeam} />;
@@ -405,7 +415,7 @@ function PageContent({
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onNavigate={onNavigate} />;
-  if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
+  if (isClubOnlyRole(activeTeam.role)) return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
 }
 
@@ -431,7 +441,8 @@ function Header({
   userLabel,
   onRoleChange,
   onClubChange,
-  onSignOut
+  onSignOut,
+  showSeasonSwitcher = true
 }: {
   activeTeam: TeamContext;
   contexts: TeamContext[];
@@ -446,6 +457,7 @@ function Header({
   onRoleChange: (role: Role) => void;
   onClubChange: (club: string) => void;
   onSignOut?: () => void;
+  showSeasonSwitcher?: boolean;
 }) {
   const [accountOpen, setAccountOpen] = useState(false);
 
@@ -460,7 +472,7 @@ function Header({
             <p className="truncate text-xs font-bold uppercase tracking-wide text-white/75">
               Interclub Snooker
             </p>
-            <h1 className="truncate text-lg font-extrabold leading-tight">{activeTeam.season}</h1>
+            <h1 className="truncate text-lg font-extrabold leading-tight">{isClubOnlyRole(activeTeam.role) ? activeTeam.club.replace(" Golf Club", "") : activeTeam.season}</h1>
             {userLabel ? (
               <p className="truncate text-xs font-bold text-white/70 sm:hidden">
                 {userLabel}
@@ -468,8 +480,11 @@ function Header({
             ) : null}
           </div>
         </div>
-        <div className="grid w-full gap-2 sm:w-auto sm:min-w-[360px] sm:grid-cols-[130px_minmax(220px,1fr)]">
-          <SeasonSwitcher seasons={seasons} selectedSeason={selectedSeason} onChange={onSeasonChange} />
+        <div className={cn(
+          "grid w-full gap-2 sm:w-auto",
+          showSeasonSwitcher ? "sm:min-w-[360px] sm:grid-cols-[130px_minmax(220px,1fr)]" : "sm:min-w-[260px]"
+        )}>
+          {showSeasonSwitcher ? <SeasonSwitcher seasons={seasons} selectedSeason={selectedSeason} onChange={onSeasonChange} /> : null}
           <ContextSwitcher
             contexts={contexts}
             selectedId={selectedId}
@@ -529,11 +544,12 @@ function Header({
 
 function contextLabel(context: TeamContext) {
   if (context.role === "Club Member") return `${context.club.replace(" Golf Club", "")} - Member`;
+  if (context.role === "Club Admin") return `${context.club.replace(" Golf Club", "")} - Club Admin`;
   return `${context.name} - ${context.role}`;
 }
 
 function contextDescription(context: TeamContext) {
-  if (context.role === "Club Member") return "Club access";
+  if (isClubOnlyRole(context.role)) return context.role === "Club Admin" ? "Club administration" : "Club access";
   return `${context.league} - ${context.club.replace(" Golf Club", "")}`;
 }
 
@@ -650,8 +666,8 @@ function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { active
 
   return (
     <aside className="hidden self-start rounded-[18px] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
-      <p className="text-xs font-bold uppercase text-white/60">{activeTeam.role === "Club Member" ? "Club" : "Competition"}</p>
-      <h2 className="mt-1 text-2xl font-extrabold">{activeTeam.role === "Club Member" ? activeTeam.club.replace(" Golf Club", "") : activeTeam.league}</h2>
+      <p className="text-xs font-bold uppercase text-white/60">{isClubOnlyRole(activeTeam.role) ? "Club" : "Competition"}</p>
+      <h2 className="mt-1 text-2xl font-extrabold">{isClubOnlyRole(activeTeam.role) ? activeTeam.club.replace(" Golf Club", "") : activeTeam.league}</h2>
       <div className="mt-5 space-y-1.5">
         {items.map((item) => {
           const Icon = item.icon;
@@ -676,7 +692,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { active
 
 function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, activeMatchCount = 0 }: { activeTeam: TeamContext; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number }) {
   const manager = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
-  const clubMember = activeTeam.role === "Club Member";
+  const clubMember = isClubOnlyRole(activeTeam.role);
   const hasTeamActivity = teamHasActivity(activeTeam);
   const played = activeTeam.leagueMatchesPlayed ?? 0;
   const won = activeTeam.matchesWon ?? 0;
@@ -712,7 +728,7 @@ function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, acti
                 </Badge>
               </div>
               <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">
-                {clubMember && interclubView ? "Interclub leagues" : clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
+                {clubMember && interclubView ? "Interclub leagues" : activeTeam.role === "Club Admin" ? "Club admin home" : clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
               </p>
               <h2 className="mt-1 text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.name}</h2>
               <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
@@ -727,7 +743,7 @@ function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, acti
         <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
           <Button className="w-full">
             <PlusCircle className="h-4 w-4" />
-            {clubMember ? "Book table" : activeTeam.role === "Assistant Manager" ? "Support team" : manager ? "Enter result" : "View stats"}
+            {activeTeam.role === "Club Admin" ? "Admin tools" : clubMember ? "Book table" : activeTeam.role === "Assistant Manager" ? "Support team" : manager ? "Enter result" : "View stats"}
           </Button>
           <Button variant="secondary" className="w-full">
             <MessageCircle className="h-4 w-4" />
@@ -759,19 +775,23 @@ function ClubMemberHero({ activeTeam }: { activeTeam: TeamContext }) {
           <ClubLogoTile club={activeTeam.club} logoPath={activeTeam.logoPath} size="hero" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="cyan">Club Member</Badge>
+              <Badge variant="cyan">{activeTeam.role}</Badge>
               <Badge variant="muted">Tables</Badge>
-              <Badge variant="muted">Messages</Badge>
+              <Badge variant="muted">{activeTeam.role === "Club Admin" ? "Admin" : "Messages"}</Badge>
             </div>
-            <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">Club home</p>
+            <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">{activeTeam.role === "Club Admin" ? "Club admin home" : "Club home"}</p>
             <h2 className="mt-1 text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.club}</h2>
-            <p className="mt-2 text-sm font-semibold text-white/80">Book tables, read club notices and manage your account.</p>
+            <p className="mt-2 text-sm font-semibold text-white/80">
+              {activeTeam.role === "Club Admin"
+                ? "Manage members, invites, club competitions and table bookings."
+                : "Book tables, read club notices and manage your account."}
+            </p>
           </div>
         </div>
         <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
           <Button className="w-full">
             <CalendarPlus className="h-4 w-4" />
-            Book table
+            {activeTeam.role === "Club Admin" ? "Open admin" : "Book table"}
           </Button>
           <Button variant="secondary" className="w-full">
             <MessageCircle className="h-4 w-4" />
@@ -1906,7 +1926,55 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
     if (panel === "openCompetitions") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />;
     if (panel === "myCompetitionMatches") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="mine" onNavigate={onNavigate} />;
     if (panel === "competitionDraws") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="draws" onNavigate={onNavigate} />;
-    if (panel === "clubCompetitionAdmin") return null;
+    if (panel === "clubCompetitionAdmin") {
+      return (
+        <Card key={panel}>
+          <CardHeader>
+            <CardTitle>Club Admin</CardTitle>
+            <Badge variant="green">{activeTeam.club.replace(" Golf Club", "")}</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-2 sm:grid-cols-2">
+            <a
+              href="/admin?tab=invites"
+              className="grid min-h-[74px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left ring-1 ring-[#eeeaf2]"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
+                <Users className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block font-black">Members & invites</span>
+                <span className="block text-xs font-semibold text-[#6c5a73]">Add members and queue invite emails.</span>
+              </span>
+            </a>
+            <a
+              href="/admin?tab=competitions"
+              className="grid min-h-[74px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left ring-1 ring-[#eeeaf2]"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
+                <Trophy className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block font-black">Competitions</span>
+                <span className="block text-xs font-semibold text-[#6c5a73]">Create draws and manage results.</span>
+              </span>
+            </a>
+            <button
+              type="button"
+              onClick={() => onNavigate("Bookings")}
+              className="grid min-h-[74px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left ring-1 ring-[#eeeaf2] sm:col-span-2"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
+                <CalendarPlus className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block font-black">Table bookings</span>
+                <span className="block text-xs font-semibold text-[#6c5a73]">See current and future table usage.</span>
+              </span>
+            </button>
+          </CardContent>
+        </Card>
+      );
+    }
     if (panel === "interclubLeagues") {
       return (
         <Card key={panel}>
@@ -1932,9 +2000,6 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <div className="md:col-span-2">
-        <MatchPlanningCard activeTeam={activeTeam} />
-      </div>
       {panels.map(renderPanel)}
     </section>
   );
@@ -2047,7 +2112,7 @@ function InterclubLeaguesPage({
   matchResults: MatchResult[];
   onNavigate: (page: AppPage) => void;
 }) {
-  const orderedLeagues = activeTeam.role === "Club Member"
+  const orderedLeagues = isClubOnlyRole(activeTeam.role)
     ? leagueOrder
     : [activeTeam.league, ...leagueOrder.filter((league) => league !== activeTeam.league)];
 
@@ -2056,7 +2121,7 @@ function InterclubLeaguesPage({
       <Card>
         <CardHeader>
           <CardTitle>Interclub Leagues</CardTitle>
-          <Badge variant="muted">{activeTeam.role === "Club Member" ? "A to C" : `${activeTeam.league} first`}</Badge>
+          <Badge variant="muted">{isClubOnlyRole(activeTeam.role) ? "A to C" : `${activeTeam.league} first`}</Badge>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
           {[
@@ -2091,7 +2156,7 @@ function InterclubLeaguesPage({
         const contextForLeague = {
           ...activeTeam,
           league,
-          name: activeTeam.role === "Club Member" ? activeTeam.club : activeTeam.name,
+          name: isClubOnlyRole(activeTeam.role) ? activeTeam.club : activeTeam.name,
           leaguePosition: leagueStandings.find((row) => row.team === activeTeam.name)?.position ?? 0
         };
 
@@ -2251,7 +2316,7 @@ function StatsPage({ activeTeam, playerGameResults, matchResults, leagueTeamCoun
 }
 
 function MessagesPage({ activeTeam, compact = false, onSignOut, userLabel }: { activeTeam: TeamContext; compact?: boolean; onSignOut?: () => void; userLabel?: string }) {
-  const clubMember = activeTeam.role === "Club Member";
+  const clubMember = isClubOnlyRole(activeTeam.role);
 
   return (
     <Card className={compact ? "" : "md:max-w-xl"}>

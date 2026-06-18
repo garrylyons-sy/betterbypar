@@ -419,12 +419,22 @@ export async function claimInvitationForAccount({
 
     for (const membership of clubMembershipResult.rows) {
       await client.query(
-        `insert into public.club_membership (club_id, person_id, role, active)
-         values ($1, $2, 'Club Member', true)
+        `insert into public.club_membership (club_id, person_id, role, is_club_admin, active)
+         values ($1, $2, 'Club Member', $3, true)
          on conflict (club_id, person_id, role) do update
-         set active = true`,
-        [membership.club_id, person.id]
+         set active = true,
+             is_club_admin = public.club_membership.is_club_admin or excluded.is_club_admin`,
+        [membership.club_id, person.id, membership.role === "Club Admin"]
       );
+      if (membership.role === "Club Admin") {
+        await client.query(
+          `insert into public.club_admin (club_id, person_id, active)
+           values ($1, $2, true)
+           on conflict (club_id, person_id) do update
+           set active = true`,
+          [membership.club_id, person.id]
+        );
+      }
     }
 
     if (invitation.invite_administrator) {
@@ -679,7 +689,46 @@ export async function loadSessionPayload(user: AppUser) {
     leagueMatchesPlayed: 0
   } satisfies TeamContext));
 
-  const contexts = [...teamContexts, ...clubContexts];
+  const clubAdminContexts = (await dbQuery<{
+    membership_id: string;
+    club_name: string;
+    logo_path: string;
+    primary_color: string;
+    accent_color: string;
+  }>(
+    `select
+       cm.id as membership_id,
+       c.name as club_name,
+       c.logo_path,
+       c.primary_color,
+       coalesce(c.accent_color, '#10233F') as accent_color
+     from public.club_membership cm
+     join public.club c on c.id = cm.club_id and c.active = true
+     left join public.club_admin ca
+       on ca.club_id = cm.club_id
+      and ca.person_id = cm.person_id
+      and ca.active = true
+     where cm.person_id = $1
+       and cm.active = true
+       and (cm.is_club_admin = true or ca.id is not null)
+     order by c.name`,
+    [user.personId]
+  )).rows.map((row) => ({
+    id: `${row.membership_id}:club-admin`,
+    personId: user.personId,
+    name: row.club_name,
+    club: row.club_name,
+    logoPath: row.logo_path,
+    primaryColor: row.primary_color,
+    accentColor: row.accent_color,
+    league: "A League",
+    season: "Club",
+    role: "Club Admin",
+    leaguePosition: 0,
+    leagueMatchesPlayed: 0
+  } satisfies TeamContext));
+
+  const contexts = [...teamContexts, ...clubContexts, ...clubAdminContexts];
   const standings = (await dbQuery<{
     position: number;
     team_name: string;

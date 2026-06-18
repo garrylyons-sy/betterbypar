@@ -17,6 +17,7 @@ create table if not exists public.club_membership (
   person_id uuid not null references public.person(id) on delete cascade,
   role text not null default 'Club Member' check (role = 'Club Member'),
   joined_date date not null default current_date,
+  is_club_admin boolean not null default false,
   active boolean not null default true,
   created_at timestamptz not null default now(),
   unique (club_id, person_id, role)

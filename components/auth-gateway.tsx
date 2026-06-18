@@ -210,19 +210,19 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
 
   const existing = contexts.find((context) => {
     if (context.role !== requestedRole) return false;
-    if (requestedRole === "Club Member") {
+    if (requestedRole === "Club Member" || requestedRole === "Club Admin") {
       return requestedClub ? context.club.toLowerCase() === requestedClub : context.club.toLowerCase() === "castle golf club";
     }
     return Boolean(requestedTeam) && context.name.toLowerCase() === requestedTeam && context.season === requestedSeason;
   });
   if (existing) return contexts;
 
-  if (requestedRole === "Club Member") {
+  if (requestedRole === "Club Member" || requestedRole === "Club Admin") {
     const clubName = requestedClub || "castle golf club";
     const club = clubTeamStructure.find((entry) => entry.club.toLowerCase() === clubName);
     if (!club) return contexts;
     const embeddedContext: TeamContext = {
-      id: `embedded-member-${club.club.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      id: `embedded-${requestedRole.toLowerCase().replace(/\s+/g, "-")}-${club.club.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
       personId: contexts[0]?.personId,
       name: club.club,
       club: club.club,
@@ -231,7 +231,7 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
       accentColor: club.accentColor,
       league: "A League",
       season: "Club",
-      role: "Club Member",
+      role: requestedRole,
       leaguePosition: 0,
       leagueMatchesPlayed: 0
     };
@@ -281,6 +281,7 @@ function normalizeEmbeddedRole(value: string | null): Role | null {
   if (role === "player") return "Player";
   if (role === "assistant manager" || role === "assistant") return "Assistant Manager";
   if (role === "club member" || role === "member") return "Club Member";
+  if (role === "club admin" || role === "club administrator") return "Club Admin";
   return null;
 }
 
