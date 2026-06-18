@@ -3196,6 +3196,9 @@ function ManagerLineupCard({
   const dirtyDraftRef = useRef(false);
   const fixtureIdRef = useRef("");
   const matchSnapshotRef = useRef("");
+  const testManagerMode = typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("embed") === "1" &&
+    new URLSearchParams(window.location.search).get("role")?.toLowerCase() === "manager";
 
   useEffect(() => {
     if (!activeTeam.teamId) return;
@@ -3211,6 +3214,7 @@ function ManagerLineupCard({
       try {
         const params = new URLSearchParams({ teamId: activeTeam.teamId });
         if (preferredFixtureId) params.set("fixtureId", preferredFixtureId);
+        if (testManagerMode) params.set("testManager", "1");
         const response = await fetch(`/api/manager/lineup?${params.toString()}`, { credentials: "same-origin" });
         const data = await response.json().catch(() => ({}));
         if (cancelled) return;
@@ -3277,7 +3281,8 @@ function ManagerLineupCard({
           teamId: activeTeam.teamId,
           fixtureId: payload.fixture.id,
           action,
-          slots
+          slots,
+          testManager: testManagerMode
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -3542,7 +3547,8 @@ function ManagerLineupCard({
           fixtureId: payload.fixture.id,
           action: "recordResult",
           gameId,
-          winnerTeamId
+          winnerTeamId,
+          testManager: testManagerMode
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -3579,7 +3585,8 @@ function ManagerLineupCard({
           action: "recordBreak",
           gameId,
           playerId,
-          breakValue
+          breakValue,
+          testManager: testManagerMode
         })
       });
       const data = await response.json().catch(() => ({}));

@@ -160,7 +160,7 @@ export function AuthGateway() {
   }
 
   if (session?.authenticated) {
-    const contexts = session.contexts ?? [];
+    const contexts = embeddedManagerContexts(session.contexts ?? [], teamOptions, session.standings ?? []);
     if (contexts.length > 0) {
       return (
         <>
@@ -195,6 +195,59 @@ export function AuthGateway() {
       onSignedIn={refreshSession}
     />
   );
+}
+
+function embeddedManagerContexts(contexts: TeamContext[], teamOptions: TeamOption[], standings: Standing[]) {
+  if (typeof window === "undefined") return contexts;
+
+  const params = new URLSearchParams(window.location.search);
+  const embedded = params.get("embed") === "1";
+  const requestedRole = params.get("role")?.trim().toLowerCase();
+  const requestedTeam = params.get("team")?.trim().toLowerCase();
+  const requestedSeason = params.get("season")?.trim() || "2026/27";
+  if (!embedded || requestedRole !== "manager" || !requestedTeam) return contexts;
+
+  const existing = contexts.find((context) =>
+    context.name.toLowerCase() === requestedTeam &&
+    context.role === "Manager" &&
+    context.season === requestedSeason
+  );
+  if (existing) return contexts;
+
+  const option = teamOptions.find((team) =>
+    team.teamName.toLowerCase() === requestedTeam &&
+    team.seasonName === requestedSeason
+  );
+  if (!option || !/^[0-9a-f-]{36}$/i.test(option.teamId)) return contexts;
+
+  const club = clubTeamStructure.find((entry) => entry.club === option.clubName);
+  const standing = standings.find((row) =>
+    row.team === option.teamName &&
+    row.league === option.leagueName &&
+    row.season === option.seasonName
+  );
+  const embeddedContext: TeamContext = {
+    id: `embedded-manager-${option.teamId}`,
+    personId: contexts[0]?.personId,
+    teamId: option.teamId,
+    name: option.teamName,
+    club: option.clubName,
+    logoPath: club?.logoPath ?? "/favicon.ico",
+    primaryColor: club?.primaryColor ?? "#10233F",
+    accentColor: club?.accentColor ?? "#1B8A72",
+    league: option.leagueName as TeamContext["league"],
+    season: option.seasonName,
+    role: "Manager",
+    leaguePosition: standing?.position ?? 0,
+    leagueMatchesPlayed: standing?.played ?? 0,
+    matchesWon: standing?.won ?? 0,
+    matchesLost: standing?.lost ?? 0,
+    pointsFor: standing?.pointsFor ?? 0,
+    pointsAgainst: standing?.pointsAgainst ?? 0,
+    leaguePoints: standing?.leaguePoints ?? 0
+  };
+
+  return [embeddedContext, ...contexts];
 }
 
 function AuthHome({
