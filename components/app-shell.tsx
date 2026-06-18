@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type AppPage = "Home" | "Fixtures" | "Results" | "Table" | "Bookings" | "Competitions" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
+type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Bookings" | "Competitions" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member"];
 const RECENT_FORM_LIMIT = 3;
@@ -112,6 +112,7 @@ export function AppShell({
     const requestedPage = new URLSearchParams(window.location.search).get("page");
     return requestedPage === "Competitions" ? "Competitions" : "Home";
   });
+  const [selectedFixtureId, setSelectedFixtureId] = useState("");
   const [simulatedRole, setSimulatedRole] = useState<Role>(contexts[0]?.role ?? teamContexts[0].role);
   const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
   const [teamSummaryOverrides, setTeamSummaryOverrides] = useState<Record<string, TeamSummaryUpdate>>({});
@@ -236,6 +237,14 @@ export function AppShell({
   const allMatchResults = matchResults ?? [];
   const clubMemberView = activeTeam.role === "Club Member";
   const showLeaguePanels = !clubMemberView && pagesWithLeagueAside.includes(activePage);
+  const navigateToPage = (page: AppPage) => {
+    if (page !== "Match") setSelectedFixtureId("");
+    setActivePage(page);
+  };
+  const openFixturePage = (fixtureId: string) => {
+    setSelectedFixtureId(fixtureId);
+    setActivePage("Match");
+  };
 
   useEffect(() => {
     onPageVisit?.(activePage, activeTeam);
@@ -262,7 +271,7 @@ export function AppShell({
         "mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:items-start lg:gap-6 lg:px-8 xl:px-10",
         showLeaguePanels ? "lg:grid-cols-[220px_minmax(0,1fr)_380px] xl:grid-cols-[230px_minmax(0,1fr)_400px]" : "lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]"
       )}>
-        <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={setActivePage} menuItems={activeMenuItems} />
+        <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={navigateToPage} menuItems={activeMenuItems} />
         <div className="grid gap-4">
           {clubMemberView && activePage !== "Interclub Leagues" ? (
             <ClubMemberHero activeTeam={activeTeam} />
@@ -278,7 +287,9 @@ export function AppShell({
             matchResults={activeMatchResults}
             allMatchResults={allMatchResults}
             appearance={{ ...activeAppearance, menuItems: activeMenuItems }}
-            onNavigate={setActivePage}
+            onNavigate={navigateToPage}
+            onOpenFixture={openFixturePage}
+            selectedFixtureId={selectedFixtureId}
             onSignOut={onSignOut}
             userLabel={userLabel}
             onDataRefresh={onDataRefresh}
@@ -292,7 +303,7 @@ export function AppShell({
           </aside>
         ) : null}
       </section>
-      <BottomNav activePage={activePage} activeTeam={activeTeam} onNavigate={setActivePage} menuItems={activeMenuItems} />
+      <BottomNav activePage={activePage} activeTeam={activeTeam} onNavigate={navigateToPage} menuItems={activeMenuItems} />
     </main>
   );
 }
@@ -335,6 +346,8 @@ function PageContent({
   allMatchResults,
   appearance,
   onNavigate,
+  onOpenFixture,
+  selectedFixtureId,
   onSignOut,
   userLabel,
   onDataRefresh,
@@ -349,6 +362,8 @@ function PageContent({
   allMatchResults: MatchResult[];
   appearance: RoleAppearance;
   onNavigate: (page: AppPage) => void;
+  onOpenFixture: (fixtureId: string) => void;
+  selectedFixtureId: string;
   onSignOut?: () => void;
   userLabel?: string;
   onDataRefresh?: () => void;
@@ -364,6 +379,18 @@ function PageContent({
         activeTeam={activeTeam}
         matchResults={matchResults}
         leagueTeamCount={leagueTeamCount}
+        onOpenFixture={onOpenFixture}
+        onDataRefresh={onDataRefresh}
+        onTeamSummaryUpdate={onTeamSummaryUpdate}
+      />
+    );
+  }
+  if (activePage === "Match") {
+    return (
+      <MatchPage
+        activeTeam={activeTeam}
+        fixtureId={selectedFixtureId}
+        onBack={() => onNavigate("Fixtures")}
         onDataRefresh={onDataRefresh}
         onTeamSummaryUpdate={onTeamSummaryUpdate}
       />
@@ -376,10 +403,10 @@ function PageContent({
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} />;
-  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
+  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onNavigate={onNavigate} />;
   if (activeTeam.role === "Club Member") return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
-  return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
+  return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
 }
 
 function dedupePlayerGameResults(results: PlayerGameResult[]) {
@@ -1816,7 +1843,23 @@ function CompetitionScoreModal({
   );
 }
 
-function PlayerHome({ activeTeam, playerGameResults, matchResults, onNavigate, leagueTeamCount, panels }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[]; onNavigate: (page: AppPage) => void; leagueTeamCount: number; panels: AppearancePanelId[] }) {
+function PlayerHome({
+  activeTeam,
+  playerGameResults,
+  matchResults,
+  onNavigate,
+  onOpenFixture,
+  leagueTeamCount,
+  panels
+}: {
+  activeTeam: TeamContext;
+  playerGameResults: PlayerGameResult[];
+  matchResults: MatchResult[];
+  onNavigate: (page: AppPage) => void;
+  onOpenFixture: (fixtureId: string) => void;
+  leagueTeamCount: number;
+  panels: AppearancePanelId[];
+}) {
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
     if (panel === "myStats") return <PlayerStatCard key={panel} activeTeam={activeTeam} playerGameResults={playerGameResults} />;
@@ -1833,7 +1876,7 @@ function PlayerHome({ activeTeam, playerGameResults, matchResults, onNavigate, l
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
       <div className="md:col-span-2">
-        <FixtureWeekCarouselCard activeTeam={activeTeam} onOpenLeague={() => onNavigate("Fixtures")} />
+        <FixtureWeekCarouselCard activeTeam={activeTeam} onOpenLeague={() => onNavigate("Fixtures")} onOpenFixture={onOpenFixture} />
       </div>
       {panels.map(renderPanel)}
     </section>
@@ -2067,39 +2110,88 @@ function FixturesPage({
   activeTeam,
   matchResults,
   leagueTeamCount,
+  onOpenFixture,
   onDataRefresh,
   onTeamSummaryUpdate
 }: {
   activeTeam: TeamContext;
   matchResults: MatchResult[];
   leagueTeamCount: number;
+  onOpenFixture: (fixtureId: string) => void;
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
-  const [selectedFixtureId, setSelectedFixtureId] = useState("");
-  const managerView = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
-
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <div className="md:col-span-2">
         <FixtureWeekCarouselCard
           activeTeam={activeTeam}
-          selectedFixtureId={selectedFixtureId}
-          onSelectFixture={managerView ? setSelectedFixtureId : undefined}
+          onOpenFixture={onOpenFixture}
         />
       </div>
-      {managerView ? (
-        <div className="md:col-span-2">
+      <SeasonCompleteCard activeTeam={activeTeam} action="View results" leagueTeamCount={leagueTeamCount} />
+      <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
+    </section>
+  );
+}
+
+function MatchPage({
+  activeTeam,
+  fixtureId,
+  onBack,
+  onDataRefresh,
+  onTeamSummaryUpdate
+}: {
+  activeTeam: TeamContext;
+  fixtureId: string;
+  onBack: () => void;
+  onDataRefresh?: () => void;
+  onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
+}) {
+  const managerView = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
+
+  return (
+    <section className="grid gap-4">
+      <div>
+        <Button variant="secondary" onClick={onBack}>
+          <ChevronLeft className="h-4 w-4" />
+          Fixtures
+        </Button>
+      </div>
+      {fixtureId ? (
+        managerView ? (
           <ManagerLineupCard
             activeTeam={activeTeam}
-            preferredFixtureId={selectedFixtureId}
+            preferredFixtureId={fixtureId}
             onDataRefresh={onDataRefresh}
             onTeamSummaryUpdate={onTeamSummaryUpdate}
           />
-        </div>
-      ) : null}
-      <SeasonCompleteCard activeTeam={activeTeam} action="View results" leagueTeamCount={leagueTeamCount} />
-      <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Match</CardTitle>
+              <Badge variant="muted">{activeTeam.league}</Badge>
+            </CardHeader>
+            <CardContent>
+              <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+                Scores and frame details for this match will appear here as they are entered.
+              </p>
+            </CardContent>
+          </Card>
+        )
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Match</CardTitle>
+            <Badge variant="muted">No fixture selected</Badge>
+          </CardHeader>
+          <CardContent>
+            <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+              Choose a fixture from the weekly fixtures list.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </section>
   );
 }
@@ -2258,6 +2350,7 @@ function ManagerHome({
   activeTeam,
   matchResults,
   onNavigate,
+  onOpenFixture,
   leagueTeamCount,
   panels,
   onDataRefresh,
@@ -2266,6 +2359,7 @@ function ManagerHome({
   activeTeam: TeamContext;
   matchResults: MatchResult[];
   onNavigate: (page: AppPage) => void;
+  onOpenFixture: (fixtureId: string) => void;
   leagueTeamCount: number;
   panels: AppearancePanelId[];
   onDataRefresh?: () => void;
@@ -2296,6 +2390,7 @@ function ManagerHome({
           onDataRefresh={onDataRefresh}
           onTeamSummaryUpdate={onTeamSummaryUpdate}
           onOpenLeague={() => onNavigate("Fixtures")}
+          onOpenFixture={onOpenFixture}
         />
       </div>
       {panels.map(renderPanel)}
@@ -2307,32 +2402,22 @@ function MatchPlanningCard({
   activeTeam,
   onDataRefresh,
   onTeamSummaryUpdate,
-  onOpenLeague
+  onOpenLeague,
+  onOpenFixture
 }: {
   activeTeam: TeamContext;
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
   onOpenLeague?: () => void;
+  onOpenFixture?: (fixtureId: string) => void;
 }) {
-  const [selectedFixtureId, setSelectedFixtureId] = useState("");
-  const managerView = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
-
   return (
     <div className="grid gap-4 md:col-span-2">
       <FixtureWeekCarouselCard
         activeTeam={activeTeam}
-        onSelectFixture={managerView ? setSelectedFixtureId : undefined}
-        selectedFixtureId={selectedFixtureId}
         onOpenLeague={onOpenLeague}
+        onOpenFixture={onOpenFixture}
       />
-      {managerView ? (
-        <ManagerLineupCard
-          activeTeam={activeTeam}
-          preferredFixtureId={selectedFixtureId}
-          onDataRefresh={onDataRefresh}
-          onTeamSummaryUpdate={onTeamSummaryUpdate}
-        />
-      ) : null}
     </div>
   );
 }
@@ -2927,12 +3012,14 @@ function FixtureWeekCarouselCard({
   activeTeam,
   selectedFixtureId,
   onSelectFixture,
-  onOpenLeague
+  onOpenLeague,
+  onOpenFixture
 }: {
   activeTeam: TeamContext;
   selectedFixtureId?: string;
   onSelectFixture?: (fixtureId: string) => void;
   onOpenLeague?: () => void;
+  onOpenFixture?: (fixtureId: string) => void;
 }) {
   const [weeks, setWeeks] = useState<FixtureWeek[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -3015,6 +3102,11 @@ function FixtureWeekCarouselCard({
                       type="button"
                       className="grid w-full gap-2 p-3 text-left transition-colors hover:bg-[#f7f5fa]"
                       onClick={() => {
+                        if (onOpenFixture) {
+                          onSelectFixture?.(fixture.id);
+                          onOpenFixture(fixture.id);
+                          return;
+                        }
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                         if (canManage) onSelectFixture?.(fixture.id);
                       }}
@@ -3047,7 +3139,7 @@ function FixtureWeekCarouselCard({
                         ) : fixture.totalGames > 0 ? (
                           <p>{fixture.completedGames} of {fixture.totalGames} games completed.</p>
                         ) : (
-                          <p>{fixture.isOwnFixture ? "Use the match workflow below for lineup and scores." : "Fixture scheduled. Scores will appear here once the match starts."}</p>
+                          <p>Fixture scheduled. Scores will appear here once the match starts.</p>
                         )}
                       </div>
                     ) : null}
