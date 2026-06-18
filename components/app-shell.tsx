@@ -1822,6 +1822,9 @@ function PlayerHome({ activeTeam, playerGameResults, matchResults, onNavigate, l
 
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
+      <div className="md:col-span-2">
+        <FixtureWeekCarouselCard activeTeam={activeTeam} />
+      </div>
       {panels.map(renderPanel)}
     </section>
   );
@@ -1876,6 +1879,9 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
+      <div className="md:col-span-2">
+        <MatchPlanningCard activeTeam={activeTeam} />
+      </div>
       {panels.map(renderPanel)}
     </section>
   );
@@ -2224,7 +2230,7 @@ function ManagerHome({
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   const renderPanel = (panel: AppearancePanelId) => {
-    if (panel === "matchPlanning") return <MatchPlanningCard key={panel} activeTeam={activeTeam} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
+    if (panel === "matchPlanning") return null;
     if (panel === "managerActions") return <ManagerActionCard key={panel} activeTeam={activeTeam} />;
     if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="Review season" leagueTeamCount={leagueTeamCount} />;
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
@@ -2242,6 +2248,9 @@ function ManagerHome({
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
+      <div className="md:col-span-2">
+        <MatchPlanningCard activeTeam={activeTeam} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />
+      </div>
       {panels.map(renderPanel)}
     </section>
   );
