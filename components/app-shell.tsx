@@ -2594,14 +2594,32 @@ function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demo
 
 function SeasonCompleteCard({ activeTeam = teamContexts[0], action, leagueTeamCount = standings.length, onAction }: { activeTeam?: TeamContext; action: string; leagueTeamCount?: number; onAction?: () => void }) {
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
+  const seasonStatus = seasonStatusFor(activeTeam.season);
   const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
-  const qualified = qualification !== "none";
+  const qualified = seasonStatus === "complete" && qualification !== "none";
+  const statusLabel = seasonStatus === "complete" ? "Complete" : seasonStatus === "not-started" ? "Not started" : "In play";
+  const cardTitle = seasonStatus === "complete" ? "Season Complete" : "Season Status";
+  const summary = (() => {
+    if (seasonStatus === "complete") {
+      return hasLeagueTable
+        ? `${activeTeam.name} finished ${ordinal(activeTeam.leaguePosition)} in ${activeTeam.league}`
+        : `${activeTeam.name} has no final league table`;
+    }
+    if (seasonStatus === "not-started") {
+      return `${activeTeam.season} starts in September. No final league position yet.`;
+    }
+    return hasLeagueTable
+      ? `${activeTeam.name} is currently ${ordinal(activeTeam.leaguePosition)} in ${activeTeam.league}`
+      : `${activeTeam.name} has no league table yet`;
+  })();
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Season Complete</CardTitle>
-        <Badge variant={hasLeagueTable ? qualificationBadgeVariant(qualification) : "muted"}>{hasLeagueTable && qualified ? qualificationLabel(qualification) : "Final table"}</Badge>
+        <CardTitle>{cardTitle}</CardTitle>
+        <Badge variant={qualified ? qualificationBadgeVariant(qualification) : seasonStatus === "in-progress" ? "green" : "muted"}>
+          {qualified ? qualificationLabel(qualification) : statusLabel}
+        </Badge>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-[18px] border p-4" style={clubSoftAccentStyle(activeTeam.primaryColor)}>
@@ -2615,16 +2633,38 @@ function SeasonCompleteCard({ activeTeam = teamContexts[0], action, leagueTeamCo
             <p className="mt-1 text-lg font-black leading-tight">{activeTeam.leaguePoints ?? activeTeam.pointsFor ?? "-"} pts</p>
           </div>
         </div>
-        <p className="mt-3 text-sm font-semibold text-[#6c5a73]">{upcomingFixture.date}</p>
-        <p className="text-sm font-semibold text-[#6c5a73]">
-          {hasLeagueTable
-            ? `${activeTeam.name} finished ${ordinal(activeTeam.leaguePosition)} in ${activeTeam.league}`
-            : `${activeTeam.name} has no league table yet`}
-        </p>
+        <p className="mt-3 text-sm font-semibold text-[#6c5a73]">{seasonDateSummary(activeTeam.season)}</p>
+        <p className="text-sm font-semibold text-[#6c5a73]">{summary}</p>
         <Button className="mt-4 w-full" style={{ backgroundColor: activeTeam.primaryColor }} onClick={onAction}>{action}</Button>
       </CardContent>
     </Card>
   );
+}
+
+function seasonBounds(season: string) {
+  const match = season.match(/^(\d{4})\/(\d{2})$/);
+  if (!match) return null;
+  const startYear = Number(match[1]);
+  const endYear = Number(`${String(startYear).slice(0, 2)}${match[2]}`);
+  return {
+    start: new Date(startYear, 8, 1),
+    end: new Date(endYear, 2, 31, 23, 59, 59)
+  };
+}
+
+function seasonStatusFor(season: string) {
+  const bounds = seasonBounds(season);
+  if (!bounds) return "in-progress" as const;
+  const today = new Date();
+  if (today < bounds.start) return "not-started" as const;
+  if (today > bounds.end) return "complete" as const;
+  return "in-progress" as const;
+}
+
+function seasonDateSummary(season: string) {
+  const bounds = seasonBounds(season);
+  if (!bounds) return season;
+  return `${bounds.start.toLocaleDateString("en-IE", { month: "short", year: "numeric" })} to ${bounds.end.toLocaleDateString("en-IE", { month: "short", year: "numeric" })}`;
 }
 
 function SeasonResultsCard({ activeTeam, results, defaultScope = "club" }: { activeTeam: TeamContext; results: MatchResult[]; defaultScope?: "club" | "league" }) {
