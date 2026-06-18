@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { clubTeamStructure } from "@/lib/demo-data";
-import type { AppearanceConfig, MatchResult, PlayerGameResult, Standing, TeamContext } from "@/lib/types";
+import type { AppearanceConfig, MatchResult, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 
 type AuthMode = "signin" | "activate" | "request";
 type TeamOption = {
@@ -160,7 +160,7 @@ export function AuthGateway() {
   }
 
   if (session?.authenticated) {
-    const contexts = embeddedManagerContexts(session.contexts ?? [], teamOptions, session.standings ?? []);
+    const contexts = embeddedTestContexts(session.contexts ?? [], teamOptions, session.standings ?? []);
     if (contexts.length > 0) {
       return (
         <>
@@ -197,23 +197,48 @@ export function AuthGateway() {
   );
 }
 
-function embeddedManagerContexts(contexts: TeamContext[], teamOptions: TeamOption[], standings: Standing[]) {
+function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[], standings: Standing[]) {
   if (typeof window === "undefined") return contexts;
 
   const params = new URLSearchParams(window.location.search);
   const embedded = params.get("embed") === "1";
-  const requestedRole = params.get("role")?.trim().toLowerCase();
+  const requestedRole = normalizeEmbeddedRole(params.get("role"));
   const requestedTeam = params.get("team")?.trim().toLowerCase();
+  const requestedClub = params.get("club")?.trim().toLowerCase();
   const requestedSeason = params.get("season")?.trim() || "2026/27";
-  if (!embedded || requestedRole !== "manager" || !requestedTeam) return contexts;
+  if (!embedded || !requestedRole) return contexts;
 
-  const existing = contexts.find((context) =>
-    context.name.toLowerCase() === requestedTeam &&
-    context.role === "Manager" &&
-    context.season === requestedSeason
-  );
+  const existing = contexts.find((context) => {
+    if (context.role !== requestedRole) return false;
+    if (requestedRole === "Club Member") {
+      return requestedClub ? context.club.toLowerCase() === requestedClub : context.club.toLowerCase() === "castle golf club";
+    }
+    return Boolean(requestedTeam) && context.name.toLowerCase() === requestedTeam && context.season === requestedSeason;
+  });
   if (existing) return contexts;
 
+  if (requestedRole === "Club Member") {
+    const clubName = requestedClub || "castle golf club";
+    const club = clubTeamStructure.find((entry) => entry.club.toLowerCase() === clubName);
+    if (!club) return contexts;
+    const embeddedContext: TeamContext = {
+      id: `embedded-member-${club.club.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      personId: contexts[0]?.personId,
+      name: club.club,
+      club: club.club,
+      logoPath: club.logoPath,
+      primaryColor: club.primaryColor,
+      accentColor: club.accentColor,
+      league: "A League",
+      season: "Club",
+      role: "Club Member",
+      leaguePosition: 0,
+      leagueMatchesPlayed: 0
+    };
+    return [embeddedContext, ...contexts];
+  }
+
+  if (!requestedTeam) return contexts;
   const option = teamOptions.find((team) =>
     team.teamName.toLowerCase() === requestedTeam &&
     team.seasonName === requestedSeason
@@ -227,7 +252,7 @@ function embeddedManagerContexts(contexts: TeamContext[], teamOptions: TeamOptio
     row.season === option.seasonName
   );
   const embeddedContext: TeamContext = {
-    id: `embedded-manager-${option.teamId}`,
+    id: `embedded-${requestedRole.toLowerCase().replace(/\s+/g, "-")}-${option.teamId}`,
     personId: contexts[0]?.personId,
     teamId: option.teamId,
     name: option.teamName,
@@ -237,7 +262,7 @@ function embeddedManagerContexts(contexts: TeamContext[], teamOptions: TeamOptio
     accentColor: club?.accentColor ?? "#1B8A72",
     league: option.leagueName as TeamContext["league"],
     season: option.seasonName,
-    role: "Manager",
+    role: requestedRole,
     leaguePosition: standing?.position ?? 0,
     leagueMatchesPlayed: standing?.played ?? 0,
     matchesWon: standing?.won ?? 0,
@@ -248,6 +273,15 @@ function embeddedManagerContexts(contexts: TeamContext[], teamOptions: TeamOptio
   };
 
   return [embeddedContext, ...contexts];
+}
+
+function normalizeEmbeddedRole(value: string | null): Role | null {
+  const role = value?.trim().toLowerCase();
+  if (role === "manager") return "Manager";
+  if (role === "player") return "Player";
+  if (role === "assistant manager" || role === "assistant") return "Assistant Manager";
+  if (role === "club member" || role === "member") return "Club Member";
+  return null;
 }
 
 function AuthHome({
