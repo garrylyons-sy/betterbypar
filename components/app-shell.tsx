@@ -400,7 +400,6 @@ function PageContent({
       <MatchPage
         activeTeam={activeTeam}
         fixtureId={selectedFixtureId}
-        onBack={() => onNavigate("Fixtures")}
         onDataRefresh={onDataRefresh}
         onTeamSummaryUpdate={onTeamSummaryUpdate}
       />
@@ -1896,7 +1895,7 @@ function PlayerHome({
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
       <div className="md:col-span-2">
-        <FixtureWeekCarouselCard activeTeam={activeTeam} onOpenLeague={() => onNavigate("Fixtures")} onOpenFixture={onOpenFixture} />
+        <FixtureWeekCarouselCard activeTeam={activeTeam} onOpenFixture={onOpenFixture} />
       </div>
       {panels.map(renderPanel)}
     </section>
@@ -2213,13 +2212,11 @@ function FixturesPage({
 function MatchPage({
   activeTeam,
   fixtureId,
-  onBack,
   onDataRefresh,
   onTeamSummaryUpdate
 }: {
   activeTeam: TeamContext;
   fixtureId: string;
-  onBack: () => void;
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
@@ -2227,12 +2224,6 @@ function MatchPage({
 
   return (
     <section className="grid gap-4">
-      <div>
-        <Button variant="secondary" onClick={onBack}>
-          <ChevronLeft className="h-4 w-4" />
-          Fixtures
-        </Button>
-      </div>
       {fixtureId ? (
         managerView ? (
           <ManagerLineupCard
@@ -2464,7 +2455,6 @@ function ManagerHome({
           activeTeam={activeTeam}
           onDataRefresh={onDataRefresh}
           onTeamSummaryUpdate={onTeamSummaryUpdate}
-          onOpenLeague={() => onNavigate("Fixtures")}
           onOpenFixture={onOpenFixture}
         />
       </div>
@@ -2477,20 +2467,17 @@ function MatchPlanningCard({
   activeTeam,
   onDataRefresh,
   onTeamSummaryUpdate,
-  onOpenLeague,
   onOpenFixture
 }: {
   activeTeam: TeamContext;
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
-  onOpenLeague?: () => void;
   onOpenFixture?: (fixtureId: string) => void;
 }) {
   return (
     <div className="grid gap-4 md:col-span-2">
       <FixtureWeekCarouselCard
         activeTeam={activeTeam}
-        onOpenLeague={onOpenLeague}
         onOpenFixture={onOpenFixture}
       />
     </div>
@@ -2645,7 +2632,9 @@ function SeasonCompleteCard({ activeTeam = teamContexts[0], action, leagueTeamCo
         </div>
         <p className="mt-3 text-sm font-semibold text-[#6c5a73]">{seasonDateSummary(activeTeam.season)}</p>
         <p className="text-sm font-semibold text-[#6c5a73]">{summary}</p>
-        <Button className="mt-4 w-full" style={{ backgroundColor: activeTeam.primaryColor }} onClick={onAction}>{action}</Button>
+        {onAction ? (
+          <Button className="mt-4 w-full" style={{ backgroundColor: activeTeam.primaryColor }} onClick={onAction}>{action}</Button>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -3130,13 +3119,11 @@ function FixtureWeekCarouselCard({
   activeTeam,
   selectedFixtureId,
   onSelectFixture,
-  onOpenLeague,
   onOpenFixture
 }: {
   activeTeam: TeamContext;
   selectedFixtureId?: string;
   onSelectFixture?: (fixtureId: string) => void;
-  onOpenLeague?: () => void;
   onOpenFixture?: (fixtureId: string) => void;
 }) {
   const [weeks, setWeeks] = useState<FixtureWeek[]>([]);
@@ -3232,6 +3219,8 @@ function FixtureWeekCarouselCard({
                 const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                 const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
                 const canManage = Boolean(onSelectFixture && fixture.isOwnFixture);
+                const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
+                const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
                 return (
                   <article
                     key={fixture.id}
@@ -3252,13 +3241,13 @@ function FixtureWeekCarouselCard({
                       }}
                     >
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                        <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={fixture.matchId ? undefined : fixture.homeLineupStatus} />
+                        <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={fixture.matchId ? undefined : homeLineupStatus} />
                         {hasScore ? (
                           <span className="rounded-lg bg-[#10233f] px-2 py-1 text-sm font-black text-white">{fixture.homeTeamScore}-{fixture.awayTeamScore}</span>
                         ) : (
                           <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
                         )}
-                        <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={fixture.matchId ? undefined : fixture.awayLineupStatus} />
+                        <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={fixture.matchId ? undefined : awayLineupStatus} />
                       </div>
                       {canManage ? (
                         <span className="justify-self-start rounded-lg px-3 py-2 text-xs font-extrabold uppercase text-white" style={{ backgroundColor: activeTeam.primaryColor }}>
@@ -3281,12 +3270,6 @@ function FixtureWeekCarouselCard({
                 );
               })}
             </div>
-            {onOpenLeague ? (
-              <Button className="w-full" onClick={onOpenLeague} style={{ backgroundColor: activeTeam.primaryColor }}>
-                <CalendarDays className="h-4 w-4" />
-                Open {activeTeam.league}
-              </Button>
-            ) : null}
             <div className="flex justify-center gap-1">
               {weeks.map((item, index) => (
                 <button
@@ -3753,6 +3736,11 @@ function FixtureTeamLabel({ teamName, align = "left", lineupStatus }: { teamName
       </div>
     </div>
   );
+}
+
+function visibleLineupStatus(status: "Draft" | "Published" | null, fixtureDate: string) {
+  if (status) return status;
+  return fixtureDate.slice(0, 10) === localIsoDate() ? null : undefined;
 }
 
 function lineupStatusLabel(status: "Draft" | "Published" | null) {
