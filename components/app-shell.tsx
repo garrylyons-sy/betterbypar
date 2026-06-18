@@ -358,7 +358,17 @@ function PageContent({
 
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Competitions") return <CompetitionsPage activeTeam={activeTeam} />;
-  if (activePage === "Fixtures") return <FixturesPage activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} />;
+  if (activePage === "Fixtures") {
+    return (
+      <FixturesPage
+        activeTeam={activeTeam}
+        matchResults={matchResults}
+        leagueTeamCount={leagueTeamCount}
+        onDataRefresh={onDataRefresh}
+        onTeamSummaryUpdate={onTeamSummaryUpdate}
+      />
+    );
+  }
   if (activePage === "Results") return <ResultsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} />;
   if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} standingsData={standingsData} matchResults={matchResults} />;
   if (activePage === "Players") return <PlayersPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
@@ -1823,7 +1833,7 @@ function PlayerHome({ activeTeam, playerGameResults, matchResults, onNavigate, l
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
       <div className="md:col-span-2">
-        <FixtureWeekCarouselCard activeTeam={activeTeam} />
+        <FixtureWeekCarouselCard activeTeam={activeTeam} onOpenLeague={() => onNavigate("Fixtures")} />
       </div>
       {panels.map(renderPanel)}
     </section>
@@ -2053,10 +2063,42 @@ function InterclubLeaguesPage({
   );
 }
 
-function FixturesPage({ activeTeam, matchResults, leagueTeamCount }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number }) {
+function FixturesPage({
+  activeTeam,
+  matchResults,
+  leagueTeamCount,
+  onDataRefresh,
+  onTeamSummaryUpdate
+}: {
+  activeTeam: TeamContext;
+  matchResults: MatchResult[];
+  leagueTeamCount: number;
+  onDataRefresh?: () => void;
+  onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
+}) {
+  const [selectedFixtureId, setSelectedFixtureId] = useState("");
+  const managerView = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
+
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <SeasonCompleteCard activeTeam={activeTeam} action="View match" leagueTeamCount={leagueTeamCount} />
+      <div className="md:col-span-2">
+        <FixtureWeekCarouselCard
+          activeTeam={activeTeam}
+          selectedFixtureId={selectedFixtureId}
+          onSelectFixture={managerView ? setSelectedFixtureId : undefined}
+        />
+      </div>
+      {managerView ? (
+        <div className="md:col-span-2">
+          <ManagerLineupCard
+            activeTeam={activeTeam}
+            preferredFixtureId={selectedFixtureId}
+            onDataRefresh={onDataRefresh}
+            onTeamSummaryUpdate={onTeamSummaryUpdate}
+          />
+        </div>
+      ) : null}
+      <SeasonCompleteCard activeTeam={activeTeam} action="View results" leagueTeamCount={leagueTeamCount} />
       <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
     </section>
   );
@@ -2249,20 +2291,40 @@ function ManagerHome({
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <div className="md:col-span-2">
-        <MatchPlanningCard activeTeam={activeTeam} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />
+        <MatchPlanningCard
+          activeTeam={activeTeam}
+          onDataRefresh={onDataRefresh}
+          onTeamSummaryUpdate={onTeamSummaryUpdate}
+          onOpenLeague={() => onNavigate("Fixtures")}
+        />
       </div>
       {panels.map(renderPanel)}
     </section>
   );
 }
 
-function MatchPlanningCard({ activeTeam, onDataRefresh, onTeamSummaryUpdate }: { activeTeam: TeamContext; onDataRefresh?: () => void; onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void }) {
+function MatchPlanningCard({
+  activeTeam,
+  onDataRefresh,
+  onTeamSummaryUpdate,
+  onOpenLeague
+}: {
+  activeTeam: TeamContext;
+  onDataRefresh?: () => void;
+  onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
+  onOpenLeague?: () => void;
+}) {
   const [selectedFixtureId, setSelectedFixtureId] = useState("");
   const managerView = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
 
   return (
     <div className="grid gap-4 md:col-span-2">
-      <FixtureWeekCarouselCard activeTeam={activeTeam} onSelectFixture={managerView ? setSelectedFixtureId : undefined} selectedFixtureId={selectedFixtureId} />
+      <FixtureWeekCarouselCard
+        activeTeam={activeTeam}
+        onSelectFixture={managerView ? setSelectedFixtureId : undefined}
+        selectedFixtureId={selectedFixtureId}
+        onOpenLeague={onOpenLeague}
+      />
       {managerView ? (
         <ManagerLineupCard
           activeTeam={activeTeam}
@@ -2864,11 +2926,13 @@ function fixtureStatusLabel(fixture: FixtureWeekFixture) {
 function FixtureWeekCarouselCard({
   activeTeam,
   selectedFixtureId,
-  onSelectFixture
+  onSelectFixture,
+  onOpenLeague
 }: {
   activeTeam: TeamContext;
   selectedFixtureId?: string;
   onSelectFixture?: (fixtureId: string) => void;
+  onOpenLeague?: () => void;
 }) {
   const [weeks, setWeeks] = useState<FixtureWeek[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -2936,7 +3000,7 @@ function FixtureWeekCarouselCard({
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex snap-x gap-2 overflow-x-auto pb-1">
+            <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-2 ring-1 ring-[#eeeaf2]">
               {week.fixtures.map((fixture) => {
                 const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                 const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
@@ -2944,32 +3008,34 @@ function FixtureWeekCarouselCard({
                 return (
                   <article
                     key={fixture.id}
-                    className={cn("min-w-[270px] snap-start overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]", fixture.isOwnFixture && "ring-2")}
+                    className={cn("overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]", fixture.isOwnFixture && "ring-2")}
                     style={fixture.isOwnFixture ? { boxShadow: `0 0 0 2px ${activeTeam.primaryColor}22` } : undefined}
                   >
                     <button
                       type="button"
-                      className="grid w-full gap-3 p-3 text-left"
+                      className="grid w-full gap-3 p-3 text-left transition-colors hover:bg-white/70"
                       onClick={() => {
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                         if (canManage) onSelectFixture?.(fixture.id);
                       }}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <Badge variant={fixture.isOwnFixture ? "green" : "muted"}>{fixtureStatusLabel(fixture)}</Badge>
-                        <span className="text-xs font-bold text-[#6c5a73]">{formatFixtureDate(fixture.fixtureDate)}</span>
-                      </div>
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                        <p className="min-w-0 break-words text-sm font-extrabold leading-tight text-[#10233f]">{fixture.homeTeamName}</p>
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-extrabold leading-tight text-[#10233f]">{fixture.homeTeamName}</p>
+                          {fixture.isOwnFixture ? <Badge variant="green">Your match</Badge> : null}
+                        </div>
                         {hasScore ? (
                           <span className="rounded-lg bg-[#10233f] px-2 py-1 text-sm font-black text-white">{fixture.homeTeamScore}-{fixture.awayTeamScore}</span>
                         ) : (
                           <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
                         )}
-                        <p className="min-w-0 break-words text-right text-sm font-extrabold leading-tight text-[#10233f]">{fixture.awayTeamName}</p>
+                        <div className="min-w-0 text-right">
+                          <p className="break-words text-sm font-extrabold leading-tight text-[#10233f]">{fixture.awayTeamName}</p>
+                          <Badge variant={fixtureStatusLabel(fixture) === "Result" ? "green" : "muted"}>{fixtureStatusLabel(fixture)}</Badge>
+                        </div>
                       </div>
                       {canManage ? (
-                        <span className="rounded-lg px-3 py-2 text-center text-xs font-extrabold uppercase text-white" style={{ backgroundColor: activeTeam.primaryColor }}>
+                        <span className="justify-self-start rounded-lg px-3 py-2 text-xs font-extrabold uppercase text-white" style={{ backgroundColor: activeTeam.primaryColor }}>
                           {fixture.matchId ? "Open match" : "Pick team"}
                         </span>
                       ) : null}
@@ -2989,6 +3055,12 @@ function FixtureWeekCarouselCard({
                 );
               })}
             </div>
+            {onOpenLeague ? (
+              <Button className="w-full" onClick={onOpenLeague} style={{ backgroundColor: activeTeam.primaryColor }}>
+                <CalendarDays className="h-4 w-4" />
+                Open {activeTeam.league}
+              </Button>
+            ) : null}
             <div className="flex justify-center gap-1">
               {weeks.map((item, index) => (
                 <button
