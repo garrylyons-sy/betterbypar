@@ -279,7 +279,7 @@ export function AppShell({
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={navigateToPage} menuItems={activeMenuItems} />
         <div className="grid gap-4">
           {clubOnlyView && activePage !== "Interclub Leagues" ? (
-            <ClubMemberHero activeTeam={activeTeam} />
+            <ClubMemberHero activeTeam={activeTeam} onNavigate={navigateToPage} />
           ) : (
             <MatchdayHero activeTeam={activeTeam} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} activeMatchCount={activeMatchCount} />
           )}
@@ -766,7 +766,7 @@ function teamHasActivity(team: TeamContext) {
   );
 }
 
-function ClubMemberHero({ activeTeam }: { activeTeam: TeamContext }) {
+function ClubMemberHero({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
   return (
     <section className="overflow-hidden rounded-[18px] text-white shadow-card">
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
@@ -789,11 +789,11 @@ function ClubMemberHero({ activeTeam }: { activeTeam: TeamContext }) {
           </div>
         </div>
         <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
-          <Button className="w-full">
+          <Button className="w-full" onClick={() => activeTeam.role === "Club Admin" ? window.location.assign("/admin") : onNavigate("Bookings")}>
             <CalendarPlus className="h-4 w-4" />
             {activeTeam.role === "Club Admin" ? "Open admin" : "Book table"}
           </Button>
-          <Button variant="secondary" className="w-full">
+          <Button variant="secondary" className="w-full" onClick={() => onNavigate("Messages")}>
             <MessageCircle className="h-4 w-4" />
             Messages
           </Button>
@@ -1904,6 +1904,16 @@ function PlayerHome({
 }
 
 function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; panels: AppearancePanelId[] }) {
+  const compactPanels = useMemo(() => {
+    if (activeTeam.role === "Club Member") {
+      return panels.filter((panel) => panel === "openCompetitions" || panel === "messages");
+    }
+    if (activeTeam.role === "Club Admin") {
+      return panels.filter((panel) => panel === "clubCompetitionAdmin" || panel === "openCompetitions" || panel === "messages" || panel === "interclubLeagues");
+    }
+    return panels;
+  }, [activeTeam.role, panels]);
+
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "clubAccess") {
       return (
@@ -2000,7 +2010,7 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      {panels.map(renderPanel)}
+      {compactPanels.map(renderPanel)}
     </section>
   );
 }

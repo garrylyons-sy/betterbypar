@@ -38,12 +38,12 @@ values
   ),
   (
     'Club Member',
-    '["clubAccess","openCompetitions","myCompetitionMatches","memberActions","messages"]'::jsonb,
+    '["openCompetitions","messages"]'::jsonb,
     '["Home","Bookings","Competitions","Messages"]'::jsonb
   ),
   (
     'Club Admin',
-    '["clubAccess","clubCompetitionAdmin","openCompetitions","myCompetitionMatches","memberActions","interclubLeagues","messages"]'::jsonb,
+    '["clubCompetitionAdmin","openCompetitions","interclubLeagues","messages"]'::jsonb,
     '["Home","Bookings","Competitions","Messages","Interclub Leagues"]'::jsonb
   )
 on conflict (role_type) do nothing;

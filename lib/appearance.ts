@@ -55,12 +55,12 @@ export const defaultAppearanceConfig: AppearanceConfig = {
   },
   "Club Member": {
     role: "Club Member",
-    panels: ["clubAccess", "openCompetitions", "myCompetitionMatches", "memberActions", "messages"],
+    panels: ["openCompetitions", "messages"],
     menuItems: ["Home", "Bookings", "Competitions", "Messages"]
   },
   "Club Admin": {
     role: "Club Admin",
-    panels: ["clubAccess", "clubCompetitionAdmin", "openCompetitions", "myCompetitionMatches", "memberActions", "interclubLeagues", "messages"],
+    panels: ["clubCompetitionAdmin", "openCompetitions", "interclubLeagues", "messages"],
     menuItems: ["Home", "Bookings", "Competitions", "Messages", "Interclub Leagues"]
   }
 };
