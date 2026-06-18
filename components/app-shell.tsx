@@ -2248,7 +2248,22 @@ function ManagerHome({
 }
 
 function MatchPlanningCard({ activeTeam, onDataRefresh, onTeamSummaryUpdate }: { activeTeam: TeamContext; onDataRefresh?: () => void; onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void }) {
-  return <ManagerLineupCard activeTeam={activeTeam} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
+  const [selectedFixtureId, setSelectedFixtureId] = useState("");
+  const managerView = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
+
+  return (
+    <div className="grid gap-4 md:col-span-2">
+      <FixtureWeekCarouselCard activeTeam={activeTeam} onSelectFixture={managerView ? setSelectedFixtureId : undefined} selectedFixtureId={selectedFixtureId} />
+      {managerView ? (
+        <ManagerLineupCard
+          activeTeam={activeTeam}
+          preferredFixtureId={selectedFixtureId}
+          onDataRefresh={onDataRefresh}
+          onTeamSummaryUpdate={onTeamSummaryUpdate}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panels, onNavigate }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number; panels: AppearancePanelId[]; onNavigate: (page: AppPage) => void }) {
@@ -2793,12 +2808,206 @@ const defaultLineupSlots: ManagerLineupSlot[] = [
   { slotNumber: 6, gameType: "Singles", label: "Singles 6", player1Id: "", player2Id: "" }
 ];
 
+type FixtureWeekFixture = {
+  id: string;
+  fixtureDate: string;
+  status: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  matchId: string | null;
+  homeTeamScore: number | null;
+  awayTeamScore: number | null;
+  homeLineupStatus: "Draft" | "Published" | null;
+  awayLineupStatus: "Draft" | "Published" | null;
+  completedGames: number;
+  totalGames: number;
+  isOwnFixture: boolean;
+};
+
+type FixtureWeek = {
+  id: string;
+  weekNumber: number;
+  weekLabel: string;
+  startsOn: string;
+  fixtures: FixtureWeekFixture[];
+};
+
+function weekDistanceFromToday(week: FixtureWeek) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const starts = new Date(`${week.startsOn}T00:00:00`);
+  const ends = new Date(starts);
+  ends.setDate(starts.getDate() + 6);
+  if (today >= starts && today <= ends) return 0;
+  return Math.abs(today.getTime() - starts.getTime());
+}
+
+function fixtureStatusLabel(fixture: FixtureWeekFixture) {
+  if (fixture.homeTeamScore !== null && fixture.awayTeamScore !== null) return "Result";
+  if (fixture.totalGames > 0) return `${fixture.completedGames}/${fixture.totalGames}`;
+  if (fixture.homeLineupStatus === "Published" && fixture.awayLineupStatus === "Published") return "Ready";
+  if (fixture.homeLineupStatus === "Published" || fixture.awayLineupStatus === "Published") return "Picked";
+  return fixture.status;
+}
+
+function FixtureWeekCarouselCard({
+  activeTeam,
+  selectedFixtureId,
+  onSelectFixture
+}: {
+  activeTeam: TeamContext;
+  selectedFixtureId?: string;
+  onSelectFixture?: (fixtureId: string) => void;
+}) {
+  const [weeks, setWeeks] = useState<FixtureWeek[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [expandedFixtureId, setExpandedFixtureId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setMessage("");
+    const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season });
+    if (activeTeam.teamId) params.set("teamId", activeTeam.teamId);
+    fetch(`/api/fixtures/weeks?${params.toString()}`, { credentials: "same-origin" })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Fixtures unavailable.");
+        return data;
+      })
+      .then((data) => {
+        if (!active) return;
+        const nextWeeks: FixtureWeek[] = data.weeks ?? [];
+        setWeeks(nextWeeks);
+        if (nextWeeks.length) {
+          const currentIndex = nextWeeks.reduce((bestIndex, week, index) =>
+            weekDistanceFromToday(week) < weekDistanceFromToday(nextWeeks[bestIndex]) ? index : bestIndex,
+          0);
+          setActiveIndex(currentIndex);
+        }
+      })
+      .catch((error) => {
+        if (active) setMessage(error instanceof Error ? error.message : "Fixtures unavailable.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeTeam.league, activeTeam.season, activeTeam.teamId]);
+
+  const week = weeks[activeIndex];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Fixtures / Results</CardTitle>
+        <Badge variant="muted">{activeTeam.league}</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        {message ? <p className="rounded-xl bg-[#fff8eb] p-3 text-sm font-semibold text-[#8a5a00] ring-1 ring-[#ffb00055]">{message}</p> : null}
+        {loading ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Loading fixtures...</p>
+        ) : week ? (
+          <>
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-2 ring-1 ring-[#eeeaf2]">
+              <Button size="icon" variant="secondary" onClick={() => setActiveIndex((index) => Math.max(0, index - 1))} disabled={activeIndex <= 0} aria-label="Previous week">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="min-w-0 text-center">
+                <p className="text-xs font-bold uppercase text-[#6c5a73]">{week.weekLabel}</p>
+                <p className="text-sm font-extrabold text-[#10233f]">{formatFixtureDate(week.startsOn)}</p>
+              </div>
+              <Button size="icon" variant="secondary" onClick={() => setActiveIndex((index) => Math.min(weeks.length - 1, index + 1))} disabled={activeIndex >= weeks.length - 1} aria-label="Next week">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex snap-x gap-2 overflow-x-auto pb-1">
+              {week.fixtures.map((fixture) => {
+                const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
+                const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
+                const canManage = Boolean(onSelectFixture && fixture.isOwnFixture);
+                return (
+                  <article
+                    key={fixture.id}
+                    className={cn("min-w-[270px] snap-start overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]", fixture.isOwnFixture && "ring-2")}
+                    style={fixture.isOwnFixture ? { boxShadow: `0 0 0 2px ${activeTeam.primaryColor}22` } : undefined}
+                  >
+                    <button
+                      type="button"
+                      className="grid w-full gap-3 p-3 text-left"
+                      onClick={() => {
+                        setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
+                        if (canManage) onSelectFixture?.(fixture.id);
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge variant={fixture.isOwnFixture ? "green" : "muted"}>{fixtureStatusLabel(fixture)}</Badge>
+                        <span className="text-xs font-bold text-[#6c5a73]">{formatFixtureDate(fixture.fixtureDate)}</span>
+                      </div>
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                        <p className="min-w-0 break-words text-sm font-extrabold leading-tight text-[#10233f]">{fixture.homeTeamName}</p>
+                        {hasScore ? (
+                          <span className="rounded-lg bg-[#10233f] px-2 py-1 text-sm font-black text-white">{fixture.homeTeamScore}-{fixture.awayTeamScore}</span>
+                        ) : (
+                          <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
+                        )}
+                        <p className="min-w-0 break-words text-right text-sm font-extrabold leading-tight text-[#10233f]">{fixture.awayTeamName}</p>
+                      </div>
+                      {canManage ? (
+                        <span className="rounded-lg px-3 py-2 text-center text-xs font-extrabold uppercase text-white" style={{ backgroundColor: activeTeam.primaryColor }}>
+                          {fixture.matchId ? "Open match" : "Pick team"}
+                        </span>
+                      ) : null}
+                    </button>
+                    {expanded ? (
+                      <div className="border-t border-[#eeeaf2] bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+                        {hasScore ? (
+                          <p>Final score: {fixture.homeTeamName} {fixture.homeTeamScore}, {fixture.awayTeamName} {fixture.awayTeamScore}</p>
+                        ) : fixture.totalGames > 0 ? (
+                          <p>{fixture.completedGames} of {fixture.totalGames} games completed.</p>
+                        ) : (
+                          <p>{fixture.isOwnFixture ? "Use the match workflow below for lineup and scores." : "Fixture scheduled. Scores will appear here once the match starts."}</p>
+                        )}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+            <div className="flex justify-center gap-1">
+              {weeks.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveIndex(index)}
+                  className={cn("h-2 w-6 rounded-full", index === activeIndex ? "bg-[#10233f]" : "bg-[#d8d3df]")}
+                  aria-label={`Go to ${item.weekLabel}`}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No fixtures are scheduled for {activeTeam.league}.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ManagerLineupCard({
   activeTeam,
+  preferredFixtureId,
   onDataRefresh,
   onTeamSummaryUpdate
 }: {
   activeTeam: TeamContext;
+  preferredFixtureId?: string;
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
@@ -2827,7 +3036,9 @@ function ManagerLineupCard({
       if (!activeTeam.teamId) return;
       if (firstLoad) setMessage("");
       try {
-        const response = await fetch(`/api/manager/lineup?teamId=${encodeURIComponent(activeTeam.teamId)}`, { credentials: "same-origin" });
+        const params = new URLSearchParams({ teamId: activeTeam.teamId });
+        if (preferredFixtureId) params.set("fixtureId", preferredFixtureId);
+        const response = await fetch(`/api/manager/lineup?${params.toString()}`, { credentials: "same-origin" });
         const data = await response.json().catch(() => ({}));
         if (cancelled) return;
         if (!response.ok) throw new Error(data.error || "Lineup unavailable.");
@@ -2862,7 +3073,7 @@ function ManagerLineupCard({
       cancelled = true;
       window.clearInterval(poll);
     };
-  }, [activeTeam.teamId]);
+  }, [activeTeam.teamId, preferredFixtureId]);
 
   function updateSlot(slotNumber: number, key: "player1Id" | "player2Id", value: string) {
     dirtyDraftRef.current = true;
