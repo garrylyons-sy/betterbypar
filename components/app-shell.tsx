@@ -784,7 +784,7 @@ function ClubMemberHero({ activeTeam }: { activeTeam: TeamContext }) {
             <p className="mt-2 text-sm font-semibold text-white/80">
               {activeTeam.role === "Club Admin"
                 ? "Manage members, invites, club competitions and table bookings."
-                : "Book tables, read club notices and manage your account."}
+                : "Book tables, enter competitions and receive club messages at your club."}
             </p>
           </div>
         </div>
@@ -1916,7 +1916,7 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
             <MiniStat label="Club" value={activeTeam.club.replace(" Golf Club", "")} />
             <MiniStat label="Access" value="Tables" />
             <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-              Club members can receive club messages and book tables at their club.
+              Club members can book tables, enter competitions and receive club messages at their club.
             </p>
           </CardContent>
         </Card>
