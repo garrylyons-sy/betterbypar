@@ -4027,8 +4027,10 @@ function PublishedLineupSummary({ title, slots }: { title: string; slots: Manage
   );
 }
 
-function ReadOnlyFixtureDetails({ fixture }: { fixture: { games: ManagerLineupGame[]; status: string; homeTeamId: string; awayTeamId: string } }) {
-  if (!fixture.games.length) {
+function ReadOnlyFixtureDetails({ fixture }: { fixture: { games?: ManagerLineupGame[]; status: string; homeTeamId: string; awayTeamId: string } }) {
+  const games = fixture.games ?? [];
+
+  if (!games.length) {
     return (
       <div className="rounded-xl bg-[#f7f5fa] p-3">
         <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Match details</p>
@@ -4048,7 +4050,7 @@ function ReadOnlyFixtureDetails({ fixture }: { fixture: { games: ManagerLineupGa
         </Badge>
       </div>
       <div className="mt-2 grid gap-2">
-        {fixture.games.map((game) => {
+        {games.map((game) => {
           const homeWon = game.winner_team_id === fixture.homeTeamId;
           const awayWon = game.winner_team_id === fixture.awayTeamId;
           return (
