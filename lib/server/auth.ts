@@ -51,7 +51,11 @@ async function publicOrigin() {
 }
 
 export async function googleRedirectUri() {
-  return process.env.GOOGLE_REDIRECT_URI || `${await publicOrigin()}/auth/google/callback`;
+  const origin = await publicOrigin();
+  if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
+    return `${origin}/auth/google/callback`;
+  }
+  return process.env.GOOGLE_REDIRECT_URI || `${origin}/auth/google/callback`;
 }
 
 export function createToken(bytes = 24) {
