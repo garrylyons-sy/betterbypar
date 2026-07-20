@@ -9,6 +9,23 @@ import { Button } from "@/components/ui/button";
 const ACCESS_PASSWORD = "sPectacular!87";
 const STORAGE_KEY = "interclub-snooker-access-granted";
 
+function hasStoredAccess() {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "true" || sessionStorage.getItem(STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function storeAccess() {
+  try {
+    localStorage.setItem(STORAGE_KEY, "true");
+    sessionStorage.setItem(STORAGE_KEY, "true");
+  } catch {
+    // If storage is unavailable, keep the current in-memory unlock only.
+  }
+}
+
 export function PasswordGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const embedBypass = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1";
@@ -18,7 +35,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setIsUnlocked(sessionStorage.getItem(STORAGE_KEY) === "true");
+    setIsUnlocked(hasStoredAccess());
     setIsReady(true);
   }, []);
 
@@ -26,7 +43,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
     event.preventDefault();
 
     if (password === ACCESS_PASSWORD) {
-      sessionStorage.setItem(STORAGE_KEY, "true");
+      storeAccess();
       setIsUnlocked(true);
       setError("");
       return;

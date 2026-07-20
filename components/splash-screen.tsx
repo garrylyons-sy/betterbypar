@@ -4,7 +4,7 @@ export function SplashScreen() {
       <div className="splash-glow absolute h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(123,199,214,0.24),transparent_70%)] blur-2xl" />
       <div className="absolute inset-0 splash-navy-gradient opacity-95" />
       <div className="relative flex w-full max-w-xs flex-col items-center px-8 text-center">
-        <div className="splash-logo-pop relative mb-5 grid h-36 w-36 place-items-center rounded-[28px] bg-white/8 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.28)] ring-1 ring-white/10">
+        <div className="splash-logo-pop relative mb-5 grid h-36 w-36 place-items-center p-1">
           <img
             src="/snooker-logo.png"
             alt=""
