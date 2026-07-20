@@ -1,16 +1,16 @@
 export function SplashScreen() {
   return (
     <div className="splash fixed inset-0 z-50 grid place-items-center overflow-hidden bg-[#071426] text-white">
-      <div className="splash-glow absolute h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(18,83,122,0.36),transparent_70%)] blur-2xl" />
+      <div className="splash-glow absolute h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(123,199,214,0.24),transparent_70%)] blur-2xl" />
       <div className="absolute inset-0 splash-navy-gradient opacity-95" />
       <div className="relative flex w-full max-w-xs flex-col items-center px-8 text-center">
-        <div className="relative mb-6 grid h-24 w-44 place-items-center">
-          <svg viewBox="0 0 190 92" className="h-24 w-44" aria-hidden="true">
-            <path className="fixture-line" d="M17 70 C 52 16, 112 16, 172 68" fill="none" stroke="#7BC7D6" strokeWidth="5" strokeLinecap="round" />
-            <circle cx="52" cy="42" r="12" fill="#fff" />
-            <circle cx="110" cy="26" r="10" fill="#D6B56D" />
-            <circle cx="154" cy="62" r="13" fill="#1B8A72" />
-          </svg>
+        <div className="splash-logo-pop relative mb-5 grid h-36 w-36 place-items-center rounded-[28px] bg-white/8 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.28)] ring-1 ring-white/10">
+          <img
+            src="/snooker-logo.png"
+            alt=""
+            className="h-full w-full object-contain drop-shadow-[0_12px_22px_rgba(0,0,0,0.35)]"
+            aria-hidden="true"
+          />
         </div>
         <div className="fade-up">
           <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#7bc7d6]">

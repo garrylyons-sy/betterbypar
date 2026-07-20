@@ -85,10 +85,8 @@ body {
   animation: splash-out 1.45s ease forwards;
 }
 
-.fixture-line {
-  stroke-dasharray: 260;
-  stroke-dashoffset: 260;
-  animation: draw-line 1.05s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+.splash-logo-pop {
+  animation: splash-logo-pop 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .loading-line {
@@ -108,7 +106,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .splash,
   .splash-glow,
-  .fixture-line,
+  .splash-logo-pop,
   .loading-line,
   .fade-up,
   .live-dot {
@@ -161,12 +159,6 @@ a.rounded-full {
   }
 }
 
-@keyframes draw-line {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
 @keyframes pulse-glow {
   from {
     opacity: 0.55;
@@ -175,6 +167,21 @@ a.rounded-full {
   to {
     opacity: 0.95;
     transform: scale(1.04);
+  }
+}
+
+@keyframes splash-logo-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(0) scale(1.04);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
