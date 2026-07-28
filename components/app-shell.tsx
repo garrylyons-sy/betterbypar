@@ -416,7 +416,7 @@ function PageContent({
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onNavigate={onNavigate} />;
   if (isClubOnlyRole(activeTeam.role)) return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
-  return <PlayerHome activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
+  return <PlayerHome activeTeam={activeTeam} standingsData={standingsData} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
 }
 
 function dedupePlayerGameResults(results: PlayerGameResult[]) {
@@ -1874,6 +1874,7 @@ function CompetitionScoreModal({
 
 function PlayerHome({
   activeTeam,
+  standingsData,
   playerGameResults,
   matchResults,
   onNavigate,
@@ -1882,6 +1883,7 @@ function PlayerHome({
   panels
 }: {
   activeTeam: TeamContext;
+  standingsData: Standing[];
   playerGameResults: PlayerGameResult[];
   matchResults: MatchResult[];
   onNavigate: (page: AppPage) => void;
@@ -1891,6 +1893,7 @@ function PlayerHome({
 }) {
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
+    if (panel === "leagueTableSnapshot") return <HomeLeagueTableCard key={panel} activeTeam={activeTeam} standingsData={standingsData} onNavigate={onNavigate} />;
     if (panel === "myStats") return <PlayerStatCard key={panel} activeTeam={activeTeam} playerGameResults={playerGameResults} />;
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
     if (panel === "personalRecentForm") return <PersonalRecentFormCard key={panel} playerGameResults={playerGameResults} />;
@@ -2624,6 +2627,55 @@ function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demo
             <MiniStat label="Lost" value={String(losses || "-")} dark />
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function HomeLeagueTableCard({ activeTeam, standingsData, onNavigate }: { activeTeam: TeamContext; standingsData: Standing[]; onNavigate: (page: AppPage) => void }) {
+  const rows = standingsData.length ? standingsData : standings.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
+
+  return (
+    <Card className="overflow-hidden md:col-span-2">
+      <CardHeader>
+        <CardTitle>My League Table</CardTitle>
+        <Badge variant="muted">{activeTeam.league}</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
+          <div className="grid grid-cols-[44px_minmax(0,1fr)_44px_56px_56px] gap-2 bg-[#f7f5fa] px-3 py-2 text-[11px] font-extrabold uppercase text-[#6c5a73]">
+            <span>Pos</span>
+            <span>Team</span>
+            <span className="text-right">P</span>
+            <span className="text-right">Diff</span>
+            <span className="text-right">Pts</span>
+          </div>
+          {rows.map((row) => {
+            const active = row.team === activeTeam.name;
+            return (
+              <div
+                key={`${row.season}-${row.league}-${row.team}`}
+                className={cn(
+                  "grid min-h-12 grid-cols-[44px_minmax(0,1fr)_44px_56px_56px] items-center gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-extrabold",
+                  active ? "bg-[#eef7f5]" : "bg-white"
+                )}
+                style={active ? { borderLeft: `5px solid ${activeTeam.primaryColor}` } : undefined}
+              >
+                <span className={cn("grid h-8 w-8 place-items-center rounded-lg", active ? "bg-[#10233f] text-white" : "bg-[#f0edf4] text-[#10233f]")}>
+                  {row.position}
+                </span>
+                <span className="min-w-0 whitespace-normal break-words leading-tight">{row.team}</span>
+                <span className="text-right">{row.played}</span>
+                <span className="text-right">{row.pointsFor - row.pointsAgainst > 0 ? "+" : ""}{row.pointsFor - row.pointsAgainst}</span>
+                <span className="text-right text-lg">{row.leaguePoints}</span>
+              </div>
+            );
+          })}
+        </div>
+        <Button variant="secondary" className="w-full" onClick={() => onNavigate("Table")}>
+          <Trophy className="h-4 w-4" />
+          Open table
+        </Button>
       </CardContent>
     </Card>
   );
@@ -4275,24 +4327,71 @@ function BreakEntrySheet({
 }
 
 function SquadManagementCard({ activeTeam }: { activeTeam: TeamContext }) {
+  const [players, setPlayers] = useState<Array<{ personId: string; name: string; played: number; won: number; lost: number; winPercentage: number; highestBreak: number | null }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    if (!activeTeam.teamId) {
+      setPlayers([]);
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+    setLoading(true);
+    setMessage("");
+    fetch(`/api/team/player-stats?teamId=${encodeURIComponent(activeTeam.teamId)}`, { credentials: "same-origin" })
+      .then((response) => response.json().then((data) => ({ response, data })))
+      .then(({ response, data }) => {
+        if (!active) return;
+        if (!response.ok) throw new Error(data.error || "Player stats unavailable.");
+        setPlayers(data.players ?? []);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setMessage(error instanceof Error ? error.message : "Player stats unavailable.");
+        setPlayers([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeTeam.teamId]);
+
   return (
-    <Card>
+    <Card className="md:col-span-2">
       <CardHeader>
-        <CardTitle>Squad</CardTitle>
-        <Badge variant="muted">{activeTeam.role}</Badge>
+        <CardTitle>Player Stats</CardTitle>
+        <Badge variant="muted">{loading ? "Loading" : `${players.length}`}</Badge>
       </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="rounded-xl bg-[#f7f5fa] p-3">
-          <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Team context</p>
-          <p className="mt-1 font-black">{activeTeam.name}</p>
-          <p className="mt-1 text-sm font-semibold text-[#6c5a73]">
-            Player availability, squad form and selection tools will be scoped to this team.
+      <CardContent className="grid gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_44px_44px_44px_58px_54px] gap-2 rounded-xl bg-[#f7f5fa] px-3 py-2 text-[11px] font-extrabold uppercase text-[#6c5a73]">
+          <span>Player</span>
+          <span className="text-right">P</span>
+          <span className="text-right">W</span>
+          <span className="text-right">L</span>
+          <span className="text-right">Win</span>
+          <span className="text-right">Break</span>
+        </div>
+        {players.map((player) => (
+          <div key={player.personId} className="grid min-h-12 grid-cols-[minmax(0,1fr)_44px_44px_44px_58px_54px] items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-bold ring-1 ring-[#eeeaf2]">
+            <span className="min-w-0 whitespace-normal break-words font-extrabold leading-tight">{player.name}</span>
+            <span className="text-right">{player.played}</span>
+            <span className="text-right text-[#0a6b45]">{player.won}</span>
+            <span className="text-right text-[#b42318]">{player.lost}</span>
+            <span className="text-right">{player.played ? `${player.winPercentage}%` : "-"}</span>
+            <span className="text-right">{player.highestBreak ?? "-"}</span>
+          </div>
+        ))}
+        {!players.length ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            {loading ? "Loading player stats..." : message || `No player stats are available for ${activeTeam.name} yet.`}
           </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <MiniStat label="League" value={activeTeam.league} />
-          <MiniStat label="Season" value={activeTeam.season} />
-        </div>
+        ) : null}
       </CardContent>
     </Card>
   );

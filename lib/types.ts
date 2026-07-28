@@ -1,6 +1,7 @@
 export type Role = "Player" | "Manager" | "Assistant Manager" | "Club Member" | "Club Admin";
 export type AppearancePanelId =
   | "teamStats"
+  | "leagueTableSnapshot"
   | "myStats"
   | "teamRecentForm"
   | "personalRecentForm"

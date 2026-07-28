@@ -23,12 +23,12 @@ insert into public.appearance (role_type, panel_config, menu_config)
 values
   (
     'Player',
-    '["matchPlanning","teamStats","myStats","teamRecentForm","personalRecentForm","individualGames"]'::jsonb,
+    '["matchPlanning","myStats","leagueTableSnapshot","teamStats","teamRecentForm","personalRecentForm","individualGames"]'::jsonb,
     '["Home","Fixtures","Table","Club"]'::jsonb
   ),
   (
     'Manager',
-    '["matchPlanning","managerActions","seasonComplete","teamRecentForm","squadManagement","managerSnapshot"]'::jsonb,
+    '["matchPlanning","squadManagement","managerActions","seasonComplete","teamRecentForm","managerSnapshot"]'::jsonb,
     '["Home","Fixtures","Table","Club","Results"]'::jsonb
   ),
   (

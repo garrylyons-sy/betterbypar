@@ -4,6 +4,7 @@ export const appearanceRoles: Role[] = ["Player", "Manager", "Assistant Manager"
 
 export const appearancePanelOptions: Array<{ id: AppearancePanelId; label: string; description: string; roles: Role[] }> = [
   { id: "teamStats", label: "Team stats", description: "League position, played, won and points.", roles: ["Player", "Manager", "Assistant Manager"] },
+  { id: "leagueTableSnapshot", label: "League table", description: "Full league table on the home page.", roles: ["Player"] },
   { id: "myStats", label: "My stats", description: "Personal win rate and played/won/lost.", roles: ["Player"] },
   { id: "teamRecentForm", label: "Recent team form", description: "Latest team results and form.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "personalRecentForm", label: "Recent personal form", description: "Latest individual games.", roles: ["Player"] },
@@ -41,12 +42,12 @@ export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string;
 export const defaultAppearanceConfig: AppearanceConfig = {
   Player: {
     role: "Player",
-    panels: ["matchPlanning", "teamStats", "myStats", "teamRecentForm", "personalRecentForm", "individualGames"],
+    panels: ["matchPlanning", "myStats", "leagueTableSnapshot", "teamStats", "teamRecentForm", "personalRecentForm", "individualGames"],
     menuItems: ["Home", "Fixtures", "Table", "Club"]
   },
   Manager: {
     role: "Manager",
-    panels: ["matchPlanning", "managerActions", "seasonComplete", "teamRecentForm", "squadManagement", "managerSnapshot"],
+    panels: ["matchPlanning", "squadManagement", "managerActions", "seasonComplete", "teamRecentForm", "managerSnapshot"],
     menuItems: ["Home", "Fixtures", "Table", "Club", "Results"]
   },
   "Assistant Manager": {
