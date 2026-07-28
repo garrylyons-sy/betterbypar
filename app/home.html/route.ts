@@ -26,9 +26,9 @@ function redirectWithAuthCode(request: NextRequest, code: string) {
 }
 
 function normalizeTestUser(value: string | null) {
-  const email = value?.trim().toLowerCase() ?? "";
-  if (!email || !email.includes("@")) return null;
-  return email;
+  const user = value?.trim().toLowerCase() ?? "";
+  if (!user) return null;
+  return user.includes("@") ? user : `${user}@notrealmail.com`;
 }
 
 export async function GET(request: NextRequest) {

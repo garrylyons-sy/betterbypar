@@ -79,9 +79,15 @@ export function AuthGateway() {
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const testUser = params.get("user")?.trim();
+    if (testUser) {
+      window.location.replace(`/home.html?user=${encodeURIComponent(testUser)}`);
+      return;
+    }
+
     refreshSession();
 
-    const params = new URLSearchParams(window.location.search);
     const inviteCode = params.get("invite") || params.get("code");
     if (window.location.pathname === "/activate") {
       setMode("activate");
@@ -166,6 +172,7 @@ export function AuthGateway() {
         <>
           {message ? <SessionBanner message={message} label={session.user?.name ?? session.user?.email ?? "Signed in"} /> : null}
           <AppShell
+            key={session.user?.email ?? session.user?.name ?? "signed-in"}
             contexts={contexts}
             standingsData={session.standings ?? []}
             playerGameResults={session.playerGameResults ?? []}
