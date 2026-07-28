@@ -255,7 +255,7 @@ export function AppShell({
   }, [activePage, activeTeam, onPageVisit]);
 
   return (
-    <main className="min-h-screen app-bg pb-24 text-[#10233f]">
+    <main className="min-h-screen overflow-x-hidden app-bg pb-24 text-[#10233f]">
       <Header
         activeTeam={activeTeam}
         contexts={visibleContexts.length ? visibleContexts : contexts}
@@ -462,8 +462,8 @@ function Header({
   const [accountOpen, setAccountOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6 lg:px-10">
-      <div className="mx-auto flex max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <header className="sticky top-0 z-30 w-full overflow-hidden bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6 lg:px-10">
+      <div className="mx-auto grid w-full max-w-[1440px] gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white p-1.5 shadow-[0_6px_16px_rgba(0,0,0,0.16)] ring-1 ring-white/25">
             <img src="/favicon.ico" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
@@ -481,8 +481,8 @@ function Header({
           </div>
         </div>
         <div className={cn(
-          "grid w-full gap-2 sm:w-auto",
-          showSeasonSwitcher ? "sm:min-w-[360px] sm:grid-cols-[130px_minmax(220px,1fr)]" : "sm:min-w-[260px]"
+          "grid min-w-0 w-full gap-2",
+          showSeasonSwitcher ? "sm:w-[390px] sm:grid-cols-[130px_minmax(0,1fr)]" : "sm:w-[270px]"
         )}>
           {showSeasonSwitcher ? <SeasonSwitcher seasons={seasons} selectedSeason={selectedSeason} onChange={onSeasonChange} /> : null}
           <ContextSwitcher
@@ -498,12 +498,12 @@ function Header({
             </div>
           ) : null}
         </div>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
+        <div className="flex min-w-0 items-center gap-2 sm:w-auto">
           {onSignOut ? (
             <button
               type="button"
               onClick={onSignOut}
-              className="ml-auto flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-3 text-sm font-bold text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6] sm:hidden"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 text-sm font-bold text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6] sm:hidden"
             >
               <LogOut className="h-4 w-4" />
               Log out
