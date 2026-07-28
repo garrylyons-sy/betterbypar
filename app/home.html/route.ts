@@ -1,10 +1,11 @@
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-import { recordLogin, setSessionCookie } from "@/lib/server/auth";
+import { clearSessionCookie, recordLogin, setSessionCookie } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type TestAccountRow = {
   account_id: string;
@@ -19,7 +20,9 @@ type TestAccountRow = {
 function redirectWithAuthCode(request: NextRequest, code: string) {
   const destination = new URL("/", request.url);
   destination.searchParams.set("auth", code);
-  return NextResponse.redirect(destination);
+  const response = NextResponse.redirect(destination);
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
 
 function normalizeTestUser(value: string | null) {
@@ -65,6 +68,7 @@ export async function GET(request: NextRequest) {
     return redirectWithAuthCode(request, "test-user-not-found");
   }
 
+  await clearSessionCookie();
   await setSessionCookie(account.account_id);
   await dbQuery("update public.user_account set last_login = now() where id = $1", [account.account_id]);
   await recordLogin(
@@ -80,5 +84,7 @@ export async function GET(request: NextRequest) {
     (await headers()).get("user-agent") ?? ""
   );
 
-  return NextResponse.redirect(new URL("/", request.url));
+  const response = NextResponse.redirect(new URL("/", request.url));
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }

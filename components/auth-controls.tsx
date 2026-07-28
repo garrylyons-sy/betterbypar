@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 
 export async function authJsonFetch<T>(url: string, init?: RequestInit) {
   const response = await fetch(url, {
+    cache: "no-store",
     credentials: "same-origin",
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
     ...init
