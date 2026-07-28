@@ -15,7 +15,6 @@ import {
   LogOut,
   Mail,
   Menu as MenuIcon,
-  MessageCircle,
   PlusCircle,
   Trophy,
   UserCircle,
@@ -31,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Bookings" | "Competitions" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
+type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member", "Club Admin"];
 const RECENT_FORM_LIMIT = 3;
@@ -48,6 +47,7 @@ const menuIconMap: Record<AppearanceMenuId | "Menu", typeof Home> = {
   Fixtures: CalendarDays,
   Results: ClipboardCheck,
   Table: Trophy,
+  Club: CalendarPlus,
   Bookings: CalendarPlus,
   Competitions: Trophy,
   Players: Users,
@@ -281,7 +281,7 @@ export function AppShell({
           {clubOnlyView && activePage !== "Interclub Leagues" ? (
             <ClubMemberHero activeTeam={activeTeam} onNavigate={navigateToPage} />
           ) : (
-            <MatchdayHero activeTeam={activeTeam} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} activeMatchCount={activeMatchCount} />
+            <MatchdayHero activeTeam={activeTeam} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} activeMatchCount={activeMatchCount} onNavigate={navigateToPage} />
           )}
           <PageContent
             activePage={activePage}
@@ -381,6 +381,7 @@ function PageContent({
     return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   }
 
+  if (activePage === "Club") return <ClubHubPage activeTeam={activeTeam} onNavigate={onNavigate} />;
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Competitions") return <CompetitionsPage activeTeam={activeTeam} />;
   if (activePage === "Fixtures") {
@@ -498,6 +499,16 @@ function Header({
           ) : null}
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto">
+          {onSignOut ? (
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="ml-auto flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-3 text-sm font-bold text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6] sm:hidden"
+            >
+              <LogOut className="h-4 w-4" />
+              Log out
+            </button>
+          ) : null}
           {userLabel ? (
             <div className="relative hidden sm:block">
               <button
@@ -689,7 +700,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { active
   );
 }
 
-function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, activeMatchCount = 0 }: { activeTeam: TeamContext; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number }) {
+function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, activeMatchCount = 0, onNavigate }: { activeTeam: TeamContext; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number; onNavigate: (page: AppPage) => void }) {
   const manager = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
   const clubMember = isClubOnlyRole(activeTeam.role);
   const hasTeamActivity = teamHasActivity(activeTeam);
@@ -740,13 +751,13 @@ function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, acti
           </div>
         </div>
         <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
-          <Button className="w-full">
+          <Button className="w-full" onClick={() => onNavigate(activeTeam.role === "Manager" ? "Fixtures" : activeTeam.role === "Club Admin" ? "Club" : activeTeam.role === "Club Member" ? "Bookings" : "Stats")}>
             <PlusCircle className="h-4 w-4" />
             {activeTeam.role === "Club Admin" ? "Admin tools" : clubMember ? "Book table" : activeTeam.role === "Assistant Manager" ? "Support team" : manager ? "Enter result" : "View stats"}
           </Button>
-          <Button variant="secondary" className="w-full">
-            <MessageCircle className="h-4 w-4" />
-            Message
+          <Button variant="secondary" className="w-full" onClick={() => onNavigate("Club")}>
+            <CalendarPlus className="h-4 w-4" />
+            Club
           </Button>
         </div>
       </div>
@@ -776,14 +787,14 @@ function ClubMemberHero({ activeTeam, onNavigate }: { activeTeam: TeamContext; o
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="cyan">{activeTeam.role}</Badge>
               <Badge variant="muted">Tables</Badge>
-              <Badge variant="muted">{activeTeam.role === "Club Admin" ? "Admin" : "Messages"}</Badge>
+              <Badge variant="muted">{activeTeam.role === "Club Admin" ? "Admin" : "Competitions"}</Badge>
             </div>
             <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">{activeTeam.role === "Club Admin" ? "Club admin home" : "Club home"}</p>
             <h2 className="mt-1 text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.club}</h2>
             <p className="mt-2 text-sm font-semibold text-white/80">
               {activeTeam.role === "Club Admin"
                 ? "Manage members, invites, club competitions and table bookings."
-                : "Book tables, enter competitions and receive club messages at your club."}
+                : "Book tables and enter club competitions."}
             </p>
           </div>
         </div>
@@ -792,9 +803,9 @@ function ClubMemberHero({ activeTeam, onNavigate }: { activeTeam: TeamContext; o
             <CalendarPlus className="h-4 w-4" />
             {activeTeam.role === "Club Admin" ? "Open admin" : "Book table"}
           </Button>
-          <Button variant="secondary" className="w-full" onClick={() => onNavigate("Messages")}>
-            <MessageCircle className="h-4 w-4" />
-            Messages
+          <Button variant="secondary" className="w-full" onClick={() => onNavigate("Competitions")}>
+            <Trophy className="h-4 w-4" />
+            Competitions
           </Button>
         </div>
       </div>
@@ -1007,7 +1018,6 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
             </div>
           </CardContent>
         </Card>
-        <MessagesPage activeTeam={activeTeam} compact />
       </section>
     );
   }
@@ -1902,13 +1912,48 @@ function PlayerHome({
   );
 }
 
+function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+  return (
+    <section className="grid gap-4 md:grid-cols-2">
+      <Card className="overflow-hidden md:col-span-2">
+        <CardContent className="pt-4">
+          <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+            <p className="text-xs font-extrabold uppercase text-white/65">Club</p>
+            <h2 className="mt-1 text-3xl font-black leading-none">{activeTeam.club}</h2>
+            <p className="mt-2 max-w-xl text-sm font-semibold text-white/75">
+              Table bookings and club competitions live here, separate from interclub team duties.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Club Actions</CardTitle>
+          <Badge variant="cyan">{activeTeam.club.replace(" Golf Club", "")}</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-2">
+          <Button className="w-full" onClick={() => onNavigate("Bookings")} style={{ backgroundColor: activeTeam.primaryColor }}>
+            <CalendarPlus className="h-4 w-4" />
+            Book table
+          </Button>
+          <Button variant="secondary" className="w-full" onClick={() => onNavigate("Competitions")}>
+            <Trophy className="h-4 w-4" />
+            Enter competitions
+          </Button>
+        </CardContent>
+      </Card>
+      <CompetitionPanel activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />
+    </section>
+  );
+}
+
 function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; panels: AppearancePanelId[] }) {
   const compactPanels = useMemo(() => {
     if (activeTeam.role === "Club Member") {
-      return panels.filter((panel) => panel === "openCompetitions" || panel === "messages");
+      return panels.filter((panel) => panel === "openCompetitions");
     }
     if (activeTeam.role === "Club Admin") {
-      return panels.filter((panel) => panel === "clubCompetitionAdmin" || panel === "openCompetitions" || panel === "messages" || panel === "interclubLeagues");
+      return panels.filter((panel) => panel === "clubCompetitionAdmin" || panel === "openCompetitions" || panel === "interclubLeagues");
     }
     return panels;
   }, [activeTeam.role, panels]);
@@ -1925,7 +1970,7 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
             <MiniStat label="Club" value={activeTeam.club.replace(" Golf Club", "")} />
             <MiniStat label="Access" value="Tables" />
             <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-              Club members can book tables, enter competitions and receive club messages at their club.
+              Club members can book tables and enter competitions at their club.
             </p>
           </CardContent>
         </Card>
@@ -2003,7 +2048,6 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
         </Card>
       );
     }
-    if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
     return null;
   };
 
@@ -2498,10 +2542,6 @@ function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panel
               <Users className="h-4 w-4" />
               Check squad
             </Button>
-            <Button variant="dark" className="w-full">
-              <Mail className="h-4 w-4" />
-              Message team
-            </Button>
             <Button variant="secondary" className="w-full">
               <CalendarPlus className="h-4 w-4" />
               Book table
@@ -2969,10 +3009,6 @@ function ManagerActionCard({ activeTeam }: { activeTeam: TeamContext }) {
           <Button className="w-full" style={{ backgroundColor: activeTeam.primaryColor }}>
             <ClipboardCheck className="h-4 w-4" />
             Review results
-          </Button>
-          <Button variant="dark" className="w-full">
-            <Mail className="h-4 w-4" />
-            Message squad
           </Button>
         </CardContent>
       </Card>

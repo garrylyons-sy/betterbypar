@@ -23,27 +23,27 @@ insert into public.appearance (role_type, panel_config, menu_config)
 values
   (
     'Player',
-    '["teamStats","myStats","teamRecentForm","personalRecentForm","individualGames","memberActions"]'::jsonb,
-    '["Home","Fixtures","Table","Bookings","Results","Players","Stats","Messages","Interclub Leagues"]'::jsonb
+    '["matchPlanning","teamStats","myStats","teamRecentForm","personalRecentForm","individualGames"]'::jsonb,
+    '["Home","Fixtures","Table","Club"]'::jsonb
   ),
   (
     'Manager',
-    '["managerActions","seasonComplete","teamRecentForm","squadManagement","managerSnapshot","memberActions"]'::jsonb,
-    '["Home","Fixtures","Table","Bookings","Results","Players","Stats","Messages","Interclub Leagues"]'::jsonb
+    '["matchPlanning","managerActions","seasonComplete","teamRecentForm","squadManagement","managerSnapshot"]'::jsonb,
+    '["Home","Fixtures","Table","Club","Results"]'::jsonb
   ),
   (
     'Assistant Manager',
-    '["assistantHub","seasonComplete","managerSnapshot","messages"]'::jsonb,
-    '["Home","Fixtures","Table","Bookings","Results","Players","Stats","Messages","Interclub Leagues"]'::jsonb
+    '["assistantHub","seasonComplete","managerSnapshot"]'::jsonb,
+    '["Home","Fixtures","Table","Club","Results"]'::jsonb
   ),
   (
     'Club Member',
-    '["openCompetitions","messages"]'::jsonb,
-    '["Home","Bookings","Competitions","Messages"]'::jsonb
+    '["openCompetitions"]'::jsonb,
+    '["Home","Bookings","Competitions"]'::jsonb
   ),
   (
     'Club Admin',
-    '["clubCompetitionAdmin","openCompetitions","interclubLeagues","messages"]'::jsonb,
-    '["Home","Bookings","Competitions","Messages","Interclub Leagues"]'::jsonb
+    '["clubCompetitionAdmin","openCompetitions","interclubLeagues"]'::jsonb,
+    '["Home","Competitions","Bookings","Interclub Leagues"]'::jsonb
   )
 on conflict (role_type) do nothing;
