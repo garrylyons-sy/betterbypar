@@ -27,6 +27,16 @@ type ScenarioResult = {
   detail: string;
 };
 
+type ActorRun = {
+  accountId: string;
+  personId: string;
+  name: string;
+  email: string | null;
+  isPlatformAdmin: boolean;
+  ok: boolean;
+  results: ScenarioResult[];
+};
+
 const scenarioLabels: Record<ScenarioId, string> = {
   session: "Load home/session payload",
   fixtures: "Load fixture weeks",
@@ -213,19 +223,80 @@ async function runScenario({
   };
 }
 
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await worker(items[currentIndex]);
+    }
+  }));
+
+  return results;
+}
+
+async function runActor({
+  actor,
+  origin,
+  scenarios
+}: {
+  actor: HarnessActor;
+  origin: string;
+  scenarios: ScenarioId[];
+}): Promise<ActorRun> {
+  const sessionId = await createTemporarySession(actor.account_id);
+  let sessionPayload: unknown = null;
+  const results: ScenarioResult[] = [];
+
+  try {
+    const orderedScenarios: ScenarioId[] = scenarios.includes("session") ? scenarios : ["session", ...scenarios];
+    for (const scenario of orderedScenarios) {
+      const run = await runScenario({ actor, origin, sessionId, scenario, sessionPayload });
+      if (scenario === "session") sessionPayload = run.sessionPayload ?? sessionPayload;
+      if (scenarios.includes(scenario)) results.push(run.result);
+    }
+  } catch (error) {
+    results.push({
+      scenario: "session",
+      label: "Actor test run",
+      ok: false,
+      status: 500,
+      durationMs: 0,
+      detail: error instanceof Error ? error.message : "Actor test failed."
+    });
+  } finally {
+    await cleanupTemporarySession(sessionId);
+  }
+
+  return {
+    accountId: actor.account_id,
+    personId: actor.person_id,
+    name: `${actor.first_name} ${actor.last_name}`.trim() || actor.username,
+    email: actor.email,
+    isPlatformAdmin: actor.is_platform_admin,
+    ok: results.every((result) => result.ok),
+    results
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!await isAllowed(request)) {
       return NextResponse.json({ error: "Test harness access requires localhost or a platform administrator." }, { status: 403 });
     }
 
-    const body = await request.json().catch(() => null) as { actorAccountIds?: unknown; scenarios?: unknown } | null;
+    const body = await request.json().catch(() => null) as { actorAccountIds?: unknown; scenarios?: unknown; concurrency?: unknown } | null;
     const actorAccountIds = Array.isArray(body?.actorAccountIds)
       ? body.actorAccountIds.filter((id): id is string => typeof id === "string")
       : [];
     const scenarios: ScenarioId[] = Array.isArray(body?.scenarios)
       ? body.scenarios.filter(isScenario)
       : ["session", "fixtures", "bookings", "competitions"] satisfies ScenarioId[];
+    const concurrency = Math.min(50, Math.max(1, Number(body?.concurrency) || 8));
 
     if (!actorAccountIds.length) {
       return NextResponse.json({ error: "Select at least one actor." }, { status: 400 });
@@ -254,31 +325,9 @@ export async function POST(request: NextRequest) {
     );
 
     const origin = request.nextUrl.origin;
-    const actorRuns = [];
-    for (const actor of actors.rows) {
-      const sessionId = await createTemporarySession(actor.account_id);
-      let sessionPayload: unknown = null;
-      const results: ScenarioResult[] = [];
-      try {
-        const orderedScenarios: ScenarioId[] = scenarios.includes("session") ? scenarios : ["session", ...scenarios];
-        for (const scenario of orderedScenarios) {
-          const run = await runScenario({ actor, origin, sessionId, scenario, sessionPayload });
-          if (scenario === "session") sessionPayload = run.sessionPayload ?? sessionPayload;
-          if (scenarios.includes(scenario)) results.push(run.result);
-        }
-      } finally {
-        await cleanupTemporarySession(sessionId);
-      }
-      actorRuns.push({
-        accountId: actor.account_id,
-        personId: actor.person_id,
-        name: `${actor.first_name} ${actor.last_name}`.trim() || actor.username,
-        email: actor.email,
-        isPlatformAdmin: actor.is_platform_admin,
-        ok: results.every((result) => result.ok),
-        results
-      });
-    }
+    const started = performance.now();
+    const actorRuns = await mapWithConcurrency(actors.rows, concurrency, (actor) => runActor({ actor, origin, scenarios }));
+    const totalDurationMs = Math.round(performance.now() - started);
 
     const allResults = actorRuns.flatMap((run) => run.results);
     const durations = allResults.map((result) => result.durationMs);
@@ -292,7 +341,9 @@ export async function POST(request: NextRequest) {
         passed: allResults.filter((result) => result.ok).length,
         failed: allResults.filter((result) => !result.ok).length,
         averageMs: durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : 0,
-        slowestMs: durations.length ? Math.max(...durations) : 0
+        slowestMs: durations.length ? Math.max(...durations) : 0,
+        totalDurationMs,
+        concurrency
       }
     });
   } catch (error) {

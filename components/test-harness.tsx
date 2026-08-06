@@ -50,6 +50,8 @@ type HarnessRun = {
     failed: number;
     averageMs: number;
     slowestMs: number;
+    totalDurationMs: number;
+    concurrency: number;
   };
 };
 
@@ -71,6 +73,7 @@ export function TestHarness() {
   const [roleFilter, setRoleFilter] = useState("All");
   const [durationMinutes, setDurationMinutes] = useState(3);
   const [intervalSeconds, setIntervalSeconds] = useState(20);
+  const [concurrency, setConcurrency] = useState(10);
   const [runs, setRuns] = useState<HarnessRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
@@ -143,7 +146,7 @@ export function TestHarness() {
     const response = await fetch("/api/test-harness/run-once", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ actorAccountIds: selectedActors, scenarios: selectedScenarios })
+      body: JSON.stringify({ actorAccountIds: selectedActors, scenarios: selectedScenarios, concurrency })
     });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || "Test tick failed.");
@@ -193,6 +196,10 @@ export function TestHarness() {
     setRemainingSeconds(0);
   }
 
+  function selectVisible(limit?: number) {
+    setSelectedActors(visibleActors.slice(0, limit ?? visibleActors.length).map((actor) => actor.accountId));
+  }
+
   return (
     <main className="min-h-screen bg-[#f5f3f8] px-4 py-5 text-[#10233f] sm:px-6 lg:px-8">
       <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
@@ -214,6 +221,10 @@ export function TestHarness() {
               <div className="grid grid-cols-2 gap-3">
                 <NumberField label="Minutes" value={durationMinutes} min={1} max={10} onChange={setDurationMinutes} />
                 <NumberField label="Every seconds" value={intervalSeconds} min={5} max={120} onChange={setIntervalSeconds} />
+              </div>
+              <NumberField label="Concurrent users" value={concurrency} min={1} max={50} onChange={setConcurrency} />
+              <div className="rounded-xl bg-[#f7f5fa] p-3 text-xs font-bold text-[#6c5a73] ring-1 ring-[#eeeaf2]">
+                Selected: {selectedActors.length} user(s). Each tick runs up to {concurrency} users at the same time, then starts the next batch.
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Button onClick={() => runOnce().catch((error) => setMessage(error.message))} variant="secondary" disabled={running || loading}>
@@ -291,6 +302,18 @@ export function TestHarness() {
                 ))}
               </div>
 
+              <div className="grid grid-cols-3 gap-2">
+                <Button onClick={() => selectVisible(50)} size="sm" variant="secondary" disabled={running || loading || !visibleActors.length}>
+                  First 50
+                </Button>
+                <Button onClick={() => selectVisible()} size="sm" variant="secondary" disabled={running || loading || !visibleActors.length}>
+                  All visible
+                </Button>
+                <Button onClick={() => setSelectedActors([])} size="sm" variant="secondary" disabled={running || loading || !selectedActors.length}>
+                  Clear
+                </Button>
+              </div>
+
               <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {visibleActors.map((actor) => {
                   const selected = selectedActors.includes(actor.accountId);
@@ -355,7 +378,7 @@ export function TestHarness() {
                         <p className="text-sm font-extrabold">{new Date(run.ranAt).toLocaleTimeString()}</p>
                       </div>
                       <p className="text-xs font-bold text-[#6c5a73]">
-                        {run.summary.passed}/{run.summary.checks} passed · avg {run.summary.averageMs} ms · slowest {run.summary.slowestMs} ms
+                        {run.summary.passed}/{run.summary.checks} passed · {run.summary.actors} users · concurrency {run.summary.concurrency} · total {run.summary.totalDurationMs} ms
                       </p>
                     </div>
                     <div className="mt-3 grid gap-2">
