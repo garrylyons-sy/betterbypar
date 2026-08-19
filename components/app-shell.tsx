@@ -2459,7 +2459,7 @@ function TablesPage({ activeTeam, standingsData, matchResults }: { activeTeam: T
   ];
 
   return (
-    <section className="grid gap-4">
+    <section className="grid gap-5">
       <Card>
         <CardHeader>
           <CardTitle>Tables</CardTitle>
@@ -2485,10 +2485,11 @@ function TablesPage({ activeTeam, standingsData, matchResults }: { activeTeam: T
             activeTeam={contextForLeague}
             standingsData={leagueStandings}
             matchResults={leagueResults}
+            presentation="section"
           />
         );
       }) : (
-        <LeagueTable activeTeam={activeTeam} standingsData={[]} matchResults={[]} />
+        <LeagueTable activeTeam={activeTeam} standingsData={[]} matchResults={[]} presentation="section" />
       )}
     </section>
   );
@@ -4780,18 +4781,37 @@ function ManagerSeasonSnapshot({ activeTeam = teamContexts[0], leagueTeamCount =
   );
 }
 
-function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeTeam: TeamContext; standingsData?: Standing[]; matchResults?: MatchResult[] }) {
+function LeagueTable({
+  activeTeam,
+  standingsData,
+  matchResults = [],
+  presentation = "compact"
+}: {
+  activeTeam: TeamContext;
+  standingsData?: Standing[];
+  matchResults?: MatchResult[];
+  presentation?: "compact" | "section";
+}) {
   const tableRows = standingsData ?? standings;
   const teamCount = tableRows.length;
   const showDirectFinal = teamCount >= 5 && teamCount <= 6;
   const showSemiFinals = teamCount >= 5;
+  const sectionMode = presentation === "section";
 
   return (
-    <Card className="min-w-0">
-      <CardHeader className="gap-2">
-        <CardTitle>League Table</CardTitle>
-        <div className="flex gap-2">
-          <Badge variant="muted">{activeTeam.league}</Badge>
+    <Card className={cn("min-w-0 overflow-hidden", sectionMode && "ring-1 ring-[#d9dfea]")}>
+      <CardHeader
+        className={cn(
+          "gap-2",
+          sectionMode && "border-b border-[#dce3ee] bg-[#10233f] text-white"
+        )}
+      >
+        <div>
+          {sectionMode ? <p className="text-xs font-extrabold uppercase tracking-wide text-white/60">League table</p> : null}
+          <CardTitle>{sectionMode ? activeTeam.league : "League Table"}</CardTitle>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {sectionMode ? <Badge variant="cyan">{tableRows.length} teams</Badge> : <Badge variant="muted">{activeTeam.league}</Badge>}
           {showDirectFinal ? <Badge variant="gold">Final</Badge> : null}
           {showSemiFinals ? <Badge variant="green">Semi</Badge> : null}
         </div>
