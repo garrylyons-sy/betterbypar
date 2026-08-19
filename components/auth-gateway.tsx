@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, Eye, KeyRound, Send, ShieldCheck, UserPlus } from "lucide-react";
+import { Send, UserPlus } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthSelectField, AuthSignInForm, AuthTextAreaField, AuthTextField, GoogleAuthButton, authJsonFetch } from "@/components/auth-controls";
@@ -57,7 +57,6 @@ const demoTeamOptions: TeamOption[] = clubTeamStructure.flatMap((club) =>
 
 export function AuthGateway() {
   const [mode, setMode] = useState<AuthMode>("signin");
-  const [previewDashboard, setPreviewDashboard] = useState(false);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [message, setMessage] = useState("");
@@ -158,15 +157,6 @@ export function AuthGateway() {
 
   if (loading) return <SplashScreen />;
 
-  if (previewDashboard) {
-    return (
-      <>
-        <DemoAuthNotice />
-        <AppShell />
-      </>
-    );
-  }
-
   if (session?.authenticated) {
     const contexts = embeddedTestContexts(session.contexts ?? [], teamOptions, session.standings ?? []);
     if (contexts.length > 0) {
@@ -196,11 +186,8 @@ export function AuthGateway() {
   return (
     <AuthHome
       mode={mode}
-      setMode={setMode}
-      teamOptions={teamOptions}
       activationInvite={activationInvite}
       message={message}
-      onPreviewDashboard={() => setPreviewDashboard(true)}
       onSignedIn={refreshSession}
     />
   );
@@ -300,49 +287,33 @@ function normalizeEmbeddedRole(value: string | null): Role | null {
 
 function AuthHome({
   mode,
-  setMode,
-  teamOptions,
   activationInvite,
   message,
-  onPreviewDashboard,
   onSignedIn
 }: {
   mode: AuthMode;
-  setMode: (mode: AuthMode) => void;
-  teamOptions: TeamOption[];
   activationInvite: ActivationInvite | null;
   message: string;
-  onPreviewDashboard: () => void;
   onSignedIn: () => void;
 }) {
-  return (
-    <main className="min-h-screen bg-[#f7f5fa] text-[#25002b]">
-      <section className="mx-auto grid min-h-screen w-full max-w-[1180px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[1fr_460px] lg:items-center lg:px-10">
-        <div className="rounded-[18px] bg-[#10233f] p-5 text-white shadow-elevated sm:p-7">
-          <Badge variant="cyan">Player access</Badge>
-          <h1 className="mt-5 text-3xl font-extrabold leading-tight sm:text-4xl">
-            Interclub Snooker
-          </h1>
-          <p className="mt-3 max-w-xl text-base font-semibold text-white/75">
-            Sign in, activate an invite, or request player access for your club and team. Manager roles are assigned through backend membership management only.
-          </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <AuthFeature icon={ShieldCheck} label="Club linked" />
-            <AuthFeature icon={CheckCircle2} label="Team roles" />
-            <AuthFeature icon={KeyRound} label="App-owned login" />
-          </div>
-          <Button className="mt-6" variant="secondary" onClick={onPreviewDashboard}>
-            <Eye className="h-4 w-4" />
-            Preview dashboard
-          </Button>
-        </div>
+  const activating = mode === "activate";
 
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#f7f5fa] px-4 py-6 text-[#25002b]">
+      <section className="w-full max-w-md">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#10233f] p-1.5 shadow-card">
+            <img src="/favicon.ico" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase text-[#6c5a73]">Interclub Snooker</p>
+            <h1 className="text-2xl font-extrabold leading-tight">{activating ? "Activate account" : "Sign in"}</h1>
+          </div>
+        </div>
         <Card>
           <CardHeader>
-            <CardTitle>{mode === "signin" ? "Sign in" : mode === "activate" ? "Activate invite" : "Request invite"}</CardTitle>
-            <Badge variant={mode === "request" ? "cyan" : mode === "signin" ? "muted" : "green"}>
-              {mode === "request" ? "Player only" : mode === "signin" ? "Existing user" : "Invited user"}
-            </Badge>
+            <CardTitle>{activating ? "Invitation details" : "Existing account"}</CardTitle>
+            <Badge variant={activating ? "green" : "muted"}>{activating ? "Invited user" : "Administrator set up"}</Badge>
           </CardHeader>
           <CardContent>
             {message ? (
@@ -350,37 +321,25 @@ function AuthHome({
                 {message}
               </div>
             ) : null}
-            <div className="mb-4 grid grid-cols-3 rounded-xl bg-[#eeeaf2] p-1">
-              {(["signin", "activate", "request"] as AuthMode[]).map((item) => (
-                <button
-                  key={item}
-                  className={`min-h-11 rounded-lg text-sm font-bold ${mode === item ? "bg-[#10233f] text-white" : "text-[#25002b]"}`}
-                  onClick={() => setMode(item)}
-                >
-                  {item === "signin" ? "Sign in" : item === "activate" ? "Activate" : "Request"}
-                </button>
-              ))}
-            </div>
-            {mode === "signin" ? (
-              <AuthSignInForm onSignedIn={onSignedIn} />
-            ) : mode === "activate" ? (
+            {activating ? (
               <ActivateForm invite={activationInvite} onSignedIn={onSignedIn} />
             ) : (
-              <RequestInviteForm teamOptions={teamOptions} />
+              <div className="grid gap-4">
+                <p className="text-sm font-semibold text-[#6c5a73]">
+                  Accounts must be created by an administrator before you can sign in.
+                </p>
+                <AuthSignInForm onSignedIn={onSignedIn} />
+              </div>
             )}
           </CardContent>
         </Card>
+        {!activating ? (
+          <p className="mt-4 text-center text-xs font-semibold text-[#6c5a73]">
+            New users should use the invite link sent by their club or league administrator.
+          </p>
+        ) : null}
       </section>
     </main>
-  );
-}
-
-function AuthFeature({ icon: Icon, label }: { icon: typeof ShieldCheck; label: string }) {
-  return (
-    <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/15">
-      <Icon className="h-5 w-5 text-[#7bc7d6]" />
-      <p className="mt-2 text-sm font-bold">{label}</p>
-    </div>
   );
 }
 

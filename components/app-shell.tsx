@@ -304,7 +304,6 @@ export function AppShell({
         {showLeaguePanels ? (
           <aside className="grid gap-4 lg:content-start">
             {activePage !== "Table" ? <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} matchResults={activeMatchResults} /> : null}
-            <ClubTeamStructureCard />
           </aside>
         ) : null}
       </section>
