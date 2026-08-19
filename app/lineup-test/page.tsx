@@ -8,7 +8,7 @@ export default function LineupTestPage() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const castleSrc = `${appOrigin}/?team=castle%20a&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`;
-  const grangeSrc = `${appOrigin}/?team=grange%20a&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`;
+  const dunLaoghaireSrc = `${appOrigin}/?team=dun%20laoghaire%20a&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`;
 
   async function resetMatch() {
     setBusy(true);
@@ -31,7 +31,7 @@ export default function LineupTestPage() {
       <header className="mx-auto mb-4 flex max-w-[1600px] flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase text-white/55">Lineup workflow test</p>
-          <h1 className="text-2xl font-extrabold">Castle A Manager vs Grange A Manager</h1>
+          <h1 className="text-2xl font-extrabold">Castle A Manager vs Dun Laoghaire A Manager</h1>
         </div>
         <p className="max-w-xl text-sm font-semibold text-white/70">
           Both panes use interclubsnooker.com. If you need to sign in, use Google once in a pane and the login will open as the main page before returning to the app.
@@ -50,7 +50,7 @@ export default function LineupTestPage() {
       </header>
       <section className="mx-auto grid max-w-[1600px] gap-4 xl:grid-cols-2">
         <TestFrame key={`castle-${frameVersion}`} title="Castle A - Manager" src={castleSrc} />
-        <TestFrame key={`grange-${frameVersion}`} title="Grange A - Manager" src={grangeSrc} />
+        <TestFrame key={`dun-laoghaire-${frameVersion}`} title="Dun Laoghaire A - Manager" src={dunLaoghaireSrc} />
       </section>
     </main>
   );
