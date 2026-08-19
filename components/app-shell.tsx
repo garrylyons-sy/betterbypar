@@ -279,9 +279,9 @@ export function AppShell({
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={navigateToPage} menuItems={activeMenuItems} />
         <div className="grid gap-4">
           {clubOnlyView && activePage !== "Interclub Leagues" ? (
-            <ClubMemberHero activeTeam={activeTeam} onNavigate={navigateToPage} />
+            <ClubMemberHero activeTeam={activeTeam} userLabel={userLabel} onNavigate={navigateToPage} />
           ) : (
-            <MatchdayHero activeTeam={activeTeam} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} activeMatchCount={activeMatchCount} onNavigate={navigateToPage} />
+            <MatchdayHero activeTeam={activeTeam} userLabel={userLabel} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} activeMatchCount={activeMatchCount} onNavigate={navigateToPage} />
           )}
           <PageContent
             activePage={activePage}
@@ -704,7 +704,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { active
   );
 }
 
-function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, activeMatchCount = 0, onNavigate }: { activeTeam: TeamContext; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number; onNavigate: (page: AppPage) => void }) {
+function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = false, activeMatchCount = 0, onNavigate }: { activeTeam: TeamContext; userLabel?: string; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number; onNavigate: (page: AppPage) => void }) {
   const manager = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
   const clubMember = isClubOnlyRole(activeTeam.role);
   const hasTeamActivity = teamHasActivity(activeTeam);
@@ -746,6 +746,11 @@ function MatchdayHero({ activeTeam, leagueTeamCount, interclubView = false, acti
               </p>
               <h2 className="mt-1 text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.name}</h2>
               <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
+              {userLabel ? (
+                <p className="mt-1 truncate text-xs font-bold text-white/65">
+                  Signed in: {userLabel}
+                </p>
+              ) : null}
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -780,7 +785,7 @@ function teamHasActivity(team: TeamContext) {
   );
 }
 
-function ClubMemberHero({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+function ClubMemberHero({ activeTeam, userLabel, onNavigate }: { activeTeam: TeamContext; userLabel?: string; onNavigate: (page: AppPage) => void }) {
   return (
     <section className="overflow-hidden rounded-[18px] text-white shadow-card">
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
@@ -800,6 +805,11 @@ function ClubMemberHero({ activeTeam, onNavigate }: { activeTeam: TeamContext; o
                 ? "Manage members, invites, club competitions and table bookings."
                 : "Book tables and enter club competitions."}
             </p>
+            {userLabel ? (
+              <p className="mt-1 truncate text-xs font-bold text-white/65">
+                Signed in: {userLabel}
+              </p>
+            ) : null}
           </div>
         </div>
         <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
