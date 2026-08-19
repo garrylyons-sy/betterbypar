@@ -1933,7 +1933,7 @@ function PlayerHome({
     if (panel === "myStats") {
       return (
         <Fragment key={panel}>
-          <PlayerStatCard activeTeam={activeTeam} playerGameResults={playerGameResults} />
+          <PlayerStatCard activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} />
           {playerBreakStat ? <HighBreakSeasonCard activeTeam={activeTeam} breakStat={playerBreakStat} /> : null}
         </Fragment>
       );
@@ -2411,7 +2411,7 @@ function StatsPage({
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <PlayerStatCard activeTeam={activeTeam} playerGameResults={playerGameResults} />
+      <PlayerStatCard activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} />
       {playerBreakStat ? <HighBreakSeasonCard activeTeam={activeTeam} breakStat={playerBreakStat} /> : null}
       <TeamPositionStrip activeTeam={activeTeam} />
       <PlayerGameResultsCard results={playerGameResults} />
@@ -2660,27 +2660,41 @@ function TeamStatsCard({ activeTeam, onNavigate, leagueTeamCount }: { activeTeam
   );
 }
 
-function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demoPlayerGameResults }: { activeTeam?: TeamContext; playerGameResults?: PlayerGameResult[] }) {
+function PlayerStatCard({
+  activeTeam = teamContexts[0],
+  playerBreakStat,
+  playerGameResults = demoPlayerGameResults
+}: {
+  activeTeam?: TeamContext;
+  playerBreakStat?: PlayerBreakStat | null;
+  playerGameResults?: PlayerGameResult[];
+}) {
   const wins = playerGameResults.filter((result) => result.result === "Won").length;
   const losses = playerGameResults.filter((result) => result.result === "Lost").length;
   const played = playerGameResults.length;
   const winRate = played ? Math.round((wins / played) * 100) : 0;
   const recentForm = playerGameResults.slice(0, RECENT_FORM_LIMIT).map((fixture) => fixture.result === "Won" ? "W" : "L").join(" ");
+  const miniStats = [
+    { label: "Played", value: String(played || "-") },
+    { label: "Won", value: String(wins || "-") },
+    { label: "Lost", value: String(losses || "-") },
+    ...(playerBreakStat ? [{ label: "High break", value: String(playerBreakStat.highestBreak) }] : [])
+  ];
 
   return (
     <Card className="overflow-hidden">
       <CardHeader>
         <CardTitle>My Stats</CardTitle>
-        <Badge variant="green">{recentForm || "-"}</Badge>
+        <Badge variant={playerBreakStat ? "cyan" : "green"}>{playerBreakStat ? `High break ${playerBreakStat.highestBreak}` : recentForm || "-"}</Badge>
       </CardHeader>
       <CardContent>
         <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
           <p className="text-xs font-extrabold uppercase text-white/65">Personal win rate</p>
           <p className="mt-1 text-6xl font-black leading-none">{played ? `${winRate}%` : "-"}</p>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <MiniStat label="Played" value={String(played || "-")} dark />
-            <MiniStat label="Won" value={String(wins || "-")} dark />
-            <MiniStat label="Lost" value={String(losses || "-")} dark />
+          <div className={cn("mt-4 grid gap-2", miniStats.length > 3 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
+            {miniStats.map((stat) => (
+              <MiniStat key={stat.label} label={stat.label} value={stat.value} dark />
+            ))}
           </div>
         </div>
       </CardContent>
