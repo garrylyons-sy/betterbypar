@@ -1,6 +1,6 @@
 "use client";
 
-const mobileSrc = `/?testUser=${encodeURIComponent("garlyons@gmail.com")}&team=${encodeURIComponent("castle a")}&role=player&season=2026%2F27&embed=1&isolate=1`;
+const mobileSrc = `/?testUser=${encodeURIComponent("garlyons@gmail.com")}&embed=1&isolate=1`;
 
 export default function GarryMobilePage() {
   return (
