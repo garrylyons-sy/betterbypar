@@ -56,6 +56,8 @@ export type PlayerGameResult = {
   playerId: string;
   opponentId: string;
   opponentName: string;
+  opponentNames?: string[];
+  partnerName?: string | null;
   result: "Won" | "Lost";
   sourceWeek: string;
   homeTeamName: string;
@@ -63,6 +65,7 @@ export type PlayerGameResult = {
   matchScore: string;
   gameNumber: number;
   gameOrdinal: number;
+  gameType?: "Singles" | "Doubles" | null;
   isDoublesPartnerRow: boolean;
 };
 

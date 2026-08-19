@@ -3160,15 +3160,20 @@ function PersonalRecentFormCard({ playerGameResults }: { playerGameResults: Play
         <Badge variant="cyan">Last {RECENT_FORM_LIMIT}</Badge>
       </CardHeader>
       <CardContent className="space-y-2">
-        {visibleGames.map((game) => (
-          <div key={game.gameId} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3">
-            <div className="min-w-0">
-              <p className="truncate font-black">v {game.opponentName}</p>
-              <p className="truncate text-xs font-semibold text-[#6c5a73]">{game.sourceWeek} - Game {game.gameNumber}</p>
+        {visibleGames.map((game) => {
+          const matchup = personalGameMatchupLabel(game);
+          return (
+            <div key={game.gameId} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3">
+              <div className="min-w-0">
+                <p className="break-words font-black leading-tight">{matchup.title}</p>
+                <p className="mt-0.5 truncate text-xs font-semibold text-[#6c5a73]">
+                  {game.sourceWeek} - Game {game.gameNumber}{matchup.detail ? ` - ${matchup.detail}` : ""}
+                </p>
+              </div>
+              <Badge variant={game.result === "Won" ? "green" : "red"}>{game.result}</Badge>
             </div>
-            <Badge variant={game.result === "Won" ? "green" : "red"}>{game.result}</Badge>
-          </div>
-        ))}
+          );
+        })}
         {visibleGames.length === 0 ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
             Your personal match history will appear here once your account is linked.
@@ -3193,17 +3198,20 @@ function PlayerGameResultsCard({ results }: { results: PlayerGameResult[] }) {
         <Badge variant="cyan">{results.length ? `${winRate}% win rate` : "No games yet"}</Badge>
       </CardHeader>
       <CardContent className="space-y-2">
-        {visibleResults.map((game) => (
-          <div key={game.gameId} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3">
-            <div className="min-w-0">
-              <p className="truncate font-black">v {game.opponentName}</p>
-              <p className="truncate text-xs font-semibold text-[#6c5a73]">
-                {game.sourceWeek} - Game {game.gameNumber} - {game.homeTeamName} {game.matchScore} {game.awayTeamName}
-              </p>
+        {visibleResults.map((game) => {
+          const matchup = personalGameMatchupLabel(game);
+          return (
+            <div key={game.gameId} className="grid min-h-16 grid-cols-[1fr_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3">
+              <div className="min-w-0">
+                <p className="break-words font-black leading-tight">{matchup.title}</p>
+                <p className="mt-0.5 break-words text-xs font-semibold leading-snug text-[#6c5a73]">
+                  {matchup.detail ? `${matchup.detail} - ` : ""}{game.sourceWeek} - Game {game.gameNumber} - {game.homeTeamName} {game.matchScore} {game.awayTeamName}
+                </p>
+              </div>
+              <Badge variant={game.result === "Won" ? "green" : "red"}>{game.result}</Badge>
             </div>
-            <Badge variant={game.result === "Won" ? "green" : "red"}>{game.result}</Badge>
-          </div>
-        ))}
+          );
+        })}
         {results.length === 0 ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
             Imported player game results will appear here once this account is linked to player history.
@@ -4960,6 +4968,20 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 truncate text-2xl font-extrabold leading-none text-white sm:text-3xl">{value}</p>
     </div>
   );
+}
+
+function personalGameMatchupLabel(game: PlayerGameResult) {
+  const opponents = game.opponentNames?.length ? game.opponentNames : [game.opponentName].filter(Boolean);
+  if (game.gameType === "Doubles" && game.partnerName && opponents.length) {
+    return {
+      title: `with ${game.partnerName} v ${opponents.join(" / ")}`,
+      detail: "Doubles"
+    };
+  }
+  return {
+    title: `v ${game.opponentName}`,
+    detail: game.gameType === "Doubles" ? "Doubles" : ""
+  };
 }
 
 function MiniStat({ label, value, dark = false }: { label: string; value: string; dark?: boolean }) {

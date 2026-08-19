@@ -816,37 +816,69 @@ export async function loadSessionPayload(user: AppUser) {
     away_team_score: number | null;
     game_number: number | null;
     game_ordinal: number | null;
+    game_type: "Singles" | "Doubles" | null;
+    home_player_1_id: string | null;
+    home_player_1_name: string | null;
+    home_player_2_id: string | null;
+    home_player_2_name: string | null;
+    away_player_1_id: string | null;
+    away_player_1_name: string | null;
+    away_player_2_id: string | null;
+    away_player_2_name: string | null;
     is_doubles_partner_row: boolean;
     source_key: string;
   }>(
     `select
-       game_id,
-       season_name,
-       league_name,
-       player_1_id,
-       player_1_name,
-       player_2_id,
-       player_2_name,
-       result,
-       source_week,
-       home_team_name,
-       home_team_score,
-       away_team_name,
-       away_team_score,
-       game_number,
-       game_ordinal,
-       is_doubles_partner_row,
-       source_key
-     from public.player_game_result_view
+       pgrv.game_id,
+       pgrv.season_name,
+       pgrv.league_name,
+       pgrv.player_1_id,
+       pgrv.player_1_name,
+       pgrv.player_2_id,
+       pgrv.player_2_name,
+       pgrv.result,
+       pgrv.source_week,
+       pgrv.home_team_name,
+       pgrv.home_team_score,
+       pgrv.away_team_name,
+       pgrv.away_team_score,
+       pgrv.game_number,
+       pgrv.game_ordinal,
+       g.game_type::text as game_type,
+       g.home_player_1_id,
+       concat_ws(' ', hp1.first_name, hp1.last_name) as home_player_1_name,
+       g.home_player_2_id,
+       concat_ws(' ', hp2.first_name, hp2.last_name) as home_player_2_name,
+       g.away_player_1_id,
+       concat_ws(' ', ap1.first_name, ap1.last_name) as away_player_1_name,
+       g.away_player_2_id,
+       concat_ws(' ', ap2.first_name, ap2.last_name) as away_player_2_name,
+       pgrv.is_doubles_partner_row,
+       pgrv.source_key
+     from public.player_game_result_view pgrv
+     left join public.game g on g.id = pgrv.game_id
+     left join public.person hp1 on hp1.id = g.home_player_1_id
+     left join public.person hp2 on hp2.id = g.home_player_2_id
+     left join public.person ap1 on ap1.id = g.away_player_1_id
+     left join public.person ap2 on ap2.id = g.away_player_2_id
      where
-       (source_key like 'live-%' and player_1_id = $1)
-       or (source_key not like 'live-%' and (player_1_id = $1 or player_2_id = $1))
-     order by source_fixture_index desc, game_ordinal
+       (pgrv.source_key like 'live-%' and pgrv.player_1_id = $1)
+       or (pgrv.source_key not like 'live-%' and (pgrv.player_1_id = $1 or pgrv.player_2_id = $1))
+     order by pgrv.source_fixture_index desc, pgrv.game_ordinal
      limit 120`,
     [user.personId]
   )).rows.map((row) => {
     const isPlayerOne = row.player_1_id === user.personId;
     const won = isPlayerOne ? row.result === 1 : row.result === 0;
+    const isHomePlayer = row.home_player_1_id === user.personId || row.home_player_2_id === user.personId;
+    const partnerName = row.game_type === "Doubles"
+      ? isHomePlayer
+        ? row.home_player_1_id === user.personId ? row.home_player_2_name : row.home_player_1_name
+        : row.away_player_1_id === user.personId ? row.away_player_2_name : row.away_player_1_name
+      : null;
+    const opponentNames = row.game_type === "Doubles"
+      ? (isHomePlayer ? [row.away_player_1_name, row.away_player_2_name] : [row.home_player_1_name, row.home_player_2_name]).filter(Boolean) as string[]
+      : [isPlayerOne ? row.player_2_name : row.player_1_name].filter(Boolean) as string[];
     return {
       gameId: row.game_id,
       season: row.season_name,
@@ -854,6 +886,8 @@ export async function loadSessionPayload(user: AppUser) {
       playerId: user.personId,
       opponentId: isPlayerOne ? row.player_2_id : row.player_1_id,
       opponentName: isPlayerOne ? row.player_2_name : row.player_1_name,
+      opponentNames,
+      partnerName,
       result: won ? "Won" : "Lost",
       sourceWeek: row.source_week ?? "2025/26",
       homeTeamName: row.home_team_name ?? "Home",
@@ -861,6 +895,7 @@ export async function loadSessionPayload(user: AppUser) {
       matchScore: `${row.home_team_score ?? "-"}-${row.away_team_score ?? "-"}`,
       gameNumber: row.game_number ?? row.game_ordinal ?? 0,
       gameOrdinal: row.game_ordinal ?? 0,
+      gameType: row.game_type,
       isDoublesPartnerRow: row.is_doubles_partner_row
     } satisfies PlayerGameResult;
   });
