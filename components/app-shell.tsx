@@ -42,6 +42,18 @@ function isClubOnlyRole(role: Role) {
   return role === "Club Member" || role === "Club Admin";
 }
 
+function currentTestUserParam() {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("testUser")?.trim() ?? "";
+}
+
+function withTestUser(path: string) {
+  const testUser = currentTestUserParam();
+  if (!testUser) return path;
+  const joiner = path.includes("?") ? "&" : "?";
+  return `${path}${joiner}testUser=${encodeURIComponent(testUser)}`;
+}
+
 const menuIconMap: Record<AppearanceMenuId | "Menu", typeof Home> = {
   Home,
   Fixtures: CalendarDays,
@@ -196,7 +208,7 @@ export function AppShell({
         active = false;
       };
     }
-    fetch("/api/competitions", { credentials: "same-origin" })
+    fetch(withTestUser("/api/competitions"), { credentials: "same-origin" })
       .then((response) => response.json())
       .then((data) => {
         if (!active) return;
@@ -277,7 +289,7 @@ export function AppShell({
         showLeaguePanels ? "lg:grid-cols-[220px_minmax(0,1fr)_380px] xl:grid-cols-[230px_minmax(0,1fr)_400px]" : "lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[230px_minmax(0,1fr)]"
       )}>
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={navigateToPage} menuItems={activeMenuItems} />
-        <div className="grid gap-4">
+        <div className="grid min-w-0 w-full gap-4">
           {clubOnlyView && activePage !== "Interclub Leagues" ? (
             <ClubMemberHero activeTeam={activeTeam} userLabel={userLabel} onNavigate={navigateToPage} />
           ) : (
@@ -1039,7 +1051,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
     setLoading(true);
     setMessage("");
     try {
-      const response = await fetch(`/api/table-bookings?date=${bookingDate}`, { credentials: "same-origin" });
+      const response = await fetch(withTestUser(`/api/table-bookings?date=${bookingDate}`), { credentials: "same-origin" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Bookings unavailable.");
       setPayload(data);
@@ -1072,7 +1084,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
     setBusySlot(key);
     setMessage("");
     try {
-      const response = await fetch("/api/table-bookings", {
+      const response = await fetch(withTestUser("/api/table-bookings"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -1092,7 +1104,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
     setBusySlot(booking.id);
     setMessage("");
     try {
-      const response = await fetch(`/api/table-bookings/${booking.id}`, {
+      const response = await fetch(withTestUser(`/api/table-bookings/${booking.id}`), {
         method: "DELETE",
         credentials: "same-origin"
       });
@@ -1373,7 +1385,7 @@ function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamCo
 
   useEffect(() => {
     let active = true;
-    fetch("/api/competitions", { credentials: "same-origin" })
+    fetch(withTestUser("/api/competitions"), { credentials: "same-origin" })
       .then((response) => response.json())
       .then((data) => {
         if (!active) return;
@@ -1463,7 +1475,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   async function loadCompetitions(nextSelectedId = selectedId) {
     setLoading(true);
     try {
-      const response = await fetch("/api/competitions", { credentials: "same-origin" });
+      const response = await fetch(withTestUser("/api/competitions"), { credentials: "same-origin" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Competitions unavailable.");
       const nextCompetitions = data.competitions ?? [];
@@ -1491,7 +1503,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   }
 
   async function loadDetail(competitionId: string) {
-    const response = await fetch(`/api/competitions/${competitionId}`, { credentials: "same-origin" });
+    const response = await fetch(withTestUser(`/api/competitions/${competitionId}`), { credentials: "same-origin" });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Competition unavailable.");
     setDetail(data.competition);
@@ -1504,7 +1516,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   async function competitionAction(path: string, body: Record<string, unknown> = {}, competitionId = selectedId) {
     if (!competitionId) return false;
     try {
-      const response = await fetch(`/api/competitions/${competitionId}${path}`, {
+      const response = await fetch(withTestUser(`/api/competitions/${competitionId}${path}`), {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
@@ -2081,7 +2093,7 @@ function MemberActionsCard({ activeTeam, onNavigate }: { activeTeam: TeamContext
   useEffect(() => {
     let active = true;
     setLoadingCompetitions(true);
-    fetch("/api/competitions", { credentials: "same-origin" })
+    fetch(withTestUser("/api/competitions"), { credentials: "same-origin" })
       .then((response) => response.json())
       .then((data) => {
         if (!active) return;
@@ -3255,7 +3267,7 @@ function FixtureWeekCarouselCard({
       if (showLoading) setLoading(true);
       const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season });
       if (activeTeam.teamId) params.set("teamId", activeTeam.teamId);
-      const response = await fetch(`/api/fixtures/weeks?${params.toString()}`, { credentials: "same-origin" });
+      const response = await fetch(withTestUser(`/api/fixtures/weeks?${params.toString()}`), { credentials: "same-origin" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Fixtures unavailable.");
       if (!active) return;
@@ -4364,7 +4376,7 @@ function SquadManagementCard({ activeTeam }: { activeTeam: TeamContext }) {
     }
     setLoading(true);
     setMessage("");
-    fetch(`/api/team/player-stats?teamId=${encodeURIComponent(activeTeam.teamId)}`, { credentials: "same-origin" })
+    fetch(withTestUser(`/api/team/player-stats?teamId=${encodeURIComponent(activeTeam.teamId)}`), { credentials: "same-origin" })
       .then((response) => response.json().then((data) => ({ response, data })))
       .then(({ response, data }) => {
         if (!active) return;

@@ -210,6 +210,11 @@ export async function testUserFromEmail(email: string | null | undefined) {
   } satisfies AppUser;
 }
 
+export async function currentUserFromRequest(request: Request) {
+  const url = new URL(request.url);
+  return await testUserFromEmail(url.searchParams.get("testUser")) ?? await currentUser();
+}
+
 export async function accountByLoginIdentifier(identifier: string) {
   const { rows } = await dbQuery<AccountRow>(
     `select

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { currentUser } from "@/lib/server/auth";
+import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -54,7 +54,7 @@ async function canViewTeam(personId: string, team: TeamRow) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await currentUser();
+    const user = await currentUserFromRequest(request);
     if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
 
     const teamId = request.nextUrl.searchParams.get("teamId")?.trim();

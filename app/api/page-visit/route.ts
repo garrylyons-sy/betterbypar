@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 
-import { currentUser } from "@/lib/server/auth";
+import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const user = await currentUser();
+    const user = await currentUserFromRequest(request);
     if (!user) return NextResponse.json({ ok: false }, { status: 401 });
 
     const body = await request.json();

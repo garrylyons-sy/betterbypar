@@ -133,7 +133,9 @@ export function AuthGateway() {
   }, [refreshSession, session?.activeMatchCount, session?.authenticated]);
 
   const recordPageVisit = useCallback((pageLabel: string, activeTeam: TeamContext) => {
-    fetch("/api/page-visit", {
+    const testUser = new URLSearchParams(window.location.search).get("testUser")?.trim() ?? "";
+    const pageVisitUrl = testUser ? `/api/page-visit?testUser=${encodeURIComponent(testUser)}` : "/api/page-visit";
+    fetch(pageVisitUrl, {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json" },

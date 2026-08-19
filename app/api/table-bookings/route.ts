@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { currentUser } from "@/lib/server/auth";
+import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -131,7 +131,7 @@ function serializeBooking(row: BookingRow, currentPersonId: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await currentUser();
+    const user = await currentUserFromRequest(request);
     if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
 
     const bookingDate = validDate(request.nextUrl.searchParams.get("date"));
@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await currentUser();
+    const user = await currentUserFromRequest(request);
     if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
 
     const body = await request.json().catch(() => null) as { tableId?: string; bookingDate?: string; startHour?: unknown } | null;

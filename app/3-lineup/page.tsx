@@ -12,7 +12,6 @@ export default function ThreeLineupPage() {
   const [frameVersion, setFrameVersion] = useState(0);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const appOrigin = typeof window === "undefined" ? "" : window.location.origin;
 
   async function resetMatch() {
     setBusy(true);
@@ -57,7 +56,7 @@ export default function ThreeLineupPage() {
           <TestFrame
             key={`${pane.team}-${frameVersion}`}
             title={pane.title}
-            src={`${appOrigin}/?testUser=${encodeURIComponent(pane.user)}&team=${encodeURIComponent(pane.team)}&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`}
+            src={`/?testUser=${encodeURIComponent(pane.user)}&team=${encodeURIComponent(pane.team)}&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`}
           />
         ))}
       </section>

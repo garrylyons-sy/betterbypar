@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { currentUser } from "@/lib/server/auth";
+import { currentUserFromRequest } from "@/lib/server/auth";
 import { clubAdminClubIds, clubMembershipsForPerson, isPlatformAdmin, listCompetitions } from "@/lib/server/competitions";
 import { dbQuery } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = await currentUser();
+    const user = await currentUserFromRequest(request);
     if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
     const [competitions, memberships, adminClubIds, platformAdmin, clubs] = await Promise.all([
       listCompetitions(user),

@@ -2,20 +2,18 @@
 
 import { useState } from "react";
 
-const appOrigin = "https://www.interclubsnooker.com";
-
 const testPanes = [
   {
     title: "Castle Member",
-    src: `${appOrigin}/?club=${encodeURIComponent("Castle Golf Club")}&role=member&embed=1`
+    src: `/?testUser=${encodeURIComponent("castle.member@notrealmail.com")}&club=${encodeURIComponent("Castle Golf Club")}&role=club%20member&embed=1`
   },
   {
     title: "Castle A - Player",
-    src: `${appOrigin}/?team=${encodeURIComponent("castle a")}&role=player&season=2026%2F27&embed=1`
+    src: `/?testUser=${encodeURIComponent("declan.mcniff@notrealmail.com")}&team=${encodeURIComponent("castle a")}&role=player&season=2026%2F27&embed=1`
   },
   {
     title: "Castle A - Manager",
-    src: `${appOrigin}/?team=${encodeURIComponent("castle a")}&role=manager&season=2026%2F27&embed=1`
+    src: `/?testUser=${encodeURIComponent("castle.a.manager@notrealmail.com")}&team=${encodeURIComponent("castle a")}&role=manager&season=2026%2F27&embed=1`
   }
 ];
 
@@ -48,7 +46,7 @@ export default function CastleThreeLineupPage() {
           <h1 className="text-2xl font-extrabold">Castle member, player and manager windows</h1>
         </div>
         <p className="max-w-xl text-sm font-semibold text-white/70">
-          Each pane runs interclubsnooker.com embedded as you, using a different Castle role context.
+          Each pane runs this app embedded with an isolated Castle test-user context.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {message ? <p className="text-xs font-bold text-white/70">{message}</p> : null}
