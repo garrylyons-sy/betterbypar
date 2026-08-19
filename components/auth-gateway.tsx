@@ -215,7 +215,7 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
     }
     return Boolean(requestedTeam) && normalizeLookupKey(context.name) === requestedTeam && context.season === requestedSeason;
   });
-  if (existing) return contexts;
+  if (existing) return params.get("isolate") === "1" ? [existing] : contexts;
 
   if (requestedRole === "Club Member" || requestedRole === "Club Admin") {
     const clubName = requestedClub || "castle golf club";
@@ -235,7 +235,7 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
       leaguePosition: 0,
       leagueMatchesPlayed: 0
     };
-    return [embeddedContext, ...contexts];
+    return params.get("isolate") === "1" ? [embeddedContext] : [embeddedContext, ...contexts];
   }
 
   if (!requestedTeam) return contexts;
@@ -272,7 +272,7 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
     leaguePoints: standing?.leaguePoints ?? 0
   };
 
-  return [embeddedContext, ...contexts];
+  return params.get("isolate") === "1" ? [embeddedContext] : [embeddedContext, ...contexts];
 }
 
 function normalizeLookupKey(value: string | null | undefined) {

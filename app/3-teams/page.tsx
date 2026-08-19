@@ -19,9 +19,11 @@ const testPanes = [
     team: "castle c"
   }
 ];
+const seasons = ["2026/27", "2025/26"];
 
 export default function ThreeCastleTeamsPage() {
   const [frameVersion, setFrameVersion] = useState(0);
+  const [season, setSeason] = useState("2026/27");
 
   return (
     <main className="min-h-screen bg-[#071426] p-4 text-white">
@@ -32,8 +34,25 @@ export default function ThreeCastleTeamsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <p className="max-w-xl text-sm font-semibold text-white/70">
-            Each pane opens the app as a Castle player in a different team context for 2026/27.
+            Each pane opens the app as a Castle player in a different team context for the selected season.
           </p>
+          <label className="grid gap-1 text-xs font-bold uppercase text-white/65">
+            Season
+            <select
+              value={season}
+              onChange={(event) => {
+                setSeason(event.target.value);
+                setFrameVersion((version) => version + 1);
+              }}
+              className="min-h-9 rounded-lg border border-white/15 bg-white px-3 text-sm font-extrabold normal-case text-[#10233f] outline-none"
+            >
+              {seasons.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             onClick={() => setFrameVersion((version) => version + 1)}
@@ -48,7 +67,7 @@ export default function ThreeCastleTeamsPage() {
           <TestFrame
             key={`${pane.team}-${frameVersion}`}
             title={pane.title}
-            src={`/?testUser=${encodeURIComponent(pane.user)}&team=${encodeURIComponent(pane.team)}&role=player&season=2026%2F27&embed=1&testRefresh=${frameVersion}`}
+            src={`/?testUser=${encodeURIComponent(pane.user)}&team=${encodeURIComponent(pane.team)}&role=player&season=${encodeURIComponent(season)}&embed=1&isolate=1&testRefresh=${frameVersion}`}
           />
         ))}
       </section>
