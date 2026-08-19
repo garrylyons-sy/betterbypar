@@ -193,6 +193,23 @@ export async function currentUser() {
   } satisfies AppUser;
 }
 
+export async function testUserFromEmail(email: string | null | undefined) {
+  const normalizedEmail = email?.trim().toLowerCase() ?? "";
+  if (!normalizedEmail.endsWith("@notrealmail.com")) return null;
+
+  const account = await accountByLoginIdentifier(normalizedEmail);
+  if (!account || !account.active) return null;
+
+  return {
+    accountId: account.id,
+    personId: account.person_id,
+    username: account.username,
+    email: account.email ?? normalizedEmail,
+    name: `${account.first_name} ${account.last_name}`.trim(),
+    profileImage: account.profile_image ?? ""
+  } satisfies AppUser;
+}
+
 export async function accountByLoginIdentifier(identifier: string) {
   const { rows } = await dbQuery<AccountRow>(
     `select

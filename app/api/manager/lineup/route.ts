@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PoolClient } from "pg";
 
-import { currentUser } from "@/lib/server/auth";
+import { currentUser, testUserFromEmail } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -35,8 +35,13 @@ function isTrustedLineupTestManager(user: Awaited<ReturnType<typeof currentUser>
   return requested && user?.email?.toLowerCase() === "garlyons@gmail.com";
 }
 
-async function requireTeamManager(teamId: string, options?: { testManager?: unknown }) {
-  const user = await currentUser();
+async function requestUser(options?: { testUser?: unknown }) {
+  const testEmail = typeof options?.testUser === "string" ? options.testUser : "";
+  return await testUserFromEmail(testEmail) ?? await currentUser();
+}
+
+async function requireTeamManager(teamId: string, options?: { testManager?: unknown; testUser?: unknown }) {
+  const user = await requestUser({ testUser: options?.testUser });
   if (!user) throw new Error("Not authenticated.");
   if (isTrustedLineupTestManager(user, options?.testManager)) return user;
   const { rowCount } = await dbQuery(
@@ -67,8 +72,8 @@ async function requireTeamManager(teamId: string, options?: { testManager?: unkn
   return user;
 }
 
-async function requireTeamMember(teamId: string, options?: { testManager?: unknown }) {
-  const user = await currentUser();
+async function requireTeamMember(teamId: string, options?: { testManager?: unknown; testUser?: unknown }) {
+  const user = await requestUser({ testUser: options?.testUser });
   if (!user) throw new Error("Not authenticated.");
   if (isTrustedLineupTestManager(user, options?.testManager)) {
     return { user, canManage: true };
@@ -128,8 +133,9 @@ export async function GET(request: NextRequest) {
     const teamId = request.nextUrl.searchParams.get("teamId")?.trim();
     const fixtureId = request.nextUrl.searchParams.get("fixtureId")?.trim();
     const testManager = request.nextUrl.searchParams.get("testManager");
+    const testUser = request.nextUrl.searchParams.get("testUser");
     if (!teamId) return NextResponse.json({ error: "teamId is required." }, { status: 400 });
-    const { canManage } = await requireTeamMember(teamId, { testManager });
+    const { canManage } = await requireTeamMember(teamId, { testManager, testUser });
 
     const payload = await loadLineupPayload(teamId, fixtureId || undefined);
     return NextResponse.json({ ...payload, canManage });
@@ -143,10 +149,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await currentUser();
+    const body = await request.json();
+    const user = await requestUser({ testUser: body.testUser });
     if (!user) throw new Error("Not authenticated.");
 
-    const body = await request.json();
     const teamId = String(body.teamId ?? "").trim();
     const fixtureId = String(body.fixtureId ?? "").trim();
     const action = String(body.action ?? "save").trim();
@@ -156,7 +162,7 @@ export async function POST(request: NextRequest) {
     if (!teamId || !fixtureId) {
       return NextResponse.json({ error: "teamId and fixtureId are required." }, { status: 400 });
     }
-    await requireTeamManager(teamId, { testManager });
+    await requireTeamManager(teamId, { testManager, testUser: body.testUser });
 
     if (action === "recordResult") {
       const gameId = String(body.gameId ?? "").trim();

@@ -67,7 +67,9 @@ export function AuthGateway() {
   const refreshSession = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
     try {
-      const payload = await authJsonFetch<SessionPayload>("/api/session");
+      const testUser = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("testUser")?.trim() ?? "";
+      const sessionUrl = testUser ? `/api/session?testUser=${encodeURIComponent(testUser)}` : "/api/session";
+      const payload = await authJsonFetch<SessionPayload>(sessionUrl);
       setSession(payload);
       setMessage(payload.error ?? "");
     } catch (error) {

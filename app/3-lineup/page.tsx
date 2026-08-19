@@ -38,7 +38,7 @@ export default function ThreeLineupPage() {
           <h1 className="text-2xl font-extrabold">Three manager windows</h1>
         </div>
         <p className="max-w-xl text-sm font-semibold text-white/70">
-          Each pane runs interclubsnooker.com with a manager context for the 2026/27 A League test week.
+          Each pane runs this app with an isolated fake manager context for the 2026/27 A League test week.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {message ? <p className="text-xs font-bold text-white/70">{message}</p> : null}
@@ -57,7 +57,7 @@ export default function ThreeLineupPage() {
           <TestFrame
             key={`${pane.team}-${frameVersion}`}
             title={pane.title}
-            src={`${appOrigin}/home.html?user=${encodeURIComponent(pane.user)}&next=${encodeURIComponent(`/?team=${pane.team}&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`)}`}
+            src={`${appOrigin}/?testUser=${encodeURIComponent(pane.user)}&team=${encodeURIComponent(pane.team)}&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`}
           />
         ))}
       </section>
