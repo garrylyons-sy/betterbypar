@@ -637,7 +637,13 @@ function ContextSwitcher({
   activeTeam: TeamContext;
   onChange: (id: string) => void;
 }) {
-  if (contexts.length <= 1) {
+  const uniqueContexts = [activeTeam, ...contexts].filter((context, index, list) => {
+    const key = `${context.role}|${normalizeLookupKey(context.name)}|${normalizeLookupKey(context.club)}`;
+    return list.findIndex((item) => `${item.role}|${normalizeLookupKey(item.name)}|${normalizeLookupKey(item.club)}` === key) === index;
+  });
+  const hasMultipleRoles = new Set(uniqueContexts.map((context) => context.role)).size > 1;
+
+  if (!hasMultipleRoles) {
     return (
       <div className="min-h-11 rounded-xl bg-white/95 px-4 py-2 text-[#10233f] shadow-card">
         <p className="truncate text-sm font-extrabold">{contextLabel(activeTeam)}</p>
@@ -653,7 +659,7 @@ function ContextSwitcher({
         onChange={(event) => onChange(event.target.value)}
         className="h-12 w-full appearance-none rounded-xl border border-white/15 bg-white/95 px-4 pr-10 text-sm font-bold text-[#10233f] shadow-card outline-none"
       >
-        {contexts.map((context) => (
+        {uniqueContexts.map((context) => (
           <option key={context.id} value={context.id}>
             {contextLabel(context)}
           </option>
