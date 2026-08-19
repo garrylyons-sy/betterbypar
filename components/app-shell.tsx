@@ -3131,6 +3131,8 @@ type ManagerLineupPayload = {
     awayTeamScore: number | null;
     homeLineupStatus: "Draft" | "Published" | null;
     awayLineupStatus: "Draft" | "Published" | null;
+    completedGames: number;
+    totalGames: number;
     games: ManagerLineupGame[];
   }>;
   games: ManagerLineupGame[];
@@ -3205,7 +3207,7 @@ function fixtureWeekShouldPoll(week?: FixtureWeek) {
 }
 
 function fixtureHasStarted(fixture: FixtureWeekFixture) {
-  return Boolean(fixture.matchId || fixture.totalGames > 0 || fixture.homeTeamScore !== null || fixture.awayTeamScore !== null);
+  return Boolean(fixture.totalGames > 0 || fixture.homeTeamScore !== null || fixture.awayTeamScore !== null);
 }
 
 function FixtureWeekCarouselCard({
@@ -3341,17 +3343,17 @@ function FixtureWeekCarouselCard({
                       }}
                     >
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                        <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={fixture.matchId ? undefined : homeLineupStatus} />
+                        <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={fixtureHasStarted(fixture) ? undefined : homeLineupStatus} />
                         {hasScore ? (
                           <span className="rounded-lg bg-[#10233f] px-2 py-1 text-sm font-black text-white">{fixture.homeTeamScore}-{fixture.awayTeamScore}</span>
                         ) : (
                           <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
                         )}
-                        <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={fixture.matchId ? undefined : awayLineupStatus} />
+                        <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={fixtureHasStarted(fixture) ? undefined : awayLineupStatus} />
                       </div>
                       {canManage ? (
                         <span className="justify-self-start rounded-lg px-3 py-2 text-xs font-extrabold uppercase text-white" style={{ backgroundColor: activeTeam.primaryColor }}>
-                          {fixture.matchId ? "Open match" : "Pick team"}
+                          {fixtureHasStarted(fixture) ? "Open match" : "Pick team"}
                         </span>
                       ) : null}
                     </button>
@@ -3560,12 +3562,14 @@ function ManagerLineupCard({
                   awayTeamScore: null,
                   homeLineupStatus: payload.fixture.homeTeamId === activeTeam.teamId ? ownStatus : payload.opponentStatus?.status ?? null,
                   awayLineupStatus: payload.fixture.awayTeamId === activeTeam.teamId ? ownStatus : payload.opponentStatus?.status ?? null,
+                  completedGames: 0,
+                  totalGames: 0,
                   games: []
                 }]).map((fixture) => {
                   const isOwnFixture = fixture.homeTeamId === activeTeam.teamId || fixture.awayTeamId === activeTeam.teamId;
                   const bothPublished = fixture.homeLineupStatus === "Published" && fixture.awayLineupStatus === "Published";
                   const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
-                  const matchStarted = Boolean(fixture.matchId);
+                  const matchStarted = Boolean(fixture.totalGames > 0);
                   const active = fixture.id === openedFixtureId;
                   const canManageFixture = Boolean(payload.canManage && isOwnFixture);
                   const managerActionSide = activeTeam.teamId === fixture.awayTeamId ? "away" : "home";

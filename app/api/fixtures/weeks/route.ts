@@ -55,12 +55,11 @@ export async function GET(request: NextRequest) {
        from public.fixture_week fw
        join public.season s on s.id = fw.season_id
        join public.league l on l.id = fw.league_id
-       join public.fixture f on f.season_id = fw.season_id
-        and f.league_id = fw.league_id
-        and f.fixture_date::date = fw.starts_on
+       join public.fixture_week_match fwm on fwm.week_id = fw.id
+       join public.match m on m.id = fwm.match_id
+       join public.fixture f on f.id = m.fixture_id
        join public.team ht on ht.id = f.home_team_id
        join public.team at on at.id = f.away_team_id
-       left join public.match m on m.fixture_id = f.id
        left join public.fixture_lineup hfl on hfl.fixture_id = f.id and hfl.team_id = f.home_team_id
        left join public.fixture_lineup afl on afl.fixture_id = f.id and afl.team_id = f.away_team_id
        left join public.game g on g.match_id = m.id

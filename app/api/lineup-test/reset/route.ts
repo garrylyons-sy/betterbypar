@@ -45,13 +45,48 @@ export async function POST(request: NextRequest) {
       const fixtureIds = fixtures.rows.map((fixture) => fixture.id);
       if (!fixtureIds.length) throw new Error("2026/27 A League Week 1 fixtures were not found.");
 
+      await client.query(
+        `insert into public.match (fixture_id, home_team_score, away_team_score)
+         select f.id, 0, 0
+         from public.fixture f
+         where f.id = any($1::uuid[])
+         on conflict (fixture_id) do update
+         set home_team_score = 0,
+             away_team_score = 0,
+             entered_by = null`,
+        [fixtureIds]
+      );
+      await client.query(
+        `insert into public.fixture_week_match (week_id, match_id)
+         select fw.id, m.id
+         from public.fixture f
+         join public.match m on m.fixture_id = f.id
+         join public.fixture_week fw
+           on fw.season_id = f.season_id
+          and fw.league_id = f.league_id
+          and fw.starts_on = f.fixture_date::date
+         where f.id = any($1::uuid[])
+         on conflict (match_id) do update
+         set week_id = excluded.week_id`,
+        [fixtureIds]
+      );
       const deletedLineups = await client.query(
         `delete from public.fixture_lineup
          where fixture_id = any($1::uuid[])`,
         [fixtureIds]
       );
-      const deletedMatch = await client.query(
-        `delete from public.match
+      const deletedGames = await client.query(
+        `delete from public.game
+         where match_id in (
+           select id from public.match where fixture_id = any($1::uuid[])
+         )`,
+        [fixtureIds]
+      );
+      await client.query(
+        `update public.match
+         set home_team_score = 0,
+             away_team_score = 0,
+             entered_by = null
          where fixture_id = any($1::uuid[])`,
         [fixtureIds]
       );
@@ -65,7 +100,7 @@ export async function POST(request: NextRequest) {
       return {
         fixtureCount: fixtureIds.length,
         lineupsDeleted: deletedLineups.rowCount ?? 0,
-        matchesDeleted: deletedMatch.rowCount ?? 0
+        gamesDeleted: deletedGames.rowCount ?? 0
       };
     });
 
