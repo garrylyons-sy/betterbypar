@@ -4803,12 +4803,17 @@ function LeagueTable({
       <CardHeader
         className={cn(
           "gap-2",
-          sectionMode && "border-b border-[#dce3ee] bg-[#10233f] text-white"
+          sectionMode && "border-b border-[#dce3ee] text-white"
         )}
+        style={sectionMode ? { backgroundColor: activeTeam.primaryColor } : undefined}
       >
-        <div>
-          {sectionMode ? <p className="text-xs font-extrabold uppercase tracking-wide text-white/60">League table</p> : null}
-          <CardTitle>{sectionMode ? activeTeam.league : "League Table"}</CardTitle>
+        <div className="min-w-0">
+          <CardTitle className={sectionMode ? "text-xl leading-tight text-white sm:text-2xl" : undefined}>
+            {sectionMode ? `${activeTeam.league} Table` : "League Table"}
+          </CardTitle>
+          {sectionMode ? (
+            <p className="mt-1 text-xs font-bold uppercase tracking-wide text-white/75">{activeTeam.season}</p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           {sectionMode ? <Badge variant="cyan">{tableRows.length} teams</Badge> : <Badge variant="muted">{activeTeam.league}</Badge>}
