@@ -399,7 +399,7 @@ function PageContent({
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   const leagueTeamCount = standingsData.length;
-  const memberRestrictedPages: AppPage[] = ["Fixtures", "Match", "Results", "Table", "Players", "Stats", "Interclub Leagues"];
+  const memberRestrictedPages: AppPage[] = ["Fixtures", "Match", "Results", "Players", "Stats", "Interclub Leagues"];
 
   if (activeTeam.role === "Club Member" && memberRestrictedPages.includes(activePage)) {
     return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
@@ -2450,13 +2450,15 @@ function StatsPage({
 function TablesPage({ activeTeam, standingsData, matchResults }: { activeTeam: TeamContext; standingsData: Standing[]; matchResults: MatchResult[] }) {
   const seasonRows = standingsData.filter((row) => row.season === activeTeam.season);
   const availableLeagues = new Set(seasonRows.map((row) => row.league));
-  const orderedLeagues: TeamContext["league"][] = [
-    activeTeam.league,
-    ...leagueOrder
-      .filter((league) => league !== activeTeam.league)
-      .filter((league) => availableLeagues.has(league))
-      .sort((a, b) => a.localeCompare(b))
-  ];
+  const orderedLeagues: TeamContext["league"][] = isClubOnlyRole(activeTeam.role)
+    ? leagueOrder.filter((league) => availableLeagues.has(league))
+    : [
+        activeTeam.league,
+        ...leagueOrder
+          .filter((league) => league !== activeTeam.league)
+          .filter((league) => availableLeagues.has(league))
+          .sort((a, b) => a.localeCompare(b))
+      ];
 
   return (
     <section className="grid gap-5">
@@ -2467,7 +2469,9 @@ function TablesPage({ activeTeam, standingsData, matchResults }: { activeTeam: T
         </CardHeader>
         <CardContent>
           <p className="text-sm font-semibold text-[#6c5a73]">
-            {activeTeam.league} is shown first. Other leagues for {activeTeam.season} follow alphabetically.
+            {isClubOnlyRole(activeTeam.role)
+              ? `A, B and C league tables for ${activeTeam.season}.`
+              : `${activeTeam.league} is shown first. Other leagues for ${activeTeam.season} follow alphabetically.`}
           </p>
         </CardContent>
       </Card>
@@ -4645,7 +4649,7 @@ function SquadManagementCard({ activeTeam }: { activeTeam: TeamContext }) {
         <Badge variant="muted">{loading ? "Loading" : `${players.length}`}</Badge>
       </CardHeader>
       <CardContent className="grid gap-2">
-        <div className="grid grid-cols-[minmax(0,1fr)_44px_44px_44px_58px_54px] gap-2 rounded-xl bg-[#f7f5fa] px-3 py-2 text-[11px] font-extrabold uppercase text-[#6c5a73]">
+        <div className="hidden grid-cols-[minmax(150px,1fr)_44px_44px_44px_58px_54px] gap-2 rounded-xl bg-[#f7f5fa] px-3 py-2 text-[11px] font-extrabold uppercase text-[#6c5a73] sm:grid">
           <span>Player</span>
           <span className="text-right">P</span>
           <span className="text-right">W</span>
@@ -4654,13 +4658,25 @@ function SquadManagementCard({ activeTeam }: { activeTeam: TeamContext }) {
           <span className="text-right">Break</span>
         </div>
         {players.map((player) => (
-          <div key={player.personId} className="grid min-h-12 grid-cols-[minmax(0,1fr)_44px_44px_44px_58px_54px] items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-bold ring-1 ring-[#eeeaf2]">
-            <span className="min-w-0 whitespace-normal break-words font-extrabold leading-tight">{player.name}</span>
-            <span className="text-right">{player.played}</span>
-            <span className="text-right text-[#0a6b45]">{player.won}</span>
-            <span className="text-right text-[#b42318]">{player.lost}</span>
-            <span className="text-right">{player.played ? `${player.winPercentage}%` : "-"}</span>
-            <span className="text-right">{player.highestBreak ?? "-"}</span>
+          <div key={player.personId} className="rounded-xl bg-white px-3 py-3 text-sm font-bold ring-1 ring-[#eeeaf2]">
+            <div className="sm:hidden">
+              <p className="break-words text-base font-extrabold leading-tight text-[#25002b]">{player.name}</p>
+              <div className="mt-3 grid grid-cols-5 gap-2 text-center">
+                <PlayerStatCell label="P" value={String(player.played)} />
+                <PlayerStatCell label="W" value={String(player.won)} valueClassName="text-[#0a6b45]" />
+                <PlayerStatCell label="L" value={String(player.lost)} valueClassName="text-[#b42318]" />
+                <PlayerStatCell label="Win" value={player.played ? `${player.winPercentage}%` : "-"} />
+                <PlayerStatCell label="Break" value={player.highestBreak ? String(player.highestBreak) : "-"} />
+              </div>
+            </div>
+            <div className="hidden grid-cols-[minmax(150px,1fr)_44px_44px_44px_58px_54px] items-center gap-2 sm:grid">
+              <span className="min-w-0 break-words font-extrabold leading-tight">{player.name}</span>
+              <span className="text-right">{player.played}</span>
+              <span className="text-right text-[#0a6b45]">{player.won}</span>
+              <span className="text-right text-[#b42318]">{player.lost}</span>
+              <span className="text-right">{player.played ? `${player.winPercentage}%` : "-"}</span>
+              <span className="text-right">{player.highestBreak ?? "-"}</span>
+            </div>
           </div>
         ))}
         {!players.length ? (
@@ -4670,6 +4686,15 @@ function SquadManagementCard({ activeTeam }: { activeTeam: TeamContext }) {
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function PlayerStatCell({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
+  return (
+    <div className="min-w-0 rounded-lg bg-[#f7f5fa] px-1.5 py-2">
+      <p className="text-[10px] font-extrabold uppercase leading-none text-[#6c5a73]">{label}</p>
+      <p className={cn("mt-1 truncate text-sm font-black leading-tight text-[#25002b]", valueClassName)}>{value}</p>
+    </div>
   );
 }
 

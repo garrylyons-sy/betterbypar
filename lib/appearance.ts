@@ -29,7 +29,7 @@ export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string;
   { id: "Home", label: "Home", description: "Role home dashboard.", roles: appearanceRoles },
   { id: "Fixtures", label: "Fixtures", description: "Fixture and season cards.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "Results", label: "Results", description: "Team and league results.", roles: ["Player", "Manager", "Assistant Manager"] },
-  { id: "Table", label: "Tables", description: "League tables.", roles: ["Player", "Manager", "Assistant Manager"] },
+  { id: "Table", label: "Tables", description: "League tables.", roles: ["Player", "Manager", "Assistant Manager", "Club Member"] },
   { id: "Club", label: "Club", description: "Bookings and club competitions.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "Bookings", label: "Bookings", description: "Club table bookings.", roles: appearanceRoles },
   { id: "Competitions", label: "Competitions", description: "Club competition entries, draws and results.", roles: appearanceRoles },
@@ -58,7 +58,7 @@ export const defaultAppearanceConfig: AppearanceConfig = {
   "Club Member": {
     role: "Club Member",
     panels: ["openCompetitions"],
-    menuItems: ["Home", "Bookings", "Competitions"]
+    menuItems: ["Home", "Table", "Bookings", "Competitions"]
   },
   "Club Admin": {
     role: "Club Admin",
