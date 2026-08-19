@@ -712,7 +712,7 @@ function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = 
   const points = activeTeam.leaguePoints ?? activeTeam.pointsFor ?? 0;
   const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
   return (
-    <section className="overflow-hidden rounded-[18px] text-white shadow-card">
+    <section className="min-w-0 overflow-hidden rounded-[18px] text-white shadow-card">
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         {activeMatchCount > 0 ? (
@@ -743,7 +743,7 @@ function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = 
               <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">
                 {clubMember && interclubView ? "Interclub leagues" : activeTeam.role === "Club Admin" ? "Club admin home" : clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
               </p>
-              <h2 className="mt-1 text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.name}</h2>
+              <h2 className="mt-1 break-words text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.name}</h2>
               <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
               {userLabel ? (
                 <p className="mt-1 truncate text-xs font-bold text-white/65">
@@ -758,7 +758,7 @@ function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = 
             <HeroMetric label="Pts" value={hasTeamActivity ? String(points) : "-"} />
           </div>
         </div>
-        <div className="relative mt-5 grid gap-2 min-[390px]:grid-cols-2 xl:max-w-[620px]">
+        <div className="relative mt-5 grid gap-2 sm:grid-cols-2 xl:max-w-[620px]">
           <Button className="w-full min-w-0" onClick={() => onNavigate(activeTeam.role === "Manager" ? "Fixtures" : activeTeam.role === "Club Admin" ? "Club" : activeTeam.role === "Club Member" ? "Bookings" : "Stats")}>
             <PlusCircle className="h-4 w-4" />
             {activeTeam.role === "Club Admin" ? "Admin tools" : clubMember ? "Book table" : activeTeam.role === "Assistant Manager" ? "Support team" : manager ? "Enter result" : "View stats"}
@@ -786,7 +786,7 @@ function teamHasActivity(team: TeamContext) {
 
 function ClubMemberHero({ activeTeam, userLabel, onNavigate }: { activeTeam: TeamContext; userLabel?: string; onNavigate: (page: AppPage) => void }) {
   return (
-    <section className="overflow-hidden rounded-[18px] text-white shadow-card">
+    <section className="min-w-0 overflow-hidden rounded-[18px] text-white shadow-card">
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         <div className="relative flex min-w-0 items-start gap-3">
@@ -798,7 +798,7 @@ function ClubMemberHero({ activeTeam, userLabel, onNavigate }: { activeTeam: Tea
               <Badge variant="muted">{activeTeam.role === "Club Admin" ? "Admin" : "Competitions"}</Badge>
             </div>
             <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">{activeTeam.role === "Club Admin" ? "Club admin home" : "Club home"}</p>
-            <h2 className="mt-1 text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.club}</h2>
+            <h2 className="mt-1 break-words text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.club}</h2>
             <p className="mt-2 text-sm font-semibold text-white/80">
               {activeTeam.role === "Club Admin"
                 ? "Manage members, invites, club competitions and table bookings."
@@ -811,7 +811,7 @@ function ClubMemberHero({ activeTeam, userLabel, onNavigate }: { activeTeam: Tea
             ) : null}
           </div>
         </div>
-        <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
+        <div className="relative mt-5 grid gap-2 sm:grid-cols-2 xl:max-w-[620px]">
           <Button className="w-full" onClick={() => activeTeam.role === "Club Admin" ? window.location.assign("/admin") : onNavigate("Bookings")}>
             <CalendarPlus className="h-4 w-4" />
             {activeTeam.role === "Club Admin" ? "Open admin" : "Book table"}
