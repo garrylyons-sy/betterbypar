@@ -2893,23 +2893,43 @@ function ResultRow({ result, activeTeam }: { result: MatchResult; activeTeam: Te
       style={activeTeamPlayed ? { boxShadow: `0 0 0 2px ${activeTeam.primaryColor}22` } : undefined}
     >
       <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${homeColors.primaryColor}, ${awayColors.primaryColor})` }} />
-      <div className="grid min-h-[76px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 p-3">
-        <div className="min-w-0">
-          <p className="break-words font-extrabold leading-tight" style={{ color: homeColors.primaryColor }}>{result.homeTeamName}</p>
-          <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{formatFixtureDate(result.fixtureDate)}</p>
+      <div className="p-3">
+        <div className="grid gap-2 sm:hidden">
+          <div className="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-3">
+            <p className="min-w-0 break-words font-extrabold leading-tight" style={{ color: homeColors.primaryColor }}>{result.homeTeamName}</p>
+            <span className={cn("grid h-9 min-w-9 place-items-center rounded-md px-2 text-lg font-extrabold ring-1", scoreTone(result.homeTeamScore, result.awayTeamScore))}>
+              {result.homeTeamScore}
+            </span>
+          </div>
+          <div className="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-3">
+            <p className="min-w-0 break-words font-extrabold leading-tight" style={{ color: awayColors.primaryColor }}>{result.awayTeamName}</p>
+            <span className={cn("grid h-9 min-w-9 place-items-center rounded-md px-2 text-lg font-extrabold ring-1", scoreTone(result.awayTeamScore, result.homeTeamScore))}>
+              {result.awayTeamScore}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#eeeaf2] pt-2 text-xs font-semibold text-[#6c5a73]">
+            <span>{formatFixtureDate(result.fixtureDate)}</span>
+            <span>{homeWon ? "Home win" : awayWon ? "Away win" : "Draw"}</span>
+          </div>
         </div>
-        <div className="grid grid-cols-[auto_auto_auto] items-center gap-1 rounded-lg bg-[#f7f5fa] px-2 py-1 ring-1 ring-[#eeeaf2]">
-          <span className={cn("grid h-8 min-w-8 place-items-center rounded-md px-2 text-lg font-extrabold ring-1", scoreTone(result.homeTeamScore, result.awayTeamScore))}>
-            {result.homeTeamScore}
-          </span>
-          <span className="text-xs font-bold text-[#6c5a73]">v</span>
-          <span className={cn("grid h-8 min-w-8 place-items-center rounded-md px-2 text-lg font-extrabold ring-1", scoreTone(result.awayTeamScore, result.homeTeamScore))}>
-            {result.awayTeamScore}
-          </span>
-        </div>
-        <div className="min-w-0 text-right">
-          <p className="break-words font-extrabold leading-tight" style={{ color: awayColors.primaryColor }}>{result.awayTeamName}</p>
-          <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{homeWon ? "Home win" : awayWon ? "Away win" : "Draw"}</p>
+        <div className="hidden min-h-[76px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:grid">
+          <div className="min-w-0">
+            <p className="break-words font-extrabold leading-tight" style={{ color: homeColors.primaryColor }}>{result.homeTeamName}</p>
+            <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{formatFixtureDate(result.fixtureDate)}</p>
+          </div>
+          <div className="grid grid-cols-[auto_auto_auto] items-center gap-1 rounded-lg bg-[#f7f5fa] px-2 py-1 ring-1 ring-[#eeeaf2]">
+            <span className={cn("grid h-8 min-w-8 place-items-center rounded-md px-2 text-lg font-extrabold ring-1", scoreTone(result.homeTeamScore, result.awayTeamScore))}>
+              {result.homeTeamScore}
+            </span>
+            <span className="text-xs font-bold text-[#6c5a73]">v</span>
+            <span className={cn("grid h-8 min-w-8 place-items-center rounded-md px-2 text-lg font-extrabold ring-1", scoreTone(result.awayTeamScore, result.homeTeamScore))}>
+              {result.awayTeamScore}
+            </span>
+          </div>
+          <div className="min-w-0 text-right">
+            <p className="break-words font-extrabold leading-tight" style={{ color: awayColors.primaryColor }}>{result.awayTeamName}</p>
+            <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{homeWon ? "Home win" : awayWon ? "Away win" : "Draw"}</p>
+          </div>
         </div>
       </div>
     </div>
