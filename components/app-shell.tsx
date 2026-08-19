@@ -267,6 +267,15 @@ export function AppShell({
     setSelectedFixtureId(fixtureId);
     setActivePage("Match");
   };
+  const previousPageRef = useRef(activePage);
+
+  useEffect(() => {
+    if (previousPageRef.current === activePage) return;
+    previousPageRef.current = activePage;
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+  }, [activePage]);
 
   useEffect(() => {
     onPageVisit?.(activePage, activeTeam);
