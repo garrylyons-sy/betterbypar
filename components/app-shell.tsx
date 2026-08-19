@@ -99,7 +99,7 @@ export function AppShell({
     const requestedSeason = params.get("season")?.trim().toLowerCase();
     if (!requestedTeam && !requestedRole && !requestedSeason) return contexts[0]?.id ?? teamContexts[0].id;
     return contexts.find((team) => {
-      const teamMatches = requestedTeam ? team.name.toLowerCase() === requestedTeam : true;
+      const teamMatches = requestedTeam ? normalizeLookupKey(team.name) === normalizeLookupKey(requestedTeam) : true;
       const roleMatches = requestedRole ? team.role.toLowerCase() === requestedRole : true;
       const seasonMatches = requestedSeason ? team.season.toLowerCase() === requestedSeason : true;
       return teamMatches && roleMatches && seasonMatches;
@@ -311,6 +311,10 @@ export function AppShell({
       <BottomNav activePage={activePage} activeTeam={activeTeam} onNavigate={navigateToPage} menuItems={activeMenuItems} />
     </main>
   );
+}
+
+function normalizeLookupKey(value: string | null | undefined) {
+  return value?.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim() ?? "";
 }
 
 function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: string, tableRows: Standing[]): TeamContext {

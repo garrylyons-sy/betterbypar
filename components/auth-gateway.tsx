@@ -210,23 +210,23 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
   const params = new URLSearchParams(window.location.search);
   const embedded = params.get("embed") === "1";
   const requestedRole = normalizeEmbeddedRole(params.get("role"));
-  const requestedTeam = params.get("team")?.trim().toLowerCase();
-  const requestedClub = params.get("club")?.trim().toLowerCase();
+  const requestedTeam = normalizeLookupKey(params.get("team"));
+  const requestedClub = normalizeLookupKey(params.get("club"));
   const requestedSeason = params.get("season")?.trim() || "2026/27";
   if (!embedded || !requestedRole) return contexts;
 
   const existing = contexts.find((context) => {
     if (context.role !== requestedRole) return false;
     if (requestedRole === "Club Member" || requestedRole === "Club Admin") {
-      return requestedClub ? context.club.toLowerCase() === requestedClub : context.club.toLowerCase() === "castle golf club";
+      return requestedClub ? normalizeLookupKey(context.club) === requestedClub : normalizeLookupKey(context.club) === "castle golf club";
     }
-    return Boolean(requestedTeam) && context.name.toLowerCase() === requestedTeam && context.season === requestedSeason;
+    return Boolean(requestedTeam) && normalizeLookupKey(context.name) === requestedTeam && context.season === requestedSeason;
   });
   if (existing) return contexts;
 
   if (requestedRole === "Club Member" || requestedRole === "Club Admin") {
     const clubName = requestedClub || "castle golf club";
-    const club = clubTeamStructure.find((entry) => entry.club.toLowerCase() === clubName);
+    const club = clubTeamStructure.find((entry) => normalizeLookupKey(entry.club) === clubName);
     if (!club) return contexts;
     const embeddedContext: TeamContext = {
       id: `embedded-${requestedRole.toLowerCase().replace(/\s+/g, "-")}-${club.club.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
@@ -247,7 +247,7 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
 
   if (!requestedTeam) return contexts;
   const option = teamOptions.find((team) =>
-    team.teamName.toLowerCase() === requestedTeam &&
+    normalizeLookupKey(team.teamName) === requestedTeam &&
     team.seasonName === requestedSeason
   );
   if (!option || !/^[0-9a-f-]{36}$/i.test(option.teamId)) return contexts;
@@ -280,6 +280,10 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
   };
 
   return [embeddedContext, ...contexts];
+}
+
+function normalizeLookupKey(value: string | null | undefined) {
+  return value?.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim() ?? "";
 }
 
 function normalizeEmbeddedRole(value: string | null): Role | null {
