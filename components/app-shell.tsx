@@ -752,18 +752,18 @@ function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = 
               ) : null}
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-2">
             <HeroMetric label="Played" value={hasTeamActivity ? String(played) : "-"} />
             <HeroMetric label="Matches Won" value={hasTeamActivity ? String(won) : "-"} />
             <HeroMetric label="Pts" value={hasTeamActivity ? String(points) : "-"} />
           </div>
         </div>
-        <div className="relative mt-5 grid grid-cols-2 gap-2 xl:max-w-[620px]">
-          <Button className="w-full" onClick={() => onNavigate(activeTeam.role === "Manager" ? "Fixtures" : activeTeam.role === "Club Admin" ? "Club" : activeTeam.role === "Club Member" ? "Bookings" : "Stats")}>
+        <div className="relative mt-5 grid gap-2 min-[390px]:grid-cols-2 xl:max-w-[620px]">
+          <Button className="w-full min-w-0" onClick={() => onNavigate(activeTeam.role === "Manager" ? "Fixtures" : activeTeam.role === "Club Admin" ? "Club" : activeTeam.role === "Club Member" ? "Bookings" : "Stats")}>
             <PlusCircle className="h-4 w-4" />
             {activeTeam.role === "Club Admin" ? "Admin tools" : clubMember ? "Book table" : activeTeam.role === "Assistant Manager" ? "Support team" : manager ? "Enter result" : "View stats"}
           </Button>
-          <Button variant="secondary" className="w-full" onClick={() => onNavigate("Club")}>
+          <Button variant="secondary" className="w-full min-w-0" onClick={() => onNavigate("Club")}>
             <CalendarPlus className="h-4 w-4" />
             Club
           </Button>
@@ -4663,9 +4663,9 @@ function ClubTeamStructureCard() {
 
 function HeroMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur">
+    <div className="min-w-0 rounded-xl bg-white/10 p-2.5 ring-1 ring-white/20 backdrop-blur sm:p-3">
       <p className="text-[10px] font-bold uppercase leading-tight text-white/65">{label}</p>
-      <p className="mt-1 text-3xl font-extrabold leading-none text-white">{value}</p>
+      <p className="mt-1 truncate text-2xl font-extrabold leading-none text-white sm:text-3xl">{value}</p>
     </div>
   );
 }
