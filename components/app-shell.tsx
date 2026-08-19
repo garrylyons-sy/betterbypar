@@ -764,13 +764,13 @@ function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = 
               ) : null}
             </div>
           </div>
-          <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-2">
+          <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[repeat(3,minmax(0,1fr))]">
             <HeroMetric label="Played" value={hasTeamActivity ? String(played) : "-"} />
             <HeroMetric label="Matches Won" value={hasTeamActivity ? String(won) : "-"} />
             <HeroMetric label="Pts" value={hasTeamActivity ? String(points) : "-"} />
           </div>
         </div>
-        <div className="relative mt-5 grid gap-2 sm:grid-cols-2 xl:max-w-[620px]">
+        <div className="relative mt-5 grid min-w-0 gap-2 md:grid-cols-2 xl:max-w-[620px]">
           <Button className="w-full min-w-0" onClick={() => onNavigate(activeTeam.role === "Manager" ? "Fixtures" : activeTeam.role === "Club Admin" ? "Club" : activeTeam.role === "Club Member" ? "Bookings" : "Stats")}>
             <PlusCircle className="h-4 w-4" />
             {activeTeam.role === "Club Admin" ? "Admin tools" : clubMember ? "Book table" : activeTeam.role === "Assistant Manager" ? "Support team" : manager ? "Enter result" : "View stats"}
@@ -823,7 +823,7 @@ function ClubMemberHero({ activeTeam, userLabel, onNavigate }: { activeTeam: Tea
             ) : null}
           </div>
         </div>
-        <div className="relative mt-5 grid gap-2 sm:grid-cols-2 xl:max-w-[620px]">
+        <div className="relative mt-5 grid min-w-0 gap-2 md:grid-cols-2 xl:max-w-[620px]">
           <Button className="w-full" onClick={() => activeTeam.role === "Club Admin" ? window.location.assign("/admin") : onNavigate("Bookings")}>
             <CalendarPlus className="h-4 w-4" />
             {activeTeam.role === "Club Admin" ? "Open admin" : "Book table"}
@@ -3387,7 +3387,29 @@ function FixtureWeekCarouselCard({
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                       }}
                     >
-                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                      <div className="grid gap-2 md:hidden">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                          <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={fixtureHasStarted(fixture) ? undefined : homeLineupStatus} />
+                          {hasScore ? (
+                            <span className={cn("grid h-8 min-w-12 place-items-center rounded-md px-2 text-sm font-black ring-1", scoreTone(fixture.homeTeamScore ?? 0, fixture.awayTeamScore ?? 0))}>
+                              {fixture.homeTeamScore}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-black uppercase text-[#6c5a73]">Home</span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                          <FixtureTeamLabel teamName={fixture.awayTeamName} lineupStatus={fixtureHasStarted(fixture) ? undefined : awayLineupStatus} />
+                          {hasScore ? (
+                            <span className={cn("grid h-8 min-w-12 place-items-center rounded-md px-2 text-sm font-black ring-1", scoreTone(fixture.awayTeamScore ?? 0, fixture.homeTeamScore ?? 0))}>
+                              {fixture.awayTeamScore}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-black uppercase text-[#6c5a73]">Away</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="hidden grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 md:grid">
                         <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={fixtureHasStarted(fixture) ? undefined : homeLineupStatus} />
                         {hasScore ? (
                           <span className="rounded-lg bg-[#10233f] px-2 py-1 text-sm font-black text-white">{fixture.homeTeamScore}-{fixture.awayTeamScore}</span>
@@ -3411,13 +3433,13 @@ function FixtureWeekCarouselCard({
                 );
               })}
             </div>
-            <div className="flex justify-center gap-1">
+            <div className="flex flex-wrap justify-center gap-1">
               {weeks.map((item, index) => (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => setActiveIndex(index)}
-                  className={cn("h-2 w-6 rounded-full", index === activeIndex ? "bg-[#10233f]" : "bg-[#d8d3df]")}
+                  className={cn("h-2 w-4 rounded-full md:w-6", index === activeIndex ? "bg-[#10233f]" : "bg-[#d8d3df]")}
                   aria-label={`Go to ${item.weekLabel}`}
                 />
               ))}
@@ -3645,7 +3667,29 @@ function ManagerLineupCard({
                           "grid w-full gap-2 p-3 text-left transition-colors hover:bg-[#f7f5fa]"
                         )}
                       >
-                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                        <div className="grid gap-2 md:hidden">
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                            <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={showLineupStatus ? fixture.homeLineupStatus : undefined} />
+                            {hasScore ? (
+                              <span className={cn("grid h-8 min-w-12 place-items-center rounded-md px-2 text-sm font-black ring-1", scoreTone(fixture.homeTeamScore ?? 0, fixture.awayTeamScore ?? 0))}>
+                                {fixture.homeTeamScore}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-black uppercase text-[#6c5a73]">Home</span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                            <FixtureTeamLabel teamName={fixture.awayTeamName} lineupStatus={showLineupStatus ? fixture.awayLineupStatus : undefined} />
+                            {hasScore ? (
+                              <span className={cn("grid h-8 min-w-12 place-items-center rounded-md px-2 text-sm font-black ring-1", scoreTone(fixture.awayTeamScore ?? 0, fixture.homeTeamScore ?? 0))}>
+                                {fixture.awayTeamScore}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-black uppercase text-[#6c5a73]">Away</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="hidden grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 md:grid">
                           <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={showLineupStatus ? fixture.homeLineupStatus : undefined} />
                           <div className="text-center">
                             {hasScore ? (
