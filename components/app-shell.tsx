@@ -431,7 +431,7 @@ function PageContent({
     );
   }
   if (activePage === "Results") return <ResultsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} />;
-  if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} standingsData={standingsData} matchResults={matchResults} />;
+  if (activePage === "Table") return <TablesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} />;
   if (activePage === "Players") return <PlayersPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
@@ -2415,6 +2415,53 @@ function StatsPage({
       {playerBreakStat ? <HighBreakSeasonCard activeTeam={activeTeam} breakStat={playerBreakStat} /> : null}
       <TeamPositionStrip activeTeam={activeTeam} />
       <PlayerGameResultsCard results={playerGameResults} />
+    </section>
+  );
+}
+
+function TablesPage({ activeTeam, standingsData, matchResults }: { activeTeam: TeamContext; standingsData: Standing[]; matchResults: MatchResult[] }) {
+  const seasonRows = standingsData.filter((row) => row.season === activeTeam.season);
+  const availableLeagues = new Set(seasonRows.map((row) => row.league));
+  const orderedLeagues: TeamContext["league"][] = [
+    activeTeam.league,
+    ...leagueOrder
+      .filter((league) => league !== activeTeam.league)
+      .filter((league) => availableLeagues.has(league))
+      .sort((a, b) => a.localeCompare(b))
+  ];
+
+  return (
+    <section className="grid gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Tables</CardTitle>
+          <Badge variant="muted">{activeTeam.season}</Badge>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm font-semibold text-[#6c5a73]">
+            {activeTeam.league} is shown first. Other leagues for {activeTeam.season} follow alphabetically.
+          </p>
+        </CardContent>
+      </Card>
+      {orderedLeagues.length ? orderedLeagues.map((league) => {
+        const leagueStandings = seasonRows.filter((row) => row.league === league);
+        const leagueResults = matchResults.filter((result) => result.league === league && result.season === activeTeam.season);
+        const contextForLeague = {
+          ...activeTeam,
+          league
+        } satisfies TeamContext;
+
+        return (
+          <LeagueTable
+            key={`${activeTeam.season}-${league}`}
+            activeTeam={contextForLeague}
+            standingsData={leagueStandings}
+            matchResults={leagueResults}
+          />
+        );
+      }) : (
+        <LeagueTable activeTeam={activeTeam} standingsData={[]} matchResults={[]} />
+      )}
     </section>
   );
 }
@@ -4681,6 +4728,7 @@ function LeagueTable({ activeTeam, standingsData, matchResults = [] }: { activeT
       <CardHeader className="gap-2">
         <CardTitle>League Table</CardTitle>
         <div className="flex gap-2">
+          <Badge variant="muted">{activeTeam.league}</Badge>
           {showDirectFinal ? <Badge variant="gold">Final</Badge> : null}
           {showSemiFinals ? <Badge variant="green">Semi</Badge> : null}
         </div>
