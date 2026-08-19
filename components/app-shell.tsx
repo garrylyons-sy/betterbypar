@@ -425,6 +425,7 @@ function PageContent({
       <MatchPage
         activeTeam={activeTeam}
         fixtureId={selectedFixtureId}
+        matchResults={matchResults}
         onDataRefresh={onDataRefresh}
         onTeamSummaryUpdate={onTeamSummaryUpdate}
       />
@@ -486,7 +487,7 @@ function Header({
   const [accountOpen, setAccountOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 w-full overflow-hidden bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6 lg:px-10">
+    <header className="sticky top-0 z-50 w-full overflow-visible bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6 lg:px-10">
       <div className="mx-auto grid w-full max-w-[1440px] gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white p-1.5 shadow-[0_6px_16px_rgba(0,0,0,0.16)] ring-1 ring-white/25">
@@ -547,7 +548,7 @@ function Header({
                 <ChevronDown className="h-4 w-4 shrink-0 text-white/70" />
               </button>
               {accountOpen ? (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 rounded-xl bg-white p-2 text-[#10233f] shadow-elevated ring-1 ring-[#eeeaf2]" role="menu">
+                <div className="absolute right-0 top-[calc(100%+8px)] z-[80] w-64 rounded-xl bg-white p-2 text-[#10233f] shadow-elevated ring-1 ring-[#eeeaf2]" role="menu">
                   <div className="px-3 py-2">
                     <p className="text-xs font-bold uppercase text-[#6c5a73]">Signed in as</p>
                     <p className="truncate text-sm font-extrabold">{userLabel}</p>
@@ -2302,15 +2303,18 @@ function FixturesPage({
 function MatchPage({
   activeTeam,
   fixtureId,
+  matchResults,
   onDataRefresh,
   onTeamSummaryUpdate
 }: {
   activeTeam: TeamContext;
   fixtureId: string;
+  matchResults: MatchResult[];
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   const managerView = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
+  const selectedResult = matchResults.find((result) => result.id === fixtureId);
 
   return (
     <section className="grid gap-4">
@@ -2329,9 +2333,13 @@ function MatchPage({
               <Badge variant="muted">{activeTeam.league}</Badge>
             </CardHeader>
             <CardContent>
-              <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-                Scores and frame details for this match will appear here as they are entered.
-              </p>
+              {selectedResult?.status === "Completed" ? (
+                <CompletedImportedMatchSummary result={selectedResult} />
+              ) : (
+                <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+                  Live scores and frame details will appear here once scoring starts.
+                </p>
+              )}
             </CardContent>
           </Card>
         )
@@ -2349,6 +2357,27 @@ function MatchPage({
         </Card>
       )}
     </section>
+  );
+}
+
+function CompletedImportedMatchSummary({ result }: { result: MatchResult }) {
+  return (
+    <div className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+        <p className={cn("min-w-0 break-words text-sm font-extrabold leading-tight", (result.homeTeamScore ?? 0) > (result.awayTeamScore ?? 0) ? "text-[#00a85a]" : "text-[#10233f]")}>
+          {result.homeTeamName}
+        </p>
+        <span className="rounded-lg bg-[#10233f] px-2.5 py-1 text-sm font-black text-white">
+          {result.homeTeamScore}-{result.awayTeamScore}
+        </span>
+        <p className={cn("min-w-0 break-words text-right text-sm font-extrabold leading-tight", (result.awayTeamScore ?? 0) > (result.homeTeamScore ?? 0) ? "text-[#00a85a]" : "text-[#10233f]")}>
+          {result.awayTeamName}
+        </p>
+      </div>
+      <p className="mt-2 text-xs font-semibold text-[#6c5a73]">
+        This result is final. Frame-by-frame details were not imported for this historical match.
+      </p>
+    </div>
   );
 }
 
@@ -4327,15 +4356,50 @@ function PublishedLineupSummary({ title, slots }: { title: string; slots: Manage
   );
 }
 
-function ReadOnlyFixtureDetails({ fixture }: { fixture: { games?: ManagerLineupGame[]; status: string; homeTeamId: string; awayTeamId: string } }) {
+function ReadOnlyFixtureDetails({
+  fixture
+}: {
+  fixture: {
+    games?: ManagerLineupGame[];
+    status: string;
+    homeTeamId: string;
+    awayTeamId: string;
+    homeTeamName?: string;
+    awayTeamName?: string;
+    homeTeamScore?: number | null;
+    awayTeamScore?: number | null;
+  };
+}) {
   const games = fixture.games ?? [];
 
   if (!games.length) {
+    if (fixture.status === "Completed" && fixture.homeTeamScore !== null && fixture.homeTeamScore !== undefined && fixture.awayTeamScore !== null && fixture.awayTeamScore !== undefined) {
+      return (
+        <div className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+          <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Final score</p>
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+            <p className={cn("min-w-0 break-words text-sm font-extrabold leading-tight", fixture.homeTeamScore > fixture.awayTeamScore ? "text-[#00a85a]" : "text-[#10233f]")}>
+              {fixture.homeTeamName ?? "Home"}
+            </p>
+            <span className="rounded-lg bg-[#10233f] px-2.5 py-1 text-sm font-black text-white">
+              {fixture.homeTeamScore}-{fixture.awayTeamScore}
+            </span>
+            <p className={cn("min-w-0 break-words text-right text-sm font-extrabold leading-tight", fixture.awayTeamScore > fixture.homeTeamScore ? "text-[#00a85a]" : "text-[#10233f]")}>
+              {fixture.awayTeamName ?? "Away"}
+            </p>
+          </div>
+          <p className="mt-2 text-xs font-semibold text-[#6c5a73]">
+            Frame-by-frame details were not imported for this historical match.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="rounded-xl bg-[#f7f5fa] p-3">
         <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Match details</p>
         <p className="mt-1 text-sm font-bold text-[#10233f]">
-          Scores and frame details will appear here once the match card is active.
+          Live scores and frame details will appear here once scoring starts.
         </p>
       </div>
     );
