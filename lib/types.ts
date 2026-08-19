@@ -66,6 +66,15 @@ export type PlayerGameResult = {
   isDoublesPartnerRow: boolean;
 };
 
+export type PlayerBreakStat = {
+  season: string;
+  league: "A League" | "B League" | "C League";
+  highestBreak: number;
+  totalBreaks: number;
+  fiftyPlusBreaks: number;
+  centuryBreaks: number;
+};
+
 export type MatchResult = {
   id: string;
   league: "A League" | "B League" | "C League";

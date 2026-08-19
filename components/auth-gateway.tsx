@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { clubTeamStructure } from "@/lib/demo-data";
-import type { AppearanceConfig, MatchResult, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
+import type { AppearanceConfig, MatchResult, PlayerBreakStat, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 
 type AuthMode = "signin" | "activate" | "request";
 type TeamOption = {
@@ -29,6 +29,7 @@ type SessionPayload = {
   };
   contexts?: TeamContext[];
   standings?: Standing[];
+  playerBreakStats?: PlayerBreakStat[];
   playerGameResults?: PlayerGameResult[];
   matchResults?: MatchResult[];
   activeMatchCount?: number;
@@ -169,6 +170,7 @@ export function AuthGateway() {
             key={session.user?.email ?? session.user?.name ?? "signed-in"}
             contexts={contexts}
             standingsData={session.standings ?? []}
+            playerBreakStats={session.playerBreakStats ?? []}
             playerGameResults={session.playerGameResults ?? []}
             matchResults={session.matchResults ?? []}
             activeMatchCount={session.activeMatchCount ?? 0}

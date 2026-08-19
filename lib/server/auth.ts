@@ -4,7 +4,7 @@ import { PoolClient } from "pg";
 
 import { loadAppearanceConfig } from "@/lib/server/appearance";
 import { dbQuery, withTransaction } from "@/lib/server/db";
-import type { PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
+import type { PlayerBreakStat, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 
 export const sessionCookieName = "is_session";
 const oauthStateCookieName = "is_oauth_state";
@@ -865,6 +865,37 @@ export async function loadSessionPayload(user: AppUser) {
     } satisfies PlayerGameResult;
   });
 
+  const playerBreakStats = (await dbQuery<{
+    season_name: string;
+    league_name: TeamContext["league"];
+    highest_break: number;
+    total_breaks: string;
+    fifty_plus_breaks: string;
+    century_breaks: string;
+  }>(
+    `select
+       season_name,
+       league_name,
+       max(break_value) as highest_break,
+       count(*) as total_breaks,
+       count(*) filter (where break_value >= 50) as fifty_plus_breaks,
+       count(*) filter (where break_value >= 100) as century_breaks
+     from public.player_break_leaderboard_view
+     where player_id = $1
+       and season_name is not null
+       and league_name is not null
+     group by season_name, league_name
+     order by season_name desc, league_name`,
+    [user.personId]
+  )).rows.map((row) => ({
+    season: row.season_name,
+    league: row.league_name,
+    highestBreak: Number(row.highest_break),
+    totalBreaks: Number(row.total_breaks),
+    fiftyPlusBreaks: Number(row.fifty_plus_breaks),
+    centuryBreaks: Number(row.century_breaks)
+  } satisfies PlayerBreakStat));
+
   const matchResults = (await dbQuery<{
     fixture_id: string;
     league_name: TeamContext["league"];
@@ -936,6 +967,7 @@ export async function loadSessionPayload(user: AppUser) {
     contexts,
     standings,
     playerGameResults,
+    playerBreakStats,
     matchResults,
     activeMatchCount,
     appearance

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import {
   BarChart3,
@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { appearanceMenuOptions, defaultAppearanceConfig, normalizeAppearanceConfig } from "@/lib/appearance";
 import { clubTeamStructure, playerGameResults as demoPlayerGameResults, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
-import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, MatchResult, PlayerGameResult, Role, RoleAppearance, Standing, TeamContext } from "@/lib/types";
+import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, MatchResult, PlayerBreakStat, PlayerGameResult, Role, RoleAppearance, Standing, TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,6 +82,7 @@ function menuEntry(id: AppearanceMenuId) {
 export function AppShell({
   contexts = teamContexts,
   standingsData = standings,
+  playerBreakStats = [],
   playerGameResults = demoPlayerGameResults,
   matchResults,
   activeMatchCount = 0,
@@ -93,6 +94,7 @@ export function AppShell({
 }: {
   contexts?: TeamContext[];
   standingsData?: Standing[];
+  playerBreakStats?: PlayerBreakStat[];
   playerGameResults?: PlayerGameResult[];
   matchResults?: MatchResult[];
   activeMatchCount?: number;
@@ -250,6 +252,10 @@ export function AppShell({
     })),
     [activeTeam.league, activeTeam.name, activeTeam.season, playerGameResults]
   );
+  const activePlayerBreakStat = useMemo(
+    () => playerBreakStats.find((stat) => stat.league === activeTeam.league && stat.season === activeTeam.season) ?? null,
+    [activeTeam.league, activeTeam.season, playerBreakStats]
+  );
   const allMatchResults = matchResults ?? [];
   const clubOnlyView = isClubOnlyRole(activeTeam.role);
   const showLeaguePanels = !clubOnlyView && pagesWithLeagueAside.includes(activePage);
@@ -300,6 +306,7 @@ export function AppShell({
             activeTeam={activeTeam}
             standingsData={activeStandings}
             allStandingsData={standingsData}
+            playerBreakStat={activePlayerBreakStat}
             playerGameResults={activePlayerGameResults}
             matchResults={activeMatchResults}
             allMatchResults={allMatchResults}
@@ -361,6 +368,7 @@ function PageContent({
   activeTeam,
   standingsData,
   allStandingsData,
+  playerBreakStat,
   playerGameResults,
   matchResults,
   allMatchResults,
@@ -377,6 +385,7 @@ function PageContent({
   activeTeam: TeamContext;
   standingsData: Standing[];
   allStandingsData: Standing[];
+  playerBreakStat: PlayerBreakStat | null;
   playerGameResults: PlayerGameResult[];
   matchResults: MatchResult[];
   allMatchResults: MatchResult[];
@@ -424,14 +433,14 @@ function PageContent({
   if (activePage === "Results") return <ResultsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} />;
   if (activePage === "Table") return <LeagueTable activeTeam={activeTeam} standingsData={standingsData} matchResults={matchResults} />;
   if (activePage === "Players") return <PlayersPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
-  if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} />;
+  if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onNavigate={onNavigate} />;
   if (isClubOnlyRole(activeTeam.role)) return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
-  return <PlayerHome activeTeam={activeTeam} standingsData={standingsData} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
+  return <PlayerHome activeTeam={activeTeam} standingsData={standingsData} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
 }
 
 function dedupePlayerGameResults(results: PlayerGameResult[]) {
@@ -1900,6 +1909,7 @@ function CompetitionScoreModal({
 function PlayerHome({
   activeTeam,
   standingsData,
+  playerBreakStat,
   playerGameResults,
   matchResults,
   onNavigate,
@@ -1909,6 +1919,7 @@ function PlayerHome({
 }: {
   activeTeam: TeamContext;
   standingsData: Standing[];
+  playerBreakStat: PlayerBreakStat | null;
   playerGameResults: PlayerGameResult[];
   matchResults: MatchResult[];
   onNavigate: (page: AppPage) => void;
@@ -1919,7 +1930,14 @@ function PlayerHome({
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
     if (panel === "leagueTableSnapshot") return <HomeLeagueTableCard key={panel} activeTeam={activeTeam} standingsData={standingsData} onNavigate={onNavigate} />;
-    if (panel === "myStats") return <PlayerStatCard key={panel} activeTeam={activeTeam} playerGameResults={playerGameResults} />;
+    if (panel === "myStats") {
+      return (
+        <Fragment key={panel}>
+          <PlayerStatCard activeTeam={activeTeam} playerGameResults={playerGameResults} />
+          {playerBreakStat ? <HighBreakSeasonCard activeTeam={activeTeam} breakStat={playerBreakStat} /> : null}
+        </Fragment>
+      );
+    }
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
     if (panel === "personalRecentForm") return <PersonalRecentFormCard key={panel} playerGameResults={playerGameResults} />;
     if (panel === "individualGames") return <PlayerGameResultsCard key={panel} results={playerGameResults} />;
@@ -2367,7 +2385,19 @@ function PlayersPage({ activeTeam, playerGameResults }: { activeTeam: TeamContex
   );
 }
 
-function StatsPage({ activeTeam, playerGameResults, matchResults, leagueTeamCount }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[]; leagueTeamCount: number }) {
+function StatsPage({
+  activeTeam,
+  playerBreakStat,
+  playerGameResults,
+  matchResults,
+  leagueTeamCount
+}: {
+  activeTeam: TeamContext;
+  playerBreakStat: PlayerBreakStat | null;
+  playerGameResults: PlayerGameResult[];
+  matchResults: MatchResult[];
+  leagueTeamCount: number;
+}) {
   if (activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager") {
     return (
       <section className="grid gap-4 md:grid-cols-2">
@@ -2382,6 +2412,7 @@ function StatsPage({ activeTeam, playerGameResults, matchResults, leagueTeamCoun
   return (
     <section className="grid gap-4 md:grid-cols-2">
       <PlayerStatCard activeTeam={activeTeam} playerGameResults={playerGameResults} />
+      {playerBreakStat ? <HighBreakSeasonCard activeTeam={activeTeam} breakStat={playerBreakStat} /> : null}
       <TeamPositionStrip activeTeam={activeTeam} />
       <PlayerGameResultsCard results={playerGameResults} />
     </section>
@@ -2650,6 +2681,28 @@ function PlayerStatCard({ activeTeam = teamContexts[0], playerGameResults = demo
             <MiniStat label="Played" value={String(played || "-")} dark />
             <MiniStat label="Won" value={String(wins || "-")} dark />
             <MiniStat label="Lost" value={String(losses || "-")} dark />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function HighBreakSeasonCard({ activeTeam, breakStat }: { activeTeam: TeamContext; breakStat: PlayerBreakStat }) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader>
+        <CardTitle>High Break</CardTitle>
+        <Badge variant="muted">{activeTeam.season}</Badge>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+          <p className="text-xs font-extrabold uppercase text-white/65">High break this season</p>
+          <p className="mt-1 text-6xl font-black leading-none">{breakStat.highestBreak}</p>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <MiniStat label="Breaks" value={String(breakStat.totalBreaks)} dark />
+            <MiniStat label="50+" value={String(breakStat.fiftyPlusBreaks)} dark />
+            <MiniStat label="100+" value={String(breakStat.centuryBreaks)} dark />
           </div>
         </div>
       </CardContent>
