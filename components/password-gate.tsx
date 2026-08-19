@@ -52,7 +52,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
     setError("Incorrect password");
   }
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/lineup-test") || pathname.startsWith("/3-lineup") || pathname.startsWith("/castle-3-lineup") || pathname.startsWith("/3-teams") || embedBypass) {
+  if (pathname.startsWith("/admin") || pathname.startsWith("/lineup-test") || pathname.startsWith("/3-lineup") || pathname.startsWith("/castle-3-lineup") || pathname.startsWith("/3-teams") || pathname.startsWith("/garry-mobile") || embedBypass) {
     return children;
   }
 
