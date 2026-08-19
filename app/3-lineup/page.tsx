@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 
-const appOrigin = "https://www.interclubsnooker.com";
-
 const testPanes = [
   { title: "Castle A - Manager", team: "castle a", user: "castle.a.manager@notrealmail.com" },
   { title: "Dun Laoghaire A - Manager", team: "dun laoghaire a", user: "dun.laoghaire.a.manager@notrealmail.com" },
@@ -14,6 +12,7 @@ export default function ThreeLineupPage() {
   const [frameVersion, setFrameVersion] = useState(0);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const appOrigin = typeof window === "undefined" ? "" : window.location.origin;
 
   async function resetMatch() {
     setBusy(true);
