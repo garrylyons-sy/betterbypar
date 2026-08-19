@@ -33,9 +33,13 @@ export async function POST(request: NextRequest) {
          from public.fixture f
          join public.season s on s.id = f.season_id
          join public.league l on l.id = f.league_id
+         join public.fixture_week fw
+           on fw.season_id = f.season_id
+          and fw.league_id = f.league_id
+          and fw.starts_on = f.fixture_date::date
          where s.name = '2026/27'
            and l.name = 'A League'
-           and f.fixture_date::date = '2026-09-03'::date
+           and fw.week_number = 1
          order by f.fixture_date`
       );
       const fixtureIds = fixtures.rows.map((fixture) => fixture.id);

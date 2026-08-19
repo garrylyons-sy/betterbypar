@@ -6,7 +6,7 @@ const appOrigin = "https://www.interclubsnooker.com";
 
 const testPanes = [
   { title: "Castle A - Manager", team: "castle a" },
-  { title: "Fitzwilliam A - Manager", team: "fitzwilliam a" },
+  { title: "Dun Laoghaire A - Manager", team: "dun laoghaire a" },
   { title: "Milltown A - Manager", team: "milltown a" }
 ];
 
