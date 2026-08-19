@@ -5,9 +5,9 @@ import { useState } from "react";
 const appOrigin = "https://www.interclubsnooker.com";
 
 const testPanes = [
-  { title: "Castle A - Manager", team: "castle a" },
-  { title: "Dun Laoghaire A - Manager", team: "dun laoghaire a" },
-  { title: "Milltown A - Manager", team: "milltown a" }
+  { title: "Castle A - Manager", team: "castle a", user: "castle.a.manager@notrealmail.com" },
+  { title: "Dun Laoghaire A - Manager", team: "dun laoghaire a", user: "dun.laoghaire.a.manager@notrealmail.com" },
+  { title: "Milltown A - Manager", team: "milltown a", user: "milltown.a.manager@notrealmail.com" }
 ];
 
 export default function ThreeLineupPage() {
@@ -58,7 +58,7 @@ export default function ThreeLineupPage() {
           <TestFrame
             key={`${pane.team}-${frameVersion}`}
             title={pane.title}
-            src={`${appOrigin}/?team=${encodeURIComponent(pane.team)}&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`}
+            src={`${appOrigin}/home.html?user=${encodeURIComponent(pane.user)}&next=${encodeURIComponent(`/?team=${pane.team}&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`)}`}
           />
         ))}
       </section>

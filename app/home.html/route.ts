@@ -25,6 +25,19 @@ function redirectWithAuthCode(request: NextRequest, code: string) {
   return response;
 }
 
+function safeNextPath(request: NextRequest) {
+  const next = request.nextUrl.searchParams.get("next")?.trim();
+  if (!next) return "/";
+
+  try {
+    const destination = new URL(next, request.url);
+    if (destination.origin !== request.nextUrl.origin) return "/";
+    return `${destination.pathname}${destination.search}${destination.hash}`;
+  } catch {
+    return "/";
+  }
+}
+
 function normalizeTestUser(value: string | null) {
   const user = value?.trim().toLowerCase() ?? "";
   if (!user) return null;
@@ -84,7 +97,7 @@ export async function GET(request: NextRequest) {
     (await headers()).get("user-agent") ?? ""
   );
 
-  const response = NextResponse.redirect(new URL("/", request.url));
+  const response = NextResponse.redirect(new URL(safeNextPath(request), request.url));
   response.headers.set("Cache-Control", "no-store");
   return response;
 }
