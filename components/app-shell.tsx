@@ -3788,7 +3788,8 @@ function ManagerLineupCard({
   const matchLocked = payload?.fixture?.status === "Completed";
   const allGamesScored = Boolean(payload?.games.length === 6 && payload.games.every((game) => game.winner_team_id));
   const selectedCount = selectedPlayerIdsExcept().size;
-  const fixtureOpen = Boolean(payload?.fixture && openedFixtureId === payload.fixture.id);
+  const directFixtureMode = Boolean(preferredFixtureId && payload?.fixture?.id === preferredFixtureId);
+  const fixtureOpen = Boolean(payload?.fixture && (openedFixtureId === payload.fixture.id || directFixtureMode));
   const weekFixtures = payload?.weekFixtures?.length ? payload.weekFixtures : [];
 
   return (
@@ -3838,7 +3839,7 @@ function ManagerLineupCard({
                   const bothPublished = fixture.homeLineupStatus === "Published" && fixture.awayLineupStatus === "Published";
                   const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                   const matchStarted = Boolean(fixture.totalGames > 0);
-                  const active = fixture.id === openedFixtureId;
+                  const active = fixture.id === openedFixtureId || (directFixtureMode && fixture.id === payload.fixture?.id);
                   const fixtureLocked = fixture.status === "Completed";
                   const canManageFixture = Boolean(payload.canManage && isOwnFixture && !fixtureLocked);
                   const managerActionSide = activeTeam.teamId === fixture.awayTeamId ? "away" : "home";
