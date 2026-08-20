@@ -3700,7 +3700,9 @@ function ManagerLineupCard({
         if (fixtureChanged) {
           fixtureIdRef.current = fixtureId;
           dirtyDraftRef.current = false;
-          setOpenedFixtureId("");
+          setOpenedFixtureId(preferredFixtureId && fixtureId === preferredFixtureId ? fixtureId : "");
+        } else if (firstLoad && preferredFixtureId && fixtureId === preferredFixtureId) {
+          setOpenedFixtureId(fixtureId);
         }
         if (firstLoad || fixtureChanged || lineupStatus === "Published" || !dirtyDraftRef.current) {
           setSlots(data.lineup?.slots?.length ? data.lineup.slots : defaultLineupSlots);
