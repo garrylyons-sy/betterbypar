@@ -228,10 +228,10 @@ export function AppShell({
   }, [activeTeam.club, activeTeam.role]);
   const activeMenuItems = useMemo(() => {
     let configured = activeAppearance.menuItems;
-    if (activeTeam.role === "Club Member" && !configured.includes("Table")) {
-      const homeIndex = configured.indexOf("Home");
-      const insertAt = homeIndex >= 0 ? homeIndex + 1 : Math.min(1, configured.length);
-      configured = [...configured.slice(0, insertAt), "Table" as AppearanceMenuId, ...configured.slice(insertAt)];
+    if (activeTeam.role === "Club Member") {
+      const base = configured.filter((item) => item !== "Table" && item !== "Interclub Leagues");
+      const homeFirst = base.includes("Home") ? ["Home" as AppearanceMenuId, ...base.filter((item) => item !== "Home")] : base;
+      configured = [...homeFirst, "Interclub Leagues" as AppearanceMenuId];
     }
     if (!isClubOnlyRole(activeTeam.role) || enteredCompetitionCount <= 0 || configured.includes("Competitions")) {
       return configured;
@@ -413,7 +413,7 @@ function PageContent({
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   const leagueTeamCount = standingsData.length;
-  const memberRestrictedPages: AppPage[] = ["Fixtures", "Match", "Results", "Players", "Stats", "Interclub Leagues"];
+  const memberRestrictedPages: AppPage[] = ["Fixtures", "Match", "Results", "Players", "Stats"];
 
   if (activeTeam.role === "Club Member" && memberRestrictedPages.includes(activePage)) {
     return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
@@ -538,27 +538,18 @@ function Header({
           ) : null}
         </div>
         <div className="flex min-w-0 items-center gap-2 sm:w-auto">
-          {onSignOut ? (
-            <button
-              type="button"
-              onClick={onSignOut}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 text-sm font-bold text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6] sm:hidden"
-            >
-              <LogOut className="h-4 w-4" />
-              Log out
-            </button>
-          ) : null}
           {userLabel ? (
-            <div className="relative hidden sm:block">
+            <div className="relative">
               <button
                 type="button"
                 onClick={() => setAccountOpen((open) => !open)}
                 className="flex min-h-11 items-center gap-2 rounded-xl bg-white/10 px-3 text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
                 aria-haspopup="menu"
                 aria-expanded={accountOpen}
+                aria-label="Account menu"
               >
                 <UserCircle className="h-5 w-5 shrink-0" />
-                <span className="max-w-[180px] truncate text-sm font-bold">{userLabel}</span>
+                <span className="hidden max-w-[180px] truncate text-sm font-bold sm:block">{userLabel}</span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-white/70" />
               </button>
               {accountOpen ? (
@@ -2222,31 +2213,38 @@ function InterclubLeaguesPage({
           <CardTitle>Interclub Leagues</CardTitle>
           <Badge variant="muted">{isClubOnlyRole(activeTeam.role) ? "A to C" : `${activeTeam.league} first`}</Badge>
         </CardHeader>
-        <CardContent className="grid gap-2 sm:grid-cols-2">
-          {[
-            { label: "Fixtures", page: "Fixtures" as AppPage, icon: CalendarDays },
-            { label: "Results", page: "Results" as AppPage, icon: ClipboardCheck },
-            { label: "League table", page: "Table" as AppPage, icon: Trophy },
-            { label: "Players", page: "Players" as AppPage, icon: Users },
-            { label: "Statistics", page: "Stats" as AppPage, icon: BarChart3 }
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.page}
-                onClick={() => onNavigate(item.page)}
-                className="grid min-h-[76px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left"
-              >
-                <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-black">{item.label}</span>
-                  <span className="block text-xs font-semibold text-[#6c5a73]">Open focused {item.label.toLowerCase()}</span>
-                </span>
-              </button>
-            );
-          })}
+        <CardContent className="grid gap-3">
+          <p className="text-sm font-semibold text-[#6c5a73]">
+            Follow A, B and C league tables, results and in-play scores from one place.
+          </p>
+          {!isClubOnlyRole(activeTeam.role) ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[
+                { label: "My fixtures", page: "Fixtures" as AppPage, icon: CalendarDays },
+                { label: "My results", page: "Results" as AppPage, icon: ClipboardCheck },
+                { label: "All tables", page: "Table" as AppPage, icon: Trophy },
+                { label: "Players", page: "Players" as AppPage, icon: Users },
+                { label: "Statistics", page: "Stats" as AppPage, icon: BarChart3 }
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.page}
+                    onClick={() => onNavigate(item.page)}
+                    className="grid min-h-[76px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left"
+                  >
+                    <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-black">{item.label}</span>
+                      <span className="block text-xs font-semibold text-[#6c5a73]">Open focused {item.label.toLowerCase()}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
       {orderedLeagues.map((league) => {
@@ -2484,13 +2482,15 @@ function TablesPage({ activeTeam, standingsData, matchResults }: { activeTeam: T
         } satisfies TeamContext;
 
         return (
-          <LeagueTable
-            key={`${activeTeam.season}-${league}`}
-            activeTeam={contextForLeague}
-            standingsData={leagueStandings}
-            matchResults={leagueResults}
-            presentation="section"
-          />
+          <section key={`${activeTeam.season}-${league}`} className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <LeagueTable
+              activeTeam={contextForLeague}
+              standingsData={leagueStandings}
+              matchResults={leagueResults}
+              presentation="section"
+            />
+            <SeasonResultsCard activeTeam={contextForLeague} results={leagueResults} defaultScope="league" />
+          </section>
         );
       }) : (
         <LeagueTable activeTeam={activeTeam} standingsData={[]} matchResults={[]} presentation="section" />
@@ -3029,6 +3029,10 @@ function ResultRow({ result, activeTeam }: { result: MatchResult; activeTeam: Te
   const activeTeamPlayed = result.homeTeamName === activeTeam.name || result.awayTeamName === activeTeam.name;
   const homeColors = teamColors(result.homeTeamName);
   const awayColors = teamColors(result.awayTeamName);
+  const hasScore = result.homeTeamScore > 0 || result.awayTeamScore > 0;
+  const resultLabel = result.status === "Completed"
+    ? homeWon ? "Home win" : awayWon ? "Away win" : "Draw"
+    : hasScore ? "In play" : "Scheduled";
 
   return (
     <div
@@ -3056,7 +3060,7 @@ function ResultRow({ result, activeTeam }: { result: MatchResult; activeTeam: Te
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#eeeaf2] pt-2 text-xs font-semibold text-[#6c5a73]">
             <span>{formatFixtureDate(result.fixtureDate)}</span>
-            <span>{homeWon ? "Home win" : awayWon ? "Away win" : "Draw"}</span>
+            <span>{resultLabel}</span>
           </div>
         </div>
         <div className="hidden min-h-[76px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:grid">
@@ -3075,7 +3079,7 @@ function ResultRow({ result, activeTeam }: { result: MatchResult; activeTeam: Te
           </div>
           <div className="min-w-0 text-right">
             <p className="break-words font-extrabold leading-tight" style={{ color: awayColors.primaryColor }}>{result.awayTeamName}</p>
-            <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{homeWon ? "Home win" : awayWon ? "Away win" : "Draw"}</p>
+            <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{resultLabel}</p>
           </div>
         </div>
       </div>
