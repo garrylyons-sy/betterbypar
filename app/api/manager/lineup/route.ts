@@ -180,6 +180,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, ...payload, canManage: true });
     }
 
+    if (action === "completeMatch") {
+      await withTransaction(async (client) => {
+        await ensureFixtureTeam(client, fixtureId, teamId);
+        await completeMatch(client, fixtureId);
+      });
+
+      const payload = await loadLineupPayload(teamId, fixtureId);
+      return NextResponse.json({ ok: true, ...payload, canManage: true });
+    }
+
     if (action === "recordBreak") {
       const gameId = String(body.gameId ?? "").trim();
       const playerId = String(body.playerId ?? "").trim();
@@ -751,6 +761,7 @@ async function recordGameWinner(client: PoolClient, fixtureId: string, gameId: s
      where f.id = $1
        and g.id = $2
        and (f.home_team_id = $3 or f.away_team_id = $3)
+       and f.status <> 'Completed'
      limit 1`,
     [fixtureId, gameId, winnerTeamId]
   );
@@ -759,16 +770,32 @@ async function recordGameWinner(client: PoolClient, fixtureId: string, gameId: s
 
   await client.query("update public.game set winner_team_id = $1 where id = $2", [winnerTeamId, gameId]);
   await client.query("select public.refresh_match_team_points($1)", [matchId]);
+}
 
+async function completeMatch(client: PoolClient, fixtureId: string) {
   const completion = await client.query<{ total_games: string; completed_games: string }>(
-    `select count(*) as total_games, count(*) filter (where winner_team_id is not null) as completed_games
-     from public.game
-     where match_id = $1`,
-    [matchId]
+    `select
+       count(g.id) as total_games,
+       count(g.id) filter (where g.winner_team_id is not null) as completed_games
+     from public.fixture f
+     join public.match m on m.fixture_id = f.id
+     left join public.game g on g.match_id = m.id
+     where f.id = $1
+       and f.status <> 'Completed'`,
+    [fixtureId]
   );
-  if (Number(completion.rows[0]?.total_games ?? 0) === 6 && Number(completion.rows[0]?.completed_games ?? 0) === 6) {
-    await client.query("update public.fixture set status = 'Completed' where id = $1", [fixtureId]);
+  const totalGames = Number(completion.rows[0]?.total_games ?? 0);
+  const completedGames = Number(completion.rows[0]?.completed_games ?? 0);
+  if (totalGames !== 6 || completedGames !== 6) {
+    throw new Error("All six games must be scored before the match can be completed.");
   }
+  await client.query(
+    `update public.fixture
+     set status = 'Completed'
+     where id = $1
+       and status <> 'Completed'`,
+    [fixtureId]
+  );
 }
 
 async function recordPlayerBreak(client: PoolClient, fixtureId: string, gameId: string, playerId: string, breakValue: number) {
@@ -780,6 +807,7 @@ async function recordPlayerBreak(client: PoolClient, fixtureId: string, gameId: 
      where f.id = $1
        and g.id = $2
        and $3::uuid in (g.home_player_1_id, g.home_player_2_id, g.away_player_1_id, g.away_player_2_id)
+       and f.status <> 'Completed'
      limit 1`,
     [fixtureId, gameId, playerId]
   );

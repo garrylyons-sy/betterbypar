@@ -3607,6 +3607,7 @@ function ManagerLineupCard({
   const [busy, setBusy] = useState(false);
   const [pendingGameIds, setPendingGameIds] = useState<Set<string>>(new Set());
   const [pendingBreak, setPendingBreak] = useState(false);
+  const [completingMatch, setCompletingMatch] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<LineupPickerTarget>(null);
   const [breakTarget, setBreakTarget] = useState<BreakEntryTarget>(null);
   const [openedFixtureId, setOpenedFixtureId] = useState("");
@@ -3729,6 +3730,8 @@ function ManagerLineupCard({
   const opponentHasPublished = payload?.opponentStatus?.status === "Published";
   const canSeeOpponentLineup = ownStatus === "Published" && opponentHasPublished;
   const matchReady = Boolean(payload?.games.length);
+  const matchLocked = payload?.fixture?.status === "Completed";
+  const allGamesScored = Boolean(payload?.games.length === 6 && payload.games.every((game) => game.winner_team_id));
   const selectedCount = selectedPlayerIdsExcept().size;
   const fixtureOpen = Boolean(payload?.fixture && openedFixtureId === payload.fixture.id);
   const weekFixtures = payload?.weekFixtures?.length ? payload.weekFixtures : [];
@@ -3737,8 +3740,8 @@ function ManagerLineupCard({
     <Card>
       <CardHeader>
         <CardTitle>Next Matches</CardTitle>
-        <Badge variant={matchReady ? "green" : ownStatus === "Published" ? "cyan" : payload?.lineup?.id ? "muted" : "muted"}>
-          {matchReady ? "Score ready" : ownStatus === "Published" ? "Published" : payload?.lineup?.id ? "Picked" : "Plan"}
+        <Badge variant={matchLocked ? "green" : matchReady ? "cyan" : ownStatus === "Published" ? "cyan" : payload?.lineup?.id ? "muted" : "muted"}>
+          {matchLocked ? "Completed" : matchReady ? "Score ready" : ownStatus === "Published" ? "Published" : payload?.lineup?.id ? "Picked" : "Plan"}
         </Badge>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -3779,7 +3782,8 @@ function ManagerLineupCard({
                   const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                   const matchStarted = Boolean(fixture.totalGames > 0);
                   const active = fixture.id === openedFixtureId;
-                  const canManageFixture = Boolean(payload.canManage && isOwnFixture);
+                  const fixtureLocked = fixture.status === "Completed";
+                  const canManageFixture = Boolean(payload.canManage && isOwnFixture && !fixtureLocked);
                   const managerActionSide = activeTeam.teamId === fixture.awayTeamId ? "away" : "home";
                   const managedLineupStatus = activeTeam.teamId === fixture.awayTeamId ? fixture.awayLineupStatus : fixture.homeLineupStatus;
                   const managedPublished = managedLineupStatus === "Published";
@@ -3887,7 +3891,24 @@ function ManagerLineupCard({
                               onRecord={recordGameWinner}
                               onBreak={(game) => setBreakTarget({ game, fixture: payload.fixture! })}
                               pendingGameIds={pendingGameIds}
+                              locked={matchLocked}
                             />
+                          ) : null}
+                          {isOwnFixture && payload.canManage && matchReady && !matchLocked ? (
+                            <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Lock match</p>
+                                  <p className="text-sm font-bold text-[#10233f]">
+                                    Confirm completion once all six games are correct.
+                                  </p>
+                                </div>
+                                <Badge variant={allGamesScored ? "green" : "muted"}>{allGamesScored ? "Ready" : "Incomplete"}</Badge>
+                              </div>
+                              <Button onClick={completeMatch} disabled={!allGamesScored || completingMatch}>
+                                {completingMatch ? "Completing..." : "Match Completed"}
+                              </Button>
+                            </div>
                           ) : null}
                           {!isOwnFixture ? <ReadOnlyFixtureDetails fixture={fixture} /> : null}
                           {isOwnFixture && !managedPublished && payload.canManage ? (
@@ -3966,6 +3987,7 @@ function ManagerLineupCard({
 
   async function recordGameWinner(gameId: string, winnerTeamId: string) {
     if (!activeTeam.teamId || !payload?.fixture) return;
+    if (payload.fixture.status === "Completed") return;
     if (pendingGameIds.has(gameId)) return;
     const previousPayload = payload;
     const nextPayload = applyOptimisticGameWinner(payload, gameId, winnerTeamId);
@@ -4016,8 +4038,42 @@ function ManagerLineupCard({
     }
   }
 
+  async function completeMatch() {
+    if (!activeTeam.teamId || !payload?.fixture) return;
+    if (payload.fixture.status === "Completed") return;
+    const previousPayload = payload;
+    setCompletingMatch(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/manager/lineup", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          teamId: activeTeam.teamId,
+          fixtureId: payload.fixture.id,
+          action: "completeMatch",
+          testManager: testManagerMode,
+          testUser: testUserEmail
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not complete match.");
+      setPayload(data);
+      setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
+      setMessage("Match completed and locked.");
+      onDataRefresh?.();
+    } catch (error) {
+      setPayload(previousPayload);
+      setMessage(error instanceof Error ? error.message : "Could not complete match.");
+    } finally {
+      setCompletingMatch(false);
+    }
+  }
+
   async function recordBreak(gameId: string, playerId: string, breakValue: number) {
     if (!activeTeam.teamId || !payload?.fixture) return;
+    if (payload.fixture.status === "Completed") return;
     setPendingBreak(true);
     setMessage("");
     try {
@@ -4115,20 +4171,17 @@ function applyOptimisticGameWinner(payload: ManagerLineupPayload, gameId: string
   ));
   const homeTeamScore = games.reduce((total, game) => total + (game.winner_team_id === fixture.homeTeamId ? game.points_awarded : 0), 0);
   const awayTeamScore = games.reduce((total, game) => total + (game.winner_team_id === fixture.awayTeamId ? game.points_awarded : 0), 0);
-  const completed = games.length === 6 && games.every((game) => game.winner_team_id);
 
   return {
     ...payload,
     fixture: {
-      ...fixture,
-      status: completed ? "Completed" : fixture.status
+      ...fixture
     },
     games,
     weekFixtures: payload.weekFixtures.map((weekFixture) => (
       weekFixture.id === fixture.id
         ? {
             ...weekFixture,
-            status: completed ? "Completed" : weekFixture.status,
             homeTeamScore,
             awayTeamScore,
             games: weekFixture.games.map((game) => (
@@ -4449,12 +4502,14 @@ function GeneratedMatchCard({
   payload,
   onRecord,
   onBreak,
-  pendingGameIds
+  pendingGameIds,
+  locked = false
 }: {
   payload: ManagerLineupPayload;
   onRecord: (gameId: string, winnerTeamId: string) => void;
   onBreak: (game: ManagerLineupGame) => void;
   pendingGameIds: Set<string>;
+  locked?: boolean;
 }) {
   const games = payload.games;
   const fixture = payload.fixture;
@@ -4462,7 +4517,10 @@ function GeneratedMatchCard({
 
   return (
     <div className="rounded-xl bg-[#10233f] p-3 text-white">
-      <p className="text-xs font-extrabold uppercase text-white/60">Result entry</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-extrabold uppercase text-white/60">{locked ? "Final result" : "Result entry"}</p>
+        {locked ? <Badge variant="green">Locked</Badge> : null}
+      </div>
       <div className="mt-2 grid gap-2">
         {games.map((game) => {
           const breaks = game.breaks ?? [];
@@ -4475,10 +4533,10 @@ function GeneratedMatchCard({
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
-                <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
+                <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={locked || pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
                   {pendingGameIds.has(game.id) && game.winner_team_id === fixture.homeTeamId ? "..." : fixture.homeTeamName.replace(/ Golf Club/g, "")}
                 </Button>
-                <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
+                <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={locked || pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
                   {pendingGameIds.has(game.id) && game.winner_team_id === fixture.awayTeamId ? "..." : fixture.awayTeamName.replace(/ Golf Club/g, "")}
                 </Button>
               </div>
@@ -4498,7 +4556,8 @@ function GeneratedMatchCard({
                   <button
                     type="button"
                     onClick={() => onBreak(game)}
-                    className="min-h-8 rounded-md bg-white/10 px-2 text-xs font-extrabold text-[#7bc7d6] transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+                    disabled={locked}
+                    className="min-h-8 rounded-md bg-white/10 px-2 text-xs font-extrabold text-[#7bc7d6] transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
                   >
                     Record break
                   </button>
