@@ -985,21 +985,9 @@ export async function loadSessionPayload(user: AppUser) {
   const activeMatchCount = Number((await dbQuery<{ count: string }>(
     `select count(*) as count
      from public.fixture f
-     left join public.match m on m.fixture_id = f.id
-     where f.status = 'Scheduled'
-       and (
-         f.fixture_date::date = (now() at time zone 'Europe/Dublin')::date
-         or exists (
-           select 1
-           from public.fixture_lineup fl
-           where fl.fixture_id = f.id
-         )
-         or exists (
-           select 1
-           from public.game g
-           where g.match_id = m.id
-         )
-       )`
+     where f.fixture_date::date = (now() at time zone 'Europe/Dublin')::date
+       and (now() at time zone 'Europe/Dublin')::time >= time '19:30'
+       and (now() at time zone 'Europe/Dublin')::time < time '23:30'`
   )).rows[0]?.count ?? 0);
 
   const appearance = await loadAppearanceConfig();
