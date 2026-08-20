@@ -309,11 +309,13 @@ export function AppShell({
       )}>
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={navigateToPage} menuItems={activeMenuItems} />
         <div className="grid min-w-0 w-full gap-4">
-          {clubOnlyView && activePage !== "Interclub Leagues" ? (
-            <ClubMemberHero activeTeam={activeTeam} userLabel={userLabel} />
-          ) : (
-            <MatchdayHero activeTeam={activeTeam} userLabel={userLabel} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} activeMatchCount={activeMatchCount} />
-          )}
+          {activePage === "Home" ? (
+            clubOnlyView ? (
+              <ClubMemberHero activeTeam={activeTeam} userLabel={userLabel} />
+            ) : (
+              <MatchdayHero activeTeam={activeTeam} userLabel={userLabel} leagueTeamCount={activeStandings.length} activeMatchCount={activeMatchCount} />
+            )
+          ) : null}
           <PageContent
             activePage={activePage}
             activeTeam={activeTeam}
