@@ -35,7 +35,7 @@ const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Mem
 const RECENT_FORM_LIMIT = 3;
 const SIMULATION_CONTROLS_ENABLED = false;
 const leagueOrder: TeamContext["league"][] = ["A League", "B League", "C League"];
-const pagesWithLeagueAside: AppPage[] = ["Home", "Fixtures", "Results", "Players", "Stats"];
+const pagesWithLeagueAside: AppPage[] = ["Home"];
 
 function isClubOnlyRole(role: Role) {
   return role === "Club Member" || role === "Club Admin";
@@ -160,6 +160,18 @@ export function AppShell({
 
   function changeContext(nextId: string) {
     setSelectedId(nextId);
+    setSelectedFixtureId("");
+    setActivePage("Home");
+  }
+
+  function changeSimulatedRole(nextRole: Role) {
+    setSimulatedRole(nextRole);
+    setSelectedFixtureId("");
+    setActivePage("Home");
+  }
+
+  function changeSimulatedClub(nextClub: string) {
+    setSimulatedClub(nextClub);
     setSelectedFixtureId("");
     setActivePage("Home");
   }
@@ -305,8 +317,8 @@ export function AppShell({
         onSeasonChange={changeSeason}
         simulatedRole={simulatedRole}
         simulatedClub={simulatedClub}
-        onRoleChange={setSimulatedRole}
-        onClubChange={setSimulatedClub}
+        onRoleChange={changeSimulatedRole}
+        onClubChange={changeSimulatedClub}
         onSignOut={onSignOut}
         userLabel={userLabel}
         showSeasonSwitcher={!clubOnlyView}
