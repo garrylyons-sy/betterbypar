@@ -4836,23 +4836,26 @@ function LeaguePlayerStatsRows({ players, emptyLabel }: { players: LeaguePlayerS
         <span className="text-right">Win</span>
         <span className="hidden text-right sm:block">Break</span>
       </div>
-      {players.map((player) => (
-        <div key={`${player.personId}-${player.teamName}`} className={cn(
-          "grid min-h-12 grid-cols-[minmax(118px,1fr)_42px_42px_42px_44px] items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[13px] font-bold ring-1 ring-[#eeeaf2] sm:grid-cols-[minmax(180px,1fr)_minmax(120px,0.7fr)_54px_54px_54px_64px_56px] sm:gap-2 sm:px-3 sm:text-sm",
-          !player.canReachMinimum && "bg-[#fbf9fd] text-[#6c5a73]"
-        )}>
-          <span className="min-w-0">
-            <span className="block truncate font-extrabold leading-tight">{player.name}</span>
-            <span className="block truncate text-[11px] font-bold text-[#6c5a73] sm:hidden">{player.teamName}</span>
-          </span>
-          <span className="hidden min-w-0 truncate text-[#6c5a73] sm:block">{player.teamName}</span>
-          <span className="text-right">{player.played}</span>
-          <span className="text-right text-[#0a6b45]">{player.won}</span>
-          <span className="text-right text-[#b42318]">{player.lost}</span>
-          <span className="text-right">{player.played ? `${player.winPercentage}%` : "-"}</span>
-          <span className="hidden text-right sm:block">{player.highestBreak ?? "-"}</span>
-        </div>
-      ))}
+      {players.map((player) => {
+        const colors = teamColors(player.teamName);
+        return (
+          <div key={`${player.personId}-${player.teamName}`} className={cn(
+            "grid min-h-12 grid-cols-[minmax(118px,1fr)_42px_42px_42px_44px] items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[13px] font-bold ring-1 ring-[#eeeaf2] sm:grid-cols-[minmax(180px,1fr)_minmax(120px,0.7fr)_54px_54px_54px_64px_56px] sm:gap-2 sm:px-3 sm:text-sm",
+            !player.canReachMinimum && "bg-[#fbf9fd] text-[#6c5a73]"
+          )}>
+            <span className="min-w-0">
+              <span className="block truncate font-extrabold leading-tight" style={{ color: colors.primaryColor }}>{player.name}</span>
+              <span className="block truncate text-[11px] font-bold sm:hidden" style={{ color: colors.primaryColor }}>{player.teamName}</span>
+            </span>
+            <span className="hidden min-w-0 truncate font-bold sm:block" style={{ color: colors.primaryColor }}>{player.teamName}</span>
+            <span className="text-right">{player.played}</span>
+            <span className="text-right text-[#0a6b45]">{player.won}</span>
+            <span className="text-right text-[#b42318]">{player.lost}</span>
+            <span className="text-right">{player.played ? `${player.winPercentage}%` : "-"}</span>
+            <span className="hidden text-right sm:block">{player.highestBreak ?? "-"}</span>
+          </div>
+        );
+      })}
       {!players.length && emptyLabel ? (
         <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">{emptyLabel}</p>
       ) : null}
