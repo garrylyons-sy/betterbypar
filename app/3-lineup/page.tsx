@@ -56,7 +56,7 @@ export default function ThreeLineupPage() {
           <TestFrame
             key={`${pane.title}-${frameVersion}`}
             title={pane.title}
-            src={`/?testUser=${encodeURIComponent(pane.user)}&team=${encodeURIComponent(pane.team)}&role=manager&season=2026%2F27&embed=1&isolate=1&testRefresh=${frameVersion}`}
+            src={`/?testUser=${encodeURIComponent(pane.user)}&team=${encodeURIComponent(pane.team)}&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`}
           />
         ))}
       </section>

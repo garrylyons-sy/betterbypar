@@ -670,9 +670,11 @@ function ContextSwitcher({
     const key = `${context.role}|${normalizeLookupKey(context.name)}|${normalizeLookupKey(context.club)}`;
     return list.findIndex((item) => `${item.role}|${normalizeLookupKey(item.name)}|${normalizeLookupKey(item.club)}` === key) === index;
   });
+  const embeddedDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1";
   const hasMultipleRoles = new Set(uniqueContexts.map((context) => context.role)).size > 1;
+  const canSwitchContext = embeddedDemo ? uniqueContexts.length > 1 : hasMultipleRoles;
 
-  if (!hasMultipleRoles) {
+  if (!canSwitchContext) {
     return (
       <div className="min-h-11 rounded-xl bg-white/95 px-4 py-2 text-[#10233f] shadow-card">
         <p className="truncate text-sm font-extrabold">{contextLabel(activeTeam)}</p>
