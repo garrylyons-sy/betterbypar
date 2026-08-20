@@ -19,8 +19,7 @@ import {
   Trophy,
   UserCircle,
   Users,
-  XCircle,
-  Zap
+  XCircle
 } from "lucide-react";
 import { appearanceMenuOptions, defaultAppearanceConfig, normalizeAppearanceConfig } from "@/lib/appearance";
 import { clubTeamStructure, playerGameResults as demoPlayerGameResults, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
@@ -2614,7 +2613,7 @@ function ManagerHome({
 }) {
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "matchPlanning") return null;
-    if (panel === "managerActions") return <ManagerActionCard key={panel} activeTeam={activeTeam} />;
+    if (panel === "managerActions") return null;
     if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="Review season" leagueTeamCount={leagueTeamCount} />;
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
     if (panel === "squadManagement") return <SquadManagementCard key={panel} activeTeam={activeTeam} />;
@@ -3245,28 +3244,6 @@ function TeamPositionStrip({ activeTeam }: { activeTeam: TeamContext }) {
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function ManagerActionCard({ activeTeam }: { activeTeam: TeamContext }) {
-  return (
-    <section className="grid gap-4">
-      <Card style={clubSoftAccentStyle(activeTeam.primaryColor)}>
-        <CardHeader>
-          <CardTitle>Actions</CardTitle>
-          <Badge variant="red">
-            <Zap className="mr-1 h-3 w-3" />
-            Live
-          </Badge>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          <Button className="w-full" style={{ backgroundColor: activeTeam.primaryColor }}>
-            <ClipboardCheck className="h-4 w-4" />
-            Review results
-          </Button>
-        </CardContent>
-      </Card>
-    </section>
   );
 }
 

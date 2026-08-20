@@ -18,7 +18,6 @@ export const appearancePanelOptions: Array<{ id: AppearancePanelId; label: strin
   { id: "interclubLeagues", label: "Interclub leagues", description: "Shortcut to league tables and results.", roles: ["Club Admin"] },
   { id: "messages", label: "Messages", description: "Team and club notices.", roles: [] },
   { id: "matchPlanning", label: "Next matches", description: "View matchday status, live scores and manager lineup actions.", roles: ["Player", "Manager"] },
-  { id: "managerActions", label: "Manager actions", description: "Review results, message team and bookings.", roles: ["Manager"] },
   { id: "seasonComplete", label: "Season complete", description: "Season status and qualification.", roles: ["Manager", "Assistant Manager"] },
   { id: "squadManagement", label: "Squad management", description: "Manager player performance panel.", roles: ["Manager"] },
   { id: "managerSnapshot", label: "Manager snapshot", description: "Team won/lost and playoff line.", roles: ["Manager", "Assistant Manager"] },
@@ -47,7 +46,7 @@ export const defaultAppearanceConfig: AppearanceConfig = {
   },
   Manager: {
     role: "Manager",
-    panels: ["matchPlanning", "squadManagement", "managerActions", "seasonComplete", "teamRecentForm", "managerSnapshot"],
+    panels: ["matchPlanning", "squadManagement", "seasonComplete", "teamRecentForm", "managerSnapshot"],
     menuItems: ["Home", "Fixtures", "Table", "Club", "Results"]
   },
   "Assistant Manager": {
@@ -81,10 +80,6 @@ export function normalizeAppearanceConfig(config?: Partial<AppearanceConfig> | n
     if (role === "Player" && panels.includes("teamStats") && !panels.includes("matchPlanning")) {
       panels = panels.flatMap((panel) => panel === "teamStats" ? ["matchPlanning", panel] as AppearancePanelId[] : [panel]);
     }
-    if (role === "Manager" && panels.includes("managerActions") && !panels.includes("matchPlanning")) {
-      panels = panels.flatMap((panel) => panel === "managerActions" ? ["matchPlanning", panel] as AppearancePanelId[] : [panel]);
-    }
-
     normalized[role] = {
       role,
       panels: panels.length
