@@ -3,9 +3,9 @@
 import { useState } from "react";
 
 const testPanes = [
-  { title: "Castle A - Manager", team: "castle a", user: "castle.a.manager@notrealmail.com" },
-  { title: "Dun Laoghaire A - Manager", team: "dun laoghaire a", user: "dun.laoghaire.a.manager@notrealmail.com" },
-  { title: "Milltown A - Manager", team: "milltown a", user: "milltown.a.manager@notrealmail.com" }
+  { title: "Garry - pane 1", user: "garlyons@gmail.com" },
+  { title: "Garry - pane 2", user: "garlyons@gmail.com" },
+  { title: "Garry - pane 3", user: "garlyons@gmail.com" }
 ];
 
 export default function ThreeLineupPage() {
@@ -37,7 +37,7 @@ export default function ThreeLineupPage() {
           <h1 className="text-2xl font-extrabold">Three manager windows</h1>
         </div>
         <p className="max-w-xl text-sm font-semibold text-white/70">
-          Each pane runs this app with an isolated fake manager context for the 2026/27 A League test week.
+          Each pane runs this app as Garry. Use the in-app role selector to switch each pane to the manager context you want to test.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {message ? <p className="text-xs font-bold text-white/70">{message}</p> : null}
@@ -54,9 +54,9 @@ export default function ThreeLineupPage() {
       <section className="mx-auto grid max-w-[1920px] gap-4 xl:grid-cols-3">
         {testPanes.map((pane) => (
           <TestFrame
-            key={`${pane.team}-${frameVersion}`}
+            key={`${pane.title}-${frameVersion}`}
             title={pane.title}
-            src={`/?testUser=${encodeURIComponent(pane.user)}&team=${encodeURIComponent(pane.team)}&role=manager&season=2026%2F27&embed=1&testRefresh=${frameVersion}`}
+            src={`/?testUser=${encodeURIComponent(pane.user)}&embed=1&isolate=1&testRefresh=${frameVersion}`}
           />
         ))}
       </section>
