@@ -135,7 +135,15 @@ export async function GET(request: NextRequest) {
        join public.person p on p.id = tp.person_id and p.active = true
        left join game_stats gs on gs.person_id = tp.person_id
        left join break_stats bs on bs.person_id = tp.person_id
-       order by coalesce(gs.played, 0) desc, coalesce(gs.won, 0) desc, p.last_name, p.first_name`,
+       order by
+         case
+           when coalesce(gs.played, 0) > 0 then coalesce(gs.won, 0)::numeric / coalesce(gs.played, 0)::numeric
+           else -1
+         end desc,
+         coalesce(gs.played, 0) desc,
+         coalesce(gs.won, 0) desc,
+         p.last_name,
+         p.first_name`,
       [team.club_id, team.league_id, team.team_name, team.team_id, team.season_id]
     );
 
