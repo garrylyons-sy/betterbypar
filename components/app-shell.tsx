@@ -154,6 +154,14 @@ export function AppShell({
 
     setSelectedSeason(nextSeason);
     if (nextContext) setSelectedId(nextContext.id);
+    setSelectedFixtureId("");
+    setActivePage("Home");
+  }
+
+  function changeContext(nextId: string) {
+    setSelectedId(nextId);
+    setSelectedFixtureId("");
+    setActivePage("Home");
   }
 
   useEffect(() => {
@@ -262,7 +270,7 @@ export function AppShell({
   );
   const allMatchResults = matchResults ?? [];
   const clubOnlyView = isClubOnlyRole(activeTeam.role);
-  const showLeaguePanels = !clubOnlyView && pagesWithLeagueAside.includes(activePage);
+  const showLeaguePanels = !clubOnlyView && activePage === "Home" && pagesWithLeagueAside.includes(activePage);
   const navigateToPage = (page: AppPage) => {
     if (page !== "Match") setSelectedFixtureId("");
     setActivePage(page);
@@ -291,7 +299,7 @@ export function AppShell({
         activeTeam={activeTeam}
         contexts={visibleContexts.length ? visibleContexts : contexts}
         selectedId={selectedId}
-        onContextChange={setSelectedId}
+        onContextChange={changeContext}
         seasons={seasons}
         selectedSeason={selectedSeason}
         onSeasonChange={changeSeason}
@@ -337,7 +345,7 @@ export function AppShell({
         </div>
         {showLeaguePanels ? (
           <aside className="grid gap-4 lg:content-start">
-            {activePage !== "Table" ? <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} matchResults={activeMatchResults} /> : null}
+            <LeagueTable activeTeam={activeTeam} standingsData={activeStandings} matchResults={activeMatchResults} />
           </aside>
         ) : null}
       </section>
@@ -2268,11 +2276,7 @@ function InterclubLeaguesPage({
 
 function FixturesPage({
   activeTeam,
-  matchResults,
-  leagueTeamCount,
-  onOpenFixture,
-  onDataRefresh,
-  onTeamSummaryUpdate
+  onOpenFixture
 }: {
   activeTeam: TeamContext;
   matchResults: MatchResult[];
@@ -2282,15 +2286,11 @@ function FixturesPage({
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   return (
-    <section className="grid gap-4 md:grid-cols-2">
-      <div className="md:col-span-2">
-        <FixtureWeekCarouselCard
-          activeTeam={activeTeam}
-          onOpenFixture={onOpenFixture}
-        />
-      </div>
-      <SeasonCompleteCard activeTeam={activeTeam} action="View results" leagueTeamCount={leagueTeamCount} />
-      <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
+    <section className="grid gap-4">
+      <FixtureWeekCarouselCard
+        activeTeam={activeTeam}
+        onOpenFixture={onOpenFixture}
+      />
     </section>
   );
 }
