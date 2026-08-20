@@ -3813,7 +3813,7 @@ function ManagerLineupCard({
                   const managerActionSide = activeTeam.teamId === fixture.awayTeamId ? "away" : "home";
                   const managedLineupStatus = activeTeam.teamId === fixture.awayTeamId ? fixture.awayLineupStatus : fixture.homeLineupStatus;
                   const managedPublished = managedLineupStatus === "Published";
-                  const showLineupStatus = isOwnFixture && !matchStarted;
+                  const showLineupStatus = isOwnFixture && !matchStarted && !fixtureLocked && !hasScore;
                   const actionLabel = canManageFixture && !active
                     ? bothPublished ? "Enter scores" : managedPublished ? "" : "Pick team"
                     : "";
@@ -3885,7 +3885,7 @@ function ManagerLineupCard({
                             </span>
                           ) : (
                             <span className="col-span-2 text-xs font-bold text-[#6c5a73]">
-                              {matchStarted ? "Lineups and frames available" : "Scheduled"}
+                              {fixtureLocked || hasScore ? "Completed" : matchStarted ? "Lineups and frames available" : "Scheduled"}
                             </span>
                           )}
                           <ChevronDown className={cn("col-start-2 row-start-1 h-4 w-4 justify-self-center text-[#6c5a73] transition-transform", active && "rotate-180")} />
