@@ -209,11 +209,16 @@ export async function canManageClub(user: AppUser, clubId: string) {
   return Boolean(rowCount);
 }
 
-export async function listCompetitions(user: AppUser): Promise<CompetitionSummary[]> {
+type CompetitionListOptions = {
+  contextClubName?: string;
+};
+
+export async function listCompetitions(user: AppUser, options: CompetitionListOptions = {}): Promise<CompetitionSummary[]> {
   const memberships = await clubMembershipsForPerson(user.personId);
   const memberClubIds = memberships.map((membership) => membership.club_id);
   const adminClubIds = await clubAdminClubIds(user.personId);
   const platformAdmin = await isPlatformAdmin(user.personId);
+  const contextClubName = options.contextClubName?.trim() ?? "";
 
   const { rows } = await dbQuery<{
     id: string;
@@ -281,11 +286,11 @@ export async function listCompetitions(user: AppUser): Promise<CompetitionSummar
        order by r.round_number, m.match_number
        limit 1
      ) nm on true
-     where c.managed_by_platform = true
-        or c.club_id = any($2::uuid[])
+     where (c.managed_by_platform = true or c.club_id = any($2::uuid[]))
+       and (nullif($3, '') is null or c.managed_by_platform = true or cl.name = $3)
      group by c.id, cl.name, nm.match_id, nm.round_name, nm.play_by_date, nm.opponent_name, nm.status
      order by c.created_at desc`,
-    [user.personId, memberClubIds]
+    [user.personId, memberClubIds, contextClubName]
   );
 
   return rows.map((row) => ({
@@ -313,8 +318,8 @@ export async function listCompetitions(user: AppUser): Promise<CompetitionSummar
   }));
 }
 
-export async function loadCompetitionDetail(user: AppUser, competitionId: string): Promise<CompetitionDetail | null> {
-  const summaries = await listCompetitions(user);
+export async function loadCompetitionDetail(user: AppUser, competitionId: string, options: CompetitionListOptions = {}): Promise<CompetitionDetail | null> {
+  const summaries = await listCompetitions(user, options);
   const summary = summaries.find((competition) => competition.id === competitionId);
   if (!summary) return null;
 

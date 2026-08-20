@@ -53,6 +53,13 @@ function withTestUser(path: string) {
   return `${path}${joiner}testUser=${encodeURIComponent(testUser)}`;
 }
 
+function withCompetitionContext(path: string, activeTeam: TeamContext) {
+  const contextualPath = currentTestUserParam()
+    ? `${path}${path.includes("?") ? "&" : "?"}contextClub=${encodeURIComponent(activeTeam.club)}`
+    : path;
+  return withTestUser(contextualPath);
+}
+
 const menuIconMap: Record<AppearanceMenuId | "Menu", typeof Home> = {
   Home,
   Fixtures: CalendarDays,
@@ -233,7 +240,7 @@ export function AppShell({
         active = false;
       };
     }
-    fetch(withTestUser("/api/competitions"), { credentials: "same-origin" })
+    fetch(withCompetitionContext("/api/competitions", activeTeam), { credentials: "same-origin" })
       .then((response) => response.json())
       .then((data) => {
         if (!active) return;
@@ -1408,7 +1415,7 @@ function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamCo
 
   useEffect(() => {
     let active = true;
-    fetch(withTestUser("/api/competitions"), { credentials: "same-origin" })
+    fetch(withCompetitionContext("/api/competitions", activeTeam), { credentials: "same-origin" })
       .then((response) => response.json())
       .then((data) => {
         if (!active) return;
@@ -1421,7 +1428,7 @@ function CompetitionPanel({ activeTeam, mode, onNavigate }: { activeTeam: TeamCo
     return () => {
       active = false;
     };
-  }, []);
+  }, [activeTeam.club]);
 
   const clubCompetitions = competitions.filter((competition) => competition.clubName === activeTeam.club || competition.canManage);
   const enteredCompetitions = clubCompetitions.filter((competition) => competition.isEntered);
@@ -1498,7 +1505,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   async function loadCompetitions(nextSelectedId = selectedId) {
     setLoading(true);
     try {
-      const response = await fetch(withTestUser("/api/competitions"), { credentials: "same-origin" });
+      const response = await fetch(withCompetitionContext("/api/competitions", activeTeam), { credentials: "same-origin" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Competitions unavailable.");
       const nextCompetitions = data.competitions ?? [];
@@ -1526,7 +1533,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   }
 
   async function loadDetail(competitionId: string) {
-    const response = await fetch(withTestUser(`/api/competitions/${competitionId}`), { credentials: "same-origin" });
+    const response = await fetch(withCompetitionContext(`/api/competitions/${competitionId}`, activeTeam), { credentials: "same-origin" });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Competition unavailable.");
     setDetail(data.competition);
@@ -1534,12 +1541,12 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
 
   useEffect(() => {
     loadCompetitions();
-  }, []);
+  }, [activeTeam.club]);
 
   async function competitionAction(path: string, body: Record<string, unknown> = {}, competitionId = selectedId) {
     if (!competitionId) return false;
     try {
-      const response = await fetch(withTestUser(`/api/competitions/${competitionId}${path}`), {
+      const response = await fetch(withCompetitionContext(`/api/competitions/${competitionId}${path}`, activeTeam), {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
@@ -2125,7 +2132,7 @@ function MemberActionsCard({ activeTeam, onNavigate }: { activeTeam: TeamContext
   useEffect(() => {
     let active = true;
     setLoadingCompetitions(true);
-    fetch(withTestUser("/api/competitions"), { credentials: "same-origin" })
+    fetch(withCompetitionContext("/api/competitions", activeTeam), { credentials: "same-origin" })
       .then((response) => response.json())
       .then((data) => {
         if (!active) return;

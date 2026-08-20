@@ -10,7 +10,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const user = await currentUserFromRequest(request);
     if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
     const { id } = await params;
-    const competition = await loadCompetitionDetail(user, id);
+    const contextClubName = request.nextUrl.searchParams.has("testUser") ? request.nextUrl.searchParams.get("contextClub")?.trim() ?? "" : "";
+    const competition = await loadCompetitionDetail(user, id, { contextClubName });
     if (!competition) return NextResponse.json({ error: "Competition not found." }, { status: 404 });
     return NextResponse.json({ competition });
   } catch (error) {
