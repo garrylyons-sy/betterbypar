@@ -3631,7 +3631,8 @@ function ManagerLineupCard({
       if (firstLoad) setMessage("");
       try {
         const params = new URLSearchParams({ teamId: activeTeam.teamId });
-        if (preferredFixtureId) params.set("fixtureId", preferredFixtureId);
+        const activeFixtureId = preferredFixtureId || fixtureIdRef.current;
+        if (activeFixtureId) params.set("fixtureId", activeFixtureId);
         if (testManagerMode) params.set("testManager", "1");
         if (testUserEmail) params.set("testUser", testUserEmail);
         const response = await fetch(`/api/manager/lineup?${params.toString()}`, { credentials: "same-origin" });
@@ -3743,7 +3744,7 @@ function ManagerLineupCard({
       <CardContent className="grid gap-3">
         {!payload?.fixture ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-            No scheduled fixture is available for {activeTeam.name}. When the next fixture is scheduled, lineup selection will appear here.
+            No upcoming match is scheduled for {activeTeam.name}. Completed results are available in Fixtures / Results.
           </p>
         ) : (
           <>

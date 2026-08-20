@@ -247,8 +247,10 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     status: string;
   }>(
     `${fixtureSelectSql}
-     where f.status = 'Scheduled'
-       and ($1::uuid is null or f.id = $1)
+     where (
+         ($1::uuid is not null and f.id = $1)
+         or ($1::uuid is null and f.status = 'Scheduled')
+       )
        and (f.home_team_id = $2 or f.away_team_id = $2)
      order by case when $1::uuid is not null then 0 else 1 end, f.fixture_date asc
      limit 1`,
