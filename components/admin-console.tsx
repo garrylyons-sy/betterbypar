@@ -446,6 +446,8 @@ function DesktopAdminPanel({
   const clubs = uniqueClubs(teams).length;
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   async function resetMatchData() {
     setResetting(true);
@@ -466,6 +468,28 @@ function DesktopAdminPanel({
       onMessage(error instanceof Error ? error.message : "Could not reset 2026/27 match data.");
     } finally {
       setResetting(false);
+    }
+  }
+
+  async function generateSeasonResults() {
+    setGenerating(true);
+    try {
+      const response = await fetch("/api/admin/generate-2026-27-results", {
+        method: "POST",
+        credentials: "same-origin"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not generate 2026/27 results.");
+      const result = data.result ?? {};
+      onMessage(
+        `2026/27 generated: ${result.fixtures_completed ?? 0} fixtures, ${result.games ?? 0} games, ${result.breaks ?? 0} breaks. SQL stored in ${data.sqlFile ?? "supabase/simulate_2026_27_results.sql"}.`
+      );
+      setGenerateOpen(false);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not generate 2026/27 results.");
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -503,13 +527,17 @@ function DesktopAdminPanel({
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Test data reset</CardTitle>
+              <CardTitle>2026/27 test data</CardTitle>
               <Badge variant="muted">2026/27</Badge>
             </CardHeader>
             <CardContent className="grid gap-3">
               <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-                Remove entered match results, player game rows, lineups, generated games and breaks for 2026/27. Fixtures and weekly schedules stay in place.
+                Generate or clear simulated match results, lineups, games and breaks for 2026/27. Fixtures and weekly schedules stay in place.
               </p>
+              <Button className="w-full justify-center" onClick={() => setGenerateOpen(true)}>
+                <Trophy className="h-4 w-4" />
+                Generate 2026/27 results
+              </Button>
               <Button variant="secondary" className="w-full justify-center" onClick={() => setResetOpen(true)}>
                 <Trash2 className="h-4 w-4" />
                 Clear 2026/27 test results
@@ -558,6 +586,13 @@ function DesktopAdminPanel({
           busy={resetting}
           onCancel={() => setResetOpen(false)}
           onConfirm={resetMatchData}
+        />
+      ) : null}
+      {generateOpen ? (
+        <ConfirmGenerateMatchDataModal
+          busy={generating}
+          onCancel={() => setGenerateOpen(false)}
+          onConfirm={generateSeasonResults}
         />
       ) : null}
     </div>
@@ -840,6 +875,50 @@ function ConfirmResetMatchDataModal({
           <Button onClick={onConfirm} disabled={busy}>
             <Trash2 className="h-4 w-4" />
             {busy ? "Clearing..." : "Clear test results"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmGenerateMatchDataModal({
+  busy,
+  onCancel,
+  onConfirm
+}: {
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Confirm 2026/27 result generation">
+      <div className="mx-auto w-full max-w-md rounded-2xl bg-white p-5 text-[#10233f] shadow-elevated">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase text-[#6c5a73]">Confirm generation</p>
+            <h3 className="mt-1 text-xl font-extrabold">Generate 2026/27 results?</h3>
+          </div>
+          <button
+            type="button"
+            className="grid h-10 w-10 place-items-center rounded-xl bg-[#f7f5fa] text-[#10233f]"
+            onClick={onCancel}
+            disabled={busy}
+            aria-label="Cancel generation"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="mt-3 text-sm font-semibold text-[#6c5a73]">
+          This replaces existing 2026/27 test match data with fresh random completed results and linked player breaks. The reusable SQL is stored in supabase/simulate_2026_27_results.sql.
+        </p>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <Button variant="secondary" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm} disabled={busy}>
+            <Trophy className="h-4 w-4" />
+            {busy ? "Generating..." : "Generate results"}
           </Button>
         </div>
       </div>
