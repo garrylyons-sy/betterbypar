@@ -2489,6 +2489,7 @@ function TablesPage({ activeTeam, standingsData, matchResults }: { activeTeam: T
               presentation="section"
             />
             <SeasonResultsCard activeTeam={contextForLeague} results={leagueResults} defaultScope="league" />
+            {!isClubOnlyRole(activeTeam.role) ? <LeaguePlayerStatsCard activeTeam={contextForLeague} /> : null}
           </section>
         );
       }) : (
@@ -4663,6 +4664,114 @@ function SquadManagementCard({ activeTeam }: { activeTeam: TeamContext }) {
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+type LeaguePlayerStat = {
+  personId: string;
+  name: string;
+  teamName: string;
+  played: number;
+  won: number;
+  lost: number;
+  winPercentage: number;
+  highestBreak: number | null;
+  remainingFixtures: number;
+  canReachMinimum: boolean;
+};
+
+function LeaguePlayerStatsCard({ activeTeam }: { activeTeam: TeamContext }) {
+  const [players, setPlayers] = useState<LeaguePlayerStat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setMessage("");
+    const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season });
+    fetch(withTestUser(`/api/league/player-stats?${params.toString()}`), { credentials: "same-origin" })
+      .then((response) => response.json().then((data) => ({ response, data })))
+      .then(({ response, data }) => {
+        if (!active) return;
+        if (!response.ok) throw new Error(data.error || "League player stats unavailable.");
+        setPlayers(data.players ?? []);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setMessage(error instanceof Error ? error.message : "League player stats unavailable.");
+        setPlayers([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeTeam.league, activeTeam.season]);
+
+  const eligiblePlayers = players.filter((player) => player.canReachMinimum);
+  const belowMinimumPlayers = players.filter((player) => !player.canReachMinimum);
+
+  return (
+    <Card className="xl:col-span-2">
+      <CardHeader>
+        <CardTitle>{activeTeam.league} Player Stats</CardTitle>
+        <Badge variant="muted">{loading ? "Loading" : `${players.length}`}</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <p className="text-sm font-semibold text-[#6c5a73]">
+          Ranked by win percentage. Players who cannot reach 12 matches are shown below the main table.
+        </p>
+        <LeaguePlayerStatsRows players={eligiblePlayers} emptyLabel={loading ? "Loading player stats..." : message || "No eligible player stats yet."} />
+        {belowMinimumPlayers.length ? (
+          <section className="grid gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Below 12-match eligibility</p>
+              <Badge variant="muted">{belowMinimumPlayers.length}</Badge>
+            </div>
+            <LeaguePlayerStatsRows players={belowMinimumPlayers} emptyLabel="" />
+          </section>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LeaguePlayerStatsRows({ players, emptyLabel }: { players: LeaguePlayerStat[]; emptyLabel: string }) {
+  return (
+    <div className="grid gap-2">
+      <div className="grid grid-cols-[minmax(118px,1fr)_42px_42px_42px_44px] gap-1.5 rounded-xl bg-[#f7f5fa] px-2.5 py-2 text-[10px] font-extrabold uppercase text-[#6c5a73] sm:grid-cols-[minmax(180px,1fr)_minmax(120px,0.7fr)_54px_54px_54px_64px_56px] sm:gap-2 sm:px-3 sm:text-[11px]">
+        <span>Player</span>
+        <span className="hidden sm:block">Team</span>
+        <span className="text-right">P</span>
+        <span className="text-right">W</span>
+        <span className="text-right">L</span>
+        <span className="text-right">Win</span>
+        <span className="hidden text-right sm:block">Break</span>
+      </div>
+      {players.map((player) => (
+        <div key={`${player.personId}-${player.teamName}`} className={cn(
+          "grid min-h-12 grid-cols-[minmax(118px,1fr)_42px_42px_42px_44px] items-center gap-1.5 rounded-xl bg-white px-2.5 py-2 text-[13px] font-bold ring-1 ring-[#eeeaf2] sm:grid-cols-[minmax(180px,1fr)_minmax(120px,0.7fr)_54px_54px_54px_64px_56px] sm:gap-2 sm:px-3 sm:text-sm",
+          !player.canReachMinimum && "bg-[#fbf9fd] text-[#6c5a73]"
+        )}>
+          <span className="min-w-0">
+            <span className="block truncate font-extrabold leading-tight">{player.name}</span>
+            <span className="block truncate text-[11px] font-bold text-[#6c5a73] sm:hidden">{player.teamName}</span>
+          </span>
+          <span className="hidden min-w-0 truncate text-[#6c5a73] sm:block">{player.teamName}</span>
+          <span className="text-right">{player.played}</span>
+          <span className="text-right text-[#0a6b45]">{player.won}</span>
+          <span className="text-right text-[#b42318]">{player.lost}</span>
+          <span className="text-right">{player.played ? `${player.winPercentage}%` : "-"}</span>
+          <span className="hidden text-right sm:block">{player.highestBreak ?? "-"}</span>
+        </div>
+      ))}
+      {!players.length && emptyLabel ? (
+        <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">{emptyLabel}</p>
+      ) : null}
+    </div>
   );
 }
 
