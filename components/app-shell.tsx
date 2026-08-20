@@ -89,6 +89,21 @@ function withMyClubLast(items: AppearanceMenuId[]) {
   return items.includes("Club") ? [...items.filter((item) => item !== "Club"), "Club" as AppearanceMenuId] : items;
 }
 
+function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): AppearanceMenuId[] {
+  if (role === "Club Member") {
+    return ["Home", "Bookings", "Competitions", "Interclub Leagues"];
+  }
+  if (role === "Club Admin") {
+    return ["Home", "Competitions", "Bookings", "Interclub Leagues"];
+  }
+
+  const base: AppearanceMenuId[] = ["Home", "Fixtures", "Table", "Results", "Club"];
+  if (enteredCompetitionCount > 0) {
+    return withMyClubLast(["Home", "Fixtures", "Table", "Results", "Competitions", "Club"]);
+  }
+  return withMyClubLast(base);
+}
+
 export function AppShell({
   contexts = teamContexts,
   standingsData = standings,
@@ -260,19 +275,8 @@ export function AppShell({
     };
   }, [activeTeam.club, activeTeam.role]);
   const activeMenuItems = useMemo(() => {
-    let configured = activeAppearance.menuItems;
-    if (activeTeam.role === "Club Member") {
-      const base = configured.filter((item) => item !== "Table" && item !== "Interclub Leagues");
-      const homeFirst = base.includes("Home") ? ["Home" as AppearanceMenuId, ...base.filter((item) => item !== "Home")] : base;
-      configured = [...homeFirst, "Interclub Leagues" as AppearanceMenuId];
-    }
-    if (!isClubOnlyRole(activeTeam.role) || enteredCompetitionCount <= 0 || configured.includes("Competitions")) {
-      return withMyClubLast(configured);
-    }
-    const bookingIndex = configured.indexOf("Bookings");
-    const insertAt = bookingIndex >= 0 ? bookingIndex + 1 : Math.min(2, configured.length);
-    return withMyClubLast([...configured.slice(0, insertAt), "Competitions" as AppearanceMenuId, ...configured.slice(insertAt)]);
-  }, [activeAppearance.menuItems, activeTeam.role, enteredCompetitionCount]);
+    return fixedMenuItemsForRole(activeTeam.role, enteredCompetitionCount);
+  }, [activeTeam.role, enteredCompetitionCount]);
   const activeStandings = useMemo(() => {
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
     return filtered.length ? filtered : standingsData === standings ? standings : [];
@@ -1958,6 +1962,13 @@ function PlayerHome({
   panels: AppearancePanelId[];
 }) {
   const renderPanel = (panel: AppearancePanelId) => {
+    if (panel === "matchPlanning") {
+      return (
+        <div key={panel} className="md:col-span-2">
+          <FixtureWeekCarouselCard activeTeam={activeTeam} onOpenFixture={onOpenFixture} />
+        </div>
+      );
+    }
     if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
     if (panel === "leagueTableSnapshot") return <HomeLeagueTableCard key={panel} activeTeam={activeTeam} standingsData={standingsData} onNavigate={onNavigate} />;
     if (panel === "myStats") {
@@ -1980,9 +1991,6 @@ function PlayerHome({
 
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:gap-5">
-      <div className="md:col-span-2">
-        <FixtureWeekCarouselCard activeTeam={activeTeam} onOpenFixture={onOpenFixture} />
-      </div>
       {panels.map(renderPanel)}
     </section>
   );
@@ -2645,7 +2653,18 @@ function ManagerHome({
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   const renderPanel = (panel: AppearancePanelId) => {
-    if (panel === "matchPlanning") return null;
+    if (panel === "matchPlanning") {
+      return (
+        <div key={panel} className="md:col-span-2">
+          <MatchPlanningCard
+            activeTeam={activeTeam}
+            onDataRefresh={onDataRefresh}
+            onTeamSummaryUpdate={onTeamSummaryUpdate}
+            onOpenFixture={onOpenFixture}
+          />
+        </div>
+      );
+    }
     if (panel === "managerActions") return null;
     if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="Review season" leagueTeamCount={leagueTeamCount} />;
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
@@ -2663,14 +2682,6 @@ function ManagerHome({
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      <div className="md:col-span-2">
-        <MatchPlanningCard
-          activeTeam={activeTeam}
-          onDataRefresh={onDataRefresh}
-          onTeamSummaryUpdate={onTeamSummaryUpdate}
-          onOpenFixture={onOpenFixture}
-        />
-      </div>
       {panels.map(renderPanel)}
     </section>
   );

@@ -6,9 +6,9 @@ import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { appearanceMenuOptions, appearancePanelOptions, defaultAppearanceConfig, normalizeAppearanceConfig } from "@/lib/appearance";
+import { appearancePanelOptions, defaultAppearanceConfig, normalizeAppearanceConfig } from "@/lib/appearance";
 import { clubTeamStructure } from "@/lib/demo-data";
-import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, Role as AppRole } from "@/lib/types";
+import type { AppearanceConfig, AppearancePanelId, Role as AppRole } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type AdminTab = "desktop" | "competitions" | "people" | "invites" | "permissions" | "appearance" | "logs";
@@ -1692,15 +1692,14 @@ function AppearancePanel({
   const [role, setRole] = useState<AppRole>("Player");
   const roleConfig = appearance[role];
   const availablePanels = appearancePanelOptions.filter((option) => option.roles.includes(role));
-  const availableMenus = appearanceMenuOptions.filter((option) => option.roles.includes(role));
 
-  function updateRole(next: { panels?: AppearancePanelId[]; menuItems?: AppearanceMenuId[] }) {
+  function updateRole(next: { panels?: AppearancePanelId[] }) {
     onAppearanceChange(normalizeAppearanceConfig({
       ...appearance,
       [role]: {
         role,
         panels: next.panels ?? roleConfig.panels,
-        menuItems: next.menuItems ?? roleConfig.menuItems
+        menuItems: roleConfig.menuItems
       }
     }));
   }
@@ -1713,20 +1712,8 @@ function AppearancePanel({
     });
   }
 
-  function toggleMenu(menu: AppearanceMenuId) {
-    updateRole({
-      menuItems: roleConfig.menuItems.includes(menu)
-        ? roleConfig.menuItems.filter((item) => item !== menu)
-        : [...roleConfig.menuItems, menu]
-    });
-  }
-
   function movePanel(panel: AppearancePanelId, direction: -1 | 1) {
     updateRole({ panels: moveItem(roleConfig.panels, panel, direction) });
-  }
-
-  function moveMenu(menu: AppearanceMenuId, direction: -1 | 1) {
-    updateRole({ menuItems: moveItem(roleConfig.menuItems, menu, direction) });
   }
 
   async function saveAppearance() {
@@ -1756,12 +1743,12 @@ function AppearancePanel({
         <Card>
           <CardHeader>
             <CardTitle>Role appearance</CardTitle>
-            <Badge variant="cyan">Home and menu</Badge>
+            <Badge variant="cyan">Home tab</Badge>
           </CardHeader>
           <CardContent className="grid gap-3">
             <AdminSelect label="Role" value={role} onChange={(value) => setRole(value as AppRole)} options={rolesWithClubMember.map((item) => ({ value: item, label: item }))} />
             <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-              Choose which panels appear on the role home screen, and which menu options appear in the main app. Order is top-to-bottom here and left-to-right in mobile navigation.
+              Choose which panels appear on the role home screen. Order is top-to-bottom on mobile and left-to-right where panels form a desktop grid.
             </p>
           </CardContent>
         </Card>
@@ -1773,13 +1760,6 @@ function AppearancePanel({
           onToggle={(id) => togglePanel(id as AppearancePanelId)}
           onMove={(id, direction) => movePanel(id as AppearancePanelId, direction)}
         />
-        <AppearanceChecklist
-          title="Menu options"
-          items={availableMenus}
-          selected={roleConfig.menuItems}
-          onToggle={(id) => toggleMenu(id as AppearanceMenuId)}
-          onMove={(id, direction) => moveMenu(id as AppearanceMenuId, direction)}
-        />
 
         <Button onClick={saveAppearance}>
           <ShieldCheck className="h-4 w-4" />
@@ -1788,7 +1768,7 @@ function AppearancePanel({
       </div>
 
       <div className="hidden xl:block">
-        <AppearancePhonePreview role={role} panels={roleConfig.panels} menuItems={roleConfig.menuItems} />
+        <AppearancePhonePreview role={role} panels={roleConfig.panels} />
       </div>
     </div>
   );
@@ -1851,9 +1831,7 @@ function AppearanceChecklist<T extends string>({
   );
 }
 
-function AppearancePhonePreview({ role, panels, menuItems }: { role: AppRole; panels: AppearancePanelId[]; menuItems: AppearanceMenuId[] }) {
-  const visibleMenu = menuItems.length > 5 ? [...menuItems.slice(0, 4), "More"] : menuItems.slice(0, 5);
-
+function AppearancePhonePreview({ role, panels }: { role: AppRole; panels: AppearancePanelId[] }) {
   return (
     <div className="sticky top-4">
       <Card>
@@ -1887,12 +1865,8 @@ function AppearancePhonePreview({ role, panels, menuItems }: { role: AppRole; pa
                 );
               })}
             </div>
-            <div className="absolute bottom-5 left-1/2 grid w-[280px] -translate-x-1/2 grid-cols-5 gap-1 rounded-2xl bg-white p-2 shadow-elevated">
-              {visibleMenu.map((item) => (
-                <div key={item} className="truncate rounded-lg bg-[#f7f5fa] px-1 py-2 text-center text-[10px] font-bold text-[#10233f]">
-                  {item === "Interclub Leagues" ? "Leagues" : item}
-                </div>
-              ))}
+            <div className="absolute bottom-5 left-1/2 w-[280px] -translate-x-1/2 rounded-2xl bg-white p-2 text-center text-[10px] font-bold uppercase text-[#6c5a73] shadow-elevated">
+              Navigation is fixed by role
             </div>
           </div>
         </CardContent>
