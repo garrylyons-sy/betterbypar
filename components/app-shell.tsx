@@ -1977,7 +1977,7 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
             <p className="text-xs font-extrabold uppercase text-white/65">Club</p>
             <h2 className="mt-1 text-3xl font-black leading-none">{activeTeam.club}</h2>
             <p className="mt-2 max-w-xl text-sm font-semibold text-white/75">
-              Table bookings and club competitions live here, separate from interclub team duties.
+              Book tables, enter club competitions and keep up with club activity.
             </p>
           </div>
         </CardContent>
