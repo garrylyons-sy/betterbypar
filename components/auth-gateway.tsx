@@ -133,6 +133,22 @@ export function AuthGateway() {
     return () => window.clearInterval(poll);
   }, [refreshSession, session?.activeMatchCount, session?.authenticated]);
 
+  useEffect(() => {
+    if (!session?.authenticated) return;
+
+    const refreshVisibleSession = () => {
+      if (document.visibilityState === "visible") refreshSession({ silent: true });
+    };
+
+    window.addEventListener("focus", refreshVisibleSession);
+    document.addEventListener("visibilitychange", refreshVisibleSession);
+
+    return () => {
+      window.removeEventListener("focus", refreshVisibleSession);
+      document.removeEventListener("visibilitychange", refreshVisibleSession);
+    };
+  }, [refreshSession, session?.authenticated]);
+
   const recordPageVisit = useCallback((pageLabel: string, activeTeam: TeamContext) => {
     const testUser = new URLSearchParams(window.location.search).get("testUser")?.trim() ?? "";
     const pageVisitUrl = testUser ? `/api/page-visit?testUser=${encodeURIComponent(testUser)}` : "/api/page-visit";
