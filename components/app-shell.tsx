@@ -3433,6 +3433,10 @@ function fixtureHasStarted(fixture: FixtureWeekFixture) {
   return Boolean(fixture.totalGames > 0 || fixture.homeTeamScore !== null || fixture.awayTeamScore !== null);
 }
 
+function fixtureHasPublishedLineups(fixture: FixtureWeekFixture) {
+  return fixture.homeLineupStatus === "Published" && fixture.awayLineupStatus === "Published";
+}
+
 function FixtureWeekCarouselCard({
   activeTeam,
   selectedFixtureId,
@@ -3538,7 +3542,7 @@ function FixtureWeekCarouselCard({
                 const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
                 const managerOwnFixture = fixture.isOwnFixture && (activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager");
                 const canManage = Boolean(onOpenFixture && managerOwnFixture && activeTeam.season !== "2025/26");
-                const canInspect = fixtureHasStarted(fixture);
+                const canInspect = fixtureHasStarted(fixture) || fixtureHasPublishedLineups(fixture);
                 const canOpenRow = canManage || canInspect;
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
@@ -4497,43 +4501,48 @@ function ReadOnlyFixtureDetails({
     );
   }
 
+  const completedGames = games.filter((game) => game.winner_team_id).length;
+
   return (
-    <div className="rounded-xl bg-[#10233f] p-3 text-white">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-extrabold uppercase text-white/60">Frame details</p>
-        <Badge variant={fixture.status === "Completed" ? "green" : "cyan"}>
-          {fixture.status === "Completed" ? "Final" : "Live"}
+    <div className="overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]">
+      <div className="flex items-center justify-between gap-2 border-b border-[#eeeaf2] bg-[#f7f5fa] px-3 py-2">
+        <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Frame details</p>
+        <Badge variant={fixture.status === "Completed" ? "green" : completedGames ? "cyan" : "muted"}>
+          {fixture.status === "Completed" ? "Final" : completedGames ? `${completedGames}/6 played` : "Published"}
         </Badge>
       </div>
-      <div className="mt-2 grid gap-2">
+      <div className="divide-y divide-[#eeeaf2]">
         {games.map((game) => {
           const homeWon = game.winner_team_id === fixture.homeTeamId;
           const awayWon = game.winner_team_id === fixture.awayTeamId;
+          const homePlayers = `${game.home_player_1_name}${game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""}`;
+          const awayPlayers = `${game.away_player_1_name}${game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}`;
           return (
-            <div key={game.id} className="grid gap-2 rounded-lg bg-white/10 p-2 text-sm font-bold">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span>Game {game.game_number}</span>
-                <span className="text-xs text-white/60">{game.game_type} - {game.points_awarded} pts</span>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-                <p className={cn("rounded-lg px-2 py-1", homeWon ? "bg-[#00ff85] text-[#10233f]" : "bg-white/10")}>
-                  {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""}
+            <div key={game.id} className="grid gap-1.5 px-3 py-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-extrabold uppercase text-[#6c5a73]">
+                  Game {game.game_number} · {game.game_type} · {game.points_awarded} {game.points_awarded === 1 ? "pt" : "pts"}
                 </p>
-                <span className="text-center text-xs font-black uppercase text-white/60">v</span>
-                <p className={cn("rounded-lg px-2 py-1 sm:text-right", awayWon ? "bg-[#00ff85] text-[#10233f]" : "bg-white/10")}>
-                  {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}
+                {!game.winner_team_id ? <Badge variant="muted">Awaiting</Badge> : null}
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] items-center gap-2 text-sm font-extrabold">
+                <p className={cn("min-w-0 truncate rounded-md px-2 py-1", homeWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")}>
+                  {homePlayers}
+                </p>
+                <span className="text-center text-xs font-black uppercase text-[#6c5a73]">v</span>
+                <p className={cn("min-w-0 truncate rounded-md px-2 py-1 text-right", awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")}>
+                  {awayPlayers}
                 </p>
               </div>
               {game.breaks?.length ? (
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1">
                   {game.breaks.map((item) => (
-                    <span key={item.id} className="rounded-lg bg-white/10 px-2 py-1 text-xs font-extrabold text-white">
+                    <span key={item.id} className="rounded-md bg-[#eefbff] px-2 py-0.5 text-[11px] font-extrabold text-[#10233f] ring-1 ring-[#04f5ff55]">
                       {item.playerName} {item.breakValue}
                     </span>
                   ))}
                 </div>
               ) : null}
-              {!game.winner_team_id ? <p className="text-xs font-semibold text-white/60">Awaiting result</p> : null}
             </div>
           );
         })}
