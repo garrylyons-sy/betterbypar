@@ -41,7 +41,7 @@ select
   false,
   source_competitions.name,
   source_competitions.competition_type,
-  '2026-06-30'::date,
+  '2026-09-01'::date,
   source_competitions.rules,
   'Open',
   false
