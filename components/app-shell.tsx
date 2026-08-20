@@ -3495,7 +3495,7 @@ function FixtureWeekCarouselCard({
                 const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                 const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
                 const managerOwnFixture = fixture.isOwnFixture && (activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager");
-                const canManage = Boolean(onOpenFixture && managerOwnFixture);
+                const canManage = Boolean(onOpenFixture && managerOwnFixture && activeTeam.season !== "2025/26");
                 const canInspect = fixtureHasStarted(fixture);
                 const canOpenRow = canManage || canInspect;
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
