@@ -227,7 +227,12 @@ export function AppShell({
     };
   }, [activeTeam.club, activeTeam.role]);
   const activeMenuItems = useMemo(() => {
-    const configured = activeAppearance.menuItems;
+    let configured = activeAppearance.menuItems;
+    if (activeTeam.role === "Club Member" && !configured.includes("Table")) {
+      const homeIndex = configured.indexOf("Home");
+      const insertAt = homeIndex >= 0 ? homeIndex + 1 : Math.min(1, configured.length);
+      configured = [...configured.slice(0, insertAt), "Table" as AppearanceMenuId, ...configured.slice(insertAt)];
+    }
     if (!isClubOnlyRole(activeTeam.role) || enteredCompetitionCount <= 0 || configured.includes("Competitions")) {
       return configured;
     }
