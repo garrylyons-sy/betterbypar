@@ -3422,11 +3422,17 @@ function fixtureWeekShouldPoll(week?: FixtureWeek) {
   if (!week) return false;
   const today = localIsoDate();
   const weekStarts = week.startsOn.slice(0, 10);
-  return weekStarts === today || week.fixtures.some((fixture) => {
+  return (weekStarts === today && isMatchPollingWindow()) || week.fixtures.some((fixture) => {
     const inProgressMatch = fixture.totalGames > 0 && fixture.completedGames < fixture.totalGames;
     const lineupStarted = Boolean(fixture.homeLineupStatus || fixture.awayLineupStatus);
     return inProgressMatch || lineupStarted;
   });
+}
+
+function isMatchPollingWindow() {
+  const now = new Date();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  return minutes >= 19 * 60 + 30 && minutes <= 23 * 60 + 30;
 }
 
 function fixtureHasStarted(fixture: FixtureWeekFixture) {
@@ -3454,6 +3460,7 @@ function FixtureWeekCarouselCard({
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const activeIndexRef = useRef(0);
+  const embeddedDemoMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1";
 
   useEffect(() => {
     activeIndexRef.current = activeIndex;
@@ -3469,7 +3476,8 @@ function FixtureWeekCarouselCard({
       if (showLoading) setLoading(true);
       const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season });
       if (activeTeam.teamId) params.set("teamId", activeTeam.teamId);
-      const response = await fetch(withTestUser(`/api/fixtures/weeks?${params.toString()}`), { credentials: "same-origin" });
+      if (!showLoading) params.set("refresh", String(Date.now()));
+      const response = await fetch(withTestUser(`/api/fixtures/weeks?${params.toString()}`), { credentials: "same-origin", cache: "no-store" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Fixtures unavailable.");
       if (!active) return;
@@ -3491,7 +3499,7 @@ function FixtureWeekCarouselCard({
         if (!active) return;
         pollId = window.setInterval(() => {
           setWeeks((currentWeeks) => {
-            if (fixtureWeekShouldPoll(currentWeeks[activeIndexRef.current])) {
+            if (embeddedDemoMode || fixtureWeekShouldPoll(currentWeeks[activeIndexRef.current])) {
               loadWeeks(false).catch(() => undefined);
             }
             return currentWeeks;
@@ -3508,7 +3516,7 @@ function FixtureWeekCarouselCard({
       active = false;
       if (pollId) window.clearInterval(pollId);
     };
-  }, [activeTeam.league, activeTeam.season, activeTeam.teamId]);
+  }, [activeTeam.league, activeTeam.season, activeTeam.teamId, embeddedDemoMode]);
 
   const week = weeks[activeIndex];
 
