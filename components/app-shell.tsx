@@ -306,9 +306,9 @@ export function AppShell({
         <DesktopRail activeTeam={activeTeam} activePage={activePage} onNavigate={navigateToPage} menuItems={activeMenuItems} />
         <div className="grid min-w-0 w-full gap-4">
           {clubOnlyView && activePage !== "Interclub Leagues" ? (
-            <ClubMemberHero activeTeam={activeTeam} userLabel={userLabel} onNavigate={navigateToPage} />
+            <ClubMemberHero activeTeam={activeTeam} userLabel={userLabel} />
           ) : (
-            <MatchdayHero activeTeam={activeTeam} userLabel={userLabel} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} activeMatchCount={activeMatchCount} onNavigate={navigateToPage} />
+            <MatchdayHero activeTeam={activeTeam} userLabel={userLabel} leagueTeamCount={activeStandings.length} interclubView={activePage === "Interclub Leagues"} activeMatchCount={activeMatchCount} />
           )}
           <PageContent
             activePage={activePage}
@@ -739,7 +739,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { active
   );
 }
 
-function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = false, activeMatchCount = 0, onNavigate }: { activeTeam: TeamContext; userLabel?: string; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number; onNavigate: (page: AppPage) => void }) {
+function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = false, activeMatchCount = 0 }: { activeTeam: TeamContext; userLabel?: string; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number }) {
   const manager = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
   const clubMember = isClubOnlyRole(activeTeam.role);
   const hasTeamActivity = teamHasActivity(activeTeam);
@@ -794,16 +794,6 @@ function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = 
             <HeroMetric label="Pts" value={hasTeamActivity ? String(points) : "-"} />
           </div>
         </div>
-        <div className="relative mt-5 grid min-w-0 gap-2 md:grid-cols-2 xl:max-w-[620px]">
-          <Button className="w-full min-w-0" onClick={() => onNavigate(activeTeam.role === "Manager" ? "Fixtures" : activeTeam.role === "Club Admin" ? "Club" : activeTeam.role === "Club Member" ? "Bookings" : "Stats")}>
-            <PlusCircle className="h-4 w-4" />
-            {activeTeam.role === "Club Admin" ? "Admin tools" : clubMember ? "Book table" : activeTeam.role === "Assistant Manager" ? "Support team" : manager ? "Enter result" : "View stats"}
-          </Button>
-          <Button variant="secondary" className="w-full min-w-0" onClick={() => onNavigate("Club")}>
-            <CalendarPlus className="h-4 w-4" />
-            Club
-          </Button>
-        </div>
       </div>
     </section>
   );
@@ -820,7 +810,7 @@ function teamHasActivity(team: TeamContext) {
   );
 }
 
-function ClubMemberHero({ activeTeam, userLabel, onNavigate }: { activeTeam: TeamContext; userLabel?: string; onNavigate: (page: AppPage) => void }) {
+function ClubMemberHero({ activeTeam, userLabel }: { activeTeam: TeamContext; userLabel?: string }) {
   return (
     <section className="min-w-0 overflow-hidden rounded-[18px] text-white shadow-card">
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
@@ -846,16 +836,6 @@ function ClubMemberHero({ activeTeam, userLabel, onNavigate }: { activeTeam: Tea
               </p>
             ) : null}
           </div>
-        </div>
-        <div className="relative mt-5 grid min-w-0 gap-2 md:grid-cols-2 xl:max-w-[620px]">
-          <Button className="w-full" onClick={() => activeTeam.role === "Club Admin" ? window.location.assign("/admin") : onNavigate("Bookings")}>
-            <CalendarPlus className="h-4 w-4" />
-            {activeTeam.role === "Club Admin" ? "Open admin" : "Book table"}
-          </Button>
-          <Button variant="secondary" className="w-full" onClick={() => onNavigate("Competitions")}>
-            <Trophy className="h-4 w-4" />
-            Competitions
-          </Button>
         </div>
       </div>
     </section>
