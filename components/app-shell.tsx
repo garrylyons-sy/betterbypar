@@ -940,6 +940,10 @@ function localIsoDate(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function fixtureDateHasPassed(date: string | null | undefined) {
+  return Boolean(date && date.slice(0, 10) < localIsoDate());
+}
+
 function formatBookingDate(date: string) {
   return new Intl.DateTimeFormat("en-IE", {
     weekday: "short",
@@ -3766,9 +3770,11 @@ function ManagerLineupCard({
     <Card>
       <CardHeader>
         <CardTitle>Next Matches</CardTitle>
-        <Badge variant={matchLocked ? "green" : matchReady ? "cyan" : ownStatus === "Published" ? "cyan" : payload?.lineup?.id ? "muted" : "muted"}>
-          {matchLocked ? "Completed" : matchReady ? "Score ready" : ownStatus === "Published" ? "Published" : payload?.lineup?.id ? "Picked" : "Plan"}
-        </Badge>
+        {matchLocked && fixtureDateHasPassed(payload?.fixture?.fixtureDate) ? null : (
+          <Badge variant={matchLocked ? "green" : matchReady ? "cyan" : ownStatus === "Published" ? "cyan" : payload?.lineup?.id ? "muted" : "muted"}>
+            {matchLocked ? "Completed" : matchReady ? "Score ready" : ownStatus === "Published" ? "Published" : payload?.lineup?.id ? "Picked" : "Plan"}
+          </Badge>
+        )}
       </CardHeader>
       <CardContent className="grid gap-3">
         {!payload?.fixture ? (
@@ -3814,6 +3820,7 @@ function ManagerLineupCard({
                   const managedLineupStatus = activeTeam.teamId === fixture.awayTeamId ? fixture.awayLineupStatus : fixture.homeLineupStatus;
                   const managedPublished = managedLineupStatus === "Published";
                   const showLineupStatus = isOwnFixture && !matchStarted && !fixtureLocked && !hasScore;
+                  const completedStatusLabel = fixtureDateHasPassed(fixture.fixtureDate) ? "" : "Completed";
                   const actionLabel = canManageFixture && !active
                     ? bothPublished ? "Enter scores" : managedPublished ? "" : "Pick team"
                     : "";
@@ -3883,11 +3890,11 @@ function ManagerLineupCard({
                             )}>
                               {actionLabel}
                             </span>
-                          ) : (
+                          ) : fixtureLocked || hasScore || matchStarted ? (
                             <span className="col-span-2 text-xs font-bold text-[#6c5a73]">
-                              {fixtureLocked || hasScore ? "Completed" : matchStarted ? "Lineups and frames available" : "Scheduled"}
+                              {fixtureLocked || hasScore ? completedStatusLabel : "Lineups and frames available"}
                             </span>
-                          )}
+                          ) : null}
                           <ChevronDown className={cn("col-start-2 row-start-1 h-4 w-4 justify-self-center text-[#6c5a73] transition-transform", active && "rotate-180")} />
                         </div>
                       </button>
