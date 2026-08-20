@@ -78,6 +78,10 @@ function menuEntry(id: AppearanceMenuId) {
   };
 }
 
+function withMyClubLast(items: AppearanceMenuId[]) {
+  return items.includes("Club") ? [...items.filter((item) => item !== "Club"), "Club" as AppearanceMenuId] : items;
+}
+
 export function AppShell({
   contexts = teamContexts,
   standingsData = standings,
@@ -253,11 +257,11 @@ export function AppShell({
       configured = [...homeFirst, "Interclub Leagues" as AppearanceMenuId];
     }
     if (!isClubOnlyRole(activeTeam.role) || enteredCompetitionCount <= 0 || configured.includes("Competitions")) {
-      return configured;
+      return withMyClubLast(configured);
     }
     const bookingIndex = configured.indexOf("Bookings");
     const insertAt = bookingIndex >= 0 ? bookingIndex + 1 : Math.min(2, configured.length);
-    return [...configured.slice(0, insertAt), "Competitions" as AppearanceMenuId, ...configured.slice(insertAt)];
+    return withMyClubLast([...configured.slice(0, insertAt), "Competitions" as AppearanceMenuId, ...configured.slice(insertAt)]);
   }, [activeAppearance.menuItems, activeTeam.role, enteredCompetitionCount]);
   const activeStandings = useMemo(() => {
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
@@ -5164,11 +5168,22 @@ function MiniStat({ label, value, dark = false }: { label: string; value: string
 
 function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePage: AppPage; activeTeam: TeamContext; onNavigate: (page: AppPage) => void; menuItems: AppearanceMenuId[] }) {
   const configured = menuItems.map(menuEntry);
-  const primaryItems = configured.length > 5 ? configured.slice(0, 4) : configured.slice(0, 5);
-  const overflowItems = configured.slice(primaryItems.length);
-  const items = overflowItems.length
-    ? [...primaryItems, { label: "More", page: "Menu" as AppPage, icon: MenuIcon, description: "More options" }]
-    : primaryItems;
+  const myClubItem = configured.find((item) => item.page === "Club");
+  const nonClubItems = myClubItem ? configured.filter((item) => item.page !== "Club") : configured;
+  const hasOverflow = myClubItem ? nonClubItems.length > 4 : configured.length > 5;
+  const primaryItems = myClubItem
+    ? nonClubItems.slice(0, hasOverflow ? 3 : 4)
+    : configured.slice(0, hasOverflow ? 4 : 5);
+  const overflowItems = myClubItem
+    ? nonClubItems.slice(primaryItems.length)
+    : configured.slice(primaryItems.length);
+  const items = hasOverflow
+    ? [
+        ...primaryItems,
+        { label: "More", page: "Menu" as AppPage, icon: MenuIcon, description: "More options" },
+        ...(myClubItem ? [myClubItem] : [])
+      ]
+    : [...primaryItems, ...(myClubItem ? [myClubItem] : [])];
   const morePages: AppPage[] = ["Menu", ...overflowItems.map((item) => item.page)];
 
   return (

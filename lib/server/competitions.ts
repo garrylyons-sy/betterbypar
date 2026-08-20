@@ -281,12 +281,11 @@ export async function listCompetitions(user: AppUser): Promise<CompetitionSummar
        order by r.round_number, m.match_number
        limit 1
      ) nm on true
-     where $2::boolean = true
-        or c.managed_by_platform = true
-        or c.club_id = any($3::uuid[])
+     where c.managed_by_platform = true
+        or c.club_id = any($2::uuid[])
      group by c.id, cl.name, nm.match_id, nm.round_name, nm.play_by_date, nm.opponent_name, nm.status
      order by c.created_at desc`,
-    [user.personId, platformAdmin, memberClubIds]
+    [user.personId, memberClubIds]
   );
 
   return rows.map((row) => ({
