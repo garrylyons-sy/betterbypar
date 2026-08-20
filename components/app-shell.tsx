@@ -2214,7 +2214,7 @@ function InterclubLeaguesPage({
         </CardHeader>
         <CardContent className="grid gap-3">
           <p className="text-sm font-semibold text-[#6c5a73]">
-            Follow A, B and C league tables, results and in-play scores from one place.
+            Follow A, B and C league tables from one place.
           </p>
           {!isClubOnlyRole(activeTeam.role) ? (
             <div className="grid gap-2 sm:grid-cols-2">
@@ -2257,9 +2257,8 @@ function InterclubLeaguesPage({
         };
 
         return (
-          <section key={league} className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <section key={league} className="grid gap-4">
             <LeagueTable activeTeam={contextForLeague} standingsData={leagueStandings} matchResults={leagueResults} />
-            <SeasonResultsCard activeTeam={contextForLeague} results={leagueResults} defaultScope="league" />
           </section>
         );
       })}
