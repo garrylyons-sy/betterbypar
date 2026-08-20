@@ -418,7 +418,7 @@ function AdminTabPanel(props: {
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
-  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} />;
+  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
   if (props.tab === "permissions") return <PermissionsPanel {...props} />;
@@ -431,15 +431,43 @@ function DesktopAdminPanel({
   teams,
   people,
   requests,
-  logs
+  logs,
+  onMessage,
+  onRefresh
 }: {
   teams: TeamOption[];
   people: PersonOption[];
   requests: InviteRequestRow[];
   logs: ActivityRow[];
+  onMessage: (message: string) => void;
+  onRefresh: () => void;
 }) {
   const admins = people.filter((person) => person.admin).length;
   const clubs = uniqueClubs(teams).length;
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  async function resetMatchData() {
+    setResetting(true);
+    try {
+      const response = await fetch("/api/admin/reset-2026-27-match-data", {
+        method: "POST",
+        credentials: "same-origin"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not reset 2026/27 match data.");
+      const reset = data.reset ?? {};
+      onMessage(
+        `2026/27 test data cleared: ${reset.games_deleted ?? 0} games, ${reset.breaks_deleted ?? 0} breaks, ${reset.fixture_lineups_deleted ?? 0} lineups. Fixtures kept.`
+      );
+      setResetOpen(false);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not reset 2026/27 match data.");
+    } finally {
+      setResetting(false);
+    }
+  }
 
   return (
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -471,6 +499,21 @@ function DesktopAdminPanel({
               ].map((item) => (
                 <div key={item} className="rounded-xl bg-[#f7f5fa] px-4 py-3 text-sm font-bold text-[#10233f]">{item}</div>
               ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Test data reset</CardTitle>
+              <Badge variant="muted">2026/27</Badge>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+                Remove entered match results, player game rows, lineups, generated games and breaks for 2026/27. Fixtures and weekly schedules stay in place.
+              </p>
+              <Button variant="secondary" className="w-full justify-center" onClick={() => setResetOpen(true)}>
+                <Trash2 className="h-4 w-4" />
+                Clear 2026/27 test results
+              </Button>
             </CardContent>
           </Card>
           <Card>
@@ -510,6 +553,13 @@ function DesktopAdminPanel({
           ))}
         </CardContent>
       </Card>
+      {resetOpen ? (
+        <ConfirmResetMatchDataModal
+          busy={resetting}
+          onCancel={() => setResetOpen(false)}
+          onConfirm={resetMatchData}
+        />
+      ) : null}
     </div>
   );
 }
@@ -749,6 +799,50 @@ function AdminMetric({ label, value }: { label: string; value: number }) {
     <div className="rounded-xl bg-[#10233f] p-4 text-white">
       <p className="text-xs font-bold uppercase text-white/60">{label}</p>
       <p className="mt-1 text-3xl font-extrabold">{value}</p>
+    </div>
+  );
+}
+
+function ConfirmResetMatchDataModal({
+  busy,
+  onCancel,
+  onConfirm
+}: {
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Confirm 2026/27 match data reset">
+      <div className="mx-auto w-full max-w-md rounded-2xl bg-white p-5 text-[#10233f] shadow-elevated">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase text-[#6c5a73]">Confirm reset</p>
+            <h3 className="mt-1 text-xl font-extrabold">Clear 2026/27 test results?</h3>
+          </div>
+          <button
+            type="button"
+            className="grid h-10 w-10 place-items-center rounded-xl bg-[#f7f5fa] text-[#10233f]"
+            onClick={onCancel}
+            disabled={busy}
+            aria-label="Cancel reset"
+          >
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="mt-3 text-sm font-semibold text-[#6c5a73]">
+          This removes entered match scores, lineups, generated games, personal game rows and breaks for 2026/27. Fixtures and week groupings will remain.
+        </p>
+        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <Button variant="secondary" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm} disabled={busy}>
+            <Trash2 className="h-4 w-4" />
+            {busy ? "Clearing..." : "Clear test results"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
