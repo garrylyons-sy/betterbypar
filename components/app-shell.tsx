@@ -2481,14 +2481,13 @@ function TablesPage({ activeTeam, standingsData, matchResults }: { activeTeam: T
         } satisfies TeamContext;
 
         return (
-          <section key={`${activeTeam.season}-${league}`} className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <section key={`${activeTeam.season}-${league}`} className="grid gap-4">
             <LeagueTable
               activeTeam={contextForLeague}
               standingsData={leagueStandings}
               matchResults={leagueResults}
               presentation="section"
             />
-            <SeasonResultsCard activeTeam={contextForLeague} results={leagueResults} defaultScope="league" />
             {!isClubOnlyRole(activeTeam.role) ? <LeaguePlayerStatsCard activeTeam={contextForLeague} /> : null}
           </section>
         );
@@ -4741,11 +4740,13 @@ type LeaguePlayerStat = {
 };
 
 function LeaguePlayerStatsCard({ activeTeam }: { activeTeam: TeamContext }) {
+  const [open, setOpen] = useState(false);
   const [players, setPlayers] = useState<LeaguePlayerStat[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    if (!open) return;
     let active = true;
     setLoading(true);
     setMessage("");
@@ -4769,32 +4770,45 @@ function LeaguePlayerStatsCard({ activeTeam }: { activeTeam: TeamContext }) {
     return () => {
       active = false;
     };
-  }, [activeTeam.league, activeTeam.season]);
+  }, [activeTeam.league, activeTeam.season, open]);
 
   const eligiblePlayers = players.filter((player) => player.canReachMinimum);
   const belowMinimumPlayers = players.filter((player) => !player.canReachMinimum);
 
   return (
     <Card className="xl:col-span-2">
-      <CardHeader>
-        <CardTitle>{activeTeam.league} Player Stats</CardTitle>
-        <Badge variant="muted">{loading ? "Loading" : `${players.length}`}</Badge>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        <p className="text-sm font-semibold text-[#6c5a73]">
-          Ranked by win percentage. Players who cannot reach 12 matches are shown below the main table.
-        </p>
-        <LeaguePlayerStatsRows players={eligiblePlayers} emptyLabel={loading ? "Loading player stats..." : message || "No eligible player stats yet."} />
-        {belowMinimumPlayers.length ? (
-          <section className="grid gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Below 12-match eligibility</p>
-              <Badge variant="muted">{belowMinimumPlayers.length}</Badge>
-            </div>
-            <LeaguePlayerStatsRows players={belowMinimumPlayers} emptyLabel="" />
-          </section>
-        ) : null}
-      </CardContent>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 p-4 text-left"
+        aria-expanded={open}
+      >
+        <span className="min-w-0">
+          <span className="block text-lg font-extrabold text-[#25002b]">{activeTeam.league} Player Stats</span>
+          <span className="mt-1 block text-sm font-semibold text-[#6c5a73]">Ranked by win percentage</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <Badge variant="muted">{open ? loading ? "Loading" : `${players.length}` : "Closed"}</Badge>
+          <ChevronDown className={cn("h-5 w-5 text-[#6c5a73] transition-transform", open && "rotate-180")} />
+        </span>
+      </button>
+      {open ? (
+        <CardContent className="grid gap-3 border-t border-[#eeeaf2] pt-3">
+          <p className="text-sm font-semibold text-[#6c5a73]">
+            Players who cannot reach 12 matches are shown below the main table.
+          </p>
+          <LeaguePlayerStatsRows players={eligiblePlayers} emptyLabel={loading ? "Loading player stats..." : message || "No eligible player stats yet."} />
+          {belowMinimumPlayers.length ? (
+            <section className="grid gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Below 12-match eligibility</p>
+                <Badge variant="muted">{belowMinimumPlayers.length}</Badge>
+              </div>
+              <LeaguePlayerStatsRows players={belowMinimumPlayers} emptyLabel="" />
+            </section>
+          ) : null}
+        </CardContent>
+      ) : null}
     </Card>
   );
 }
