@@ -145,6 +145,7 @@ export function AppShell({
   const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
   const [teamSummaryOverrides, setTeamSummaryOverrides] = useState<Record<string, TeamSummaryUpdate>>({});
   const [enteredCompetitionCount, setEnteredCompetitionCount] = useState(0);
+  const hasAppliedUrlContext = useRef(false);
   useEffect(() => {
     setTeamSummaryOverrides({});
   }, [contexts]);
@@ -198,12 +199,14 @@ export function AppShell({
   }, [preferredContext.season, preferredContextId, visibleContexts, seasons, selectedId, selectedSeason]);
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (hasAppliedUrlContext.current) return;
     const params = new URLSearchParams(window.location.search);
-    if ((params.has("team") || params.has("role") || params.has("season")) && selectedId !== preferredContextId) {
+    if (params.has("team") || params.has("role") || params.has("season")) {
+      hasAppliedUrlContext.current = true;
       setSelectedSeason(preferredContext.season);
       setSelectedId(preferredContextId);
     }
-  }, [preferredContext.season, preferredContextId, selectedId]);
+  }, [preferredContext.season, preferredContextId]);
 
   const realActiveTeam = useMemo(
     () => visibleContexts.find((team) => team.id === selectedId) ?? visibleContexts[0] ?? contexts[0] ?? teamContexts[0],
