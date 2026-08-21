@@ -3372,7 +3372,7 @@ type BreakEntryTarget = {
   fixture: NonNullable<ManagerLineupPayload["fixture"]>;
 } | null;
 
-const defaultLineupSlots: ManagerLineupSlot[] = [
+const standardLineupSlots: ManagerLineupSlot[] = [
   { slotNumber: 1, gameType: "Singles", label: "Singles 1", player1Id: "", player2Id: "" },
   { slotNumber: 2, gameType: "Singles", label: "Singles 2", player1Id: "", player2Id: "" },
   { slotNumber: 3, gameType: "Doubles", label: "Doubles", player1Id: "", player2Id: "" },
@@ -3380,6 +3380,18 @@ const defaultLineupSlots: ManagerLineupSlot[] = [
   { slotNumber: 5, gameType: "Singles", label: "Singles 5", player1Id: "", player2Id: "" },
   { slotNumber: 6, gameType: "Singles", label: "Singles 6", player1Id: "", player2Id: "" }
 ];
+
+const cLeagueLineupSlots: ManagerLineupSlot[] = [
+  { slotNumber: 1, gameType: "Singles", label: "Singles 1", player1Id: "", player2Id: "" },
+  { slotNumber: 2, gameType: "Doubles", label: "Doubles 2", player1Id: "", player2Id: "" },
+  { slotNumber: 3, gameType: "Singles", label: "Singles 3", player1Id: "", player2Id: "" },
+  { slotNumber: 4, gameType: "Doubles", label: "Doubles 4", player1Id: "", player2Id: "" },
+  { slotNumber: 5, gameType: "Singles", label: "Singles 5", player1Id: "", player2Id: "" }
+];
+
+function defaultLineupSlotsForLeague(league: string): ManagerLineupSlot[] {
+  return (league === "C League" ? cLeagueLineupSlots : standardLineupSlots).map((slot) => ({ ...slot }));
+}
 
 type FixtureWeekFixture = {
   id: string;
@@ -3655,7 +3667,7 @@ function ManagerLineupCard({
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   const [payload, setPayload] = useState<ManagerLineupPayload | null>(null);
-  const [slots, setSlots] = useState<ManagerLineupSlot[]>(defaultLineupSlots);
+  const [slots, setSlots] = useState<ManagerLineupSlot[]>(() => defaultLineupSlotsForLeague(activeTeam.league));
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [pendingGameIds, setPendingGameIds] = useState<Set<string>>(new Set());
@@ -3679,6 +3691,7 @@ function ManagerLineupCard({
     dirtyDraftRef.current = false;
     fixtureIdRef.current = "";
     matchSnapshotRef.current = "";
+    setSlots(defaultLineupSlotsForLeague(activeTeam.league));
 
     async function loadLineup() {
       if (!activeTeam.teamId) return;
@@ -3705,7 +3718,7 @@ function ManagerLineupCard({
           setOpenedFixtureId(fixtureId);
         }
         if (firstLoad || fixtureChanged || lineupStatus === "Published" || !dirtyDraftRef.current) {
-          setSlots(data.lineup?.slots?.length ? data.lineup.slots : defaultLineupSlots);
+          setSlots(data.lineup?.slots?.length ? data.lineup.slots : defaultLineupSlotsForLeague(activeTeam.league));
         }
         const matchSnapshot = managerLineupSnapshot(data);
         if (!firstLoad && matchSnapshotRef.current && matchSnapshotRef.current !== matchSnapshot) {
@@ -3726,7 +3739,7 @@ function ManagerLineupCard({
       cancelled = true;
       window.clearInterval(poll);
     };
-  }, [activeTeam.teamId, preferredFixtureId]);
+  }, [activeTeam.teamId, activeTeam.league, preferredFixtureId]);
 
   function updateSlot(slotNumber: number, key: "player1Id" | "player2Id", value: string) {
     dirtyDraftRef.current = true;
@@ -3786,7 +3799,7 @@ function ManagerLineupCard({
   const canSeeOpponentLineup = ownStatus === "Published" && opponentHasPublished;
   const matchReady = Boolean(payload?.games.length);
   const matchLocked = payload?.fixture?.status === "Completed";
-  const allGamesScored = Boolean(payload?.games.length === 6 && payload.games.every((game) => game.winner_team_id));
+  const allGamesScored = Boolean(payload?.games.length && payload.games.every((game) => game.winner_team_id));
   const selectedCount = selectedPlayerIdsExcept().size;
   const directFixtureMode = Boolean(preferredFixtureId && payload?.fixture?.id === preferredFixtureId);
   const fixtureOpen = Boolean(payload?.fixture && (openedFixtureId === payload.fixture.id || directFixtureMode));
@@ -3959,7 +3972,7 @@ function ManagerLineupCard({
                                 <div>
                                   <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Lock match</p>
                                   <p className="text-sm font-bold text-[#10233f]">
-                                    Confirm completion once all six games are correct.
+                                    Confirm completion once all games are correct.
                                   </p>
                                 </div>
                                 <Badge variant={allGamesScored ? "green" : "muted"}>{allGamesScored ? "Ready" : "Incomplete"}</Badge>
@@ -4274,7 +4287,7 @@ function fixtureScoreForTeam(payload: ManagerLineupPayload, teamId: string) {
 }
 
 function fixtureIsComplete(payload: ManagerLineupPayload) {
-  return payload.games.length === 6 && payload.games.every((game) => game.winner_team_id);
+  return payload.games.length > 0 && payload.games.every((game) => game.winner_team_id);
 }
 
 function liveSummaryFromGameChange(activeTeam: TeamContext, previousPayload: ManagerLineupPayload, nextPayload: ManagerLineupPayload): TeamSummaryUpdate | null {
@@ -4519,7 +4532,7 @@ function ReadOnlyFixtureDetails({
       <div className="flex items-center justify-between gap-2 border-b border-[#eeeaf2] bg-[#f7f5fa] px-3 py-2">
         <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Frame details</p>
         <Badge variant={fixture.status === "Completed" ? "green" : completedGames ? "cyan" : "muted"}>
-          {fixture.status === "Completed" ? "Final" : completedGames ? `${completedGames}/6 played` : "Published"}
+          {fixture.status === "Completed" ? "Final" : completedGames ? `${completedGames}/${games.length} played` : "Published"}
         </Badge>
       </div>
       <div className="divide-y divide-[#eeeaf2]">

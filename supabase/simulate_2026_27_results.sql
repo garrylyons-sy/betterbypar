@@ -9,11 +9,13 @@ select
   f.id as fixture_id,
   f.season_id,
   f.league_id,
+  l.name as league_name,
   f.fixture_date,
   f.home_team_id,
   f.away_team_id
 from public.fixture f
 join public.season s on s.id = f.season_id
+join public.league l on l.id = f.league_id
 where s.name = '2026/27';
 
 delete from public.break b
@@ -148,9 +150,9 @@ join public.team_membership tm
 
 create temporary table _fixture_lineup_slots on commit drop as
 with fixture_sides as (
-  select fixture_id, home_team_id as team_id from _target_fixtures
+  select fixture_id, league_name, home_team_id as team_id from _target_fixtures
   union all
-  select fixture_id, away_team_id as team_id from _target_fixtures
+  select fixture_id, league_name, away_team_id as team_id from _target_fixtures
 ),
 ordered_players as (
   select
@@ -169,14 +171,31 @@ slot_source as (
   from fixture_sides
   union all
   select fixture_id, team_id, 2, 'Singles'::public.game_type, 2, null from fixture_sides
+  where league_name <> 'C League'
+  union all
+  select fixture_id, team_id, 2, 'Doubles'::public.game_type, 2, 3 from fixture_sides
+  where league_name = 'C League'
   union all
   select fixture_id, team_id, 3, 'Doubles'::public.game_type, 3, 4 from fixture_sides
+  where league_name <> 'C League'
+  union all
+  select fixture_id, team_id, 3, 'Singles'::public.game_type, 4, null from fixture_sides
+  where league_name = 'C League'
   union all
   select fixture_id, team_id, 4, 'Singles'::public.game_type, 5, null from fixture_sides
+  where league_name <> 'C League'
+  union all
+  select fixture_id, team_id, 4, 'Doubles'::public.game_type, 5, 6 from fixture_sides
+  where league_name = 'C League'
   union all
   select fixture_id, team_id, 5, 'Singles'::public.game_type, 6, null from fixture_sides
+  where league_name <> 'C League'
+  union all
+  select fixture_id, team_id, 5, 'Singles'::public.game_type, 7, null from fixture_sides
+  where league_name = 'C League'
   union all
   select fixture_id, team_id, 6, 'Singles'::public.game_type, 7, null from fixture_sides
+  where league_name <> 'C League'
 )
 select
   ss.fixture_id,
@@ -244,15 +263,17 @@ select
   m.id as match_id,
   tf.home_team_id,
   tf.away_team_id,
-  gs.slot_number as game_number,
-  case when gs.slot_number = 3 then 'Doubles'::public.game_type else 'Singles'::public.game_type end as game_type,
-  case when gs.slot_number = 3 then 2 else 1 end as points_awarded,
+  home_slot.slot_number as game_number,
+  home_slot.game_type,
+  case when home_slot.game_type = 'Doubles' then 2 else 1 end as points_awarded,
   random() < 0.5 as home_wins,
   (50 + floor(random() * 46))::integer as winner_score,
   floor(random() * 49)::integer as loser_score
 from _target_fixtures tf
 join public.match m on m.fixture_id = tf.fixture_id
-cross join generate_series(1, 6) gs(slot_number);
+join _fixture_lineup_slots home_slot
+  on home_slot.fixture_id = tf.fixture_id
+ and home_slot.team_id = tf.home_team_id;
 
 insert into public.game (
   match_id,

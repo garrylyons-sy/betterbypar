@@ -6,14 +6,32 @@ import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
-const lineupSlots = [
+type LineupSlotDefinition = {
+  slotNumber: number;
+  gameType: "Singles" | "Doubles";
+  label: string;
+};
+
+const standardLineupSlots: LineupSlotDefinition[] = [
   { slotNumber: 1, gameType: "Singles", label: "Singles 1" },
   { slotNumber: 2, gameType: "Singles", label: "Singles 2" },
   { slotNumber: 3, gameType: "Doubles", label: "Doubles" },
   { slotNumber: 4, gameType: "Singles", label: "Singles 4" },
   { slotNumber: 5, gameType: "Singles", label: "Singles 5" },
   { slotNumber: 6, gameType: "Singles", label: "Singles 6" }
-] as const;
+];
+
+const cLeagueLineupSlots: LineupSlotDefinition[] = [
+  { slotNumber: 1, gameType: "Singles", label: "Singles 1" },
+  { slotNumber: 2, gameType: "Doubles", label: "Doubles 2" },
+  { slotNumber: 3, gameType: "Singles", label: "Singles 3" },
+  { slotNumber: 4, gameType: "Doubles", label: "Doubles 4" },
+  { slotNumber: 5, gameType: "Singles", label: "Singles 5" }
+];
+
+function lineupSlotsForLeague(leagueName?: string | null): LineupSlotDefinition[] {
+  return leagueName === "C League" ? cLeagueLineupSlots : standardLineupSlots;
+}
 
 type LineupSlotInput = {
   slotNumber?: number;
@@ -214,10 +232,11 @@ export async function POST(request: NextRequest) {
         throw new Error("Published lineups are locked and cannot be changed.");
       }
       const playerIds = await loadTeamPlayerIds(client, teamId);
-      const normalized = normalizeSlots(slots, playerIds, action === "publish");
+      const slotDefinitions = await loadFixtureLineupSlots(client, fixtureId);
+      const normalized = normalizeSlots(slots, playerIds, action === "publish", slotDefinitions);
       const lineupId = await upsertLineup(client, fixtureId, teamId, user.personId, action === "publish");
 
-      for (const slot of lineupSlots) {
+      for (const slot of slotDefinitions) {
         const selected = normalized.find((item) => item.slotNumber === slot.slotNumber);
         await client.query(
           `insert into public.fixture_lineup_slot (lineup_id, slot_number, game_type, player_1_id, player_2_id)
@@ -303,7 +322,8 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     lineupQuerySql,
     [fixture.fixture_id]
   )).rows;
-  const own = buildLineup(lineupRows.filter((row) => row.team_id === teamId), fixture);
+  const slotDefinitions = lineupSlotsForLeague(fixture.league_name);
+  const own = buildLineup(lineupRows.filter((row) => row.team_id === teamId), fixture, slotDefinitions);
   const opponentTeamId = fixture.home_team_id === teamId ? fixture.away_team_id : fixture.home_team_id;
   const opponentRaw = lineupRows.filter((row) => row.team_id === opponentTeamId);
   const opponentStatus = opponentRaw[0] ? {
@@ -311,7 +331,7 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     status: opponentRaw[0].status,
     publishedAt: opponentRaw[0].published_at
   } : null;
-  const opponent = own?.status === "Published" && opponentRaw[0]?.status === "Published" ? buildLineup(opponentRaw, fixture) : null;
+  const opponent = own?.status === "Published" && opponentRaw[0]?.status === "Published" ? buildLineup(opponentRaw, fixture, slotDefinitions) : null;
 
   const games = (await dbQuery(
     `select
@@ -575,13 +595,13 @@ const lineupQuerySql = `
   order by fl.team_id, fls.slot_number
 `;
 
-function buildLineup(rows: LineupRow[], fixture: { fixture_id: string }) {
+function buildLineup(rows: LineupRow[], fixture: { fixture_id: string }, slotDefinitions: LineupSlotDefinition[]) {
   const first = rows[0];
   if (!first) {
     return {
       fixtureId: fixture.fixture_id,
       status: "Draft",
-      slots: lineupSlots.map((slot) => ({ ...slot, player1Id: "", player1Name: "", player2Id: "", player2Name: "" }))
+      slots: slotDefinitions.map((slot) => ({ ...slot, player1Id: "", player1Name: "", player2Id: "", player2Name: "" }))
     };
   }
 
@@ -592,7 +612,7 @@ function buildLineup(rows: LineupRow[], fixture: { fixture_id: string }) {
     teamName: first.team_name,
     status: first.status,
     publishedAt: first.published_at,
-    slots: lineupSlots.map((slot) => {
+    slots: slotDefinitions.map((slot) => {
       const row = rows.find((item) => item.slot_number === slot.slotNumber);
       return {
         ...slot,
@@ -655,8 +675,8 @@ async function loadLineupStatus(client: PoolClient, fixtureId: string, teamId: s
   return result.rows[0]?.status ?? null;
 }
 
-function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, requireComplete: boolean) {
-  const normalized = lineupSlots.map((slot) => {
+function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, requireComplete: boolean, slotDefinitions: LineupSlotDefinition[]) {
+  const normalized = slotDefinitions.map((slot) => {
     const input = slots.find((item) => Number(item.slotNumber) === slot.slotNumber);
     const player1Id = String(input?.player1Id ?? "").trim();
     const player2Id = String(input?.player2Id ?? "").trim();
@@ -699,17 +719,38 @@ async function upsertLineup(client: PoolClient, fixtureId: string, teamId: strin
   return result.rows[0].id;
 }
 
+async function loadFixtureLineupSlots(client: PoolClient, fixtureId: string) {
+  const result = await client.query<{ league_name: string }>(
+    `select l.name as league_name
+     from public.fixture f
+     join public.league l on l.id = f.league_id
+     where f.id = $1
+     limit 1`,
+    [fixtureId]
+  );
+  return lineupSlotsForLeague(result.rows[0]?.league_name);
+}
+
 async function generateGamesIfBothPublished(client: PoolClient, fixtureId: string, personId: string) {
   const fixtureResult = await client.query<{
     home_team_id: string;
     away_team_id: string;
-  }>("select home_team_id, away_team_id from public.fixture where id = $1 for update", [fixtureId]);
+    league_name: string;
+  }>(
+    `select f.home_team_id, f.away_team_id, l.name as league_name
+     from public.fixture f
+     join public.league l on l.id = f.league_id
+     where f.id = $1
+     for update`,
+    [fixtureId]
+  );
   const fixture = fixtureResult.rows[0];
   if (!fixture) throw new Error("Fixture not found.");
+  const slotDefinitions = lineupSlotsForLeague(fixture.league_name);
 
   const lineupResult = await client.query<LineupRow>(lineupQuerySql, [fixtureId]);
-  const home = buildLineup(lineupResult.rows.filter((row) => row.team_id === fixture.home_team_id), { fixture_id: fixtureId });
-  const away = buildLineup(lineupResult.rows.filter((row) => row.team_id === fixture.away_team_id), { fixture_id: fixtureId });
+  const home = buildLineup(lineupResult.rows.filter((row) => row.team_id === fixture.home_team_id), { fixture_id: fixtureId }, slotDefinitions);
+  const away = buildLineup(lineupResult.rows.filter((row) => row.team_id === fixture.away_team_id), { fixture_id: fixtureId }, slotDefinitions);
   if (home.status !== "Published" || away.status !== "Published") return;
 
   const matchResult = await client.query<{ id: string }>(
@@ -722,7 +763,7 @@ async function generateGamesIfBothPublished(client: PoolClient, fixtureId: strin
   );
   const matchId = matchResult.rows[0].id;
 
-  for (const slot of lineupSlots) {
+  for (const slot of slotDefinitions) {
     const homeSlot = home.slots.find((item) => item.slotNumber === slot.slotNumber);
     const awaySlot = away.slots.find((item) => item.slotNumber === slot.slotNumber);
     await client.query(
@@ -786,8 +827,8 @@ async function completeMatch(client: PoolClient, fixtureId: string) {
   );
   const totalGames = Number(completion.rows[0]?.total_games ?? 0);
   const completedGames = Number(completion.rows[0]?.completed_games ?? 0);
-  if (totalGames !== 6 || completedGames !== 6) {
-    throw new Error("All six games must be scored before the match can be completed.");
+  if (totalGames === 0 || completedGames !== totalGames) {
+    throw new Error("All games must be scored before the match can be completed.");
   }
   await client.query(
     `update public.fixture

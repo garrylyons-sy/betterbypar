@@ -375,9 +375,9 @@ create table public.game (
   points_awarded integer not null check (points_awarded in (1, 2)),
   unique (match_id, game_number),
   constraint game_live_order_check check (
-    (game_type = 'Singles' and game_number in (1, 2, 4, 5, 6) and points_awarded = 1)
+    (game_type = 'Singles' and game_number between 1 and 6 and points_awarded = 1)
     or
-    (game_type = 'Doubles' and game_number = 3 and points_awarded = 2)
+    (game_type = 'Doubles' and game_number in (2, 3, 4) and points_awarded = 2)
   )
 );
 
@@ -446,12 +446,12 @@ create table public.fixture_lineup_slot (
   player_1_id uuid references public.person(id) on delete restrict,
   player_2_id uuid references public.person(id) on delete restrict,
   unique (lineup_id, slot_number),
-  check (slot_number = 3 or player_2_id is null),
+  check (game_type = 'Doubles' or player_2_id is null),
   check (player_1_id is null or player_1_id <> player_2_id),
   check (
-    (slot_number = 3 and game_type = 'Doubles')
+    (slot_number in (2, 3, 4) and game_type = 'Doubles')
     or
-    (slot_number in (1, 2, 4, 5, 6) and game_type = 'Singles')
+    (slot_number between 1 and 6 and game_type = 'Singles')
   )
 );
 
