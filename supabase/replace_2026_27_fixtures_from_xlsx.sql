@@ -1,8 +1,10 @@
 -- Replace all 2026/27 league fixtures with the schedule from
--- Updated Interclub Snooker League Schedule 2026-2027.xlsx.
--- Real team fixtures and no-match rows are loaded. Break weeks and
--- playoff placeholders are intentionally skipped because fixtures
--- require two real teams.
+-- Updated Interclub Snooker League Schedule 2026-2027 - FINAL.xlsx.
+-- The workbook is treated as fixture data only. Blank weeks, break weeks,
+-- semi-finals, finals and other playoff placeholders are intentionally skipped
+-- because regular league fixtures require two real teams.
+
+begin;
 
 insert into public.season (name, starts_on, ends_on, active)
 values ('2026/27', '2026-09-28', '2027-03-31', true)
@@ -68,8 +70,7 @@ values
     ('Grange Golf Club', 'C League', 'Grange D'),
     ('Milltown Golf Club', 'C League', 'Milltown C'),
     ('Newlands Golf Club', 'C League', 'Newlands C'),
-    ('Stackstown Golf Club', 'C League', 'Stackstown C'),
-    ('Stackstown Golf Club', 'C League', 'Stackstown D');
+    ('Stackstown Golf Club', 'C League', 'Stackstown C');
 
 create temporary table tmp_2026_27_source_weeks (
   league_name text not null,
@@ -239,24 +240,19 @@ values
     ('C League', 1, '2026-09-28'::date, 'Elm Park C', 'Grange C'),
     ('C League', 1, '2026-09-28'::date, 'Grange D', 'Newlands C'),
     ('C League', 1, '2026-09-28'::date, 'Milltown C', 'Fitzwilliam C'),
-    ('C League', 1, '2026-09-28'::date, 'Stackstown D', 'Castle D'),
     ('C League', 2, '2026-10-05'::date, 'Castle D', 'Elm Park C'),
-    ('C League', 2, '2026-10-05'::date, 'Fitzwilliam C', 'Stackstown D'),
     ('C League', 2, '2026-10-05'::date, 'Grange C', 'Milltown C'),
     ('C League', 2, '2026-10-05'::date, 'Newlands C', 'Castle C'),
     ('C League', 2, '2026-10-05'::date, 'Stackstown C', 'Grange D'),
     ('C League', 3, '2026-10-12'::date, 'Castle C', 'Fitzwilliam C'),
     ('C League', 3, '2026-10-12'::date, 'Elm Park C', 'Newlands C'),
     ('C League', 3, '2026-10-12'::date, 'Grange D', 'Castle D'),
-    ('C League', 3, '2026-10-12'::date, 'Milltown C', 'Stackstown D'),
     ('C League', 3, '2026-10-12'::date, 'Stackstown C', 'Grange C'),
     ('C League', 4, '2026-10-19'::date, 'Castle D', 'Grange C'),
     ('C League', 4, '2026-10-19'::date, 'Fitzwilliam C', 'Newlands C'),
     ('C League', 4, '2026-10-19'::date, 'Grange D', 'Elm Park C'),
     ('C League', 4, '2026-10-19'::date, 'Milltown C', 'Castle C'),
-    ('C League', 4, '2026-10-19'::date, 'Stackstown D', 'Stackstown C'),
     ('C League', 5, '2026-10-26'::date, 'Castle C', 'Castle D'),
-    ('C League', 5, '2026-10-26'::date, 'Elm Park C', 'Stackstown D'),
     ('C League', 5, '2026-10-26'::date, 'Grange C', 'Grange D'),
     ('C League', 5, '2026-10-26'::date, 'Newlands C', 'Milltown C'),
     ('C League', 5, '2026-10-26'::date, 'Stackstown C', 'Fitzwilliam C'),
@@ -264,23 +260,18 @@ values
     ('C League', 6, '2026-11-02'::date, 'Fitzwilliam C', 'Elm Park C'),
     ('C League', 6, '2026-11-02'::date, 'Grange D', 'Castle C'),
     ('C League', 6, '2026-11-02'::date, 'Newlands C', 'Stackstown C'),
-    ('C League', 6, '2026-11-02'::date, 'Stackstown D', 'Grange C'),
     ('C League', 7, '2026-11-09'::date, 'Castle D', 'Stackstown C'),
     ('C League', 7, '2026-11-09'::date, 'Fitzwilliam C', 'Grange D'),
     ('C League', 7, '2026-11-09'::date, 'Grange C', 'Castle C'),
     ('C League', 7, '2026-11-09'::date, 'Milltown C', 'Elm Park C'),
-    ('C League', 7, '2026-11-09'::date, 'Stackstown D', 'Newlands C'),
     ('C League', 8, '2026-11-16'::date, 'Castle C', 'Elm Park C'),
     ('C League', 8, '2026-11-16'::date, 'Fitzwilliam C', 'Castle D'),
-    ('C League', 8, '2026-11-16'::date, 'Grange D', 'Stackstown D'),
     ('C League', 8, '2026-11-16'::date, 'Newlands C', 'Grange C'),
     ('C League', 8, '2026-11-16'::date, 'Stackstown C', 'Milltown C'),
     ('C League', 9, '2026-11-23'::date, 'Castle D', 'Newlands C'),
     ('C League', 9, '2026-11-23'::date, 'Elm Park C', 'Stackstown C'),
     ('C League', 9, '2026-11-23'::date, 'Grange C', 'Fitzwilliam C'),
     ('C League', 9, '2026-11-23'::date, 'Milltown C', 'Grange D'),
-    ('C League', 9, '2026-11-23'::date, 'Stackstown D', 'Castle C'),
-    ('C League', 10, '2026-11-30'::date, 'Castle D', 'Stackstown D'),
     ('C League', 10, '2026-11-30'::date, 'Fitzwilliam C', 'Milltown C'),
     ('C League', 10, '2026-11-30'::date, 'Grange C', 'Elm Park C'),
     ('C League', 10, '2026-11-30'::date, 'Newlands C', 'Grange D'),
@@ -289,66 +280,34 @@ values
     ('C League', 11, '2026-12-14'::date, 'Elm Park C', 'Castle D'),
     ('C League', 11, '2026-12-14'::date, 'Grange D', 'Stackstown C'),
     ('C League', 11, '2026-12-14'::date, 'Milltown C', 'Grange C'),
-    ('C League', 11, '2026-12-14'::date, 'Stackstown D', 'Fitzwilliam C'),
     ('C League', 12, '2027-01-04'::date, 'Castle D', 'Grange D'),
     ('C League', 12, '2027-01-04'::date, 'Fitzwilliam C', 'Castle C'),
     ('C League', 12, '2027-01-04'::date, 'Grange C', 'Stackstown C'),
     ('C League', 12, '2027-01-04'::date, 'Newlands C', 'Elm Park C'),
-    ('C League', 12, '2027-01-04'::date, 'Stackstown D', 'Milltown C'),
     ('C League', 13, '2027-01-11'::date, 'Castle C', 'Milltown C'),
     ('C League', 13, '2027-01-11'::date, 'Elm Park C', 'Grange D'),
     ('C League', 13, '2027-01-11'::date, 'Grange C', 'Castle D'),
     ('C League', 13, '2027-01-11'::date, 'Newlands C', 'Fitzwilliam C'),
-    ('C League', 13, '2027-01-11'::date, 'Stackstown C', 'Stackstown D'),
     ('C League', 14, '2027-01-18'::date, 'Castle D', 'Castle C'),
     ('C League', 14, '2027-01-18'::date, 'Fitzwilliam C', 'Stackstown C'),
     ('C League', 14, '2027-01-18'::date, 'Grange D', 'Grange C'),
     ('C League', 14, '2027-01-18'::date, 'Milltown C', 'Newlands C'),
-    ('C League', 14, '2027-01-18'::date, 'Stackstown D', 'Elm Park C'),
     ('C League', 15, '2027-02-01'::date, 'Castle C', 'Grange D'),
     ('C League', 15, '2027-02-01'::date, 'Elm Park C', 'Fitzwilliam C'),
-    ('C League', 15, '2027-02-01'::date, 'Grange C', 'Stackstown D'),
     ('C League', 15, '2027-02-01'::date, 'Milltown C', 'Castle D'),
     ('C League', 15, '2027-02-01'::date, 'Stackstown C', 'Newlands C'),
     ('C League', 16, '2027-02-08'::date, 'Castle C', 'Grange C'),
     ('C League', 16, '2027-02-08'::date, 'Elm Park C', 'Milltown C'),
     ('C League', 16, '2027-02-08'::date, 'Grange D', 'Fitzwilliam C'),
-    ('C League', 16, '2027-02-08'::date, 'Newlands C', 'Stackstown D'),
     ('C League', 16, '2027-02-08'::date, 'Stackstown C', 'Castle D'),
     ('C League', 17, '2027-02-22'::date, 'Castle D', 'Fitzwilliam C'),
     ('C League', 17, '2027-02-22'::date, 'Elm Park C', 'Castle C'),
     ('C League', 17, '2027-02-22'::date, 'Grange C', 'Newlands C'),
     ('C League', 17, '2027-02-22'::date, 'Milltown C', 'Stackstown C'),
-    ('C League', 17, '2027-02-22'::date, 'Stackstown D', 'Grange D'),
-    ('C League', 18, '2027-03-01'::date, 'Castle C', 'Stackstown D'),
     ('C League', 18, '2027-03-01'::date, 'Fitzwilliam C', 'Grange C'),
     ('C League', 18, '2027-03-01'::date, 'Grange D', 'Milltown C'),
     ('C League', 18, '2027-03-01'::date, 'Newlands C', 'Castle D'),
     ('C League', 18, '2027-03-01'::date, 'Stackstown C', 'Elm Park C');
-
-create temporary table tmp_2026_27_source_byes (
-  league_name text not null,
-  week_number integer not null,
-  fixture_date date not null,
-  team_name text not null
-) on commit drop;
-
-insert into tmp_2026_27_source_byes (league_name, week_number, fixture_date, team_name)
-values
-    ('B League', 1, '2026-10-01'::date, 'Elm Park B'),
-    ('B League', 2, '2026-10-08'::date, 'Stackstown B'),
-    ('B League', 3, '2026-10-15'::date, 'Milltown B'),
-    ('B League', 4, '2026-10-22'::date, 'Fitzwilliam B'),
-    ('B League', 6, '2026-11-05'::date, 'Newlands B'),
-    ('B League', 7, '2026-11-12'::date, 'Castle B'),
-    ('B League', 8, '2026-11-19'::date, 'Grange B'),
-    ('B League', 10, '2026-12-03'::date, 'Elm Park B'),
-    ('B League', 11, '2026-12-17'::date, 'Stackstown B'),
-    ('B League', 12, '2027-01-07'::date, 'Milltown B'),
-    ('B League', 13, '2027-01-14'::date, 'Fitzwilliam B'),
-    ('B League', 15, '2027-02-04'::date, 'Newlands B'),
-    ('B League', 16, '2027-02-11'::date, 'Castle B'),
-    ('B League', 17, '2027-02-25'::date, 'Grange B');
 
 with target_season as (
   select id from public.season where name = '2026/27'
@@ -370,6 +329,9 @@ begin
   select id into season_uuid
   from public.season
   where name = '2026/27';
+
+  delete from public.break
+  where season_id = season_uuid;
 
   delete from public.player_game_result
   where season_id = season_uuid;
@@ -450,22 +412,28 @@ on conflict (fixture_id) do nothing;
 
 insert into public.fixture_week_match (week_id, match_id)
 select fw.id, m.id
-from public.fixture f
-join public.match m on m.fixture_id = f.id
+from tmp_2026_27_source_fixtures sf
+join public.season s on s.name = '2026/27'
+join public.league l on l.name = sf.league_name
 join public.fixture_week fw
-  on fw.season_id = f.season_id
- and fw.league_id = f.league_id
- and fw.week_number = (
-   select sf.week_number
-   from tmp_2026_27_source_fixtures sf
-   join public.team ht on ht.id = f.home_team_id and ht.name = sf.home_team_name
-   join public.team at on at.id = f.away_team_id and at.name = sf.away_team_name
-   join public.league l on l.id = f.league_id and l.name = sf.league_name
-   where sf.fixture_date = f.fixture_date::date
-   limit 1
- )
-join public.season s on s.id = f.season_id
-where s.name = '2026/27'
+  on fw.season_id = s.id
+ and fw.league_id = l.id
+ and fw.week_number = sf.week_number
+join public.team ht
+  on ht.name = sf.home_team_name
+ and ht.league_id = l.id
+ and ht.season_id = s.id
+join public.team at
+  on at.name = sf.away_team_name
+ and at.league_id = l.id
+ and at.season_id = s.id
+join public.fixture f
+  on f.season_id = s.id
+ and f.league_id = l.id
+ and f.fixture_date::date = sf.fixture_date
+ and f.home_team_id = ht.id
+ and f.away_team_id = at.id
+join public.match m on m.fixture_id = f.id
 on conflict (match_id) do update
 set week_id = excluded.week_id;
 
@@ -485,9 +453,13 @@ where ptr.active = true
 on conflict (team_id, person_id, role) do update
 set active = true;
 
+commit;
+
 -- Summary expected from the source workbook:
--- Teams: 25
--- Fixture weeks with real fixtures/byes: 46
--- Concrete fixtures: 188
--- No-match rows recorded for source-team coverage: 14
--- Break weeks and playoff placeholders skipped.
+-- Teams: 24
+-- A League: 8 teams, 14 fixture weeks, 56 concrete fixtures
+-- B League: 7 teams, 14 fixture weeks, 42 concrete fixtures
+-- C League: 9 teams, 18 fixture weeks, 72 concrete fixtures
+-- Concrete fixtures: 170
+-- No-match rows used for team coverage: 32
+-- Blank/break/playoff weeks skipped: 13
