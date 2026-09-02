@@ -36,6 +36,17 @@ const RECENT_FORM_LIMIT = 3;
 const SIMULATION_CONTROLS_ENABLED = false;
 const leagueOrder: TeamContext["league"][] = ["A League", "B League", "C League"];
 const pagesWithLeagueAside: AppPage[] = ["Home"];
+const attackSnookerRules = [
+  "Start with six reds on the table.",
+  "To start a break, you may pot any ball. Reds may be potted consecutively, but coloured balls may not be potted twice in a row.",
+  "A break is the total value of all consecutive pots. If more than one ball is potted on a shot, the shot scores the total value of all balls potted.",
+  "When a red is potted, it stays down. When a colour is potted while reds remain, it is replaced on its own spot, or the highest available spot if its own spot is covered.",
+  "When all reds are potted, the remaining colours can be potted in any order.",
+  "While at least one red remains, a player may call Double before the first shot of a visit. Any break on that visit is doubled.",
+  "Double can only be called once in a frame. If the player fouls at the end of a Double visit, the double does not count for that break.",
+  "A frame ends after 10 minutes, when all balls other than the cue ball are potted, or when it is mathematically impossible for one player to win.",
+  "There are no snookers. Fouls are worth 6 points, and after a foul the cue ball can be placed anywhere on the table for the next shot."
+];
 
 function isClubOnlyRole(role: Role) {
   return role === "Club Member" || role === "Club Admin";
@@ -2026,8 +2037,52 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
           </Button>
         </CardContent>
       </Card>
+      <AttackSnookerGameCard />
       <CompetitionPanel activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />
     </section>
+  );
+}
+
+function AttackSnookerGameCard() {
+  return (
+    <Card className="overflow-hidden md:col-span-2">
+      <CardHeader>
+        <div>
+          <CardTitle>Games</CardTitle>
+          <p className="mt-1 text-sm font-semibold text-[#6c5a73]">Club game formats and house rules.</p>
+        </div>
+        <Badge variant="green">Attack Snooker</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <div className="overflow-hidden rounded-[18px] bg-[#10233f] ring-1 ring-[#d8d1df]">
+          <img
+            src="/attack-snooker.png"
+            alt="Castle Attack Snooker Blitz rules poster"
+            className="h-auto w-full"
+            loading="lazy"
+          />
+        </div>
+        <div className="grid gap-3">
+          <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle("#10233F", "#146B4C")}>
+            <p className="text-xs font-extrabold uppercase text-white/65">Attack Snooker</p>
+            <h2 className="mt-1 text-3xl font-black leading-none">Fast frames, no snookers</h2>
+            <p className="mt-2 text-sm font-semibold text-white/75">
+              Six reds, 10-minute frames, pot-first scoring and one tactical Double call per frame.
+            </p>
+          </div>
+          <div className="grid gap-2">
+            {attackSnookerRules.map((rule, index) => (
+              <div key={rule} className="grid grid-cols-[34px_1fr] gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-[#10233f] text-sm font-black text-white">
+                  {index + 1}
+                </span>
+                <p className="text-sm font-semibold leading-relaxed text-[#10233f]">{rule}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
