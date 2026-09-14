@@ -73,14 +73,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const user = await signInExistingGoogleUser(googleUser.sub, googleUser.email, googleUser.picture)
-      ?? await claimInvitationForAccount({
+    const user = oauthCookies.invitationCode
+      ? await claimInvitationForAccount({
         email: googleUser.email,
         username: googleUser.email.split("@")[0],
         googleId: googleUser.sub,
         profileImage: googleUser.picture ?? null,
         invitationCode: oauthCookies.invitationCode
-      });
+      })
+      : await signInExistingGoogleUser(googleUser.sub, googleUser.email, googleUser.picture);
+
+    if (!user) {
+      throw new Error("No account exists for this Google email. Please use your invitation link first.");
+    }
 
     await setSessionCookie(user.accountId);
     await recordLogin(user, "google", (await headers()).get("user-agent") ?? "");

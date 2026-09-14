@@ -492,7 +492,7 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
         Activate account
       </Button>
       <GoogleAuthButton
-        label="Sign in with Google"
+        label={invite ? "Activate with Google" : "Sign in with Google"}
         href={invite ? `/auth/google?next=${encodeURIComponent(`/activate?invite=${invite.code}`)}` : "/auth/google"}
       />
     </div>
