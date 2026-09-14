@@ -1143,10 +1143,10 @@ async function shareSvgVisual(filename: string, title: string, svg: string) {
 
 function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
   const width = 1080;
-  const rowHeight = 126;
-  const height = 360 + Math.max(week.fixtures.length, 1) * rowHeight;
+  const rowHeight = 118;
+  const height = 332 + Math.max(week.fixtures.length, 1) * rowHeight;
   const rows = week.fixtures.map((fixture, index) => {
-    const y = 280 + index * rowHeight;
+    const y = 258 + index * rowHeight;
     const home = teamColors(fixture.homeTeamName);
     const away = teamColors(fixture.awayTeamName);
     const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
@@ -1157,16 +1157,16 @@ function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
     return `
       <rect x="54" y="${y}" width="972" height="102" rx="22" fill="${index % 2 ? "#ffffff" : "#f5f7fb"}" stroke="#dfe7ee" />
       <circle cx="82" cy="${y + 51}" r="7" fill="${home.primaryColor}" />
-      <text x="106" y="${y + 60}" font-size="34" font-weight="850" fill="${homeWon ? "#007a3d" : home.primaryColor}">${svgEscape(truncateForShare(fixture.homeTeamName, 22))}</text>
+      <text x="106" y="${y + 60}" font-size="31" font-weight="700" fill="${homeWon ? "#007a3d" : home.primaryColor}">${svgEscape(truncateForShare(fixture.homeTeamName, 24))}</text>
       <rect x="470" y="${y + 25}" width="140" height="52" rx="14" fill="#10233f" />
-      <text x="540" y="${y + 62}" text-anchor="middle" font-size="32" font-weight="900" fill="#ffffff">${svgEscape(score)}</text>
-      <text x="974" y="${y + 60}" text-anchor="end" font-size="34" font-weight="850" fill="${awayWon ? "#007a3d" : away.primaryColor}">${svgEscape(truncateForShare(fixture.awayTeamName, 22))}</text>
+      <text x="540" y="${y + 62}" text-anchor="middle" font-size="30" font-weight="800" fill="#ffffff">${svgEscape(score)}</text>
+      <text x="974" y="${y + 60}" text-anchor="end" font-size="31" font-weight="700" fill="${awayWon ? "#007a3d" : away.primaryColor}">${svgEscape(truncateForShare(fixture.awayTeamName, 24))}</text>
       <circle cx="998" cy="${y + 51}" r="7" fill="${away.primaryColor}" />
     `;
   }).join("");
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
       <defs>
         <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
           <stop offset="0" stop-color="${svgEscape(activeTeam.primaryColor)}" />
@@ -1178,25 +1178,25 @@ function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
         </pattern>
       </defs>
       <rect width="1080" height="${height}" rx="44" fill="#f3f6f8" />
-      <rect x="0" y="0" width="1080" height="230" rx="44" fill="url(#hero)" />
-      <rect x="0" y="0" width="1080" height="230" rx="44" fill="url(#grid)" />
-      <text x="54" y="78" font-size="28" font-weight="850" fill="rgba(255,255,255,.72)" letter-spacing="3">INTERCLUB SNOOKER</text>
-      <text x="54" y="138" font-size="54" font-weight="900" fill="#ffffff">Fixtures / Results</text>
-      <text x="54" y="188" font-size="30" font-weight="750" fill="rgba(255,255,255,.82)">${svgEscape(activeTeam.league)} • ${svgEscape(week.weekLabel)} • ${svgEscape(formatFixtureDate(week.startsOn))}</text>
-      <rect x="760" y="72" width="266" height="66" rx="18" fill="rgba(255,255,255,.16)" stroke="rgba(255,255,255,.28)" />
-      <text x="893" y="115" text-anchor="middle" font-size="26" font-weight="850" fill="#ffffff">${svgEscape(activeTeam.season)}</text>
+      <rect x="0" y="0" width="1080" height="212" rx="44" fill="url(#hero)" />
+      <rect x="0" y="0" width="1080" height="212" rx="44" fill="url(#grid)" />
+      <text x="54" y="74" font-size="23" font-weight="700" fill="rgba(255,255,255,.72)" letter-spacing="3">INTERCLUB SNOOKER</text>
+      <text x="54" y="132" font-size="48" font-weight="800" fill="#ffffff">Fixtures / Results</text>
+      <text x="54" y="178" font-size="26" font-weight="600" fill="rgba(255,255,255,.84)">${svgEscape(activeTeam.league)} • ${svgEscape(week.weekLabel)} • ${svgEscape(formatFixtureDate(week.startsOn))}</text>
+      <rect x="782" y="70" width="244" height="58" rx="16" fill="rgba(255,255,255,.16)" stroke="rgba(255,255,255,.28)" />
+      <text x="904" y="108" text-anchor="middle" font-size="23" font-weight="700" fill="#ffffff">${svgEscape(activeTeam.season)}</text>
       ${rows}
-      <text x="54" y="${height - 42}" font-size="24" font-weight="800" fill="#6c7788">interclubsnooker.com</text>
+      <text x="54" y="${height - 40}" font-size="21" font-weight="650" fill="#6c7788">interclubsnooker.com</text>
     </svg>
   `;
 }
 
 function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[], matchResults: MatchResult[]) {
   const width = 1080;
-  const rowHeight = 88;
-  const height = 344 + Math.max(tableRows.length, 1) * rowHeight;
+  const rowHeight = 86;
+  const height = 334 + Math.max(tableRows.length, 1) * rowHeight;
   const rows = tableRows.map((row, index) => {
-    const y = 262 + index * rowHeight;
+    const y = 252 + index * rowHeight;
     const diff = row.pointsFor - row.pointsAgainst;
     const colors = teamColors(row.team);
     const qualification = qualificationStatus(row.position, tableRows.length);
@@ -1208,19 +1208,19 @@ function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[]
       <rect x="54" y="${y}" width="972" height="72" rx="16" fill="${activeFill}" stroke="#dfe7ee" />
       <rect x="54" y="${y}" width="8" height="72" rx="4" fill="${colors.primaryColor}" />
       <rect x="84" y="${y + 14}" width="44" height="44" rx="13" fill="${positionFill}" />
-      <text x="106" y="${y + 44}" text-anchor="middle" font-size="22" font-weight="900" fill="${positionText}">${row.position}</text>
-      <text x="156" y="${y + 45}" font-size="28" font-weight="900" fill="${colors.primaryColor}">${svgEscape(truncateForShare(row.team, 24))}</text>
-      <text x="568" y="${y + 45}" text-anchor="end" font-size="25" font-weight="800" fill="#10233f">${row.played}</text>
-      <text x="650" y="${y + 45}" text-anchor="end" font-size="25" font-weight="800" fill="#007a3d">${row.won}</text>
-      <text x="730" y="${y + 45}" text-anchor="end" font-size="25" font-weight="800" fill="#b42318">${row.lost}</text>
-      <text x="842" y="${y + 45}" text-anchor="end" font-size="25" font-weight="800" fill="#10233f">${diff > 0 ? `+${diff}` : diff}</text>
-      <text x="990" y="${y + 45}" text-anchor="end" font-size="32" font-weight="950" fill="#10233f">${row.leaguePoints}</text>
-      <text x="420" y="${y + 45}" text-anchor="end" font-size="18" font-weight="800" fill="#6c7788">${svgEscape(tableForm(row, matchResults))}</text>
+      <text x="106" y="${y + 44}" text-anchor="middle" font-size="21" font-weight="800" fill="${positionText}">${row.position}</text>
+      <text x="156" y="${y + 45}" font-size="27" font-weight="700" fill="${colors.primaryColor}">${svgEscape(truncateForShare(row.team, 26))}</text>
+      <text x="568" y="${y + 45}" text-anchor="end" font-size="24" font-weight="650" fill="#10233f">${row.played}</text>
+      <text x="650" y="${y + 45}" text-anchor="end" font-size="24" font-weight="650" fill="#007a3d">${row.won}</text>
+      <text x="730" y="${y + 45}" text-anchor="end" font-size="24" font-weight="650" fill="#b42318">${row.lost}</text>
+      <text x="842" y="${y + 45}" text-anchor="end" font-size="24" font-weight="650" fill="#10233f">${diff > 0 ? `+${diff}` : diff}</text>
+      <text x="990" y="${y + 45}" text-anchor="end" font-size="30" font-weight="800" fill="#10233f">${row.leaguePoints}</text>
+      <text x="420" y="${y + 45}" text-anchor="end" font-size="17" font-weight="700" fill="#6c7788">${svgEscape(tableForm(row, matchResults))}</text>
     `;
   }).join("");
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
       <defs>
         <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
           <stop offset="0" stop-color="${svgEscape(activeTeam.primaryColor)}" />
@@ -1232,18 +1232,18 @@ function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[]
         </pattern>
       </defs>
       <rect width="1080" height="${height}" rx="44" fill="#f3f6f8" />
-      <rect x="0" y="0" width="1080" height="210" rx="44" fill="url(#hero)" />
-      <rect x="0" y="0" width="1080" height="210" rx="44" fill="url(#grid)" />
-      <text x="54" y="76" font-size="28" font-weight="850" fill="rgba(255,255,255,.72)" letter-spacing="3">INTERCLUB SNOOKER</text>
-      <text x="54" y="138" font-size="56" font-weight="900" fill="#ffffff">${svgEscape(activeTeam.league)} Table</text>
-      <text x="54" y="184" font-size="28" font-weight="750" fill="rgba(255,255,255,.82)">${svgEscape(activeTeam.season)}</text>
-      <text x="568" y="238" text-anchor="end" font-size="20" font-weight="900" fill="#6c7788">P</text>
-      <text x="650" y="238" text-anchor="end" font-size="20" font-weight="900" fill="#6c7788">W</text>
-      <text x="730" y="238" text-anchor="end" font-size="20" font-weight="900" fill="#6c7788">L</text>
-      <text x="842" y="238" text-anchor="end" font-size="20" font-weight="900" fill="#6c7788">DIFF</text>
-      <text x="990" y="238" text-anchor="end" font-size="20" font-weight="900" fill="#6c7788">PTS</text>
+      <rect x="0" y="0" width="1080" height="204" rx="44" fill="url(#hero)" />
+      <rect x="0" y="0" width="1080" height="204" rx="44" fill="url(#grid)" />
+      <text x="54" y="74" font-size="23" font-weight="700" fill="rgba(255,255,255,.72)" letter-spacing="3">INTERCLUB SNOOKER</text>
+      <text x="54" y="132" font-size="50" font-weight="800" fill="#ffffff">${svgEscape(activeTeam.league)} Table</text>
+      <text x="54" y="178" font-size="25" font-weight="600" fill="rgba(255,255,255,.82)">${svgEscape(activeTeam.season)}</text>
+      <text x="568" y="229" text-anchor="end" font-size="18" font-weight="750" fill="#6c7788">P</text>
+      <text x="650" y="229" text-anchor="end" font-size="18" font-weight="750" fill="#6c7788">W</text>
+      <text x="730" y="229" text-anchor="end" font-size="18" font-weight="750" fill="#6c7788">L</text>
+      <text x="842" y="229" text-anchor="end" font-size="18" font-weight="750" fill="#6c7788">DIFF</text>
+      <text x="990" y="229" text-anchor="end" font-size="18" font-weight="750" fill="#6c7788">PTS</text>
       ${rows}
-      <text x="54" y="${height - 42}" font-size="24" font-weight="800" fill="#6c7788">interclubsnooker.com</text>
+      <text x="54" y="${height - 40}" font-size="21" font-weight="650" fill="#6c7788">interclubsnooker.com</text>
     </svg>
   `;
 }
