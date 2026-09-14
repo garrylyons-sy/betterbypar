@@ -3,13 +3,16 @@ import Link from "next/link";
 function BrokenCueLogo() {
   return (
     <div className="relative mx-auto h-36 w-36">
-      <div className="absolute inset-0 rounded-[32px] bg-[#10233f] shadow-[0_24px_60px_rgba(16,35,63,.28)]" />
-      <div className="absolute inset-3 rounded-[24px] border-2 border-[#d8b75a] bg-[linear-gradient(135deg,#0b694c,#053427)]" />
+      <div className="absolute inset-0 rounded-[34px] bg-[#10233f] shadow-[0_24px_60px_rgba(16,35,63,.28)]" />
+      <div className="absolute inset-3 rounded-[26px] bg-white shadow-[inset_0_0_0_2px_rgba(16,35,63,.08)]" />
+      <img
+        src="/snooker-logo.png"
+        alt=""
+        className="absolute inset-6 h-24 w-24 object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,.22)]"
+        aria-hidden="true"
+      />
       <svg viewBox="0 0 144 144" className="absolute inset-0 h-full w-full" role="img" aria-label="Interclub Snooker broken cue logo">
         <defs>
-          <filter id="ballShadow" x="-30%" y="-30%" width="160%" height="160%">
-            <feDropShadow dx="0" dy="5" stdDeviation="4" floodColor="#020713" floodOpacity=".35" />
-          </filter>
           <linearGradient id="cueWood" x1="0" x2="1" y1="0" y2="1">
             <stop stopColor="#f3d27a" />
             <stop offset="1" stopColor="#b88735" />
@@ -19,16 +22,11 @@ function BrokenCueLogo() {
             <stop offset="1" stopColor="#d8b75a" />
           </linearGradient>
         </defs>
-        <path d="M30 111 65 76" stroke="url(#cueWood)" strokeWidth="8" strokeLinecap="round" />
-        <path d="M78 63 114 27" stroke="url(#cueWood)" strokeWidth="8" strokeLinecap="round" />
-        <path d="M65 76 70 59 77 70 84 56 78 63" fill="url(#snap)" stroke="#fff2b4" strokeWidth="1.4" strokeLinejoin="round" />
-        <circle cx="51" cy="93" r="18" fill="#f7f4e9" filter="url(#ballShadow)" />
-        <circle cx="46" cy="87" r="4" fill="#ffffff" opacity=".92" />
-        <circle cx="96" cy="47" r="13" fill="#d32035" filter="url(#ballShadow)" />
-        <circle cx="99" cy="96" r="12" fill="#111111" filter="url(#ballShadow)" />
-        <circle cx="42" cy="44" r="12" fill="#f0c548" filter="url(#ballShadow)" />
-        <path d="M28 27h88v88H28z" fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="1" />
-        <path d="M44 27v88M72 27v88M100 27v88M28 44h88M28 72h88M28 100h88" stroke="rgba(255,255,255,.08)" strokeWidth="1" />
+        <path d="M19 125 62 82" stroke="url(#cueWood)" strokeWidth="9" strokeLinecap="round" />
+        <path d="M82 62 125 19" stroke="url(#cueWood)" strokeWidth="9" strokeLinecap="round" />
+        <path d="M62 82 68 61 77 75 87 56 82 62" fill="url(#snap)" stroke="#fff2b4" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M30 114 45 99" stroke="#fff5c4" strokeWidth="2.5" strokeLinecap="round" opacity=".65" />
+        <path d="M99 45 114 30" stroke="#fff5c4" strokeWidth="2.5" strokeLinecap="round" opacity=".65" />
       </svg>
       <div className="absolute -right-3 -top-3 grid h-12 w-12 place-items-center rounded-2xl bg-[#00ff85] text-lg font-black text-[#071426] shadow-[0_14px_30px_rgba(0,255,133,.22)]">
         404
