@@ -86,7 +86,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const activationUrl = new URL(`/activate?token=${encodeURIComponent(inviteToken)}`, appBaseUrl(request.url)).toString();
+      const publicBaseUrl = appBaseUrl(request.url);
+      const activationUrl = new URL(`/activate?token=${encodeURIComponent(inviteToken)}`, publicBaseUrl).toString();
+      const logoUrl = club.logo_path ? new URL(club.logo_path, publicBaseUrl).toString() : "";
       const roleSummary = [
         ...teamRoles.map((item) => `${item.role} role`),
         ...memberRoles.map((item) => item.role),
@@ -115,7 +117,10 @@ export async function POST(request: NextRequest) {
         <div style="margin:0;background:#f3f6f8;padding:28px 16px;font-family:Inter,Arial,sans-serif;color:#10233f">
           <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #dfe7ee;box-shadow:0 18px 48px rgba(16,35,63,.14)">
             <div style="background:linear-gradient(135deg,${club.primary_color || "#10233f"} 0%,${club.accent_color || "#1b8a72"} 100%);padding:30px 28px;color:white">
-              <div style="display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Interclub Snooker</div>
+              <div style="display:flex;align-items:center;gap:14px">
+                ${logoUrl ? `<div style="width:62px;height:62px;border-radius:18px;background:#ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px rgba(0,0,0,.18);overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="52" height="52" alt="${escapeHtml(club.name)} crest" style="display:block;max-width:52px;max-height:52px;object-fit:contain;border:0" /></div>` : ""}
+                <div style="display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Interclub Snooker</div>
+              </div>
               <h1 style="margin:18px 0 8px;font-size:34px;line-height:1.02;letter-spacing:-.02em">You have been invited</h1>
               <p style="margin:0;font-size:16px;font-weight:700;opacity:.9">${escapeHtml(welcomeHeadline)}</p>
             </div>

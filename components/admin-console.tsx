@@ -1545,7 +1545,7 @@ function BulkInviteImportPanel({
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Could not create invite.");
         sent += 1;
-        deliveredEmails.add(row.email);
+        if (data.email_status !== "Failed") deliveredEmails.add(row.email);
       } catch (error) {
         failures.push(`${row.email}: ${error instanceof Error ? error.message : "failed"}`);
       }
