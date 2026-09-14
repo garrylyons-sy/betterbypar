@@ -69,10 +69,12 @@ export async function POST(request: NextRequest) {
         [email, phone || null, code, inviteTokenHash, name, clubId, invitedRole, administratorInvite, expiresAt.toISOString(), administrator.personId]
       );
       const invitationId = invitationResult.rows[0].id;
+      const teamRoleLabels: string[] = [];
 
       for (const inviteRole of teamRoles) {
         const teamResult = await client.query("select id, name from public.team where id = $1 and club_id = $2 and active = true limit 1", [inviteRole.teamId, clubId]);
         if (!teamResult.rows[0]) throw new Error(`Team role ${inviteRole.role} needs a valid team for this club.`);
+        teamRoleLabels.push(`${inviteRole.role} - ${teamResult.rows[0].name}`);
         await client.query(
           "insert into public.invitation_membership (invitation_id, team_id, role) values ($1, $2, $3) on conflict do nothing",
           [invitationId, inviteRole.teamId, inviteRole.role]
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
       const activationUrl = new URL(`/activate?token=${encodeURIComponent(inviteToken)}`, publicBaseUrl).toString();
       const logoUrl = club.logo_path ? new URL(club.logo_path, publicBaseUrl).toString() : "";
       const roleSummary = [
-        ...teamRoles.map((item) => `${item.role} role`),
+        ...teamRoleLabels,
         ...memberRoles.map((item) => item.role),
         administratorInvite ? "Administrator" : ""
       ].filter(Boolean).join(", ");
@@ -107,7 +109,7 @@ export async function POST(request: NextRequest) {
         "",
         welcomeHeadline,
         welcomeBody,
-        `Role access: ${roleSummary || "Platform access"}.`,
+        `Your role: ${roleSummary || "Platform access"}.`,
         "",
         `Click here to join: ${activationUrl}`,
         "",
@@ -128,7 +130,7 @@ export async function POST(request: NextRequest) {
               <p style="font-size:18px;font-weight:800;margin:0 0 12px">Hi ${escapeHtml(name)},</p>
               <p style="margin:0 0 18px;line-height:1.55;color:#4e6074;font-weight:600">${escapeHtml(welcomeBody)} Use the button below to activate your account securely.</p>
               <div style="background:#f5f7fa;border:1px solid #e5ebf1;border-radius:16px;padding:16px;margin-bottom:22px">
-                <p style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Your access</p>
+                <p style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Your role</p>
                 <p style="margin:0;font-size:17px;font-weight:900;color:#10233f">${escapeHtml(roleSummary || "Platform access")}</p>
               </div>
               <a href="${activationUrl}" style="display:block;text-align:center;background:${club.accent_color || "#1b8a72"};color:white;text-decoration:none;font-weight:900;padding:15px 20px;border-radius:14px;font-size:16px">Activate your account</a>

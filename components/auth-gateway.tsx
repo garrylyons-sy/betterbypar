@@ -88,7 +88,10 @@ export function AuthGateway() {
       return;
     }
 
-    refreshSession();
+    const activated = params.get("activated") === "1";
+    refreshSession().then(() => {
+      if (activated) setMessage("Account activated. Please sign in.");
+    });
 
     const inviteCode = params.get("token") || params.get("invite") || params.get("code");
     if (window.location.pathname === "/activate") {
@@ -346,7 +349,7 @@ function AuthHome({
               </div>
             ) : null}
             {activating ? (
-              <ActivateForm invite={activationInvite} onSignedIn={onSignedIn} />
+              <ActivateForm invite={activationInvite} />
             ) : forgot ? (
               <ForgotPasswordForm onBack={() => window.location.assign("/")} />
             ) : (
@@ -414,7 +417,7 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
   );
 }
 
-function ActivateForm({ invite, onSignedIn }: { invite: ActivationInvite | null; onSignedIn: () => void }) {
+function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
   const [email, setEmail] = useState(invite?.email ?? "");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -435,7 +438,8 @@ function ActivateForm({ invite, onSignedIn }: { invite: ActivationInvite | null;
         method: "POST",
         body: JSON.stringify({ email, username, password, invitationCode: invite?.code })
       });
-      await onSignedIn();
+      await fetch("/api/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
+      window.location.assign("/?activated=1");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Activation failed.");
     } finally {
