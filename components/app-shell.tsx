@@ -503,7 +503,7 @@ function PageContent({
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} />;
-  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
+  if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} standingsData={standingsData} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} />;
   if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onNavigate={onNavigate} />;
   if (isClubOnlyRole(activeTeam.role)) return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   return <PlayerHome activeTeam={activeTeam} standingsData={standingsData} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} />;
@@ -2864,6 +2864,7 @@ function MoreMenu({
 
 function ManagerHome({
   activeTeam,
+  standingsData,
   matchResults,
   onNavigate,
   onOpenFixture,
@@ -2873,6 +2874,7 @@ function ManagerHome({
   onTeamSummaryUpdate
 }: {
   activeTeam: TeamContext;
+  standingsData: Standing[];
   matchResults: MatchResult[];
   onNavigate: (page: AppPage) => void;
   onOpenFixture: (fixtureId: string) => void;
@@ -2911,8 +2913,93 @@ function ManagerHome({
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
+      <ManagerShareVisualsCard activeTeam={activeTeam} standingsData={standingsData} matchResults={matchResults} />
       {panels.map(renderPanel)}
     </section>
+  );
+}
+
+function ManagerShareVisualsCard({
+  activeTeam,
+  standingsData,
+  matchResults
+}: {
+  activeTeam: TeamContext;
+  standingsData: Standing[];
+  matchResults: MatchResult[];
+}) {
+  const [weeks, setWeeks] = useState<FixtureWeek[]>([]);
+  const [loading, setLoading] = useState(false);
+  const selectedWeek = useMemo(() => {
+    if (!weeks.length) return null;
+    return weeks.reduce((best, week) => weekDistanceFromToday(week) < weekDistanceFromToday(best) ? week : best, weeks[0]);
+  }, [weeks]);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season });
+    if (activeTeam.teamId) params.set("teamId", activeTeam.teamId);
+    fetch(withTestUser(`/api/fixtures/weeks?${params.toString()}`), { credentials: "same-origin", cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Fixtures unavailable.");
+        if (active) setWeeks(data.weeks ?? []);
+      })
+      .catch(() => {
+        if (active) setWeeks([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeTeam.league, activeTeam.season, activeTeam.teamId]);
+
+  return (
+    <Card className="md:col-span-2">
+      <CardHeader>
+        <CardTitle>Share visuals</CardTitle>
+        <Badge variant="cyan">Managers</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-2 sm:grid-cols-2">
+        <Button
+          type="button"
+          variant="dark"
+          disabled={!selectedWeek || loading}
+          onClick={() => {
+            if (!selectedWeek) return;
+            void shareSvgVisual(
+              `${activeTeam.league.toLowerCase().replace(/\s+/g, "-")}-${selectedWeek.weekLabel.toLowerCase().replace(/\s+/g, "-")}-results.svg`,
+              `${activeTeam.league} ${selectedWeek.weekLabel} results`,
+              buildWeekResultsShareSvg(activeTeam, selectedWeek)
+            );
+          }}
+          className="w-full"
+        >
+          <Share2 className="h-4 w-4" />
+          Share week results
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={!standingsData.length}
+          onClick={() => {
+            void shareSvgVisual(
+              `${activeTeam.league.toLowerCase().replace(/\s+/g, "-")}-${activeTeam.season.replace("/", "-")}-table.svg`,
+              `${activeTeam.league} ${activeTeam.season} table`,
+              buildLeagueTableShareSvg(activeTeam, standingsData, matchResults)
+            );
+          }}
+          className="w-full"
+        >
+          <Share2 className="h-4 w-4" />
+          Share league table
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
