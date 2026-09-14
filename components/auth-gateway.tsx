@@ -450,8 +450,7 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
         method: "POST",
         body: JSON.stringify({ email, username: email, password, invitationCode: invite?.code })
       });
-      await fetch("/api/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
-      window.location.assign("/?activated=1");
+      window.location.assign("/");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Activation failed.");
     } finally {
