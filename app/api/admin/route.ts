@@ -90,6 +90,7 @@ export async function GET() {
            i.invited_person_name,
            i.status::text,
            i.created_at,
+           i.sent_at,
            i.expires_at,
            i.accepted_at,
            i.invite_administrator,

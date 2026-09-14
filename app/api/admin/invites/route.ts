@@ -92,11 +92,19 @@ export async function POST(request: NextRequest) {
         ...memberRoles.map((item) => item.role),
         administratorInvite ? "Administrator" : ""
       ].filter(Boolean).join(", ");
+      const isClubOnlyInvite = teamRoles.length === 0 && memberRoles.length > 0;
+      const welcomeHeadline = isClubOnlyInvite
+        ? `Welcome to the ${club.name} Snooker platform.`
+        : "Welcome to the Interclub Snooker Platform.";
+      const welcomeBody = isClubOnlyInvite
+        ? `${club.name} has invited you to activate your club snooker account.`
+        : `${club.name} has invited you to activate your Interclub Snooker account.`;
       const subject = "You have been invited to join Interclub Snooker";
       const bodyText = [
         `Hi ${name},`,
         "",
-        `You have been invited to join Interclub Snooker for ${club.name}.`,
+        welcomeHeadline,
+        welcomeBody,
         `Role access: ${roleSummary || "Platform access"}.`,
         "",
         `Click here to join: ${activationUrl}`,
@@ -109,11 +117,11 @@ export async function POST(request: NextRequest) {
             <div style="background:linear-gradient(135deg,${club.primary_color || "#10233f"} 0%,${club.accent_color || "#1b8a72"} 100%);padding:30px 28px;color:white">
               <div style="display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Interclub Snooker</div>
               <h1 style="margin:18px 0 8px;font-size:34px;line-height:1.02;letter-spacing:-.02em">You have been invited</h1>
-              <p style="margin:0;font-size:16px;font-weight:700;opacity:.84">Join ${escapeHtml(club.name)} on the Interclub Snooker platform.</p>
+              <p style="margin:0;font-size:16px;font-weight:700;opacity:.9">${escapeHtml(welcomeHeadline)}</p>
             </div>
             <div style="padding:28px">
               <p style="font-size:18px;font-weight:800;margin:0 0 12px">Hi ${escapeHtml(name)},</p>
-              <p style="margin:0 0 18px;line-height:1.55;color:#4e6074;font-weight:600">Your club or league administrator has set up an account invitation for you. Use the button below to activate your account securely.</p>
+              <p style="margin:0 0 18px;line-height:1.55;color:#4e6074;font-weight:600">${escapeHtml(welcomeBody)} Use the button below to activate your account securely.</p>
               <div style="background:#f5f7fa;border:1px solid #e5ebf1;border-radius:16px;padding:16px;margin-bottom:22px">
                 <p style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Your access</p>
                 <p style="margin:0;font-size:17px;font-weight:900;color:#10233f">${escapeHtml(roleSummary || "Platform access")}</p>

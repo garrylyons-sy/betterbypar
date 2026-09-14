@@ -81,6 +81,7 @@ type InviteRow = {
   invited_person_name: string;
   status: string;
   created_at: string;
+  sent_at: string | null;
   expires_at: string;
   accepted_at: string | null;
   invite_administrator: boolean;
@@ -1525,6 +1526,7 @@ function BulkInviteImportPanel({
     setSending(true);
     let sent = 0;
     const failures: string[] = [];
+    const deliveredEmails = new Set<string>();
     for (const row of readyRows) {
       try {
         const response = await fetch("/api/admin/invites", {
@@ -1543,13 +1545,26 @@ function BulkInviteImportPanel({
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Could not create invite.");
         sent += 1;
+        deliveredEmails.add(row.email);
       } catch (error) {
         failures.push(`${row.email}: ${error instanceof Error ? error.message : "failed"}`);
       }
     }
     setSending(false);
+    if (deliveredEmails.size) {
+      const lines = pastedRows.split(/\r?\n/);
+      const delimiter = lines[0]?.includes("\t") ? "\t" : ",";
+      setPastedRows(lines.filter((line, index) => {
+        if (index === 0 || !line.trim()) return true;
+        const cells = splitDelimitedLine(line, delimiter);
+        const headers = splitDelimitedLine(lines[0] ?? "", delimiter).map(normalizeHeader);
+        const emailIndex = headers.indexOf("email") >= 0 ? headers.indexOf("email") : headers.indexOf("emailaddress");
+        const rowEmail = readCell(cells, emailIndex).toLowerCase();
+        return !deliveredEmails.has(rowEmail);
+      }).join("\n").trimEnd());
+    }
     onRefresh();
-    onMessage(failures.length ? `Sent ${sent}; ${failures.length} failed. ${failures[0]}` : `Sent ${sent} invite email${sent === 1 ? "" : "s"}.`);
+    onMessage(failures.length ? `Invited ${sent}; ${failures.length} failed. ${failures[0]}` : `Invited ${sent} person${sent === 1 ? "" : "s"} and removed them from the import list.`);
   }
 
   return (
@@ -1856,7 +1871,8 @@ function ExistingInvites({ invites }: { invites: InviteRow[] }) {
       <CardContent className="grid gap-2">
         {invites.length ? invites.map((invite) => {
           const displayStatus = invite.status === "Pending" && new Date(invite.expires_at).getTime() <= Date.now() ? "Expired" : invite.status;
-          const statusVariant = displayStatus === "Accepted" ? "green" : displayStatus === "Pending" ? "cyan" : displayStatus === "Expired" ? "muted" : "muted";
+          const visibleStatus = displayStatus === "Pending" && invite.sent_at ? "Email sent" : displayStatus;
+          const statusVariant = visibleStatus === "Accepted" || visibleStatus === "Email sent" ? "green" : visibleStatus === "Pending" ? "cyan" : visibleStatus === "Expired" ? "muted" : "muted";
           const roles = [
             ...invite.roles.map((role) => `${role.role}${role.team_name ? ` - ${role.team_name}` : ""}`),
             invite.invite_administrator ? "Administrator" : ""
@@ -1877,7 +1893,8 @@ function ExistingInvites({ invites }: { invites: InviteRow[] }) {
                 </div>
               </div>
               <div className="grid gap-1 lg:justify-items-end">
-                <Badge variant={statusVariant}>{displayStatus}</Badge>
+                <Badge variant={statusVariant}>{visibleStatus}</Badge>
+                {invite.sent_at ? <p className="text-xs font-semibold text-[#1b8a72]">Sent {formatAdminDate(invite.sent_at)}</p> : null}
                 <p className="text-xs font-semibold text-[#6c5a73]">Created {formatAdminDate(invite.created_at)}</p>
                 <p className="text-xs font-semibold text-[#6c5a73]">{invite.accepted_at ? `Accepted ${formatAdminDate(invite.accepted_at)}` : `Expires ${formatAdminDate(invite.expires_at)}`}</p>
               </div>
