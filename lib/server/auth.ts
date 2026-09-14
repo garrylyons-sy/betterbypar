@@ -8,6 +8,7 @@ import { hashSecretToken } from "@/lib/server/tokens";
 import type { PlayerBreakStat, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 
 export const sessionCookieName = "is_session";
+const knownDeviceCookieName = "is_known_device";
 const oauthStateCookieName = "is_oauth_state";
 const oauthNextCookieName = "is_oauth_next";
 const oauthInviteCookieName = "is_oauth_invite";
@@ -97,6 +98,13 @@ export async function setSessionCookie(accountId: string) {
     secure: (await publicOrigin()).startsWith("https://"),
     path: "/",
     maxAge: sessionMaxAgeSeconds
+  });
+  cookieStore.set(knownDeviceCookieName, "1", {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: (await publicOrigin()).startsWith("https://"),
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365
   });
 }
 

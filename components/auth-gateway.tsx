@@ -63,6 +63,7 @@ export function AuthGateway() {
   const [message, setMessage] = useState("");
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>(demoTeamOptions);
   const [activationInvite, setActivationInvite] = useState<ActivationInvite | null>(null);
+  const [knownDevice, setKnownDevice] = useState(false);
 
   const refreshSession = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
@@ -87,6 +88,7 @@ export function AuthGateway() {
       window.location.replace(`/home.html?user=${encodeURIComponent(testUser)}`);
       return;
     }
+    setKnownDevice(document.cookie.split("; ").some((cookie) => cookie === "is_known_device=1"));
 
     const activated = params.get("activated") === "1";
     refreshSession().then(() => {
@@ -213,6 +215,7 @@ export function AuthGateway() {
     <AuthHome
       mode={mode}
       activationInvite={activationInvite}
+      knownDevice={knownDevice}
       message={message}
       onSignedIn={refreshSession}
     />
@@ -314,11 +317,13 @@ function normalizeEmbeddedRole(value: string | null): Role | null {
 function AuthHome({
   mode,
   activationInvite,
+  knownDevice,
   message,
   onSignedIn
 }: {
   mode: AuthMode;
   activationInvite: ActivationInvite | null;
+  knownDevice: boolean;
   message: string;
   onSignedIn: () => void;
 }) {
@@ -339,8 +344,8 @@ function AuthHome({
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>{activating ? "Invitation details" : forgot ? "Password reset" : "Existing account"}</CardTitle>
-            <Badge variant={activating ? "green" : forgot ? "cyan" : "muted"}>{activating ? "Invited user" : forgot ? "Secure link" : "Invitation only"}</Badge>
+            <CardTitle>{activating ? "Invitation details" : forgot ? "Password reset" : knownDevice ? "Welcome back" : "Existing account"}</CardTitle>
+            <Badge variant={activating ? "green" : forgot ? "cyan" : knownDevice ? "green" : "muted"}>{activating ? "Invited user" : forgot ? "Secure link" : knownDevice ? "Sign in" : "Invitation only"}</Badge>
           </CardHeader>
           <CardContent>
             {message ? (
@@ -354,9 +359,11 @@ function AuthHome({
               <ForgotPasswordForm onBack={() => window.location.assign("/")} />
             ) : (
               <div className="grid gap-4">
-                <p className="text-sm font-semibold text-[#6c5a73]">
-                  Accounts must be created by an administrator before you can sign in.
-                </p>
+                {!knownDevice ? (
+                  <p className="text-sm font-semibold text-[#6c5a73]">
+                    Accounts must be created by an administrator before you can sign in.
+                  </p>
+                ) : null}
                 <AuthSignInForm
                   onSignedIn={onSignedIn}
                   onForgotPassword={() => {
@@ -368,7 +375,7 @@ function AuthHome({
             )}
           </CardContent>
         </Card>
-        {!activating ? (
+        {!activating && !knownDevice ? (
           <p className="mt-4 text-center text-xs font-semibold text-[#6c5a73]">
             New users should use the invite link sent by their club or league administrator.
           </p>
