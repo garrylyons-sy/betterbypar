@@ -1460,7 +1460,7 @@ function PeoplePanel({
             />
           </div>
           <div className="min-w-0 overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden grid-cols-[minmax(160px,1.25fr)_minmax(190px,1.35fr)_minmax(150px,1fr)_110px_112px_120px_180px] gap-3 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden grid-cols-[minmax(150px,1.15fr)_minmax(180px,1.25fr)_minmax(130px,.95fr)_96px_96px_110px_260px] gap-3 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
               <span>Person</span>
               <span>Email</span>
               <span>Club</span>
@@ -1477,7 +1477,7 @@ function PeoplePanel({
                   ...(person.clubAdmins ?? []).map((item) => item.club_name)
                 ].filter(Boolean)));
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[minmax(160px,1.25fr)_minmax(190px,1.35fr)_minmax(150px,1fr)_110px_112px_120px_180px] lg:items-center lg:gap-3">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[minmax(150px,1.15fr)_minmax(180px,1.25fr)_minmax(130px,.95fr)_96px_96px_110px_260px] lg:items-center lg:gap-3">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 truncate font-extrabold">{person.name}</span>
                       {person.admin ? <Badge variant="green">Admin</Badge> : null}
@@ -1498,7 +1498,7 @@ function PeoplePanel({
                     </div>
                     <p className="min-w-0 truncate text-xs text-[#6c5a73]">{person.invitedAt ? formatAdminDate(person.invitedAt) : "-"}</p>
                     <InviteStatusBadge person={person} />
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
                       {person.invitationId && person.inviteStatus === "Pending" ? (
                         <Button
                           variant="secondary"
