@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, Eye, FileSpreadsheet, KeyRound, LayoutPanelTop, LogOut, Mail, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,10 @@ type PersonOption = {
   username?: string | null;
   loginActive?: boolean | null;
   lastLogin?: string | null;
+  inviteStatus?: string | null;
+  invitedAt?: string | null;
+  inviteSentAt?: string | null;
+  inviteAcceptedAt?: string | null;
   admin?: boolean;
   clubHandicaps?: Array<{ club_id: string; club_name: string; handicap: number | string | null }>;
   clubAdmins?: Array<{ club_id: string; club_name: string }>;
@@ -292,6 +296,10 @@ export function AdminConsole() {
             username: person.username ?? null,
             loginActive: person.login_active ?? null,
             lastLogin: person.last_login ?? null,
+            inviteStatus: person.invite_status ?? null,
+            invitedAt: person.invited_at ?? null,
+            inviteSentAt: person.invite_sent_at ?? null,
+            inviteAcceptedAt: person.invite_accepted_at ?? null,
             clubHandicaps: person.club_handicaps ?? [],
             clubAdmins: person.club_admins ?? [],
             admin: Boolean(person.admin)
@@ -1228,6 +1236,10 @@ function PeoplePanel({
   const [admin, setAdmin] = useState(false);
   const [busyPersonId, setBusyPersonId] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<PersonOption | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [clubFilter, setClubFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("name");
 
   useEffect(() => {
     const nextTeams = teams.filter((team) => team.clubId === clubId);
@@ -1317,34 +1329,135 @@ function PeoplePanel({
     }
   }
 
+  const visiblePeople = useMemo(() => {
+    const search = searchTerm.trim().toLowerCase();
+
+    function personClubNames(person: PersonOption) {
+      const names = [
+        ...(person.clubHandicaps ?? []).map((item) => item.club_name),
+        ...(person.clubAdmins ?? []).map((item) => item.club_name)
+      ];
+      return Array.from(new Set(names.filter(Boolean)));
+    }
+
+    function matchesStatus(person: PersonOption) {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "login-on") return Boolean(person.accountId && person.loginActive);
+      if (statusFilter === "login-off") return Boolean(person.accountId && !person.loginActive);
+      if (statusFilter === "no-login") return !person.accountId;
+      if (statusFilter === "invited") return Boolean(person.invitedAt);
+      if (statusFilter === "pending") return person.inviteStatus === "Pending";
+      if (statusFilter === "accepted") return person.inviteStatus === "Accepted";
+      if (statusFilter === "no-invite") return !person.invitedAt;
+      return true;
+    }
+
+    return people
+      .filter((person) => {
+        const clubsForPerson = personClubNames(person);
+        const searchHaystack = [
+          person.name,
+          person.email,
+          person.phone,
+          person.username,
+          person.inviteStatus,
+          ...clubsForPerson
+        ].filter(Boolean).join(" ").toLowerCase();
+
+        return (!search || searchHaystack.includes(search))
+          && (clubFilter === "all" || clubsForPerson.includes(clubFilter))
+          && matchesStatus(person);
+      })
+      .sort((a, b) => {
+        if (sortBy === "email") return (a.email || "").localeCompare(b.email || "");
+        if (sortBy === "club") {
+          const clubA = a.clubHandicaps?.[0]?.club_name ?? a.clubAdmins?.[0]?.club_name ?? "";
+          const clubB = b.clubHandicaps?.[0]?.club_name ?? b.clubAdmins?.[0]?.club_name ?? "";
+          return clubA.localeCompare(clubB) || a.name.localeCompare(b.name);
+        }
+        if (sortBy === "invite") return (Date.parse(b.invitedAt ?? "") || 0) - (Date.parse(a.invitedAt ?? "") || 0);
+        if (sortBy === "status") return (a.inviteStatus || "No invite").localeCompare(b.inviteStatus || "No invite") || a.name.localeCompare(b.name);
+        if (sortBy === "login") return Number(Boolean(b.loginActive)) - Number(Boolean(a.loginActive)) || a.name.localeCompare(b.name);
+        return a.name.localeCompare(b.name);
+      });
+  }, [clubFilter, people, searchTerm, sortBy, statusFilter]);
+
   return (
     <div className="grid min-w-0 gap-4">
       <Card className="min-w-0">
         <CardHeader>
           <CardTitle>People</CardTitle>
-          <Badge variant="muted">{people.length}</Badge>
+          <Badge variant="muted">{visiblePeople.length} / {people.length}</Badge>
         </CardHeader>
-        <CardContent className="min-w-0">
+        <CardContent className="grid min-w-0 gap-3">
+          <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-[minmax(180px,1.5fr)_1fr_1fr_1fr]">
+            <label className="grid gap-1">
+              <span className="text-xs font-bold uppercase text-[#6c5a73]">Search</span>
+              <input
+                className="min-h-11 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Name, email, club"
+              />
+            </label>
+            <AdminSelect label="Club" value={clubFilter} onChange={setClubFilter} options={[{ value: "all", label: "All clubs" }, ...clubs.map((club) => ({ value: club.clubName, label: club.clubName }))]} />
+            <AdminSelect
+              label="Status"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "all", label: "All statuses" },
+                { value: "login-on", label: "Login on" },
+                { value: "login-off", label: "Login off" },
+                { value: "no-login", label: "No login" },
+                { value: "pending", label: "Pending invite" },
+                { value: "accepted", label: "Accepted invite" },
+                { value: "invited", label: "Any invite" },
+                { value: "no-invite", label: "No invite" }
+              ]}
+            />
+            <AdminSelect
+              label="Sort"
+              value={sortBy}
+              onChange={setSortBy}
+              options={[
+                { value: "name", label: "Name" },
+                { value: "email", label: "Email" },
+                { value: "club", label: "Club" },
+                { value: "login", label: "Login status" },
+                { value: "invite", label: "Newest invite" },
+                { value: "status", label: "Invite status" }
+              ]}
+            />
+          </div>
           <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden grid-cols-[minmax(180px,1.35fr)_minmax(190px,1.4fr)_130px_130px_150px_116px] gap-3 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden grid-cols-[minmax(160px,1.25fr)_minmax(190px,1.35fr)_minmax(150px,1fr)_110px_112px_120px_100px] gap-3 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
               <span>Person</span>
               <span>Email</span>
-              <span>Phone</span>
-              <span>Status</span>
-              <span>Handicap</span>
+              <span>Club</span>
+              <span>Login</span>
+              <span>Invited</span>
+              <span>Invite status</span>
               <span className="text-right">Actions</span>
             </div>
             <div className="max-h-[680px] overflow-auto">
-              {people.map((person) => {
+              {visiblePeople.map((person) => {
                 const handicaps = (person.clubHandicaps ?? []).filter((item) => item.handicap !== null && item.handicap !== undefined);
+                const clubsForPerson = Array.from(new Set([
+                  ...(person.clubHandicaps ?? []).map((item) => item.club_name),
+                  ...(person.clubAdmins ?? []).map((item) => item.club_name)
+                ].filter(Boolean)));
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[minmax(180px,1.35fr)_minmax(190px,1.4fr)_130px_130px_150px_116px] lg:items-center lg:gap-3">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[minmax(160px,1.25fr)_minmax(190px,1.35fr)_minmax(150px,1fr)_110px_112px_120px_100px] lg:items-center lg:gap-3">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 truncate font-extrabold">{person.name}</span>
                       {person.admin ? <Badge variant="green">Admin</Badge> : null}
                     </div>
                     <p className="min-w-0 truncate text-[#6c5a73]">{person.email || "No email yet"}</p>
-                    <p className="min-w-0 truncate text-[#6c5a73]">{person.phone || "-"}</p>
+                    <p className="min-w-0 truncate text-xs text-[#6c5a73]" title={clubsForPerson.join(" / ")}>
+                      {clubsForPerson.length ? clubsForPerson.map((club) => club.replace(" Golf Club", "")).join(" / ") : "-"}
+                      {handicaps.length ? ` (${handicaps.map((item) => formatHandicap(item.handicap)).join("/")})` : ""}
+                    </p>
                     <div className="flex min-w-0 items-center gap-1">
                       {person.accountId ? (
                         <Badge variant={person.loginActive ? "green" : "muted"}>
@@ -1354,9 +1467,8 @@ function PeoplePanel({
                         <Badge variant="muted">No login</Badge>
                       )}
                     </div>
-                    <p className="min-w-0 truncate text-xs text-[#6c5a73]">
-                      {handicaps.length ? handicaps.map((item) => `${item.club_name.replace(" Golf Club", "")}: ${formatHandicap(item.handicap)}`).join(" / ") : "-"}
-                    </p>
+                    <p className="min-w-0 truncate text-xs text-[#6c5a73]">{person.invitedAt ? formatAdminDate(person.invitedAt) : "-"}</p>
+                    <InviteStatusBadge person={person} />
                     <div className="flex items-center justify-end gap-1">
                       {person.accountId ? (
                         <Button
@@ -1383,8 +1495,8 @@ function PeoplePanel({
                   </div>
                 );
               })}
-              {!people.length ? (
-                <div className="px-3 py-4 text-sm font-semibold text-[#6c5a73]">No people found.</div>
+              {!visiblePeople.length ? (
+                <div className="px-3 py-4 text-sm font-semibold text-[#6c5a73]">No people match those filters.</div>
               ) : null}
             </div>
           </div>
@@ -1430,6 +1542,23 @@ function PeoplePanel({
         />
       ) : null}
     </div>
+  );
+}
+
+function InviteStatusBadge({ person }: { person: PersonOption }) {
+  if (!person.invitedAt) return <Badge variant="muted">Not invited</Badge>;
+
+  const status = person.inviteStatus ?? "Invited";
+  const variant = status === "Accepted" ? "green" : status === "Pending" ? "cyan" : "muted";
+  const detail = [
+    person.inviteSentAt ? `Sent ${formatAdminDate(person.inviteSentAt)}` : "",
+    person.inviteAcceptedAt ? `Accepted ${formatAdminDate(person.inviteAcceptedAt)}` : ""
+  ].filter(Boolean).join(" / ");
+
+  return (
+    <span title={detail || undefined}>
+      <Badge variant={variant}>{status}</Badge>
+    </span>
   );
 }
 

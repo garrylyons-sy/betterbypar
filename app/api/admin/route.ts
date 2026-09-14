@@ -35,6 +35,10 @@ export async function GET() {
            ua.username,
            ua.active as login_active,
            ua.last_login,
+           inv.status::text as invite_status,
+           inv.created_at as invited_at,
+           inv.sent_at as invite_sent_at,
+           inv.accepted_at as invite_accepted_at,
            coalesce(ch.club_handicaps, '[]'::jsonb) as club_handicaps,
            coalesce(ca.club_admins, '[]'::jsonb) as club_admins,
            coalesce(ao.active, false) as admin
@@ -47,6 +51,13 @@ export async function GET() {
            order by last_login desc nulls last, username
            limit 1
          ) ua on true
+         left join lateral (
+           select status, created_at, sent_at, accepted_at
+           from public.invitation
+           where lower(email) = lower(p.email)
+           order by created_at desc
+           limit 1
+         ) inv on true
          left join lateral (
            select jsonb_agg(
              jsonb_build_object(
