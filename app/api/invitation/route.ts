@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { dbQuery } from "@/lib/server/db";
+import { hashSecretToken } from "@/lib/server/tokens";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const code = request.nextUrl.searchParams.get("code")?.trim();
-  if (!code) return NextResponse.json({ error: "Invitation code is required." }, { status: 400 });
+  const token = request.nextUrl.searchParams.get("token")?.trim() || request.nextUrl.searchParams.get("invite")?.trim() || request.nextUrl.searchParams.get("code")?.trim();
+  if (!token) return NextResponse.json({ error: "Invitation link is required." }, { status: 400 });
+  const tokenHash = hashSecretToken(token);
 
   const { rows } = await dbQuery<{
     id: string;
@@ -59,8 +61,9 @@ export async function GET(request: NextRequest) {
        ) role_rows
      ) m on true
      where i.invitation_code = $1
+        or i.invitation_token_hash = $2
      limit 1`,
-    [code]
+    [token, tokenHash]
   );
 
   const invitation = rows[0];
@@ -70,7 +73,8 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     invitation: {
-      code,
+      code: token,
+      token,
       email: invitation.email,
       name: invitation.invited_person_name,
       role: invitation.invited_role,

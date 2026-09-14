@@ -20,11 +20,13 @@ export async function authJsonFetch<T>(url: string, init?: RequestInit) {
 export function AuthSignInForm({
   onSignedIn,
   googleNext,
-  identifierLabel = "User ID or email"
+  identifierLabel = "User ID or email",
+  onForgotPassword
 }: {
   onSignedIn: () => void;
   googleNext?: string;
   identifierLabel?: string;
+  onForgotPassword?: () => void;
 }) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -59,6 +61,11 @@ export function AuthSignInForm({
       <AuthTextField label={identifierLabel} value={identifier} onChange={setIdentifier} autoComplete="username" />
       <AuthTextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="current-password" />
       {message ? <p className="text-sm font-bold text-[#1b8a72]">{message}</p> : null}
+      {onForgotPassword ? (
+        <button type="button" onClick={onForgotPassword} className="justify-self-start text-sm font-extrabold text-[#1b8a72]">
+          Forgot password?
+        </button>
+      ) : null}
       <Button onClick={signInWithPassword} disabled={busy || !identifier || !password}>
         <LogIn className="h-4 w-4" />
         Sign in

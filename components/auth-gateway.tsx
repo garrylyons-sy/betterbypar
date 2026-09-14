@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Send, UserPlus } from "lucide-react";
+import { Mail, Send, UserPlus } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthSelectField, AuthSignInForm, AuthTextAreaField, AuthTextField, GoogleAuthButton, authJsonFetch } from "@/components/auth-controls";
@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, MatchResult, PlayerBreakStat, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 
-type AuthMode = "signin" | "activate" | "request";
+type AuthMode = "signin" | "activate" | "forgot" | "request";
 type TeamOption = {
   clubId: string;
   clubName: string;
@@ -90,13 +90,16 @@ export function AuthGateway() {
 
     refreshSession();
 
-    const inviteCode = params.get("invite") || params.get("code");
+    const inviteCode = params.get("token") || params.get("invite") || params.get("code");
     if (window.location.pathname === "/activate") {
       setMode("activate");
     }
+    if (params.get("mode") === "forgot") {
+      setMode("forgot");
+    }
     if (inviteCode) {
       setMode("activate");
-      authJsonFetch<{ invitation: ActivationInvite }>(`/api/invitation?code=${encodeURIComponent(inviteCode)}`)
+      authJsonFetch<{ invitation: ActivationInvite }>(`/api/invitation?token=${encodeURIComponent(inviteCode)}`)
         .then(({ invitation }) => setActivationInvite(invitation))
         .catch((error) => setMessage(error instanceof Error ? error.message : "Invitation unavailable."));
     }
@@ -317,6 +320,7 @@ function AuthHome({
   onSignedIn: () => void;
 }) {
   const activating = mode === "activate";
+  const forgot = mode === "forgot";
 
   return (
     <main className="grid min-h-screen place-items-center bg-[#f7f5fa] px-4 py-6 text-[#25002b]">
@@ -327,13 +331,13 @@ function AuthHome({
           </div>
           <div>
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Interclub Snooker</p>
-            <h1 className="text-2xl font-extrabold leading-tight">{activating ? "Activate account" : "Sign in"}</h1>
+            <h1 className="text-2xl font-extrabold leading-tight">{activating ? "Activate account" : forgot ? "Reset password" : "Sign in"}</h1>
           </div>
         </div>
         <Card>
           <CardHeader>
-            <CardTitle>{activating ? "Invitation details" : "Existing account"}</CardTitle>
-            <Badge variant={activating ? "green" : "muted"}>{activating ? "Invited user" : "Administrator set up"}</Badge>
+            <CardTitle>{activating ? "Invitation details" : forgot ? "Password reset" : "Existing account"}</CardTitle>
+            <Badge variant={activating ? "green" : forgot ? "cyan" : "muted"}>{activating ? "Invited user" : forgot ? "Secure link" : "Invitation only"}</Badge>
           </CardHeader>
           <CardContent>
             {message ? (
@@ -343,12 +347,20 @@ function AuthHome({
             ) : null}
             {activating ? (
               <ActivateForm invite={activationInvite} onSignedIn={onSignedIn} />
+            ) : forgot ? (
+              <ForgotPasswordForm onBack={() => window.location.assign("/")} />
             ) : (
               <div className="grid gap-4">
                 <p className="text-sm font-semibold text-[#6c5a73]">
                   Accounts must be created by an administrator before you can sign in.
                 </p>
-                <AuthSignInForm onSignedIn={onSignedIn} />
+                <AuthSignInForm
+                  onSignedIn={onSignedIn}
+                  onForgotPassword={() => {
+                    window.history.pushState(null, "", "/?mode=forgot");
+                    window.location.reload();
+                  }}
+                />
               </div>
             )}
           </CardContent>
@@ -360,6 +372,45 @@ function AuthHome({
         ) : null}
       </section>
     </main>
+  );
+}
+
+function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
+  const [identifier, setIdentifier] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function requestReset() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await authJsonFetch<{ message: string }>("/api/password/forgot", {
+        method: "POST",
+        body: JSON.stringify({ identifier })
+      });
+      setMessage(result.message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not request reset.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-3">
+      <p className="text-sm font-semibold text-[#6c5a73]">
+        Enter your user ID or email address. If an account exists, we will email a secure password reset link.
+      </p>
+      <AuthTextField label="User ID or email" value={identifier} onChange={setIdentifier} autoComplete="username" />
+      {message ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">{message}</p> : null}
+      <Button onClick={requestReset} disabled={busy || !identifier}>
+        <Mail className="h-4 w-4" />
+        Send reset email
+      </Button>
+      <Button variant="secondary" onClick={onBack}>
+        Back to sign in
+      </Button>
+    </div>
   );
 }
 

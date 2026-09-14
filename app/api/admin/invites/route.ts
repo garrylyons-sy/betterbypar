@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { createToken, currentUser } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
+import { appBaseUrl, escapeHtml, sendAppEmail } from "@/lib/server/email";
+import { hashSecretToken } from "@/lib/server/tokens";
 
 export const runtime = "nodejs";
 
@@ -24,7 +26,7 @@ export async function POST(request: NextRequest) {
     const administrator = await assertAdministrator();
     const body = await request.json();
     const email = String(body.email ?? "").trim().toLowerCase();
-    const deliveryEmail = "garlyons@gmail.com";
+    const deliveryEmail = process.env.INVITE_EMAIL_TEST_TO?.trim() || email;
     const name = String(body.name ?? "").trim();
     const phone = String(body.phone ?? "").trim();
     const clubId = String(body.clubId ?? "").trim();
@@ -49,6 +51,8 @@ export async function POST(request: NextRequest) {
     }
 
     const code = `IS-${createToken(8).toUpperCase()}`;
+    const inviteToken = createToken(32);
+    const inviteTokenHash = hashSecretToken(inviteToken);
     const invitation = await withTransaction(async (client) => {
       const clubResult = await client.query("select id, name, logo_path, primary_color, accent_color from public.club where id = $1 and active = true limit 1", [clubId]);
       const club = clubResult.rows[0];
@@ -59,10 +63,10 @@ export async function POST(request: NextRequest) {
       const invitedRole = teamRoles[0]?.role ?? "Player";
 
       const invitationResult = await client.query(
-        `insert into public.invitation (email, phone, invitation_code, invited_person_name, invited_club_id, invited_role, invite_administrator, expires_at, status, created_by)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, 'Pending', $9)
+        `insert into public.invitation (email, phone, invitation_code, invitation_token_hash, invited_person_name, invited_club_id, invited_role, invite_administrator, expires_at, status, created_by)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending', $10)
          returning id, invitation_code`,
-        [email, phone || null, code, name, clubId, invitedRole, administratorInvite, expiresAt.toISOString(), administrator.personId]
+        [email, phone || null, code, inviteTokenHash, name, clubId, invitedRole, administratorInvite, expiresAt.toISOString(), administrator.personId]
       );
       const invitationId = invitationResult.rows[0].id;
 
@@ -82,7 +86,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const activationUrl = new URL(`/activate?invite=${encodeURIComponent(invitationResult.rows[0].invitation_code)}`, request.url).toString();
+      const activationUrl = new URL(`/activate?token=${encodeURIComponent(inviteToken)}`, appBaseUrl(request.url)).toString();
       const roleSummary = [
         ...teamRoles.map((item) => `${item.role} role`),
         ...memberRoles.map((item) => item.role),
@@ -97,34 +101,49 @@ export async function POST(request: NextRequest) {
         "",
         `Click here to join: ${activationUrl}`,
         "",
-        "For testing this invite email is delivered to garlyons@gmail.com."
+        deliveryEmail !== email ? `For testing this invite email is delivered to ${deliveryEmail}.` : ""
       ].join("\n");
       const bodyHtml = `
-        <div style="font-family:Inter,Arial,sans-serif;background:#f4f6f8;padding:24px;color:#10233f">
-          <div style="max-width:560px;margin:0 auto;background:white;border-radius:18px;overflow:hidden;border:1px solid #dfe5ec">
-            <div style="background:${club.primary_color || "#10233f"};padding:24px;color:white">
-              <p style="margin:0 0 8px;font-size:12px;font-weight:800;text-transform:uppercase;opacity:.75">Interclub Snooker League</p>
-              <h1 style="margin:0;font-size:28px;line-height:1.05">You have been invited</h1>
+        <div style="margin:0;background:#f3f6f8;padding:28px 16px;font-family:Inter,Arial,sans-serif;color:#10233f">
+          <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #dfe7ee;box-shadow:0 18px 48px rgba(16,35,63,.14)">
+            <div style="background:linear-gradient(135deg,${club.primary_color || "#10233f"} 0%,${club.accent_color || "#1b8a72"} 100%);padding:30px 28px;color:white">
+              <div style="display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Interclub Snooker</div>
+              <h1 style="margin:18px 0 8px;font-size:34px;line-height:1.02;letter-spacing:-.02em">You have been invited</h1>
+              <p style="margin:0;font-size:16px;font-weight:700;opacity:.84">Join ${escapeHtml(club.name)} on the Interclub Snooker platform.</p>
             </div>
-            <div style="padding:24px">
-              <p style="font-size:17px;font-weight:700;margin:0 0 12px">Hi ${escapeHtml(name)},</p>
-              <p style="margin:0 0 16px;line-height:1.5">You have been invited to join Interclub Snooker for <strong>${escapeHtml(club.name)}</strong>.</p>
-              <div style="background:#f4f6f8;border-left:5px solid ${club.accent_color || "#1b8a72"};padding:14px 16px;border-radius:10px;margin-bottom:20px">
-                <strong>Role access</strong><br />${escapeHtml(roleSummary || "Platform access")}
+            <div style="padding:28px">
+              <p style="font-size:18px;font-weight:800;margin:0 0 12px">Hi ${escapeHtml(name)},</p>
+              <p style="margin:0 0 18px;line-height:1.55;color:#4e6074;font-weight:600">Your club or league administrator has set up an account invitation for you. Use the button below to activate your account securely.</p>
+              <div style="background:#f5f7fa;border:1px solid #e5ebf1;border-radius:16px;padding:16px;margin-bottom:22px">
+                <p style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Your access</p>
+                <p style="margin:0;font-size:17px;font-weight:900;color:#10233f">${escapeHtml(roleSummary || "Platform access")}</p>
               </div>
-              <a href="${activationUrl}" style="display:inline-block;background:${club.accent_color || "#1b8a72"};color:white;text-decoration:none;font-weight:800;padding:13px 18px;border-radius:12px">Click here to join</a>
-              <p style="margin:20px 0 0;color:#607086;font-size:13px">For testing, this email is queued to ${deliveryEmail}.</p>
+              <a href="${activationUrl}" style="display:block;text-align:center;background:${club.accent_color || "#1b8a72"};color:white;text-decoration:none;font-weight:900;padding:15px 20px;border-radius:14px;font-size:16px">Activate your account</a>
+              <p style="margin:18px 0 0;color:#6c7788;font-size:13px;line-height:1.45">This link is unique to you and expires on ${escapeHtml(expiresAt.toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" }))}. If you were not expecting this invitation, you can ignore this email.</p>
             </div>
           </div>
         </div>`;
 
-      await client.query(
+      const emailResult = await sendAppEmail({ to: deliveryEmail, subject, html: bodyHtml, text: bodyText });
+
+      const emailInsert = await client.query(
         `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
-         values ($1, $2, $3, $4, $5, 'Queued')`,
+         values ($1, $2, $3, $4, $5, 'Queued')
+         returning id`,
         [invitationId, deliveryEmail, subject, bodyHtml, bodyText]
       );
+      await client.query(
+        `update public.invitation_email
+         set status = $2,
+             sent_at = case when $2 = 'Sent' then now() else sent_at end
+         where id = $1`,
+        [emailInsert.rows[0]?.id, emailResult.status]
+      );
+      if (emailResult.status === "Sent") {
+        await client.query("update public.invitation set sent_at = now() where id = $1", [invitationId]);
+      }
 
-      return { ...invitationResult.rows[0], activation_url: activationUrl, email_to: deliveryEmail, email_subject: subject, email_preview: bodyText };
+      return { ...invitationResult.rows[0], activation_url: activationUrl, email_to: deliveryEmail, email_subject: subject, email_preview: bodyText, email_status: emailResult.status, email_error: emailResult.error };
     });
 
     return NextResponse.json({
@@ -132,6 +151,8 @@ export async function POST(request: NextRequest) {
       invitation_code: invitation.invitation_code,
       activation_url: invitation.activation_url,
       email_to: invitation.email_to,
+      email_status: invitation.email_status,
+      email_error: invitation.email_error,
       email_subject: invitation.email_subject,
       email_preview: invitation.email_preview
     });
@@ -141,13 +162,4 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }

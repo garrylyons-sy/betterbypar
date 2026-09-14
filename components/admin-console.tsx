@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, Eye, KeyRound, LayoutPanelTop, LogOut, Mail, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, Eye, FileSpreadsheet, KeyRound, LayoutPanelTop, LogOut, Mail, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,18 @@ type InviteRoleRow = {
   id: string;
   role: InviteRole;
   teamId: string;
+};
+type ParsedInviteRow = {
+  name: string;
+  email: string;
+  phone: string;
+  club: string;
+  role: InviteRole;
+  team: string;
+  administrator: boolean;
+  clubId?: string;
+  teamId?: string;
+  error?: string;
 };
 type ActivityRow = {
   id: string;
@@ -1390,7 +1402,8 @@ function InvitesPanel({
         body: data.email_preview ?? "",
         activationUrl: data.activation_url ?? ""
       });
-      onMessage(data.activation_url ? `Invite created and queued to ${data.email_to ?? "garlyons@gmail.com"}.` : data.invitation_code ? `Invite created: ${data.invitation_code}` : "Invite created.");
+      const emailStatus = data.email_status ? String(data.email_status).toLowerCase() : "queued";
+      onMessage(data.activation_url ? `Invite created and email ${emailStatus} to ${data.email_to ?? email}.` : data.invitation_code ? `Invite created: ${data.invitation_code}` : "Invite created.");
       onRefresh();
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not create invite.");
@@ -1403,7 +1416,7 @@ function InvitesPanel({
         <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Create invite</CardTitle>
-            <Badge variant="green">Google activation</Badge>
+            <Badge variant="green">Secure activation</Badge>
           </CardHeader>
           <CardContent className="grid gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1476,8 +1489,114 @@ function InvitesPanel({
           </CardContent>
         </Card>
       </div>
+      <BulkInviteImportPanel teams={teams} demo={demo} onMessage={onMessage} onRefresh={onRefresh} />
       <ExistingInvites invites={invites} />
     </div>
+  );
+}
+
+function BulkInviteImportPanel({
+  teams,
+  demo,
+  onMessage,
+  onRefresh
+}: {
+  teams: TeamOption[];
+  demo?: boolean;
+  onMessage: (message: string) => void;
+  onRefresh: () => void;
+}) {
+  const example = "name\temail\tphone\tclub\trole\tteam\tadministrator\nStephen Finlan\tstephen@example.com\t\tCastle Golf Club\tManager\tCastle A\tno\nCastle Member\tmember@example.com\t\tCastle Golf Club\tClub Member\t\tyes";
+  const [pastedRows, setPastedRows] = useState(example);
+  const [sending, setSending] = useState(false);
+  const parsedRows = parseInviteSpreadsheetRows(pastedRows, teams);
+  const readyRows = parsedRows.filter((row) => !row.error);
+
+  async function sendBulkInvites() {
+    if (demo) {
+      onMessage(`Demo import ready: ${readyRows.length} invite rows.`);
+      return;
+    }
+    if (!readyRows.length) {
+      onMessage("No valid invite rows to send.");
+      return;
+    }
+
+    setSending(true);
+    let sent = 0;
+    const failures: string[] = [];
+    for (const row of readyRows) {
+      try {
+        const response = await fetch("/api/admin/invites", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: row.email,
+            name: row.name,
+            phone: row.phone,
+            clubId: row.clubId,
+            roles: [{ role: row.role, teamId: row.teamId, clubId: row.clubId }],
+            administrator: row.administrator
+          })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Could not create invite.");
+        sent += 1;
+      } catch (error) {
+        failures.push(`${row.email}: ${error instanceof Error ? error.message : "failed"}`);
+      }
+    }
+    setSending(false);
+    onRefresh();
+    onMessage(failures.length ? `Sent ${sent}; ${failures.length} failed. ${failures[0]}` : `Sent ${sent} invite email${sent === 1 ? "" : "s"}.`);
+  }
+
+  return (
+    <Card className="min-w-0">
+      <CardHeader>
+        <div>
+          <CardTitle>Import from spreadsheet</CardTitle>
+          <p className="mt-1 text-sm font-semibold text-[#6c5a73]">Paste rows copied from Excel or Google Sheets. Headers are required.</p>
+        </div>
+        <Badge variant="cyan">{readyRows.length} ready</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <label className="grid gap-1.5">
+          <span className="text-xs font-bold uppercase text-[#6c5a73]">Spreadsheet rows</span>
+          <textarea
+            className="min-h-44 rounded-2xl border border-[#eeeaf2] bg-white px-4 py-3 text-sm font-semibold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
+            value={pastedRows}
+            onChange={(event) => setPastedRows(event.target.value)}
+            spellCheck={false}
+          />
+        </label>
+        <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
+          <div className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73]">
+            <span>Name</span>
+            <span>Email</span>
+            <span>Role</span>
+            <span>Status</span>
+          </div>
+          <div className="max-h-56 overflow-auto">
+            {parsedRows.length ? parsedRows.map((row, index) => (
+              <div key={`${row.email}-${index}`} className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr] gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f]">
+                <span className="min-w-0 truncate">{row.name || "-"}</span>
+                <span className="min-w-0 truncate">{row.email || "-"}</span>
+                <span className="min-w-0 truncate">{row.role}{row.team ? ` - ${row.team}` : ""}</span>
+                <span className={row.error ? "text-[#ba1a1a]" : "text-[#1b8a72]"}>{row.error || "Ready"}</span>
+              </div>
+            )) : (
+              <div className="px-3 py-4 text-sm font-semibold text-[#6c5a73]">No rows parsed yet.</div>
+            )}
+          </div>
+        </div>
+        <Button onClick={sendBulkInvites} disabled={sending || !readyRows.length}>
+          <FileSpreadsheet className="h-4 w-4" />
+          {sending ? "Sending invites..." : "Send imported invite emails"}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1629,6 +1748,102 @@ function PermissionsPanel({
       </Card>
     </div>
   );
+}
+
+function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedInviteRow[] {
+  const lines = input.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  const delimiter = lines[0].includes("\t") ? "\t" : ",";
+  const headers = splitDelimitedLine(lines[0], delimiter).map(normalizeHeader);
+  const indexFor = (...names: string[]) => {
+    for (const name of names) {
+      const index = headers.indexOf(normalizeHeader(name));
+      if (index >= 0) return index;
+    }
+    return -1;
+  };
+  const indexes = {
+    name: indexFor("name", "full name", "person"),
+    email: indexFor("email", "email address"),
+    phone: indexFor("phone", "phone number", "mobile"),
+    club: indexFor("club"),
+    role: indexFor("role", "roles"),
+    team: indexFor("team"),
+    administrator: indexFor("administrator", "admin", "platform admin")
+  };
+  const clubs = uniqueClubs(teams);
+
+  return lines.slice(1).map((line) => {
+    const cells = splitDelimitedLine(line, delimiter);
+    const role = normalizeInviteRole(readCell(cells, indexes.role) || "Player");
+    const clubName = readCell(cells, indexes.club);
+    const teamName = readCell(cells, indexes.team);
+    const club = clubs.find((item) => normalizeText(item.clubName) === normalizeText(clubName));
+    const team = teamName
+      ? teams.find((item) => normalizeText(item.teamName) === normalizeText(teamName) && (!club || item.clubId === club.clubId))
+      : undefined;
+    const row: ParsedInviteRow = {
+      name: readCell(cells, indexes.name),
+      email: readCell(cells, indexes.email).toLowerCase(),
+      phone: readCell(cells, indexes.phone),
+      club: clubName,
+      role,
+      team: teamName,
+      administrator: ["yes", "y", "true", "1", "admin"].includes(readCell(cells, indexes.administrator).toLowerCase()),
+      clubId: club?.clubId,
+      teamId: team?.teamId
+    };
+
+    if (!row.name) row.error = "Missing name";
+    else if (!row.email || !row.email.includes("@")) row.error = "Missing email";
+    else if (!row.clubId) row.error = "Unknown club";
+    else if (!clubLevelInviteRoles.includes(row.role) && !row.teamId) row.error = "Unknown team";
+
+    return row;
+  });
+}
+
+function splitDelimitedLine(line: string, delimiter: string) {
+  if (delimiter === "\t") return line.split("\t").map((cell) => cell.trim());
+  const cells: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"' && line[index + 1] === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function readCell(cells: string[], index: number) {
+  return index >= 0 ? (cells[index] ?? "").trim() : "";
+}
+
+function normalizeHeader(value: string) {
+  return normalizeText(value).replace(/\s+/g, "");
+}
+
+function normalizeText(value: string) {
+  return value.trim().toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeInviteRole(value: string): InviteRole {
+  const normalized = normalizeText(value);
+  if (normalized === "manager") return "Manager";
+  if (normalized === "club member" || normalized === "member") return "Club Member";
+  if (normalized === "club admin" || normalized === "club administrator") return "Club Admin";
+  return "Player";
 }
 
 function ExistingInvites({ invites }: { invites: InviteRow[] }) {

@@ -160,6 +160,7 @@ create table public.invitation (
   id uuid primary key default gen_random_uuid(),
   email text not null,
   invitation_code text not null unique,
+  invitation_token_hash text unique,
   invited_person_name text not null,
   invited_club_id uuid references public.club(id) on delete set null,
   invited_role membership_role not null,
@@ -170,8 +171,12 @@ create table public.invitation (
   expires_at timestamptz not null,
   accepted_at timestamptz,
   revoked_at timestamptz,
+  sent_at timestamptz,
   created_by uuid references public.person(id) on delete set null
 );
+
+comment on column public.invitation.invitation_token_hash is 'SHA-256 hash of the one-time activation token sent by email. The raw token is never stored.';
+comment on column public.invitation.sent_at is 'When the invitation email was successfully sent by the application email provider.';
 
 create table public.invitation_membership (
   id uuid primary key default gen_random_uuid(),
@@ -206,6 +211,20 @@ create table public.invitation_email (
 );
 
 create index invitation_email_invitation_idx on public.invitation_email(invitation_id);
+
+create table public.password_reset_token (
+  id uuid primary key default gen_random_uuid(),
+  user_account_id uuid not null references public.user_account(id) on delete cascade,
+  token_hash text not null unique,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at timestamptz
+);
+
+create index password_reset_token_account_idx on public.password_reset_token(user_account_id, created_at desc);
+create index password_reset_token_expires_idx on public.password_reset_token(expires_at);
+
+comment on table public.password_reset_token is 'One-time password reset tokens. Only a hash is stored; the raw token exists only in the emailed reset link.';
 
 create table public.invitation_request (
   id uuid primary key default gen_random_uuid(),

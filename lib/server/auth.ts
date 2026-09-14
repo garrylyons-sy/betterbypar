@@ -4,6 +4,7 @@ import { PoolClient } from "pg";
 
 import { loadAppearanceConfig } from "@/lib/server/appearance";
 import { dbQuery, withTransaction } from "@/lib/server/db";
+import { hashSecretToken } from "@/lib/server/tokens";
 import type { PlayerBreakStat, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 
 export const sessionCookieName = "is_session";
@@ -283,6 +284,11 @@ export async function claimInvitationForAccount({
   invitationCode?: string;
 }) {
   const lowerEmail = email.toLowerCase();
+  const inviteToken = invitationCode?.trim();
+  if (!inviteToken) {
+    throw new Error("A valid invitation link is required.");
+  }
+  const inviteTokenHash = hashSecretToken(inviteToken);
 
   return withTransaction(async (client) => {
     const invitationResult = await client.query(
@@ -290,11 +296,17 @@ export async function claimInvitationForAccount({
        from public.invitation
        where lower(email) = lower($1)
          and status = 'Pending'
-         and ($2::text is null or invitation_code = $2)
+         and (
+           invitation_token_hash = $2
+           or (
+             invitation_token_hash is null
+             and invitation_code = $3
+           )
+         )
        order by created_at desc
        limit 1
        for update`,
-      [lowerEmail, invitationCode?.trim() || null]
+      [lowerEmail, inviteTokenHash, inviteToken]
     );
     const invitation = invitationResult.rows[0];
 
