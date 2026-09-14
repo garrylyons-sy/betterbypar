@@ -467,7 +467,7 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
       {message ? <p className="text-sm font-bold text-[#10233f]">{message}</p> : null}
       <Button onClick={activateWithPassword} disabled={busy || !email || !password}>
         <UserPlus className="h-4 w-4" />
-        Create account
+        Activate account
       </Button>
       <GoogleAuthButton
         label="Sign in with Google"
