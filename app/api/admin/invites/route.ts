@@ -96,6 +96,8 @@ export async function POST(request: NextRequest) {
         ...memberRoles.map((item) => item.role),
         administratorInvite ? "Administrator" : ""
       ].filter(Boolean).join(", ");
+      const roleCount = teamRoleLabels.length + memberRoles.length + (administratorInvite ? 1 : 0);
+      const roleLabel = roleCount > 1 ? "Your roles" : "Your role";
       const isClubOnlyInvite = teamRoles.length === 0 && memberRoles.length > 0;
       const welcomeHeadline = isClubOnlyInvite
         ? `Welcome to the ${club.name} Snooker platform.`
@@ -109,7 +111,7 @@ export async function POST(request: NextRequest) {
         "",
         welcomeHeadline,
         welcomeBody,
-        `Your role: ${roleSummary || "Platform access"}.`,
+        `${roleLabel}: ${roleSummary || "Platform access"}.`,
         "",
         `Click here to join: ${activationUrl}`,
         "",
@@ -130,7 +132,7 @@ export async function POST(request: NextRequest) {
               <p style="font-size:18px;font-weight:800;margin:0 0 12px">Hi ${escapeHtml(name)},</p>
               <p style="margin:0 0 18px;line-height:1.55;color:#4e6074;font-weight:600">${escapeHtml(welcomeBody)} Use the button below to activate your account securely.</p>
               <div style="background:#f5f7fa;border:1px solid #e5ebf1;border-radius:16px;padding:16px;margin-bottom:22px">
-                <p style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Your role</p>
+                <p style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">${roleLabel}</p>
                 <p style="margin:0;font-size:17px;font-weight:900;color:#10233f">${escapeHtml(roleSummary || "Platform access")}</p>
               </div>
               <a href="${activationUrl}" style="display:block;text-align:center;background:${club.accent_color || "#1b8a72"};color:white;text-decoration:none;font-weight:900;padding:15px 20px;border-radius:14px;font-size:16px">Activate your account</a>
