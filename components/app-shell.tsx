@@ -16,6 +16,7 @@ import {
   Mail,
   Menu as MenuIcon,
   PlusCircle,
+  Share2,
   Trophy,
   UserCircle,
   Users,
@@ -1072,6 +1073,179 @@ function tableForm(row: Standing, matchResults: MatchResult[] = []) {
   for (let index = 0; index < row.won && values.length < RECENT_FORM_LIMIT; index += 1) values.push("W");
   for (let index = 0; index < row.lost && values.length < RECENT_FORM_LIMIT; index += 1) values.push("L");
   return values.length ? values.join("") : "-";
+}
+
+function isManagerRole(role: Role) {
+  return role === "Manager" || role === "Assistant Manager";
+}
+
+function svgEscape(value: string | number | null | undefined) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function truncateForShare(value: string, maxLength: number) {
+  return value.length > maxLength ? `${value.slice(0, Math.max(0, maxLength - 1))}…` : value;
+}
+
+async function shareSvgVisual(filename: string, title: string, svg: string) {
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  const file = new File([blob], filename, { type: "image/svg+xml" });
+  const nav = navigator as Navigator & {
+    canShare?: (data: ShareData) => boolean;
+    share?: (data: ShareData) => Promise<void>;
+  };
+
+  if (nav.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
+    try {
+      await nav.share({ title, files: [file] });
+      return;
+    } catch {
+      // If the user cancels or the browser refuses file sharing, fall back to opening the visual.
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const opened = window.open("", "_blank", "noopener,noreferrer");
+  if (opened) {
+    opened.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>${svgEscape(title)}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <style>
+            body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #eef2f6; font-family: Inter, Arial, sans-serif; }
+            main { width: min(100%, 720px); padding: 16px; box-sizing: border-box; }
+            img { width: 100%; height: auto; display: block; border-radius: 20px; box-shadow: 0 24px 70px rgba(16, 35, 63, .22); }
+            a { display: flex; min-height: 44px; align-items: center; justify-content: center; margin-top: 12px; border-radius: 12px; background: #10233f; color: white; text-decoration: none; font-weight: 800; }
+          </style>
+        </head>
+        <body>
+          <main>
+            <img src="${url}" alt="${svgEscape(title)}" />
+            <a href="${url}" download="${svgEscape(filename)}">Download visual</a>
+          </main>
+        </body>
+      </html>
+    `);
+    opened.document.close();
+  } else {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+  }
+}
+
+function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
+  const width = 1080;
+  const rowHeight = 126;
+  const height = 360 + Math.max(week.fixtures.length, 1) * rowHeight;
+  const rows = week.fixtures.map((fixture, index) => {
+    const y = 280 + index * rowHeight;
+    const home = teamColors(fixture.homeTeamName);
+    const away = teamColors(fixture.awayTeamName);
+    const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
+    const score = hasScore ? `${fixture.homeTeamScore}-${fixture.awayTeamScore}` : "v";
+    const homeWon = hasScore && Number(fixture.homeTeamScore) > Number(fixture.awayTeamScore);
+    const awayWon = hasScore && Number(fixture.awayTeamScore) > Number(fixture.homeTeamScore);
+
+    return `
+      <rect x="54" y="${y}" width="972" height="102" rx="22" fill="${index % 2 ? "#ffffff" : "#f5f7fb"}" stroke="#dfe7ee" />
+      <circle cx="82" cy="${y + 51}" r="7" fill="${home.primaryColor}" />
+      <text x="106" y="${y + 60}" font-size="34" font-weight="850" fill="${homeWon ? "#007a3d" : home.primaryColor}">${svgEscape(truncateForShare(fixture.homeTeamName, 22))}</text>
+      <rect x="470" y="${y + 25}" width="140" height="52" rx="14" fill="#10233f" />
+      <text x="540" y="${y + 62}" text-anchor="middle" font-size="32" font-weight="900" fill="#ffffff">${svgEscape(score)}</text>
+      <text x="974" y="${y + 60}" text-anchor="end" font-size="34" font-weight="850" fill="${awayWon ? "#007a3d" : away.primaryColor}">${svgEscape(truncateForShare(fixture.awayTeamName, 22))}</text>
+      <circle cx="998" cy="${y + 51}" r="7" fill="${away.primaryColor}" />
+    `;
+  }).join("");
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <defs>
+        <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="${svgEscape(activeTeam.primaryColor)}" />
+          <stop offset=".62" stop-color="${svgEscape(activeTeam.accentColor)}" />
+          <stop offset="1" stop-color="#071426" />
+        </linearGradient>
+        <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
+          <path d="M 56 0 L 0 0 0 56" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2" />
+        </pattern>
+      </defs>
+      <rect width="1080" height="${height}" rx="44" fill="#f3f6f8" />
+      <rect x="0" y="0" width="1080" height="230" rx="44" fill="url(#hero)" />
+      <rect x="0" y="0" width="1080" height="230" rx="44" fill="url(#grid)" />
+      <text x="54" y="78" font-size="28" font-weight="850" fill="rgba(255,255,255,.72)" letter-spacing="3">INTERCLUB SNOOKER</text>
+      <text x="54" y="138" font-size="54" font-weight="900" fill="#ffffff">Fixtures / Results</text>
+      <text x="54" y="188" font-size="30" font-weight="750" fill="rgba(255,255,255,.82)">${svgEscape(activeTeam.league)} • ${svgEscape(week.weekLabel)} • ${svgEscape(formatFixtureDate(week.startsOn))}</text>
+      <rect x="760" y="72" width="266" height="66" rx="18" fill="rgba(255,255,255,.16)" stroke="rgba(255,255,255,.28)" />
+      <text x="893" y="115" text-anchor="middle" font-size="26" font-weight="850" fill="#ffffff">${svgEscape(activeTeam.season)}</text>
+      ${rows}
+      <text x="54" y="${height - 42}" font-size="24" font-weight="800" fill="#6c7788">interclubsnooker.com</text>
+    </svg>
+  `;
+}
+
+function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[], matchResults: MatchResult[]) {
+  const width = 1080;
+  const rowHeight = 88;
+  const height = 344 + Math.max(tableRows.length, 1) * rowHeight;
+  const rows = tableRows.map((row, index) => {
+    const y = 262 + index * rowHeight;
+    const diff = row.pointsFor - row.pointsAgainst;
+    const colors = teamColors(row.team);
+    const qualification = qualificationStatus(row.position, tableRows.length);
+    const positionFill = qualification === "final" ? "#ffb000" : qualification === "semi" ? "#00ff85" : "#e8edf3";
+    const positionText = qualification === "none" ? "#10233f" : "#071426";
+    const activeFill = row.team === activeTeam.name ? "#eef4ff" : index % 2 ? "#ffffff" : "#f7f9fc";
+
+    return `
+      <rect x="54" y="${y}" width="972" height="72" rx="16" fill="${activeFill}" stroke="#dfe7ee" />
+      <rect x="54" y="${y}" width="8" height="72" rx="4" fill="${colors.primaryColor}" />
+      <rect x="84" y="${y + 14}" width="44" height="44" rx="13" fill="${positionFill}" />
+      <text x="106" y="${y + 44}" text-anchor="middle" font-size="22" font-weight="900" fill="${positionText}">${row.position}</text>
+      <text x="156" y="${y + 45}" font-size="28" font-weight="900" fill="${colors.primaryColor}">${svgEscape(truncateForShare(row.team, 24))}</text>
+      <text x="568" y="${y + 45}" text-anchor="end" font-size="25" font-weight="800" fill="#10233f">${row.played}</text>
+      <text x="650" y="${y + 45}" text-anchor="end" font-size="25" font-weight="800" fill="#007a3d">${row.won}</text>
+      <text x="730" y="${y + 45}" text-anchor="end" font-size="25" font-weight="800" fill="#b42318">${row.lost}</text>
+      <text x="842" y="${y + 45}" text-anchor="end" font-size="25" font-weight="800" fill="#10233f">${diff > 0 ? `+${diff}` : diff}</text>
+      <text x="990" y="${y + 45}" text-anchor="end" font-size="32" font-weight="950" fill="#10233f">${row.leaguePoints}</text>
+      <text x="420" y="${y + 45}" text-anchor="end" font-size="18" font-weight="800" fill="#6c7788">${svgEscape(tableForm(row, matchResults))}</text>
+    `;
+  }).join("");
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <defs>
+        <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="${svgEscape(activeTeam.primaryColor)}" />
+          <stop offset=".62" stop-color="${svgEscape(activeTeam.accentColor)}" />
+          <stop offset="1" stop-color="#071426" />
+        </linearGradient>
+        <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
+          <path d="M 56 0 L 0 0 0 56" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2" />
+        </pattern>
+      </defs>
+      <rect width="1080" height="${height}" rx="44" fill="#f3f6f8" />
+      <rect x="0" y="0" width="1080" height="210" rx="44" fill="url(#hero)" />
+      <rect x="0" y="0" width="1080" height="210" rx="44" fill="url(#grid)" />
+      <text x="54" y="76" font-size="28" font-weight="850" fill="rgba(255,255,255,.72)" letter-spacing="3">INTERCLUB SNOOKER</text>
+      <text x="54" y="138" font-size="56" font-weight="900" fill="#ffffff">${svgEscape(activeTeam.league)} Table</text>
+      <text x="54" y="184" font-size="28" font-weight="750" fill="rgba(255,255,255,.82)">${svgEscape(activeTeam.season)}</text>
+      <text x="568" y="238" text-anchor="end" font-size="20" font-weight="900" fill="#6c7788">P</text>
+      <text x="650" y="238" text-anchor="end" font-size="20" font-weight="900" fill="#6c7788">W</text>
+      <text x="730" y="238" text-anchor="end" font-size="20" font-weight="900" fill="#6c7788">L</text>
+      <text x="842" y="238" text-anchor="end" font-size="20" font-weight="900" fill="#6c7788">DIFF</text>
+      <text x="990" y="238" text-anchor="end" font-size="20" font-weight="900" fill="#6c7788">PTS</text>
+      ${rows}
+      <text x="54" y="${height - 42}" font-size="24" font-weight="800" fill="#6c7788">interclubsnooker.com</text>
+    </svg>
+  `;
 }
 
 function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
@@ -3586,12 +3760,37 @@ function FixtureWeekCarouselCard({
   }, [activeTeam.league, activeTeam.season, activeTeam.teamId, embeddedDemoMode]);
 
   const week = weeks[activeIndex];
+  const managerCanShare = isManagerRole(activeTeam.role);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Fixtures / Results</CardTitle>
-        <Badge variant="muted">{activeTeam.league}</Badge>
+        <div className="min-w-0">
+          <CardTitle>Fixtures / Results</CardTitle>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {managerCanShare ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={!week}
+              onClick={() => {
+                if (!week) return;
+                void shareSvgVisual(
+                  `${activeTeam.league.toLowerCase().replace(/\s+/g, "-")}-${week.weekLabel.toLowerCase().replace(/\s+/g, "-")}-results.svg`,
+                  `${activeTeam.league} ${week.weekLabel} results`,
+                  buildWeekResultsShareSvg(activeTeam, week)
+                );
+              }}
+              className="min-h-9 px-3 text-xs"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              Share
+            </Button>
+          ) : null}
+          <Badge variant="muted">{activeTeam.league}</Badge>
+        </div>
       </CardHeader>
       <CardContent className="grid gap-3">
         {message ? <p className="rounded-xl bg-[#fff8eb] p-3 text-sm font-semibold text-[#8a5a00] ring-1 ring-[#ffb00055]">{message}</p> : null}
@@ -5109,6 +5308,7 @@ function LeagueTable({
   const showDirectFinal = teamCount >= 5 && teamCount <= 6;
   const showSemiFinals = teamCount >= 5;
   const sectionMode = presentation === "section";
+  const managerCanShare = isManagerRole(activeTeam.role);
 
   return (
     <Card className={cn("min-w-0 overflow-hidden", sectionMode && "ring-1 ring-[#d9dfea]")}>
@@ -5127,7 +5327,26 @@ function LeagueTable({
             <p className="mt-1 text-xs font-bold uppercase tracking-wide text-white/75">{activeTeam.season}</p>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
+          {managerCanShare ? (
+            <Button
+              type="button"
+              variant={sectionMode ? "outline" : "secondary"}
+              size="sm"
+              disabled={!tableRows.length}
+              onClick={() => {
+                void shareSvgVisual(
+                  `${activeTeam.league.toLowerCase().replace(/\s+/g, "-")}-${activeTeam.season.replace("/", "-")}-table.svg`,
+                  `${activeTeam.league} ${activeTeam.season} table`,
+                  buildLeagueTableShareSvg(activeTeam, tableRows, matchResults)
+                );
+              }}
+              className={cn("min-h-9 px-3 text-xs", sectionMode && "border-white/30 bg-white/15 text-white hover:bg-white/25")}
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              Share
+            </Button>
+          ) : null}
           {sectionMode ? <Badge variant="cyan">{tableRows.length} teams</Badge> : <Badge variant="muted">{activeTeam.league}</Badge>}
           {showDirectFinal ? <Badge variant="gold">Final</Badge> : null}
           {showSemiFinals ? <Badge variant="green">Semi</Badge> : null}
