@@ -5455,9 +5455,9 @@ function LeagueTable({
                 <th className="w-11 py-2 pr-1">Pos</th>
                 <th className="px-1.5">Team</th>
                 <th className="w-8 px-1 text-right">P</th>
-                <th className="hidden w-8 px-1 text-right sm:table-cell">W</th>
-                <th className="hidden w-8 px-1 text-right sm:table-cell">L</th>
-                <th className="hidden w-14 px-1 text-center 2xl:table-cell">Form</th>
+                <th className={cn("w-8 px-1 text-right", sectionMode ? "hidden sm:table-cell" : "hidden")}>W</th>
+                <th className={cn("w-8 px-1 text-right", sectionMode ? "hidden sm:table-cell" : "hidden")}>L</th>
+                <th className={cn("w-14 px-1 text-center", sectionMode ? "hidden 2xl:table-cell" : "hidden")}>Form</th>
                 <th className="w-11 px-1 text-right">Diff</th>
                 <th className="w-11 px-1 text-right">Pts</th>
               </tr>
@@ -5499,15 +5499,15 @@ function LeagueTable({
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }} />
                         <div className="min-w-0">
-                          <p className="break-words font-extrabold leading-tight" style={{ color: primaryColor }}>{row.team}</p>
-                          <p className="mt-0.5 text-[10px] font-bold uppercase text-[#6c5a73] 2xl:hidden">{form}</p>
+                          <p className="truncate whitespace-nowrap text-sm font-extrabold leading-tight" style={{ color: primaryColor }} title={row.team}>{row.team}</p>
+                          <p className={cn("mt-0.5 text-[10px] font-bold uppercase text-[#6c5a73]", sectionMode ? "2xl:hidden" : "")}>{form}</p>
                         </div>
                       </div>
                     </td>
                     <td className="border-t border-[#eeeaf2] px-1 text-right font-bold">{row.played}</td>
-                    <td className="hidden border-t border-[#eeeaf2] px-1 text-right font-bold sm:table-cell">{row.won}</td>
-                    <td className="hidden border-t border-[#eeeaf2] px-1 text-right font-bold sm:table-cell">{row.lost}</td>
-                    <td className="hidden border-t border-[#eeeaf2] px-1 text-center 2xl:table-cell">
+                    <td className={cn("border-t border-[#eeeaf2] px-1 text-right font-bold", sectionMode ? "hidden sm:table-cell" : "hidden")}>{row.won}</td>
+                    <td className={cn("border-t border-[#eeeaf2] px-1 text-right font-bold", sectionMode ? "hidden sm:table-cell" : "hidden")}>{row.lost}</td>
+                    <td className={cn("border-t border-[#eeeaf2] px-1 text-center", sectionMode ? "hidden 2xl:table-cell" : "hidden")}>
                       <span className="inline-flex rounded-md px-1.5 py-1 text-[10px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}>
                         {form}
                       </span>
