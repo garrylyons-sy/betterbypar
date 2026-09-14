@@ -565,20 +565,25 @@ export async function loadTeamOptions() {
     league_name: string;
     season_name: string;
   }>(
-    `select
-       c.id as club_id,
-       c.name as club_name,
-       t.id as team_id,
-       t.name as team_name,
-       l.name as league_name,
-       s.name as season_name
-     from public.team t
-     join public.club c on c.id = t.club_id
-     join public.league l on l.id = t.league_id
-     join public.season s on s.id = t.season_id
-     where t.active = true
-       and c.active = true
-     order by c.name, l.name, t.name`
+    `with logical_teams as (
+       select distinct on (c.id, l.id, t.name)
+         c.id as club_id,
+         c.name as club_name,
+         t.id as team_id,
+         t.name as team_name,
+         l.name as league_name,
+         s.name as season_name
+       from public.team t
+       join public.club c on c.id = t.club_id
+       join public.league l on l.id = t.league_id
+       join public.season s on s.id = t.season_id
+       where t.active = true
+         and c.active = true
+       order by c.id, l.id, t.name, s.name desc
+     )
+     select *
+     from logical_teams
+     order by club_name, league_name, team_name`
   );
   return rows;
 }
