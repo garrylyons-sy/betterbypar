@@ -1318,99 +1318,107 @@ function PeoplePanel({
   }
 
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-      <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle>Add player or member</CardTitle>
-          <Badge variant="cyan">No login created</Badge>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <AdminInput label="First name" value={firstName} onChange={setFirstName} />
-            <AdminInput label="Last name" value={lastName} onChange={setLastName} />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <AdminInput label="Email" value={email} onChange={setEmail} type="email" />
-            <AdminInput label="Phone" value={phone} onChange={setPhone} type="tel" />
-          </div>
-          <AdminInput label="Club handicap" value={handicap} onChange={setHandicap} type="number" placeholder="Blank if none" />
-          <div className="grid gap-3 sm:grid-cols-3">
-            <AdminSelect label="Club" value={clubId} onChange={setClubId} options={clubs.map((club) => ({ value: club.clubId, label: club.clubName }))} />
-            <AdminSelect label="Role" value={role} onChange={(value) => setRole(value as InviteRole)} options={inviteRoles.map((item) => ({ value: item, label: item }))} />
-            {clubLevelInviteRoles.includes(role) ? null : (
-              <AdminSelect label="Team" value={teamId} onChange={setTeamId} options={clubTeams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.leagueName}` }))} />
-            )}
-          </div>
-          <AdminCheckbox label="Make administrator" checked={admin} onChange={setAdmin} description="Administrators can access the admin console once they have a login." />
-          <Button onClick={addPerson} disabled={!firstName || !lastName || (!clubLevelInviteRoles.includes(role) && !teamId)}>
-            <UserPlus className="h-4 w-4" />
-            Add person
-          </Button>
-        </CardContent>
-      </Card>
+    <div className="grid min-w-0 gap-4">
       <Card className="min-w-0">
         <CardHeader>
           <CardTitle>People</CardTitle>
           <Badge variant="muted">{people.length}</Badge>
         </CardHeader>
-        <CardContent className="grid max-h-[680px] gap-2 overflow-auto pr-1">
-          {people.map((person) => (
-            <div key={person.personId} className="rounded-xl bg-[#f7f5fa] p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-extrabold">{person.name}</p>
-                  <p className="truncate text-xs font-bold text-[#6c5a73]">{person.email || "No email yet"}</p>
-                  {person.phone ? <p className="text-xs font-semibold text-[#6c5a73]">{person.phone}</p> : null}
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {person.accountId ? (
-                      <Badge variant={person.loginActive ? "green" : "muted"}>
-                        {person.loginActive ? "Login enabled" : "Login disabled"}
-                      </Badge>
-                    ) : (
-                      <Badge variant="muted">No login</Badge>
-                    )}
-                    {person.lastLogin ? <Badge variant="muted">Last login {formatAdminDate(person.lastLogin)}</Badge> : null}
-                  </div>
-                  {person.clubHandicaps?.length ? (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {person.clubHandicaps
-                        .filter((item) => item.handicap !== null && item.handicap !== undefined)
-                        .map((item) => (
-                          <Badge key={item.club_id} variant="muted">
-                            {item.club_name.replace(" Golf Club", "")}: {formatHandicap(item.handicap)}
-                          </Badge>
-                        ))}
+        <CardContent className="min-w-0">
+          <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
+            <div className="hidden grid-cols-[minmax(180px,1.35fr)_minmax(190px,1.4fr)_130px_130px_150px_116px] gap-3 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+              <span>Person</span>
+              <span>Email</span>
+              <span>Phone</span>
+              <span>Status</span>
+              <span>Handicap</span>
+              <span className="text-right">Actions</span>
+            </div>
+            <div className="max-h-[680px] overflow-auto">
+              {people.map((person) => {
+                const handicaps = (person.clubHandicaps ?? []).filter((item) => item.handicap !== null && item.handicap !== undefined);
+                return (
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[minmax(180px,1.35fr)_minmax(190px,1.4fr)_130px_130px_150px_116px] lg:items-center lg:gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 truncate font-extrabold">{person.name}</span>
+                      {person.admin ? <Badge variant="green">Admin</Badge> : null}
                     </div>
-                  ) : null}
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-2">
-                  {person.admin ? <Badge variant="green">Admin</Badge> : null}
-                  <div className="flex gap-1">
-                    {person.accountId ? (
+                    <p className="min-w-0 truncate text-[#6c5a73]">{person.email || "No email yet"}</p>
+                    <p className="min-w-0 truncate text-[#6c5a73]">{person.phone || "-"}</p>
+                    <div className="flex min-w-0 items-center gap-1">
+                      {person.accountId ? (
+                        <Badge variant={person.loginActive ? "green" : "muted"}>
+                          {person.loginActive ? "Login on" : "Login off"}
+                        </Badge>
+                      ) : (
+                        <Badge variant="muted">No login</Badge>
+                      )}
+                    </div>
+                    <p className="min-w-0 truncate text-xs text-[#6c5a73]">
+                      {handicaps.length ? handicaps.map((item) => `${item.club_name.replace(" Golf Club", "")}: ${formatHandicap(item.handicap)}`).join(" / ") : "-"}
+                    </p>
+                    <div className="flex items-center justify-end gap-1">
+                      {person.accountId ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setLoginAccess(person, !person.loginActive)}
+                          disabled={busyPersonId === person.personId}
+                          className="min-h-9 px-2 text-xs"
+                        >
+                          {person.loginActive ? "Disable" : "Enable"}
+                        </Button>
+                      ) : null}
                       <Button
                         variant="secondary"
-                        size="sm"
-                        onClick={() => setLoginAccess(person, !person.loginActive)}
+                        size="icon"
+                        onClick={() => setDeleteTarget(person)}
                         disabled={busyPersonId === person.personId}
+                        className="h-9 min-h-9 w-9 text-[#b42318]"
                       >
-                        {person.loginActive ? "Disable login" : "Enable login"}
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete user</span>
                       </Button>
-                    ) : null}
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      onClick={() => setDeleteTarget(person)}
-                      disabled={busyPersonId === person.personId}
-                      className="text-[#b42318]"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Delete user</span>
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              </div>
+                );
+              })}
+              {!people.length ? (
+                <div className="px-3 py-4 text-sm font-semibold text-[#6c5a73]">No people found.</div>
+              ) : null}
             </div>
-          ))}
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="min-w-0">
+        <CardHeader>
+          <CardTitle>Add person</CardTitle>
+          <Badge variant="cyan">No login created</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <div className="grid gap-3 md:grid-cols-5">
+            <AdminInput label="First name" value={firstName} onChange={setFirstName} />
+            <AdminInput label="Last name" value={lastName} onChange={setLastName} />
+            <AdminInput label="Email" value={email} onChange={setEmail} type="email" />
+            <AdminInput label="Phone" value={phone} onChange={setPhone} type="tel" />
+            <AdminInput label="Club handicap" value={handicap} onChange={setHandicap} type="number" placeholder="Blank" />
+          </div>
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
+            <AdminSelect label="Club" value={clubId} onChange={setClubId} options={clubs.map((club) => ({ value: club.clubId, label: club.clubName }))} />
+            <AdminSelect label="Role" value={role} onChange={(value) => setRole(value as InviteRole)} options={inviteRoles.map((item) => ({ value: item, label: item }))} />
+            {clubLevelInviteRoles.includes(role) ? (
+              <div className="rounded-xl bg-[#f7f5fa] px-3 py-2 text-xs font-bold text-[#6c5a73] ring-1 ring-[#eeeaf2]">
+                Club role
+              </div>
+            ) : (
+              <AdminSelect label="Team" value={teamId} onChange={setTeamId} options={clubTeams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.leagueName}` }))} />
+            )}
+            <Button onClick={addPerson} disabled={!firstName || !lastName || (!clubLevelInviteRoles.includes(role) && !teamId)}>
+              <UserPlus className="h-4 w-4" />
+              Add
+            </Button>
+          </div>
+          <AdminCheckbox label="Make administrator" checked={admin} onChange={setAdmin} description="Administrators can access the admin console once they have a login." />
         </CardContent>
       </Card>
       {deleteTarget ? (
