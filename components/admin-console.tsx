@@ -1345,6 +1345,8 @@ function InvitesPanel({
   const [administrator, setAdministrator] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
   const [emailPreview, setEmailPreview] = useState<{ to: string; subject: string; body: string; activationUrl: string } | null>(null);
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState<{ tone: "info" | "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     setRoleRows((rows) => rows.map((row) => {
@@ -1380,6 +1382,8 @@ function InvitesPanel({
       return;
     }
 
+    setInviteSending(true);
+    setInviteStatus({ tone: "info", text: `Sending invite email to ${email}...` });
     try {
       const response = await fetch("/api/admin/invites", {
         method: "POST",
@@ -1397,17 +1401,27 @@ function InvitesPanel({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not create invite.");
+      const emailStatus = data.email_status ? String(data.email_status).toLowerCase() : "queued";
       setEmailPreview({
         to: data.email_to ?? "garlyons@gmail.com",
         subject: data.email_subject ?? "You have been invited to join Interclub Snooker",
         body: data.email_preview ?? "",
         activationUrl: data.activation_url ?? ""
       });
-      const emailStatus = data.email_status ? String(data.email_status).toLowerCase() : "queued";
+      setInviteStatus({
+        tone: data.email_status === "Failed" ? "error" : "success",
+        text: data.email_status === "Failed"
+          ? `Invite created, but the email could not be sent to ${data.email_to ?? email}.`
+          : `Invite email ${emailStatus} to ${data.email_to ?? email}.`
+      });
       onMessage(data.activation_url ? `Invite created and email ${emailStatus} to ${data.email_to ?? email}.` : data.invitation_code ? `Invite created: ${data.invitation_code}` : "Invite created.");
       onRefresh();
     } catch (error) {
-      onMessage(error instanceof Error ? error.message : "Could not create invite.");
+      const message = error instanceof Error ? error.message : "Could not create invite.";
+      setInviteStatus({ tone: "error", text: message });
+      onMessage(message);
+    } finally {
+      setInviteSending(false);
     }
   }
 
@@ -1458,9 +1472,10 @@ function InvitesPanel({
             </div>
             <AdminCheckbox label="Make administrator" checked={administrator} onChange={setAdministrator} description="After activation, this person can access admin and manage the platform." />
             <AdminInput label="Expires" value={expiresAt} onChange={setExpiresAt} type="datetime-local" />
-            <Button onClick={createInvite} disabled={!name || !email || !clubId || (!administrator && !roleRows.length)}>
+            {inviteStatus ? <InviteSendStatus tone={inviteStatus.tone} text={inviteStatus.text} /> : null}
+            <Button onClick={createInvite} disabled={inviteSending || !name || !email || !clubId || (!administrator && !roleRows.length)}>
               <PlusCircle className="h-4 w-4" />
-              Create and queue invite email
+              {inviteSending ? "Sending invite email..." : "Create and queue invite email"}
             </Button>
           </CardContent>
         </Card>
@@ -1510,6 +1525,7 @@ function BulkInviteImportPanel({
   const example = "name\temail\tphone\tclub\trole\tteam\tadministrator\nStephen Finlan\tstephen@example.com\t\tCastle Golf Club\tManager\tCastle A\tno\nCastle Member\tmember@example.com\t\tCastle Golf Club\tClub Member\t\tyes";
   const [pastedRows, setPastedRows] = useState(example);
   const [sending, setSending] = useState(false);
+  const [sendStatus, setSendStatus] = useState<{ tone: "info" | "success" | "error"; text: string } | null>(null);
   const parsedRows = parseInviteSpreadsheetRows(pastedRows, teams);
   const readyRows = parsedRows.filter((row) => !row.error);
 
@@ -1524,6 +1540,7 @@ function BulkInviteImportPanel({
     }
 
     setSending(true);
+    setSendStatus({ tone: "info", text: `Sending ${readyRows.length} invite email${readyRows.length === 1 ? "" : "s"}...` });
     let sent = 0;
     const failures: string[] = [];
     const deliveredEmails = new Set<string>();
@@ -1564,7 +1581,9 @@ function BulkInviteImportPanel({
       }).join("\n").trimEnd());
     }
     onRefresh();
-    onMessage(failures.length ? `Invited ${sent}; ${failures.length} failed. ${failures[0]}` : `Invited ${sent} person${sent === 1 ? "" : "s"} and removed them from the import list.`);
+    const resultMessage = failures.length ? `Invited ${sent}; ${failures.length} failed. ${failures[0]}` : `Invited ${sent} person${sent === 1 ? "" : "s"} and removed them from the import list.`;
+    setSendStatus({ tone: failures.length ? "error" : "success", text: resultMessage });
+    onMessage(resultMessage);
   }
 
   return (
@@ -1610,8 +1629,23 @@ function BulkInviteImportPanel({
           <FileSpreadsheet className="h-4 w-4" />
           {sending ? "Sending invites..." : "Send imported invite emails"}
         </Button>
+        {sendStatus ? <InviteSendStatus tone={sendStatus.tone} text={sendStatus.text} /> : null}
       </CardContent>
     </Card>
+  );
+}
+
+function InviteSendStatus({ tone, text }: { tone: "info" | "success" | "error"; text: string }) {
+  const classes = {
+    info: "bg-[#eef6fb] text-[#10233f] ring-[#d5e7f0]",
+    success: "bg-[#ebfff4] text-[#0f6f47] ring-[#b9f6d4]",
+    error: "bg-[#fff1f1] text-[#9f1d1d] ring-[#ffd0d0]"
+  }[tone];
+
+  return (
+    <div className={`rounded-xl px-4 py-3 text-sm font-bold ring-1 ${classes}`} role={tone === "error" ? "alert" : "status"} aria-live="polite">
+      {text}
+    </div>
   );
 }
 
