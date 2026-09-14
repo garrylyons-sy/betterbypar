@@ -433,6 +433,7 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const passwordValid = isValidPassword(password);
+  const passwordsMismatch = Boolean(confirmPassword) && password !== confirmPassword;
 
   useEffect(() => {
     if (!invite) return;
@@ -477,7 +478,14 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
       ) : null}
       <AuthTextField label="Email" value={email} onChange={setEmail} type="email" autoComplete="email" disabled={Boolean(invite)} />
       <AuthTextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
-      <AuthTextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" autoComplete="new-password" />
+      <AuthTextField
+        label="Confirm password"
+        value={confirmPassword}
+        onChange={setConfirmPassword}
+        type="password"
+        autoComplete="new-password"
+        error={passwordsMismatch ? "Passwords do not match." : undefined}
+      />
       <PasswordChecklist password={password} />
       {message ? <p className="text-sm font-bold text-[#10233f]">{message}</p> : null}
       <Button onClick={activateWithPassword} disabled={busy || !email || !passwordValid || password !== confirmPassword}>

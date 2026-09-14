@@ -136,7 +136,8 @@ export function AuthTextField({
   onChange,
   type = "text",
   autoComplete,
-  disabled = false
+  disabled = false,
+  error
 }: {
   label: string;
   value: string;
@@ -144,18 +145,22 @@ export function AuthTextField({
   type?: string;
   autoComplete?: string;
   disabled?: boolean;
+  error?: string;
 }) {
   return (
     <label className="grid min-w-0 gap-1.5">
       <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
       <input
-        className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]"
+        className={`min-h-11 w-full min-w-0 rounded-2xl border bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6] ${error ? "border-[#b42318] ring-2 ring-[#b42318]/15" : "border-[#eeeaf2]"}`}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         type={type}
         autoComplete={autoComplete}
         disabled={disabled}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${label.toLowerCase().replace(/\s+/g, "-")}-error` : undefined}
       />
+      {error ? <span id={`${label.toLowerCase().replace(/\s+/g, "-")}-error`} className="text-sm font-bold text-[#b42318]">{error}</span> : null}
     </label>
   );
 }
