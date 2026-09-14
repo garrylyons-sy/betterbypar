@@ -1459,7 +1459,7 @@ function PeoplePanel({
               ]}
             />
           </div>
-          <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
+          <div className="min-w-0 overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
             <div className="hidden grid-cols-[minmax(160px,1.25fr)_minmax(190px,1.35fr)_minmax(150px,1fr)_110px_112px_120px_180px] gap-3 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
               <span>Person</span>
               <span>Email</span>
@@ -1469,7 +1469,7 @@ function PeoplePanel({
               <span>Invite status</span>
               <span className="text-right">Actions</span>
             </div>
-            <div className="max-h-[680px] overflow-auto">
+            <div className="max-h-[680px] min-w-0 overflow-y-auto overflow-x-hidden">
               {visiblePeople.map((person) => {
                 const handicaps = (person.clubHandicaps ?? []).filter((item) => item.handicap !== null && item.handicap !== undefined);
                 const clubsForPerson = Array.from(new Set([
@@ -1658,7 +1658,8 @@ function InvitesPanel({
   onRefresh: () => void;
 }) {
   const clubs = uniqueClubs(teams);
-  const [name, setName] = useState("");
+  const [inviteFirstName, setInviteFirstName] = useState("");
+  const [inviteLastName, setInviteLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [clubId, setClubId] = useState(clubs[0]?.clubId ?? "");
@@ -1699,6 +1700,7 @@ function InvitesPanel({
   }
 
   async function createInvite() {
+    const name = `${inviteFirstName.trim()} ${inviteLastName.trim()}`.trim();
     if (demo) {
       onMessage("Demo invite created: CASTLE-DEMO-2026");
       return;
@@ -1736,6 +1738,8 @@ function InvitesPanel({
           ? `Invite created, but the email could not be sent to ${data.email_to ?? email}.`
           : `Invite email ${emailStatus} to ${data.email_to ?? email}.`
       });
+      setInviteFirstName("");
+      setInviteLastName("");
       onMessage(data.activation_url ? `Invite created and email ${emailStatus} to ${data.email_to ?? email}.` : data.invitation_code ? `Invite created: ${data.invitation_code}` : "Invite created.");
       onRefresh();
     } catch (error) {
@@ -1757,11 +1761,14 @@ function InvitesPanel({
           </CardHeader>
           <CardContent className="grid gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
-              <AdminInput label="Full name" value={name} onChange={setName} />
-              <AdminInput label="Email" value={email} onChange={setEmail} type="email" />
+              <AdminInput label="First name" value={inviteFirstName} onChange={setInviteFirstName} />
+              <AdminInput label="Last name" value={inviteLastName} onChange={setInviteLastName} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
+              <AdminInput label="Email" value={email} onChange={setEmail} type="email" />
               <AdminInput label="Phone" value={phone} onChange={setPhone} type="tel" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
               <AdminSelect label="Club" value={clubId} onChange={setClubId} options={clubs.map((club) => ({ value: club.clubId, label: club.clubName }))} />
             </div>
             <div className="grid gap-2">
@@ -1795,7 +1802,7 @@ function InvitesPanel({
             <AdminCheckbox label="Make administrator" checked={administrator} onChange={setAdministrator} description="After activation, this person can access admin and manage the platform." />
             <AdminInput label="Expires" value={expiresAt} onChange={setExpiresAt} type="datetime-local" />
             {inviteStatus ? <InviteSendStatus tone={inviteStatus.tone} text={inviteStatus.text} /> : null}
-            <Button onClick={createInvite} disabled={inviteSending || !name || !email || !clubId || (!administrator && !roleRows.length)}>
+            <Button onClick={createInvite} disabled={inviteSending || !inviteFirstName.trim() || !inviteLastName.trim() || !email || !clubId || (!administrator && !roleRows.length)}>
               <PlusCircle className="h-4 w-4" />
               {inviteSending ? "Sending invite email..." : "Create and queue invite email"}
             </Button>
