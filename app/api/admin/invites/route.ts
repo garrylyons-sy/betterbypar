@@ -91,12 +91,16 @@ export async function POST(request: NextRequest) {
       const publicBaseUrl = appBaseUrl(request.url);
       const activationUrl = new URL(`/activate?token=${encodeURIComponent(inviteToken)}`, publicBaseUrl).toString();
       const logoUrl = club.logo_path ? new URL(club.logo_path, publicBaseUrl).toString() : "";
-      const roleSummary = [
+      const roleLabels = [
         ...teamRoleLabels,
         ...memberRoles.map((item) => item.role),
         administratorInvite ? "Administrator" : ""
-      ].filter(Boolean).join(", ");
-      const roleCount = teamRoleLabels.length + memberRoles.length + (administratorInvite ? 1 : 0);
+      ].filter(Boolean);
+      const roleSummary = roleLabels.join("\n");
+      const roleSummaryHtml = roleLabels.length
+        ? roleLabels.map((role) => `<span style="display:block">${escapeHtml(role)}</span>`).join("")
+        : "Platform access";
+      const roleCount = roleLabels.length;
       const roleLabel = roleCount > 1 ? "Your roles" : "Your role";
       const isClubOnlyInvite = teamRoles.length === 0 && memberRoles.length > 0;
       const welcomeHeadline = isClubOnlyInvite
@@ -133,7 +137,7 @@ export async function POST(request: NextRequest) {
               <p style="margin:0 0 18px;line-height:1.55;color:#4e6074;font-weight:600">${escapeHtml(welcomeBody)} Use the button below to activate your account securely.</p>
               <div style="background:#f5f7fa;border:1px solid #e5ebf1;border-radius:16px;padding:16px;margin-bottom:22px">
                 <p style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">${roleLabel}</p>
-                <p style="margin:0;font-size:17px;font-weight:900;color:#10233f">${escapeHtml(roleSummary || "Platform access")}</p>
+                <p style="margin:0;font-size:17px;font-weight:900;color:#10233f">${roleSummaryHtml}</p>
               </div>
               <a href="${activationUrl}" style="display:block;text-align:center;background:${club.accent_color || "#1b8a72"};color:white;text-decoration:none;font-weight:900;padding:15px 20px;border-radius:14px;font-size:16px">Activate your account</a>
               <p style="margin:18px 0 0;color:#6c7788;font-size:13px;line-height:1.45">This link is unique to you and expires on ${escapeHtml(expiresAt.toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" }))}. If you were not expecting this invitation, you can ignore this email.</p>
