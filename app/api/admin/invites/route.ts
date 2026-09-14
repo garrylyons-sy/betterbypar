@@ -122,25 +122,60 @@ export async function POST(request: NextRequest) {
         deliveryEmail !== email ? `For testing this invite email is delivered to ${deliveryEmail}.` : ""
       ].join("\n");
       const bodyHtml = `
-        <div style="margin:0;background:#f3f6f8;padding:28px 16px;font-family:Inter,Arial,sans-serif;color:#10233f">
-          <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #dfe7ee;box-shadow:0 18px 48px rgba(16,35,63,.14)">
-            <div style="background:linear-gradient(135deg,${club.primary_color || "#10233f"} 0%,${club.accent_color || "#1b8a72"} 100%);padding:30px 28px;color:white">
-              <div style="display:flex;align-items:center;gap:14px">
-                ${logoUrl ? `<div style="width:62px;height:62px;border-radius:18px;background:#ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px rgba(0,0,0,.18);overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="52" height="52" alt="${escapeHtml(club.name)} crest" style="display:block;max-width:52px;max-height:52px;object-fit:contain;border:0" /></div>` : ""}
-                <div style="display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Interclub Snooker</div>
+        <style>
+          body, table, td, div, p, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+          .invite-shell { padding: 28px 16px; }
+          .invite-card { width: 100%; max-width: 640px; }
+          .invite-hero { padding: 30px 28px; }
+          .invite-logo { width: 62px; height: 62px; border-radius: 18px; }
+          .invite-logo img { max-width: 52px; max-height: 52px; }
+          .invite-kicker { font-size: 12px; }
+          .invite-title { font-size: 34px; line-height: 1.02; }
+          .invite-subtitle { font-size: 16px; line-height: 1.35; }
+          .invite-body { padding: 28px; }
+          .invite-greeting { font-size: 18px; }
+          .invite-copy { font-size: 16px; line-height: 1.55; }
+          .invite-role-value { font-size: 17px; line-height: 1.25; }
+          .invite-button { font-size: 16px; }
+          @media only screen and (max-width: 480px) {
+            .invite-shell { padding: 12px 8px !important; }
+            .invite-card { border-radius: 18px !important; }
+            .invite-hero { padding: 22px 20px !important; }
+            .invite-brand { display: block !important; }
+            .invite-logo { width: 54px !important; height: 54px !important; border-radius: 15px !important; margin-bottom: 12px !important; }
+            .invite-logo img { max-width: 46px !important; max-height: 46px !important; }
+            .invite-kicker { font-size: 10px !important; padding: 6px 10px !important; letter-spacing: .05em !important; }
+            .invite-title { font-size: 28px !important; line-height: 1.05 !important; margin-top: 16px !important; }
+            .invite-subtitle { font-size: 14px !important; line-height: 1.35 !important; }
+            .invite-body { padding: 22px 20px !important; }
+            .invite-greeting { font-size: 16px !important; }
+            .invite-copy { font-size: 14px !important; line-height: 1.5 !important; }
+            .invite-role { padding: 14px !important; border-radius: 14px !important; }
+            .invite-role-label { font-size: 10px !important; }
+            .invite-role-value { font-size: 15px !important; line-height: 1.28 !important; }
+            .invite-button { font-size: 15px !important; padding: 14px 16px !important; border-radius: 12px !important; }
+            .invite-footer { font-size: 12px !important; line-height: 1.45 !important; }
+          }
+        </style>
+        <div class="invite-shell" style="margin:0;background:#f3f6f8;padding:28px 16px;font-family:Inter,Arial,sans-serif;color:#10233f;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
+          <div class="invite-card" style="width:100%;max-width:640px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #dfe7ee;box-shadow:0 18px 48px rgba(16,35,63,.14)">
+            <div class="invite-hero" style="background:linear-gradient(135deg,${club.primary_color || "#10233f"} 0%,${club.accent_color || "#1b8a72"} 100%);padding:30px 28px;color:white">
+              <div class="invite-brand" style="display:flex;align-items:center;gap:14px">
+                ${logoUrl ? `<div class="invite-logo" style="width:62px;height:62px;border-radius:18px;background:#ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px rgba(0,0,0,.18);overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="52" height="52" alt="${escapeHtml(club.name)} crest" style="display:block;max-width:52px;max-height:52px;object-fit:contain;border:0" /></div>` : ""}
+                <div class="invite-kicker" style="display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Interclub Snooker</div>
               </div>
-              <h1 style="margin:18px 0 8px;font-size:34px;line-height:1.02;letter-spacing:-.02em">You have been invited</h1>
-              <p style="margin:0;font-size:16px;font-weight:700;opacity:.9">${escapeHtml(welcomeHeadline)}</p>
+              <h1 class="invite-title" style="margin:18px 0 8px;font-size:34px;line-height:1.02;letter-spacing:-.02em">You have been invited</h1>
+              <p class="invite-subtitle" style="margin:0;font-size:16px;line-height:1.35;font-weight:700;opacity:.9">${escapeHtml(welcomeHeadline)}</p>
             </div>
-            <div style="padding:28px">
-              <p style="font-size:18px;font-weight:800;margin:0 0 12px">Hi ${escapeHtml(name)},</p>
-              <p style="margin:0 0 18px;line-height:1.55;color:#4e6074;font-weight:600">${escapeHtml(welcomeBody)} Use the button below to activate your account securely.</p>
-              <div style="background:#f5f7fa;border:1px solid #e5ebf1;border-radius:16px;padding:16px;margin-bottom:22px">
-                <p style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">${roleLabel}</p>
-                <p style="margin:0;font-size:17px;font-weight:900;color:#10233f">${roleSummaryHtml}</p>
+            <div class="invite-body" style="padding:28px">
+              <p class="invite-greeting" style="font-size:18px;font-weight:800;margin:0 0 12px">Hi ${escapeHtml(name)},</p>
+              <p class="invite-copy" style="margin:0 0 18px;font-size:16px;line-height:1.55;color:#4e6074;font-weight:600">${escapeHtml(welcomeBody)} Use the button below to activate your account securely.</p>
+              <div class="invite-role" style="background:#f5f7fa;border:1px solid #e5ebf1;border-radius:16px;padding:16px;margin-bottom:22px">
+                <p class="invite-role-label" style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">${roleLabel}</p>
+                <p class="invite-role-value" style="margin:0;font-size:17px;line-height:1.25;font-weight:900;color:#10233f">${roleSummaryHtml}</p>
               </div>
-              <a href="${activationUrl}" style="display:block;text-align:center;background:${club.accent_color || "#1b8a72"};color:white;text-decoration:none;font-weight:900;padding:15px 20px;border-radius:14px;font-size:16px">Activate your account</a>
-              <p style="margin:18px 0 0;color:#6c7788;font-size:13px;line-height:1.45">This link is unique to you and expires on ${escapeHtml(expiresAt.toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" }))}. If you were not expecting this invitation, you can ignore this email.</p>
+              <a class="invite-button" href="${activationUrl}" style="display:block;text-align:center;background:${club.accent_color || "#1b8a72"};color:white;text-decoration:none;font-weight:900;padding:15px 20px;border-radius:14px;font-size:16px">Activate your account</a>
+              <p class="invite-footer" style="margin:18px 0 0;color:#6c7788;font-size:13px;line-height:1.45">This link is unique to you and expires on ${escapeHtml(expiresAt.toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" }))}. If you were not expecting this invitation, you can ignore this email.</p>
             </div>
           </div>
         </div>`;
