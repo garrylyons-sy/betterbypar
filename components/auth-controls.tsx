@@ -32,6 +32,7 @@ export function AuthSignInForm({
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"error" | "info">("info");
   const [currentNext, setCurrentNext] = useState("/");
 
   useEffect(() => {
@@ -41,6 +42,7 @@ export function AuthSignInForm({
   async function signInWithPassword() {
     setBusy(true);
     setMessage("");
+    setMessageTone("info");
     try {
       await authJsonFetch("/api/login", {
         method: "POST",
@@ -49,6 +51,7 @@ export function AuthSignInForm({
       await onSignedIn();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Login failed.");
+      setMessageTone("error");
     } finally {
       setBusy(false);
     }
@@ -60,7 +63,16 @@ export function AuthSignInForm({
     <div className="grid gap-3">
       <AuthTextField label={identifierLabel} value={identifier} onChange={setIdentifier} autoComplete="username" />
       <AuthTextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="current-password" />
-      {message ? <p className="text-sm font-bold text-[#1b8a72]">{message}</p> : null}
+      {message ? (
+        <p
+          className={messageTone === "error"
+            ? "rounded-xl bg-[#fff3f3] p-3 text-sm font-bold text-[#b42318] ring-1 ring-[#f3b7b2]"
+            : "rounded-xl bg-[#f1fbf7] p-3 text-sm font-bold text-[#1b8a72] ring-1 ring-[#bce7d8]"}
+          role={messageTone === "error" ? "alert" : "status"}
+        >
+          {message}
+        </p>
+      ) : null}
       {onForgotPassword ? (
         <button type="button" onClick={onForgotPassword} className="justify-self-start text-sm font-extrabold text-[#1b8a72]">
           Forgot password?
