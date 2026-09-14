@@ -30,6 +30,10 @@ type PersonOption = {
   name: string;
   email: string;
   phone?: string;
+  accountId?: string | null;
+  username?: string | null;
+  loginActive?: boolean | null;
+  lastLogin?: string | null;
   admin?: boolean;
   clubHandicaps?: Array<{ club_id: string; club_name: string; handicap: number | string | null }>;
   clubAdmins?: Array<{ club_id: string; club_name: string }>;
@@ -284,6 +288,10 @@ export function AdminConsole() {
             name: `${person.first_name} ${person.last_name}`.trim(),
             email: person.email ?? "",
             phone: person.phone ?? "",
+            accountId: person.account_id ?? null,
+            username: person.username ?? null,
+            loginActive: person.login_active ?? null,
+            lastLogin: person.last_login ?? null,
             clubHandicaps: person.club_handicaps ?? [],
             clubAdmins: person.club_admins ?? [],
             admin: Boolean(person.admin)
@@ -1218,6 +1226,8 @@ function PeoplePanel({
   const [teamId, setTeamId] = useState(clubTeams[0]?.teamId ?? "");
   const [role, setRole] = useState<InviteRole>("Player");
   const [admin, setAdmin] = useState(false);
+  const [busyPersonId, setBusyPersonId] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<PersonOption | null>(null);
 
   useEffect(() => {
     const nextTeams = teams.filter((team) => team.clubId === clubId);
@@ -1251,6 +1261,59 @@ function PeoplePanel({
       onRefresh();
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not add person.");
+    }
+  }
+
+  async function setLoginAccess(person: PersonOption, loginActive: boolean) {
+    if (demo) {
+      onMessage(loginActive ? "Login enabled." : "Login disabled.");
+      return;
+    }
+
+    setBusyPersonId(person.personId);
+    try {
+      const response = await fetch("/api/admin/people", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ personId: person.personId, loginActive })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not update user.");
+      onMessage(`${person.name}'s login has been ${loginActive ? "enabled" : "disabled"}.`);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not update user.");
+    } finally {
+      setBusyPersonId("");
+    }
+  }
+
+  async function deletePerson() {
+    if (!deleteTarget) return;
+    if (demo) {
+      onMessage(`${deleteTarget.name} deleted.`);
+      setDeleteTarget(null);
+      return;
+    }
+
+    setBusyPersonId(deleteTarget.personId);
+    try {
+      const response = await fetch("/api/admin/people", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ personId: deleteTarget.personId })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not delete user.");
+      onMessage(`${data.name ?? deleteTarget.name} deleted. Historical results are retained.`);
+      setDeleteTarget(null);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not delete user.");
+    } finally {
+      setBusyPersonId("");
     }
   }
 
@@ -1298,6 +1361,16 @@ function PeoplePanel({
                   <p className="truncate font-extrabold">{person.name}</p>
                   <p className="truncate text-xs font-bold text-[#6c5a73]">{person.email || "No email yet"}</p>
                   {person.phone ? <p className="text-xs font-semibold text-[#6c5a73]">{person.phone}</p> : null}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {person.accountId ? (
+                      <Badge variant={person.loginActive ? "green" : "muted"}>
+                        {person.loginActive ? "Login enabled" : "Login disabled"}
+                      </Badge>
+                    ) : (
+                      <Badge variant="muted">No login</Badge>
+                    )}
+                    {person.lastLogin ? <Badge variant="muted">Last login {formatAdminDate(person.lastLogin)}</Badge> : null}
+                  </div>
                   {person.clubHandicaps?.length ? (
                     <div className="mt-2 flex flex-wrap gap-1">
                       {person.clubHandicaps
@@ -1310,12 +1383,83 @@ function PeoplePanel({
                     </div>
                   ) : null}
                 </div>
-                {person.admin ? <Badge variant="green">Admin</Badge> : null}
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  {person.admin ? <Badge variant="green">Admin</Badge> : null}
+                  <div className="flex gap-1">
+                    {person.accountId ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setLoginAccess(person, !person.loginActive)}
+                        disabled={busyPersonId === person.personId}
+                      >
+                        {person.loginActive ? "Disable login" : "Enable login"}
+                      </Button>
+                    ) : null}
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      onClick={() => setDeleteTarget(person)}
+                      disabled={busyPersonId === person.personId}
+                      className="text-[#b42318]"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">Delete user</span>
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           ))}
         </CardContent>
       </Card>
+      {deleteTarget ? (
+        <ConfirmDeletePersonModal
+          person={deleteTarget}
+          busy={busyPersonId === deleteTarget.personId}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={deletePerson}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ConfirmDeletePersonModal({
+  person,
+  busy,
+  onCancel,
+  onConfirm
+}: {
+  person: PersonOption;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Delete user">
+      <div className="w-full max-w-md rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase text-[#6c5a73]">Confirm delete</p>
+            <h2 className="mt-1 text-xl font-extrabold leading-tight text-[#10233f]">{person.name}</h2>
+            {person.email ? <p className="mt-1 text-sm font-bold text-[#6c5a73]">{person.email}</p> : null}
+          </div>
+          {person.loginActive ? <Badge variant="green">Login enabled</Badge> : <Badge variant="muted">{person.accountId ? "Login disabled" : "No login"}</Badge>}
+        </div>
+        <p className="mt-3 rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+          This deactivates the person, disables their login, removes active sessions and hides their current roles. Historical results, breaks and logs are retained.
+        </p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <Button variant="secondary" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm} disabled={busy} className="bg-[#b42318] hover:bg-[#8f1d14]">
+            <Trash2 className="h-4 w-4" />
+            {busy ? "Deleting..." : "Delete user"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

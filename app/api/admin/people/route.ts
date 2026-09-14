@@ -144,3 +144,108 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const user = await assertAdministrator();
+    const body = await request.json();
+    const personId = String(body.personId ?? "").trim();
+    const loginActive = Boolean(body.loginActive);
+
+    if (!personId) {
+      return NextResponse.json({ error: "Person is required." }, { status: 400 });
+    }
+    if (personId === user.personId && !loginActive) {
+      return NextResponse.json({ error: "You cannot disable your own login." }, { status: 400 });
+    }
+
+    const result = await dbQuery<{ id: string }>(
+      `update public.user_account
+       set active = $2
+       where person_id = $1
+       returning id`,
+      [personId, loginActive]
+    );
+
+    if (!result.rowCount) {
+      return NextResponse.json({ error: "This person does not have a login account yet." }, { status: 404 });
+    }
+
+    if (!loginActive) {
+      await dbQuery(
+        `delete from public.app_session
+         where user_account_id in (
+           select id
+           from public.user_account
+           where person_id = $1
+         )`,
+        [personId]
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not update user." },
+      { status: 400 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await assertAdministrator();
+    const body = await request.json().catch(() => ({}));
+    const personId = String(body.personId ?? "").trim();
+
+    if (!personId) {
+      return NextResponse.json({ error: "Person is required." }, { status: 400 });
+    }
+    if (personId === user.personId) {
+      return NextResponse.json({ error: "You cannot delete your own user." }, { status: 400 });
+    }
+
+    const deleted = await withTransaction(async (client) => {
+      const personResult = await client.query<{ first_name: string; last_name: string }>(
+        `update public.person
+         set active = false
+         where id = $1
+           and active = true
+         returning first_name, last_name`,
+        [personId]
+      );
+
+      if (!personResult.rowCount) return null;
+
+      await client.query("update public.user_account set active = false where person_id = $1", [personId]);
+      await client.query(
+        `delete from public.app_session
+         where user_account_id in (
+           select id
+           from public.user_account
+           where person_id = $1
+         )`,
+        [personId]
+      );
+      await client.query("update public.club_membership set active = false where person_id = $1", [personId]);
+      await client.query("update public.person_team_role set active = false where person_id = $1", [personId]);
+      await client.query("update public.team_membership set active = false where person_id = $1", [personId]);
+      await client.query("update public.club_admin set active = false where person_id = $1", [personId]);
+      await client.query("update public.app_operator set active = false where person_id = $1", [personId]);
+
+      const person = personResult.rows[0];
+      return `${person.first_name} ${person.last_name}`.trim();
+    });
+
+    if (!deleted) {
+      return NextResponse.json({ error: "User was not found or is already inactive." }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, name: deleted });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not delete user." },
+      { status: 400 }
+    );
+  }
+}

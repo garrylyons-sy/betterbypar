@@ -31,11 +31,22 @@ export async function GET() {
            p.last_name,
            p.email,
            p.phone,
+           ua.id as account_id,
+           ua.username,
+           ua.active as login_active,
+           ua.last_login,
            coalesce(ch.club_handicaps, '[]'::jsonb) as club_handicaps,
            coalesce(ca.club_admins, '[]'::jsonb) as club_admins,
            coalesce(ao.active, false) as admin
          from public.person p
          left join public.app_operator ao on ao.person_id = p.id
+         left join lateral (
+           select id, username, active, last_login
+           from public.user_account
+           where person_id = p.id
+           order by last_login desc nulls last, username
+           limit 1
+         ) ua on true
          left join lateral (
            select jsonb_agg(
              jsonb_build_object(
