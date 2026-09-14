@@ -68,8 +68,22 @@ export async function GET(request: NextRequest) {
 
   const invitation = rows[0];
   if (!invitation) return NextResponse.json({ error: "Invitation not found." }, { status: 404 });
-  if (invitation.status !== "Pending") return NextResponse.json({ error: `Invitation is ${invitation.status.toLowerCase()}.` }, { status: 410 });
-  if (new Date(invitation.expires_at).getTime() <= Date.now()) return NextResponse.json({ error: "Invitation has expired." }, { status: 410 });
+  if (invitation.status !== "Pending") {
+    const status = invitation.status.toLowerCase();
+    return NextResponse.json(
+      {
+        error: status === "accepted"
+          ? "This invite has already been used. Please sign in with your email or Google account."
+          : `Invitation is ${status}.`,
+        status: invitation.status,
+        reason: status === "accepted" ? "already_activated" : status
+      },
+      { status: 410 }
+    );
+  }
+  if (new Date(invitation.expires_at).getTime() <= Date.now()) {
+    return NextResponse.json({ error: "Invitation has expired.", reason: "expired" }, { status: 410 });
+  }
 
   return NextResponse.json({
     invitation: {

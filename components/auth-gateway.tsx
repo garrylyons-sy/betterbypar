@@ -46,6 +46,10 @@ type ActivationInvite = {
   club: string | null;
   memberships: Array<{ team_name: string; league_name: string; role: string }>;
 };
+type ActivationProblem = {
+  reason: "already_activated" | "expired" | "not_found" | "unavailable";
+  message: string;
+};
 
 const demoTeamOptions: TeamOption[] = clubTeamStructure.flatMap((club) =>
   club.teams.map((team) => ({
@@ -65,6 +69,7 @@ export function AuthGateway() {
   const [message, setMessage] = useState("");
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>(demoTeamOptions);
   const [activationInvite, setActivationInvite] = useState<ActivationInvite | null>(null);
+  const [activationProblem, setActivationProblem] = useState<ActivationProblem | null>(null);
   const [knownDevice, setKnownDevice] = useState(false);
 
   const refreshSession = useCallback(async (options?: { silent?: boolean }) => {
@@ -106,9 +111,31 @@ export function AuthGateway() {
     }
     if (inviteCode) {
       setMode("activate");
-      authJsonFetch<{ invitation: ActivationInvite }>(`/api/invitation?token=${encodeURIComponent(inviteCode)}`)
-        .then(({ invitation }) => setActivationInvite(invitation))
-        .catch((error) => setMessage(error instanceof Error ? error.message : "Invitation unavailable."));
+      fetch(`/api/invitation?token=${encodeURIComponent(inviteCode)}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" }
+      })
+        .then(async (response) => {
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            setActivationProblem({
+              reason: data.reason === "already_activated" || data.reason === "expired" || data.reason === "not_found"
+                ? data.reason
+                : "unavailable",
+              message: data.error || "Invitation unavailable."
+            });
+            return;
+          }
+          setActivationProblem(null);
+          setActivationInvite(data.invitation);
+        })
+        .catch((error) => {
+          setActivationProblem({
+            reason: "unavailable",
+            message: error instanceof Error ? error.message : "Invitation unavailable."
+          });
+        });
     }
 
     authJsonFetch<{ teams: Array<{
@@ -217,6 +244,7 @@ export function AuthGateway() {
     <AuthHome
       mode={mode}
       activationInvite={activationInvite}
+      activationProblem={activationProblem}
       knownDevice={knownDevice}
       message={message}
       onSignedIn={refreshSession}
@@ -319,12 +347,14 @@ function normalizeEmbeddedRole(value: string | null): Role | null {
 function AuthHome({
   mode,
   activationInvite,
+  activationProblem,
   knownDevice,
   message,
   onSignedIn
 }: {
   mode: AuthMode;
   activationInvite: ActivationInvite | null;
+  activationProblem: ActivationProblem | null;
   knownDevice: boolean;
   message: string;
   onSignedIn: () => void;
@@ -356,7 +386,7 @@ function AuthHome({
               </div>
             ) : null}
             {activating ? (
-              <ActivateForm invite={activationInvite} />
+              <ActivateForm invite={activationInvite} problem={activationProblem} onSignedIn={onSignedIn} />
             ) : forgot ? (
               <ForgotPasswordForm onBack={() => window.location.assign("/")} />
             ) : (
@@ -426,7 +456,15 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
   );
 }
 
-function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
+function ActivateForm({
+  invite,
+  problem,
+  onSignedIn
+}: {
+  invite: ActivationInvite | null;
+  problem: ActivationProblem | null;
+  onSignedIn: () => void;
+}) {
   const [email, setEmail] = useState(invite?.email ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -456,6 +494,44 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (problem?.reason === "already_activated") {
+    return (
+      <div className="grid gap-4">
+        <div className="rounded-2xl bg-[#f1fbf7] p-4 text-sm font-semibold text-[#10233f] ring-1 ring-[#bce7d8]">
+          <p className="font-extrabold">This invite has already been used.</p>
+          <p className="mt-1 text-[#4e6074]">
+            Activation links are single-use. Sign in with the account that was already activated.
+          </p>
+        </div>
+        <AuthSignInForm onSignedIn={onSignedIn} googleNext="/" identifierLabel="Email or user ID" />
+      </div>
+    );
+  }
+
+  if (problem) {
+    return (
+      <div className="grid gap-3">
+        <div className="rounded-2xl bg-[#fff3f3] p-4 text-sm font-semibold text-[#10233f] ring-1 ring-[#f3b7b2]">
+          <p className="font-extrabold">{problem.message}</p>
+          <p className="mt-1 text-[#6c5a73]">
+            Ask your club or league administrator to resend your invite if you still need access.
+          </p>
+        </div>
+        <Button variant="secondary" onClick={() => window.location.assign("/")}>
+          Back to sign in
+        </Button>
+      </div>
+    );
+  }
+
+  if (!invite) {
+    return (
+      <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">
+        Checking invitation...
+      </p>
+    );
   }
 
   return (
