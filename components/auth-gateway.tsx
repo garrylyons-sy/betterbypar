@@ -419,7 +419,6 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 
 function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
   const [email, setEmail] = useState(invite?.email ?? "");
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -427,7 +426,6 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
   useEffect(() => {
     if (!invite) return;
     setEmail(invite.email);
-    setUsername(invite.email.split("@")[0]?.toLowerCase().replace(/[^a-z0-9_]+/g, "") || "");
   }, [invite]);
 
   async function activateWithPassword() {
@@ -436,7 +434,7 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
     try {
       await authJsonFetch("/api/activate", {
         method: "POST",
-        body: JSON.stringify({ email, username, password, invitationCode: invite?.code })
+        body: JSON.stringify({ email, username: email, password, invitationCode: invite?.code })
       });
       await fetch("/api/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
       window.location.assign("/?activated=1");
@@ -465,10 +463,9 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
         </div>
       ) : null}
       <AuthTextField label="Email" value={email} onChange={setEmail} type="email" autoComplete="email" disabled={Boolean(invite)} />
-      <AuthTextField label="User ID" value={username} onChange={setUsername} autoComplete="username" />
       <AuthTextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
       {message ? <p className="text-sm font-bold text-[#10233f]">{message}</p> : null}
-      <Button onClick={activateWithPassword} disabled={busy || !email || !username || !password}>
+      <Button onClick={activateWithPassword} disabled={busy || !email || !password}>
         <UserPlus className="h-4 w-4" />
         Create account
       </Button>

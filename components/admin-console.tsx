@@ -2227,11 +2227,11 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
         <Badge variant="muted">{loading ? "Loading" : `${total}`}</Badge>
       </CardHeader>
       <CardContent className="grid gap-3">
-        <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-5">
-          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+        <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-5">
+          <label className="grid min-w-0 gap-1 text-xs font-bold uppercase text-[#6c5a73]">
             Person
             <select
-              className="min-h-10 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+              className="min-h-10 w-full min-w-0 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
               value={personFilter}
               onChange={(event) => setPersonFilter(event.target.value)}
             >
@@ -2241,10 +2241,10 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+          <label className="grid min-w-0 gap-1 text-xs font-bold uppercase text-[#6c5a73]">
             Area visited
             <select
-              className="min-h-10 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+              className="min-h-10 w-full min-w-0 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
               value={areaFilter}
               onChange={(event) => setAreaFilter(event.target.value)}
             >
@@ -2254,28 +2254,28 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
               ))}
             </select>
           </label>
-          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+          <label className="grid min-w-0 gap-1 text-xs font-bold uppercase text-[#6c5a73]">
             From
             <input
-              className="min-h-10 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+              className="min-h-10 w-full min-w-0 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
               type="date"
               value={fromDate}
               onChange={(event) => setFromDate(event.target.value)}
             />
           </label>
-          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+          <label className="grid min-w-0 gap-1 text-xs font-bold uppercase text-[#6c5a73]">
             To
             <input
-              className="min-h-10 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+              className="min-h-10 w-full min-w-0 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
               type="date"
               value={toDate}
               onChange={(event) => setToDate(event.target.value)}
             />
           </label>
-          <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">
+          <label className="grid min-w-0 gap-1 text-xs font-bold uppercase text-[#6c5a73]">
             Rows
             <select
-              className="min-h-10 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
+              className="min-h-10 w-full min-w-0 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
               value={pageSize}
               onChange={(event) => setPageSize(Number(event.target.value))}
             >
