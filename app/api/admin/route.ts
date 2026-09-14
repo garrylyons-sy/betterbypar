@@ -35,6 +35,7 @@ export async function GET() {
            ua.username,
            ua.active as login_active,
            ua.last_login,
+           inv.id as invitation_id,
            inv.status::text as invite_status,
            inv.created_at as invited_at,
            inv.sent_at as invite_sent_at,
@@ -52,7 +53,7 @@ export async function GET() {
            limit 1
          ) ua on true
          left join lateral (
-           select status, created_at, sent_at, accepted_at
+           select id, status, created_at, sent_at, accepted_at
            from public.invitation
            where lower(email) = lower(p.email)
            order by created_at desc

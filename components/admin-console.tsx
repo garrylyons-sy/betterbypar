@@ -34,6 +34,7 @@ type PersonOption = {
   username?: string | null;
   loginActive?: boolean | null;
   lastLogin?: string | null;
+  invitationId?: string | null;
   inviteStatus?: string | null;
   invitedAt?: string | null;
   inviteSentAt?: string | null;
@@ -296,6 +297,7 @@ export function AdminConsole() {
             username: person.username ?? null,
             loginActive: person.login_active ?? null,
             lastLogin: person.last_login ?? null,
+            invitationId: person.invitation_id ?? null,
             inviteStatus: person.invite_status ?? null,
             invitedAt: person.invited_at ?? null,
             inviteSentAt: person.invite_sent_at ?? null,
@@ -1301,6 +1303,33 @@ function PeoplePanel({
     }
   }
 
+  async function resendInvite(person: PersonOption) {
+    if (!person.invitationId) return;
+    if (demo) {
+      onMessage(`Invite resent to ${person.email}.`);
+      return;
+    }
+
+    setBusyPersonId(person.personId);
+    try {
+      const response = await fetch("/api/admin/invites", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ invitationId: person.invitationId })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not resend invite.");
+      const status = data.email_status ? String(data.email_status).toLowerCase() : "queued";
+      onMessage(`Invite email ${status} to ${data.email_to ?? person.email}.`);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not resend invite.");
+    } finally {
+      setBusyPersonId("");
+    }
+  }
+
   async function deletePerson() {
     if (!deleteTarget) return;
     if (demo) {
@@ -1431,7 +1460,7 @@ function PeoplePanel({
             />
           </div>
           <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden grid-cols-[minmax(160px,1.25fr)_minmax(190px,1.35fr)_minmax(150px,1fr)_110px_112px_120px_100px] gap-3 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden grid-cols-[minmax(160px,1.25fr)_minmax(190px,1.35fr)_minmax(150px,1fr)_110px_112px_120px_180px] gap-3 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
               <span>Person</span>
               <span>Email</span>
               <span>Club</span>
@@ -1448,7 +1477,7 @@ function PeoplePanel({
                   ...(person.clubAdmins ?? []).map((item) => item.club_name)
                 ].filter(Boolean)));
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[minmax(160px,1.25fr)_minmax(190px,1.35fr)_minmax(150px,1fr)_110px_112px_120px_100px] lg:items-center lg:gap-3">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[minmax(160px,1.25fr)_minmax(190px,1.35fr)_minmax(150px,1fr)_110px_112px_120px_180px] lg:items-center lg:gap-3">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 truncate font-extrabold">{person.name}</span>
                       {person.admin ? <Badge variant="green">Admin</Badge> : null}
@@ -1470,6 +1499,18 @@ function PeoplePanel({
                     <p className="min-w-0 truncate text-xs text-[#6c5a73]">{person.invitedAt ? formatAdminDate(person.invitedAt) : "-"}</p>
                     <InviteStatusBadge person={person} />
                     <div className="flex items-center justify-end gap-1">
+                      {person.invitationId && person.inviteStatus === "Pending" ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => resendInvite(person)}
+                          disabled={busyPersonId === person.personId}
+                          className="min-h-9 px-2 text-xs"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          Resend
+                        </Button>
+                      ) : null}
                       {person.accountId ? (
                         <Button
                           variant="secondary"

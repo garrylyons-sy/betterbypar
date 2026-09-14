@@ -13,12 +13,129 @@ type InviteRoleInput = {
   clubId?: string;
 };
 
+type InviteEmailContent = {
+  activationUrl: string;
+  subject: string;
+  bodyHtml: string;
+  bodyText: string;
+};
+
 async function assertAdministrator() {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated.");
   const { rowCount } = await dbQuery("select 1 from public.app_operator where person_id = $1 and active = true limit 1", [user.personId]);
   if (!rowCount) throw new Error("Administrator access is required.");
   return user;
+}
+
+function buildInviteEmail({
+  request,
+  inviteToken,
+  email,
+  deliveryEmail,
+  name,
+  club,
+  roleLabels,
+  expiresAt,
+  isClubOnlyInvite
+}: {
+  request: NextRequest;
+  inviteToken: string;
+  email: string;
+  deliveryEmail: string;
+  name: string;
+  club: { name: string; logo_path?: string | null; primary_color?: string | null; accent_color?: string | null };
+  roleLabels: string[];
+  expiresAt: Date;
+  isClubOnlyInvite: boolean;
+}): InviteEmailContent {
+  const publicBaseUrl = appBaseUrl(request.url);
+  const activationUrl = new URL(`/activate?token=${encodeURIComponent(inviteToken)}`, publicBaseUrl).toString();
+  const logoUrl = club.logo_path ? new URL(club.logo_path, publicBaseUrl).toString() : "";
+  const roleSummary = roleLabels.join("\n");
+  const roleSummaryHtml = roleLabels.length
+    ? roleLabels.map((role) => `<span style="display:block">${escapeHtml(role)}</span>`).join("")
+    : "Platform access";
+  const roleCount = roleLabels.length;
+  const roleLabel = roleCount > 1 ? "Your roles" : "Your role";
+  const welcomeHeadline = isClubOnlyInvite
+    ? `Welcome to the ${club.name} Snooker platform.`
+    : "Welcome to the Interclub Snooker Platform.";
+  const welcomeBody = isClubOnlyInvite
+    ? `${club.name} has invited you to activate your club snooker account.`
+    : `${club.name} has invited you to activate your Interclub Snooker account.`;
+  const subject = "You have been invited to join Interclub Snooker";
+  const bodyText = [
+    `Hi ${name},`,
+    "",
+    welcomeHeadline,
+    welcomeBody,
+    `${roleLabel}: ${roleSummary || "Platform access"}.`,
+    "",
+    `Click here to join: ${activationUrl}`,
+    "",
+    deliveryEmail !== email ? `For testing this invite email is delivered to ${deliveryEmail}.` : ""
+  ].join("\n");
+  const bodyHtml = `
+        <style>
+          body, table, td, div, p, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+          .invite-shell { padding: 28px 16px; }
+          .invite-card { width: 100%; max-width: 640px; }
+          .invite-hero { padding: 30px 28px; }
+          .invite-logo { width: 62px; height: 62px; border-radius: 18px; }
+          .invite-logo img { max-width: 52px; max-height: 52px; }
+          .invite-kicker { font-size: 12px; }
+          .invite-title { font-size: 34px; line-height: 1.02; }
+          .invite-subtitle { font-size: 16px; line-height: 1.35; }
+          .invite-body { padding: 28px; }
+          .invite-greeting { font-size: 18px; }
+          .invite-copy { font-size: 16px; line-height: 1.55; }
+          .invite-role-value { font-size: 17px; line-height: 1.25; }
+          .invite-button { font-size: 16px; }
+          @media only screen and (max-width: 480px) {
+            .invite-shell { padding: 12px 8px !important; }
+            .invite-card { border-radius: 18px !important; }
+            .invite-hero { padding: 22px 20px !important; }
+            .invite-brand { display: block !important; }
+            .invite-logo { width: 54px !important; height: 54px !important; border-radius: 15px !important; margin-bottom: 12px !important; }
+            .invite-logo img { max-width: 46px !important; max-height: 46px !important; }
+            .invite-kicker { font-size: 10px !important; padding: 6px 10px !important; letter-spacing: .05em !important; }
+            .invite-title { font-size: 28px !important; line-height: 1.05 !important; margin-top: 16px !important; }
+            .invite-subtitle { font-size: 14px !important; line-height: 1.35 !important; }
+            .invite-body { padding: 22px 20px !important; }
+            .invite-greeting { font-size: 16px !important; }
+            .invite-copy { font-size: 14px !important; line-height: 1.5 !important; }
+            .invite-role { padding: 14px !important; border-radius: 14px !important; }
+            .invite-role-label { font-size: 10px !important; }
+            .invite-role-value { font-size: 15px !important; line-height: 1.28 !important; }
+            .invite-button { font-size: 15px !important; padding: 14px 16px !important; border-radius: 12px !important; }
+            .invite-footer { font-size: 12px !important; line-height: 1.45 !important; }
+          }
+        </style>
+        <div class="invite-shell" style="margin:0;background:#f3f6f8;padding:28px 16px;font-family:Inter,Arial,sans-serif;color:#10233f;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
+          <div class="invite-card" style="width:100%;max-width:640px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #dfe7ee;box-shadow:0 18px 48px rgba(16,35,63,.14)">
+            <div class="invite-hero" style="background:linear-gradient(135deg,${club.primary_color || "#10233f"} 0%,${club.accent_color || "#1b8a72"} 100%);padding:30px 28px;color:white">
+              <div class="invite-brand" style="display:flex;align-items:center;gap:14px">
+                ${logoUrl ? `<div class="invite-logo" style="width:62px;height:62px;border-radius:18px;background:#ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px rgba(0,0,0,.18);overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="52" height="52" alt="${escapeHtml(club.name)} crest" style="display:block;max-width:52px;max-height:52px;object-fit:contain;border:0" /></div>` : ""}
+                <div class="invite-kicker" style="display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Interclub Snooker</div>
+              </div>
+              <h1 class="invite-title" style="margin:18px 0 8px;font-size:34px;line-height:1.02;letter-spacing:-.02em">You have been invited</h1>
+              <p class="invite-subtitle" style="margin:0;font-size:16px;line-height:1.35;font-weight:700;opacity:.9">${escapeHtml(welcomeHeadline)}</p>
+            </div>
+            <div class="invite-body" style="padding:28px">
+              <p class="invite-greeting" style="font-size:18px;font-weight:800;margin:0 0 12px">Hi ${escapeHtml(name)},</p>
+              <p class="invite-copy" style="margin:0 0 18px;font-size:16px;line-height:1.55;color:#4e6074;font-weight:600">${escapeHtml(welcomeBody)} Use the button below to activate your account securely.</p>
+              <div class="invite-role" style="background:#f5f7fa;border:1px solid #e5ebf1;border-radius:16px;padding:16px;margin-bottom:22px">
+                <p class="invite-role-label" style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">${roleLabel}</p>
+                <p class="invite-role-value" style="margin:0;font-size:17px;line-height:1.25;font-weight:900;color:#10233f">${roleSummaryHtml}</p>
+              </div>
+              <a class="invite-button" href="${activationUrl}" style="display:block;text-align:center;background:${club.accent_color || "#1b8a72"};color:white;text-decoration:none;font-weight:900;padding:15px 20px;border-radius:14px;font-size:16px">Activate your account</a>
+              <p class="invite-footer" style="margin:18px 0 0;color:#6c7788;font-size:13px;line-height:1.45">This link is unique to you and expires on ${escapeHtml(expiresAt.toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" }))}. If you were not expecting this invitation, you can ignore this email.</p>
+            </div>
+          </div>
+        </div>`;
+
+  return { activationUrl, subject, bodyHtml, bodyText };
 }
 
 export async function POST(request: NextRequest) {
@@ -88,97 +205,23 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const publicBaseUrl = appBaseUrl(request.url);
-      const activationUrl = new URL(`/activate?token=${encodeURIComponent(inviteToken)}`, publicBaseUrl).toString();
-      const logoUrl = club.logo_path ? new URL(club.logo_path, publicBaseUrl).toString() : "";
       const roleLabels = [
         ...teamRoleLabels,
         ...memberRoles.map((item) => item.role),
         administratorInvite ? "Administrator" : ""
       ].filter(Boolean);
-      const roleSummary = roleLabels.join("\n");
-      const roleSummaryHtml = roleLabels.length
-        ? roleLabels.map((role) => `<span style="display:block">${escapeHtml(role)}</span>`).join("")
-        : "Platform access";
-      const roleCount = roleLabels.length;
-      const roleLabel = roleCount > 1 ? "Your roles" : "Your role";
       const isClubOnlyInvite = teamRoles.length === 0 && memberRoles.length > 0;
-      const welcomeHeadline = isClubOnlyInvite
-        ? `Welcome to the ${club.name} Snooker platform.`
-        : "Welcome to the Interclub Snooker Platform.";
-      const welcomeBody = isClubOnlyInvite
-        ? `${club.name} has invited you to activate your club snooker account.`
-        : `${club.name} has invited you to activate your Interclub Snooker account.`;
-      const subject = "You have been invited to join Interclub Snooker";
-      const bodyText = [
-        `Hi ${name},`,
-        "",
-        welcomeHeadline,
-        welcomeBody,
-        `${roleLabel}: ${roleSummary || "Platform access"}.`,
-        "",
-        `Click here to join: ${activationUrl}`,
-        "",
-        deliveryEmail !== email ? `For testing this invite email is delivered to ${deliveryEmail}.` : ""
-      ].join("\n");
-      const bodyHtml = `
-        <style>
-          body, table, td, div, p, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-          .invite-shell { padding: 28px 16px; }
-          .invite-card { width: 100%; max-width: 640px; }
-          .invite-hero { padding: 30px 28px; }
-          .invite-logo { width: 62px; height: 62px; border-radius: 18px; }
-          .invite-logo img { max-width: 52px; max-height: 52px; }
-          .invite-kicker { font-size: 12px; }
-          .invite-title { font-size: 34px; line-height: 1.02; }
-          .invite-subtitle { font-size: 16px; line-height: 1.35; }
-          .invite-body { padding: 28px; }
-          .invite-greeting { font-size: 18px; }
-          .invite-copy { font-size: 16px; line-height: 1.55; }
-          .invite-role-value { font-size: 17px; line-height: 1.25; }
-          .invite-button { font-size: 16px; }
-          @media only screen and (max-width: 480px) {
-            .invite-shell { padding: 12px 8px !important; }
-            .invite-card { border-radius: 18px !important; }
-            .invite-hero { padding: 22px 20px !important; }
-            .invite-brand { display: block !important; }
-            .invite-logo { width: 54px !important; height: 54px !important; border-radius: 15px !important; margin-bottom: 12px !important; }
-            .invite-logo img { max-width: 46px !important; max-height: 46px !important; }
-            .invite-kicker { font-size: 10px !important; padding: 6px 10px !important; letter-spacing: .05em !important; }
-            .invite-title { font-size: 28px !important; line-height: 1.05 !important; margin-top: 16px !important; }
-            .invite-subtitle { font-size: 14px !important; line-height: 1.35 !important; }
-            .invite-body { padding: 22px 20px !important; }
-            .invite-greeting { font-size: 16px !important; }
-            .invite-copy { font-size: 14px !important; line-height: 1.5 !important; }
-            .invite-role { padding: 14px !important; border-radius: 14px !important; }
-            .invite-role-label { font-size: 10px !important; }
-            .invite-role-value { font-size: 15px !important; line-height: 1.28 !important; }
-            .invite-button { font-size: 15px !important; padding: 14px 16px !important; border-radius: 12px !important; }
-            .invite-footer { font-size: 12px !important; line-height: 1.45 !important; }
-          }
-        </style>
-        <div class="invite-shell" style="margin:0;background:#f3f6f8;padding:28px 16px;font-family:Inter,Arial,sans-serif;color:#10233f;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
-          <div class="invite-card" style="width:100%;max-width:640px;margin:0 auto;background:#ffffff;border-radius:24px;overflow:hidden;border:1px solid #dfe7ee;box-shadow:0 18px 48px rgba(16,35,63,.14)">
-            <div class="invite-hero" style="background:linear-gradient(135deg,${club.primary_color || "#10233f"} 0%,${club.accent_color || "#1b8a72"} 100%);padding:30px 28px;color:white">
-              <div class="invite-brand" style="display:flex;align-items:center;gap:14px">
-                ${logoUrl ? `<div class="invite-logo" style="width:62px;height:62px;border-radius:18px;background:#ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px rgba(0,0,0,.18);overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="52" height="52" alt="${escapeHtml(club.name)} crest" style="display:block;max-width:52px;max-height:52px;object-fit:contain;border:0" /></div>` : ""}
-                <div class="invite-kicker" style="display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Interclub Snooker</div>
-              </div>
-              <h1 class="invite-title" style="margin:18px 0 8px;font-size:34px;line-height:1.02;letter-spacing:-.02em">You have been invited</h1>
-              <p class="invite-subtitle" style="margin:0;font-size:16px;line-height:1.35;font-weight:700;opacity:.9">${escapeHtml(welcomeHeadline)}</p>
-            </div>
-            <div class="invite-body" style="padding:28px">
-              <p class="invite-greeting" style="font-size:18px;font-weight:800;margin:0 0 12px">Hi ${escapeHtml(name)},</p>
-              <p class="invite-copy" style="margin:0 0 18px;font-size:16px;line-height:1.55;color:#4e6074;font-weight:600">${escapeHtml(welcomeBody)} Use the button below to activate your account securely.</p>
-              <div class="invite-role" style="background:#f5f7fa;border:1px solid #e5ebf1;border-radius:16px;padding:16px;margin-bottom:22px">
-                <p class="invite-role-label" style="margin:0 0 6px;color:#6c7788;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">${roleLabel}</p>
-                <p class="invite-role-value" style="margin:0;font-size:17px;line-height:1.25;font-weight:900;color:#10233f">${roleSummaryHtml}</p>
-              </div>
-              <a class="invite-button" href="${activationUrl}" style="display:block;text-align:center;background:${club.accent_color || "#1b8a72"};color:white;text-decoration:none;font-weight:900;padding:15px 20px;border-radius:14px;font-size:16px">Activate your account</a>
-              <p class="invite-footer" style="margin:18px 0 0;color:#6c7788;font-size:13px;line-height:1.45">This link is unique to you and expires on ${escapeHtml(expiresAt.toLocaleDateString("en-IE", { day: "numeric", month: "long", year: "numeric" }))}. If you were not expecting this invitation, you can ignore this email.</p>
-            </div>
-          </div>
-        </div>`;
+      const { activationUrl, subject, bodyHtml, bodyText } = buildInviteEmail({
+        request,
+        inviteToken,
+        email,
+        deliveryEmail,
+        name,
+        club,
+        roleLabels,
+        expiresAt,
+        isClubOnlyInvite
+      });
 
       const emailResult = await sendAppEmail({ to: deliveryEmail, subject, html: bodyHtml, text: bodyText });
 
@@ -215,6 +258,134 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not create invite." },
+      { status: 400 }
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    await assertAdministrator();
+    const body = await request.json();
+    const invitationId = String(body.invitationId ?? "").trim();
+
+    if (!invitationId) {
+      return NextResponse.json({ error: "Invitation is required." }, { status: 400 });
+    }
+
+    const resent = await withTransaction(async (client) => {
+      const invitationResult = await client.query<{
+        id: string;
+        email: string;
+        invited_person_name: string;
+        invited_club_id: string;
+        invite_administrator: boolean;
+        status: string;
+        expires_at: string;
+        club_name: string;
+        logo_path: string | null;
+        primary_color: string | null;
+        accent_color: string | null;
+      }>(
+        `select
+           i.id,
+           i.email,
+           i.invited_person_name,
+           i.invited_club_id,
+           i.invite_administrator,
+           i.status::text,
+           i.expires_at::text,
+           c.name as club_name,
+           c.logo_path,
+           c.primary_color,
+           c.accent_color
+         from public.invitation i
+         join public.club c on c.id = i.invited_club_id
+         where i.id = $1
+         limit 1
+         for update`,
+        [invitationId]
+      );
+      const invitation = invitationResult.rows[0];
+      if (!invitation) throw new Error("Invitation not found.");
+      if (invitation.status !== "Pending") throw new Error(`Invitation is ${invitation.status.toLowerCase()} and cannot be resent.`);
+      if (new Date(invitation.expires_at).getTime() <= Date.now()) throw new Error("Invitation has expired. Create a new invite.");
+
+      const teamRoles = await client.query<{ role: string; team_name: string }>(
+        `select im.role::text as role, t.name as team_name
+         from public.invitation_membership im
+         join public.team t on t.id = im.team_id
+         where im.invitation_id = $1
+         order by t.name, im.role::text`,
+        [invitationId]
+      );
+      const memberRoles = await client.query<{ role: string }>(
+        `select role
+         from public.invitation_club_membership
+         where invitation_id = $1
+         order by role`,
+        [invitationId]
+      );
+
+      const inviteToken = createToken(32);
+      const roleLabels = [
+        ...teamRoles.rows.map((role) => `${role.role} - ${role.team_name}`),
+        ...memberRoles.rows.map((role) => role.role),
+        invitation.invite_administrator ? "Administrator" : ""
+      ].filter(Boolean);
+      const deliveryEmail = process.env.INVITE_EMAIL_TEST_TO?.trim() || invitation.email;
+      const { activationUrl, subject, bodyHtml, bodyText } = buildInviteEmail({
+        request,
+        inviteToken,
+        email: invitation.email,
+        deliveryEmail,
+        name: invitation.invited_person_name,
+        club: {
+          name: invitation.club_name,
+          logo_path: invitation.logo_path,
+          primary_color: invitation.primary_color,
+          accent_color: invitation.accent_color
+        },
+        roleLabels,
+        expiresAt: new Date(invitation.expires_at),
+        isClubOnlyInvite: !teamRoles.rows.length && memberRoles.rows.length > 0
+      });
+
+      await client.query(
+        "update public.invitation set invitation_token_hash = $2 where id = $1",
+        [invitationId, hashSecretToken(inviteToken)]
+      );
+
+      const emailResult = await sendAppEmail({ to: deliveryEmail, subject, html: bodyHtml, text: bodyText });
+      const emailInsert = await client.query(
+        `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
+         values ($1, $2, $3, $4, $5, 'Queued')
+         returning id`,
+        [invitationId, deliveryEmail, subject, bodyHtml, bodyText]
+      );
+      await client.query(
+        `update public.invitation_email
+         set status = $2,
+             sent_at = case when $2 = 'Sent' then now() else sent_at end
+         where id = $1`,
+        [emailInsert.rows[0]?.id, emailResult.status]
+      );
+      if (emailResult.status === "Sent") {
+        await client.query("update public.invitation set sent_at = now() where id = $1", [invitationId]);
+      }
+
+      return {
+        activation_url: activationUrl,
+        email_to: deliveryEmail,
+        email_status: emailResult.status,
+        email_error: emailResult.error
+      };
+    });
+
+    return NextResponse.json({ ok: true, ...resent });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not resend invite." },
       { status: 400 }
     );
   }
