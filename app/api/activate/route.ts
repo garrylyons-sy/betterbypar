@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { claimInvitationForAccount, hashPassword, recordLogin, setSessionCookie } from "@/lib/server/auth";
+import { passwordValidationError } from "@/lib/password-policy";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,10 @@ export async function POST(request: Request) {
 
     if (!email || !username || !password) {
       return NextResponse.json({ error: "Email, user ID and password are required." }, { status: 400 });
+    }
+    const passwordError = passwordValidationError(password);
+    if (passwordError) {
+      return NextResponse.json({ error: passwordError }, { status: 400 });
     }
 
     const user = await claimInvitationForAccount({

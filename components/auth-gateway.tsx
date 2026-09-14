@@ -5,11 +5,13 @@ import { Mail, Send, UserPlus } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { AuthSelectField, AuthSignInForm, AuthTextAreaField, AuthTextField, GoogleAuthButton, authJsonFetch } from "@/components/auth-controls";
+import { PasswordChecklist } from "@/components/password-checklist";
 import { SplashScreen } from "@/components/splash-screen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { clubTeamStructure } from "@/lib/demo-data";
+import { isValidPassword } from "@/lib/password-policy";
 import type { AppearanceConfig, MatchResult, PlayerBreakStat, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 
 type AuthMode = "signin" | "activate" | "forgot" | "request";
@@ -427,8 +429,10 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
   const [email, setEmail] = useState(invite?.email ?? "");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const passwordValid = isValidPassword(password);
 
   useEffect(() => {
     if (!invite) return;
@@ -439,6 +443,8 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
     setBusy(true);
     setMessage("");
     try {
+      if (!passwordValid) throw new Error("Password does not meet the rules below.");
+      if (password !== confirmPassword) throw new Error("Passwords do not match.");
       await authJsonFetch("/api/activate", {
         method: "POST",
         body: JSON.stringify({ email, username: email, password, invitationCode: invite?.code })
@@ -471,8 +477,10 @@ function ActivateForm({ invite }: { invite: ActivationInvite | null }) {
       ) : null}
       <AuthTextField label="Email" value={email} onChange={setEmail} type="email" autoComplete="email" disabled={Boolean(invite)} />
       <AuthTextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
+      <AuthTextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" autoComplete="new-password" />
+      <PasswordChecklist password={password} />
       {message ? <p className="text-sm font-bold text-[#10233f]">{message}</p> : null}
-      <Button onClick={activateWithPassword} disabled={busy || !email || !password}>
+      <Button onClick={activateWithPassword} disabled={busy || !email || !passwordValid || password !== confirmPassword}>
         <UserPlus className="h-4 w-4" />
         Activate account
       </Button>

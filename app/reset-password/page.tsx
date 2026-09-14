@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { KeyRound } from "lucide-react";
 
 import { authJsonFetch, AuthTextField } from "@/components/auth-controls";
+import { PasswordChecklist } from "@/components/password-checklist";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { isValidPassword } from "@/lib/password-policy";
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState("");
@@ -14,6 +16,7 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const passwordValid = isValidPassword(password);
 
   useEffect(() => {
     setToken(new URLSearchParams(window.location.search).get("token")?.trim() ?? "");
@@ -23,6 +26,7 @@ export default function ResetPasswordPage() {
     setBusy(true);
     setMessage("");
     try {
+      if (!passwordValid) throw new Error("Password does not meet the rules below.");
       if (password !== confirmPassword) throw new Error("Passwords do not match.");
       await authJsonFetch("/api/password/reset", {
         method: "POST",
@@ -59,8 +63,9 @@ export default function ResetPasswordPage() {
             </p>
             <AuthTextField label="New password" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
             <AuthTextField label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} type="password" autoComplete="new-password" />
+            <PasswordChecklist password={password} />
             {message ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">{message}</p> : null}
-            <Button onClick={resetPassword} disabled={busy || !token || password.length < 8 || !confirmPassword}>
+            <Button onClick={resetPassword} disabled={busy || !token || !passwordValid || password !== confirmPassword}>
               <KeyRound className="h-4 w-4" />
               Save new password
             </Button>

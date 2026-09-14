@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { hashPassword, recordLogin, setSessionCookie } from "@/lib/server/auth";
+import { passwordValidationError } from "@/lib/password-policy";
 import { withTransaction } from "@/lib/server/db";
 import { hashSecretToken } from "@/lib/server/tokens";
 
@@ -16,8 +17,9 @@ export async function POST(request: Request) {
     if (!token || !password) {
       return NextResponse.json({ error: "Reset link and new password are required." }, { status: 400 });
     }
-    if (password.length < 8) {
-      return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
+    const passwordError = passwordValidationError(password);
+    if (passwordError) {
+      return NextResponse.json({ error: passwordError }, { status: 400 });
     }
 
     const tokenHash = hashSecretToken(token);
