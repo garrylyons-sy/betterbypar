@@ -1460,7 +1460,7 @@ function PeoplePanel({
             />
           </div>
           <div className="min-w-0 overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden grid-cols-[minmax(150px,1.15fr)_minmax(180px,1.25fr)_minmax(130px,.95fr)_96px_96px_110px_260px] gap-3 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden grid-cols-[minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_300px] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
               <span>Person</span>
               <span>Email</span>
               <span>Club</span>
@@ -1477,7 +1477,7 @@ function PeoplePanel({
                   ...(person.clubAdmins ?? []).map((item) => item.club_name)
                 ].filter(Boolean)));
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[minmax(150px,1.15fr)_minmax(180px,1.25fr)_minmax(130px,.95fr)_96px_96px_110px_260px] lg:items-center lg:gap-3">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_300px] lg:items-center lg:gap-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 truncate font-extrabold">{person.name}</span>
                       {person.admin ? <Badge variant="green">Admin</Badge> : null}
@@ -1498,14 +1498,14 @@ function PeoplePanel({
                     </div>
                     <p className="min-w-0 truncate text-xs text-[#6c5a73]">{person.invitedAt ? formatAdminDate(person.invitedAt) : "-"}</p>
                     <InviteStatusBadge person={person} />
-                    <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
+                    <div className="flex min-w-0 items-center justify-end gap-1">
                       {person.invitationId && person.inviteStatus === "Pending" ? (
                         <Button
                           variant="secondary"
                           size="sm"
                           onClick={() => resendInvite(person)}
                           disabled={busyPersonId === person.personId}
-                          className="min-h-9 px-2 text-xs"
+                          className="min-h-9 shrink-0 px-2 text-xs"
                         >
                           <Mail className="h-3.5 w-3.5" />
                           Resend
@@ -1517,20 +1517,20 @@ function PeoplePanel({
                           size="sm"
                           onClick={() => setLoginAccess(person, !person.loginActive)}
                           disabled={busyPersonId === person.personId}
-                          className="min-h-9 px-2 text-xs"
+                          className="min-h-9 shrink-0 px-2 text-xs"
                         >
                           {person.loginActive ? "Disable" : "Enable"}
                         </Button>
                       ) : null}
                       <Button
                         variant="secondary"
-                        size="icon"
+                        size="sm"
                         onClick={() => setDeleteTarget(person)}
                         disabled={busyPersonId === person.personId}
-                        className="h-9 min-h-9 w-9 text-[#b42318]"
+                        className="min-h-9 shrink-0 px-2 text-xs text-[#b42318]"
                       >
                         <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Delete user</span>
+                        Delete
                       </Button>
                     </div>
                   </div>
