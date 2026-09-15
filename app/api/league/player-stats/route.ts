@@ -156,6 +156,7 @@ export async function GET(request: NextRequest) {
        left join game_stats gs on gs.person_id = lp.person_id
        left join remaining r on r.team_id = lp.team_id
        left join break_stats bs on bs.person_id = lp.person_id
+       where coalesce(gs.played, 0) > 0
        order by
          case when coalesce(gs.played, 0) + coalesce(r.remaining_fixtures, 0) >= 12 then 0 else 1 end,
          case

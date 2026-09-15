@@ -135,6 +135,7 @@ export async function GET(request: NextRequest) {
        join public.person p on p.id = tp.person_id and p.active = true
        left join game_stats gs on gs.person_id = tp.person_id
        left join break_stats bs on bs.person_id = tp.person_id
+       where coalesce(gs.played, 0) > 0
        order by
          case
            when coalesce(gs.played, 0) > 0 then coalesce(gs.won, 0)::numeric / coalesce(gs.played, 0)::numeric
