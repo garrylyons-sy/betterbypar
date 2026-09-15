@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { claimInvitationForAccount, hashPassword, recordLogin, setSessionCookie } from "@/lib/server/auth";
 import { passwordValidationError } from "@/lib/password-policy";
+import { sendWelcomeEmail } from "@/lib/server/welcome-email";
 
 export const runtime = "nodejs";
 
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
 
     await setSessionCookie(user.accountId);
     await recordLogin(user, "password_activation", (await headers()).get("user-agent") ?? "");
+    sendWelcomeEmail(user, request.url).catch(() => undefined);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

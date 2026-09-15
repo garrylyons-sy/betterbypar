@@ -10,6 +10,7 @@ import {
   setSessionCookie,
   signInExistingGoogleUser
 } from "@/lib/server/auth";
+import { sendWelcomeEmail } from "@/lib/server/welcome-email";
 
 export const runtime = "nodejs";
 
@@ -89,6 +90,9 @@ export async function GET(request: NextRequest) {
 
     await setSessionCookie(user.accountId);
     await recordLogin(user, "google", (await headers()).get("user-agent") ?? "");
+    if (oauthCookies.invitationCode) {
+      sendWelcomeEmail(user, request.url).catch(() => undefined);
+    }
     clearOAuthCookies();
 
     const nextPath = oauthCookies.next && oauthCookies.next.startsWith("/") ? oauthCookies.next : "/";
