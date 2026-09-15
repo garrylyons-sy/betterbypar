@@ -123,28 +123,42 @@ export async function GET(request: NextRequest) {
          where b.season_id = $5
            and b.league_id = $2
          group by b.player_id
+       ),
+       raw_stats as (
+         select
+           p.id as person_id,
+           concat_ws(' ', p.first_name, p.last_name) as player_name,
+           p.email,
+           coalesce(gs.played, 0)::text as played,
+           coalesce(gs.won, 0)::text as won,
+           coalesce(gs.lost, 0)::text as lost,
+           bs.highest_break
+         from team_players tp
+         join public.person p on p.id = tp.person_id and p.active = true
+         left join game_stats gs on gs.person_id = tp.person_id
+         left join break_stats bs on bs.person_id = tp.person_id
+         where coalesce(gs.played, 0) > 0
        )
        select
-         p.id as person_id,
-         concat_ws(' ', p.first_name, p.last_name) as player_name,
-         coalesce(gs.played, 0)::text as played,
-         coalesce(gs.won, 0)::text as won,
-         coalesce(gs.lost, 0)::text as lost,
-         bs.highest_break
-       from team_players tp
-       join public.person p on p.id = tp.person_id and p.active = true
-       left join game_stats gs on gs.person_id = tp.person_id
-       left join break_stats bs on bs.person_id = tp.person_id
-       where coalesce(gs.played, 0) > 0
+         person_id,
+         case
+           when count(*) over (partition by lower(player_name)) > 1
+             then player_name || ' · ' || coalesce(nullif(split_part(email, '@', 1), ''), left(person_id::text, 8))
+           else player_name
+         end as player_name,
+         played,
+         won,
+         lost,
+         highest_break
+       from raw_stats
        order by
          case
-           when coalesce(gs.played, 0) > 0 then coalesce(gs.won, 0)::numeric / coalesce(gs.played, 0)::numeric
+           when played::numeric > 0 then won::numeric / played::numeric
            else -1
          end desc,
-         coalesce(gs.played, 0) desc,
-         coalesce(gs.won, 0) desc,
-         p.last_name,
-         p.first_name`,
+         played::numeric desc,
+         won::numeric desc,
+         player_name`,
       [team.club_id, team.league_id, team.team_name, team.team_id, team.season_id]
     );
 

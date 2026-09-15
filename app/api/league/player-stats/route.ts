@@ -141,32 +141,62 @@ export async function GET(request: NextRequest) {
          where b.season_id = (select season_id from target)
            and b.league_id = (select league_id from target)
          group by b.player_id
+       ),
+       raw_stats as (
+         select
+           p.id as person_id,
+           concat_ws(' ', p.first_name, p.last_name) as player_name,
+           p.email,
+           lp.team_name,
+           coalesce(gs.played, 0)::text as played,
+           coalesce(gs.won, 0)::text as won,
+           coalesce(gs.lost, 0)::text as lost,
+           coalesce(r.remaining_fixtures, 0)::text as remaining_fixtures,
+           bs.highest_break
+         from league_players lp
+         join public.person p on p.id = lp.person_id and p.active = true
+         left join game_stats gs on gs.person_id = lp.person_id
+         left join remaining r on r.team_id = lp.team_id
+         left join break_stats bs on bs.person_id = lp.person_id
+         where coalesce(gs.played, 0) > 0
+       ),
+       labelled_stats as (
+         select
+           person_id,
+           case
+             when count(*) over (partition by lower(player_name), team_name) > 1
+               then player_name || ' · ' || coalesce(nullif(split_part(email, '@', 1), ''), left(person_id::text, 8))
+             when count(*) over (partition by lower(player_name)) > 1
+               then player_name || ' · ' || team_name
+             else player_name
+           end as player_name,
+           team_name,
+           played,
+           won,
+           lost,
+           remaining_fixtures,
+           highest_break
+         from raw_stats
        )
        select
-         p.id as person_id,
-         concat_ws(' ', p.first_name, p.last_name) as player_name,
-         lp.team_name,
-         coalesce(gs.played, 0)::text as played,
-         coalesce(gs.won, 0)::text as won,
-         coalesce(gs.lost, 0)::text as lost,
-         coalesce(r.remaining_fixtures, 0)::text as remaining_fixtures,
-         bs.highest_break
-       from league_players lp
-       join public.person p on p.id = lp.person_id and p.active = true
-       left join game_stats gs on gs.person_id = lp.person_id
-       left join remaining r on r.team_id = lp.team_id
-       left join break_stats bs on bs.person_id = lp.person_id
-       where coalesce(gs.played, 0) > 0
+         person_id,
+         player_name,
+         team_name,
+         played,
+         won,
+         lost,
+         remaining_fixtures,
+         highest_break
+       from labelled_stats
        order by
-         case when coalesce(gs.played, 0) + coalesce(r.remaining_fixtures, 0) >= 12 then 0 else 1 end,
+         case when played::numeric + remaining_fixtures::numeric >= 12 then 0 else 1 end,
          case
-           when coalesce(gs.played, 0) > 0 then coalesce(gs.won, 0)::numeric / coalesce(gs.played, 0)::numeric
+           when played::numeric > 0 then won::numeric / played::numeric
            else -1
          end desc,
-         coalesce(gs.played, 0) desc,
-         coalesce(gs.won, 0) desc,
-         p.last_name,
-         p.first_name`,
+         played::numeric desc,
+         won::numeric desc,
+         player_name`,
       [league, season]
     );
 
