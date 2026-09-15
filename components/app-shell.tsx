@@ -509,7 +509,7 @@ function PageContent({
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} userCanShare={userCanShare} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} userCanShare={userCanShare} />;
-  if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onNavigate={onNavigate} />;
+  if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onNavigate={onNavigate} userCanShare={userCanShare} />;
   if (isClubOnlyRole(activeTeam.role)) return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   return <PlayerHome activeTeam={activeTeam} standingsData={standingsData} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} userCanShare={userCanShare} />;
 }
@@ -1326,6 +1326,88 @@ function buildIndividualGamesShareSvg(activeTeam: TeamContext, results: PlayerGa
       <text x="54" y="74" font-size="23" font-weight="700" fill="rgba(255,255,255,.72)" letter-spacing="3">INTERCLUB SNOOKER</text>
       <text x="54" y="132" font-size="48" font-weight="800" fill="#ffffff">Individual Games</text>
       <text x="780" y="132" font-size="24" font-weight="700" fill="rgba(255,255,255,.82)">${svgEscape(activeTeam.name)} • ${svgEscape(activeTeam.season)}</text>
+      ${rows}
+      <text x="54" y="${height - 40}" font-size="21" font-weight="650" fill="#6c7788">interclubsnooker.com</text>
+    </svg>
+  `;
+}
+
+function buildTeamStatsShareSvg(activeTeam: TeamContext, leagueTeamCount: number) {
+  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
+  const hasLeagueTable = teamHasActivity(activeTeam);
+  const stats = [
+    ["Played", activeTeam.leagueMatchesPlayed || "-"],
+    ["Matches won", activeTeam.matchesWon ?? "-"],
+    ["Points", activeTeam.leaguePoints ?? activeTeam.pointsFor ?? "-"],
+    ["Position", hasLeagueTable ? ordinal(activeTeam.leaguePosition) : "-"],
+    ["For", activeTeam.pointsFor ?? "-"],
+    ["Against", activeTeam.pointsAgainst ?? "-"]
+  ];
+  const statCards = stats.map(([label, value], index) => {
+    const x = 54 + (index % 3) * 324;
+    const y = 302 + Math.floor(index / 3) * 118;
+    return `
+      <rect x="${x}" y="${y}" width="286" height="90" rx="18" fill="#ffffff" stroke="#dfe7ee" />
+      <text x="${x + 24}" y="${y + 36}" font-size="17" font-weight="750" fill="#6c7788" letter-spacing="1.2">${svgEscape(String(label).toUpperCase())}</text>
+      <text x="${x + 24}" y="${y + 72}" font-size="34" font-weight="850" fill="#10233f">${svgEscape(value)}</text>
+    `;
+  }).join("");
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="650" viewBox="0 0 1080 650" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
+      <defs>
+        <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stop-color="${svgEscape(activeTeam.primaryColor)}" />
+          <stop offset=".64" stop-color="${svgEscape(activeTeam.accentColor)}" />
+          <stop offset="1" stop-color="#071426" />
+        </linearGradient>
+        <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
+          <path d="M 56 0 L 0 0 0 56" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2" />
+        </pattern>
+      </defs>
+      <rect width="1080" height="650" rx="44" fill="#f3f6f8" />
+      <rect width="1080" height="244" rx="44" fill="url(#hero)" />
+      <rect width="1080" height="244" rx="44" fill="url(#grid)" />
+      <text x="54" y="76" font-size="23" font-weight="700" fill="rgba(255,255,255,.72)" letter-spacing="3">INTERCLUB SNOOKER</text>
+      <text x="54" y="142" font-size="56" font-weight="850" fill="#ffffff">${svgEscape(activeTeam.name)} Stats</text>
+      <text x="54" y="190" font-size="27" font-weight="650" fill="rgba(255,255,255,.84)">${svgEscape(activeTeam.league)} • ${svgEscape(activeTeam.season)}</text>
+      <rect x="796" y="64" width="196" height="48" rx="16" fill="${qualification === "none" ? "rgba(255,255,255,.16)" : "#00ff85"}" />
+      <text x="894" y="96" text-anchor="middle" font-size="20" font-weight="850" fill="${qualification === "none" ? "#ffffff" : "#071426"}">${svgEscape(hasLeagueTable ? qualificationLabel(qualification) : "Pending")}</text>
+      ${statCards}
+      <text x="54" y="608" font-size="21" font-weight="650" fill="#6c7788">interclubsnooker.com</text>
+    </svg>
+  `;
+}
+
+function buildTeamPlayerStatsShareSvg(activeTeam: TeamContext, players: TeamPlayerStat[]) {
+  const visible = players.slice(0, 14);
+  const rowHeight = 72;
+  const height = 316 + Math.max(visible.length, 1) * rowHeight;
+  const rows = visible.map((player, index) => {
+    const y = 236 + index * rowHeight;
+    return `
+      <rect x="54" y="${y}" width="972" height="58" rx="14" fill="${index % 2 ? "#ffffff" : "#f7f9fc"}" stroke="#dfe7ee" />
+      <text x="82" y="${y + 38}" font-size="23" font-weight="800" fill="${svgEscape(activeTeam.primaryColor)}">${svgEscape(truncateForShare(player.name, 34))}</text>
+      <text x="560" y="${y + 38}" text-anchor="end" font-size="21" font-weight="750" fill="#10233f">${player.played}</text>
+      <text x="655" y="${y + 38}" text-anchor="end" font-size="21" font-weight="750" fill="#007a3d">${player.won}</text>
+      <text x="750" y="${y + 38}" text-anchor="end" font-size="21" font-weight="750" fill="#b42318">${player.lost}</text>
+      <text x="882" y="${y + 38}" text-anchor="end" font-size="23" font-weight="800" fill="#10233f">${player.played ? `${player.winPercentage}%` : "-"}</text>
+      <text x="990" y="${y + 38}" text-anchor="end" font-size="21" font-weight="750" fill="#10233f">${player.highestBreak ?? "-"}</text>
+    `;
+  }).join("");
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="${height}" viewBox="0 0 1080 ${height}" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
+      <rect width="1080" height="${height}" rx="44" fill="#f3f6f8" />
+      <rect x="0" y="0" width="1080" height="184" rx="44" fill="${svgEscape(activeTeam.primaryColor)}" />
+      <text x="54" y="74" font-size="23" font-weight="700" fill="rgba(255,255,255,.72)" letter-spacing="3">INTERCLUB SNOOKER</text>
+      <text x="54" y="132" font-size="48" font-weight="850" fill="#ffffff">${svgEscape(activeTeam.name)} Player Stats</text>
+      <text x="54" y="172" font-size="23" font-weight="650" fill="rgba(255,255,255,.84)">${svgEscape(activeTeam.season)} • ${svgEscape(activeTeam.league)}</text>
+      <text x="560" y="214" text-anchor="end" font-size="17" font-weight="750" fill="#6c7788">P</text>
+      <text x="655" y="214" text-anchor="end" font-size="17" font-weight="750" fill="#6c7788">W</text>
+      <text x="750" y="214" text-anchor="end" font-size="17" font-weight="750" fill="#6c7788">L</text>
+      <text x="882" y="214" text-anchor="end" font-size="17" font-weight="750" fill="#6c7788">WIN</text>
+      <text x="990" y="214" text-anchor="end" font-size="17" font-weight="750" fill="#6c7788">BREAK</text>
       ${rows}
       <text x="54" y="${height - 40}" font-size="21" font-weight="650" fill="#6c7788">interclubsnooker.com</text>
     </svg>
@@ -2278,7 +2360,7 @@ function PlayerHome({
         </div>
       );
     }
-    if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
+    if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
     if (panel === "leagueTableSnapshot") return <HomeLeagueTableCard key={panel} activeTeam={activeTeam} standingsData={standingsData} onNavigate={onNavigate} />;
     if (panel === "myStats") {
       return (
@@ -2825,10 +2907,10 @@ function StatsPage({
   if (activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager") {
     return (
       <section className="grid gap-4 md:grid-cols-2">
-        <TeamStatsCard activeTeam={activeTeam} onNavigate={() => {}} leagueTeamCount={leagueTeamCount} />
+        <TeamStatsCard activeTeam={activeTeam} onNavigate={() => {}} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />
         <ManagerSeasonSnapshot activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />
         <TeamRecentFormCard activeTeam={activeTeam} matchResults={matchResults} />
-        <SquadManagementCard activeTeam={activeTeam} />
+        <SquadManagementCard activeTeam={activeTeam} userCanShare={userCanShare} />
       </section>
     );
   }
@@ -3032,14 +3114,14 @@ function ManagerHome({
     if (panel === "managerActions") return null;
     if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="Review season" leagueTeamCount={leagueTeamCount} />;
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
-    if (panel === "squadManagement") return <SquadManagementCard key={panel} activeTeam={activeTeam} />;
+    if (panel === "squadManagement") return <SquadManagementCard key={panel} activeTeam={activeTeam} userCanShare={userCanShare} />;
     if (panel === "managerSnapshot") return <ManagerSeasonSnapshot key={panel} activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />;
     if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} />;
     if (panel === "openCompetitions") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />;
     if (panel === "myCompetitionMatches") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="mine" onNavigate={onNavigate} />;
     if (panel === "competitionDraws") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="draws" onNavigate={onNavigate} />;
     if (panel === "clubCompetitionAdmin") return null;
-    if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} />;
+    if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
     if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
     return null;
   };
@@ -3075,7 +3157,7 @@ function MatchPlanningCard({
   );
 }
 
-function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panels, onNavigate }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number; panels: AppearancePanelId[]; onNavigate: (page: AppPage) => void }) {
+function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panels, onNavigate, userCanShare }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number; panels: AppearancePanelId[]; onNavigate: (page: AppPage) => void; userCanShare: boolean }) {
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "assistantHub") {
       return (
@@ -3100,7 +3182,7 @@ function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panel
     if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="View fixtures" leagueTeamCount={leagueTeamCount} />;
     if (panel === "managerSnapshot") return <ManagerSeasonSnapshot key={panel} activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />;
     if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
-    if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={() => {}} leagueTeamCount={leagueTeamCount} />;
+    if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={() => {}} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
     if (panel === "openCompetitions") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />;
     if (panel === "myCompetitionMatches") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="mine" onNavigate={onNavigate} />;
@@ -3117,7 +3199,7 @@ function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panel
   );
 }
 
-function TeamStatsCard({ activeTeam, onNavigate, leagueTeamCount }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; leagueTeamCount: number }) {
+function TeamStatsCard({ activeTeam, onNavigate, leagueTeamCount, userCanShare = false }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; leagueTeamCount: number; userCanShare?: boolean }) {
   const hasLeagueTable = teamHasActivity(activeTeam);
   const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
 
@@ -3125,9 +3207,29 @@ function TeamStatsCard({ activeTeam, onNavigate, leagueTeamCount }: { activeTeam
     <Card className="overflow-hidden md:col-span-2 xl:col-span-1">
       <CardHeader>
         <CardTitle>Team Stats</CardTitle>
-        <Badge variant={hasLeagueTable ? qualificationBadgeVariant(qualification) : "muted"}>
-          {hasLeagueTable ? ordinal(activeTeam.leaguePosition) : "Pending"}
-        </Badge>
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          {userCanShare ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                void shareSvgVisual(
+                  `${activeTeam.name.toLowerCase().replace(/\s+/g, "-")}-${activeTeam.season.replace("/", "-")}-team-stats.svg`,
+                  `${activeTeam.name} ${activeTeam.season} team stats`,
+                  buildTeamStatsShareSvg(activeTeam, leagueTeamCount)
+                );
+              }}
+              className="min-h-9 px-3 text-xs"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              Share
+            </Button>
+          ) : null}
+          <Badge variant={hasLeagueTable ? qualificationBadgeVariant(qualification) : "muted"}>
+            {hasLeagueTable ? ordinal(activeTeam.leaguePosition) : "Pending"}
+          </Badge>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
@@ -5169,8 +5271,18 @@ function BreakEntrySheet({
   );
 }
 
-function SquadManagementCard({ activeTeam }: { activeTeam: TeamContext }) {
-  const [players, setPlayers] = useState<Array<{ personId: string; name: string; played: number; won: number; lost: number; winPercentage: number; highestBreak: number | null }>>([]);
+type TeamPlayerStat = {
+  personId: string;
+  name: string;
+  played: number;
+  won: number;
+  lost: number;
+  winPercentage: number;
+  highestBreak: number | null;
+};
+
+function SquadManagementCard({ activeTeam, userCanShare = false }: { activeTeam: TeamContext; userCanShare?: boolean }) {
+  const [players, setPlayers] = useState<TeamPlayerStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -5209,7 +5321,27 @@ function SquadManagementCard({ activeTeam }: { activeTeam: TeamContext }) {
     <Card className="md:col-span-2">
       <CardHeader>
         <CardTitle>Player Stats</CardTitle>
-        <Badge variant="muted">{loading ? "Loading" : `${players.length}`}</Badge>
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          {userCanShare && players.length ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                void shareSvgVisual(
+                  `${activeTeam.name.toLowerCase().replace(/\s+/g, "-")}-${activeTeam.season.replace("/", "-")}-player-stats.svg`,
+                  `${activeTeam.name} ${activeTeam.season} player stats`,
+                  buildTeamPlayerStatsShareSvg(activeTeam, players)
+                );
+              }}
+              className="min-h-9 px-3 text-xs"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              Share
+            </Button>
+          ) : null}
+          <Badge variant="muted">{loading ? "Loading" : `${players.length}`}</Badge>
+        </div>
       </CardHeader>
       <CardContent className="grid gap-2">
         <div className="grid grid-cols-[minmax(112px,1fr)_30px_30px_30px_44px_38px] gap-1.5 rounded-xl bg-[#f7f5fa] px-2.5 py-2 text-[10px] font-extrabold uppercase text-[#6c5a73] sm:grid-cols-[minmax(150px,1fr)_44px_44px_44px_58px_54px] sm:gap-2 sm:px-3 sm:text-[11px]">
