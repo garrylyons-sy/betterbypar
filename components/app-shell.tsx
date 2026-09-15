@@ -1182,10 +1182,10 @@ async function shareSvgVisual(filename: string, title: string, svg: string) {
   if (nav.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
     try {
       await nav.share({ title, files: [file] });
-      return;
     } catch {
-      // If the user cancels or the browser refuses file sharing, fall back to opening the visual.
+      // If native sharing is available but cancelled/refused, do not open a second download prompt.
     }
+    return;
   }
 
   const url = URL.createObjectURL(blob);
@@ -1216,7 +1216,7 @@ async function shareSvgVisual(filename: string, title: string, svg: string) {
   } else {
     const link = document.createElement("a");
     link.href = url;
-    link.download = filename;
+    link.download = downloadFilename;
     link.click();
   }
 }
