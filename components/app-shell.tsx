@@ -1118,9 +1118,62 @@ const shareVisualWidth = 720;
 const shareVisualPadding = 32;
 const shareVisualContentWidth = shareVisualWidth - shareVisualPadding * 2;
 
+function imageBlobFromCanvas(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error("Unable to create image."));
+    }, "image/png", 0.95);
+  });
+}
+
+async function svgToPngBlob(svg: string) {
+  const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+
+  try {
+    const image = new Image();
+    image.decoding = "async";
+    const loaded = new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Unable to render shared image."));
+    });
+    image.src = url;
+    await loaded;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth || shareVisualWidth;
+    canvas.height = image.naturalHeight || shareVisualWidth;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Image export is unavailable.");
+
+    context.fillStyle = "#f3f6f8";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0);
+    return imageBlobFromCanvas(canvas);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 async function shareSvgVisual(filename: string, title: string, svg: string) {
-  const blob = new Blob([svg], { type: "image/svg+xml" });
-  const file = new File([blob], filename, { type: "image/svg+xml" });
+  const pngFilename = filename.replace(/\.svg$/i, ".png");
+  let blob: Blob;
+  let downloadFilename = pngFilename;
+  let mimeType = "image/png";
+
+  try {
+    blob = await svgToPngBlob(svg);
+  } catch {
+    blob = new Blob([svg], { type: "image/svg+xml" });
+    downloadFilename = filename;
+    mimeType = "image/svg+xml";
+  }
+
+  const file = new File([blob], downloadFilename, { type: mimeType });
   const nav = navigator as Navigator & {
     canShare?: (data: ShareData) => boolean;
     share?: (data: ShareData) => Promise<void>;
@@ -1154,7 +1207,7 @@ async function shareSvgVisual(filename: string, title: string, svg: string) {
         <body>
           <main>
             <img src="${url}" alt="${svgEscape(title)}" />
-            <a href="${url}" download="${svgEscape(filename)}">Download visual</a>
+            <a href="${url}" download="${svgEscape(downloadFilename)}">Download visual</a>
           </main>
         </body>
       </html>
