@@ -56,6 +56,7 @@ type ParsedInviteRow = {
   role: InviteRole;
   team: string;
   administrator: boolean;
+  sendInvite: boolean;
   clubId?: string;
   teamId?: string;
   error?: string;
@@ -1851,7 +1852,7 @@ function BulkInviteImportPanel({
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
-  const example = "name\temail\tphone\tclub\trole\tteam\tadministrator\nStephen Finlan\tstephen@example.com\t\tCastle Golf Club\tManager\tCastle A\tno\nCastle Member\tmember@example.com\t\tCastle Golf Club\tClub Member\t\tyes";
+  const example = "name\temail\tphone\tclub\trole\tteam\tadministrator\tsend_invite\nStephen Finlan\tstephen@example.com\t\tCastle Golf Club\tManager\tCastle A\tno\tyes\nCastle A Player\tplayer@example.com\t\tCastle Golf Club\tPlayer\tCastle A\tno\tno";
   const [pastedRows, setPastedRows] = useState(example);
   const [sending, setSending] = useState(false);
   const [sendStatus, setSendStatus] = useState<{ tone: "info" | "success" | "error"; text: string } | null>(null);
@@ -1869,35 +1870,54 @@ function BulkInviteImportPanel({
     }
 
     setSending(true);
-    setSendStatus({ tone: "info", text: `Sending ${readyRows.length} invite email${readyRows.length === 1 ? "" : "s"}...` });
+    const inviteRows = readyRows.filter((row) => row.sendInvite);
+    const createOnlyRows = readyRows.filter((row) => !row.sendInvite);
+    setSendStatus({
+      tone: "info",
+      text: `Processing ${readyRows.length} row${readyRows.length === 1 ? "" : "s"} (${inviteRows.length} invite${inviteRows.length === 1 ? "" : "s"}, ${createOnlyRows.length} create-only).`
+    });
     let sent = 0;
+    let createdOnly = 0;
     const failures: string[] = [];
-    const deliveredEmails = new Set<string>();
+    const completedEmails = new Set<string>();
     for (const row of readyRows) {
       try {
-        const response = await fetch("/api/admin/invites", {
+        const [firstName, ...lastNameParts] = row.name.trim().split(/\s+/);
+        const response = await fetch(row.sendInvite ? "/api/admin/invites" : "/api/admin/people", {
           method: "POST",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            email: row.email,
-            name: row.name,
-            phone: row.phone,
-            clubId: row.clubId,
-            roles: [{ role: row.role, teamId: row.teamId, clubId: row.clubId }],
-            administrator: row.administrator
-          })
+          body: JSON.stringify(row.sendInvite
+            ? {
+                email: row.email,
+                name: row.name,
+                phone: row.phone,
+                clubId: row.clubId,
+                roles: [{ role: row.role, teamId: row.teamId, clubId: row.clubId }],
+                administrator: row.administrator
+              }
+            : {
+                firstName,
+                lastName: lastNameParts.join(" ") || "-",
+                email: row.email,
+                phone: row.phone,
+                clubId: row.clubId,
+                role: row.role,
+                teamId: row.teamId,
+                admin: row.administrator
+              })
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Could not create invite.");
-        sent += 1;
-        if (data.email_status !== "Failed") deliveredEmails.add(row.email);
+        if (!response.ok) throw new Error(data.error || (row.sendInvite ? "Could not create invite." : "Could not create person."));
+        if (row.sendInvite) sent += 1;
+        else createdOnly += 1;
+        if (!row.sendInvite || data.email_status !== "Failed") completedEmails.add(row.email);
       } catch (error) {
         failures.push(`${row.email}: ${error instanceof Error ? error.message : "failed"}`);
       }
     }
     setSending(false);
-    if (deliveredEmails.size) {
+    if (completedEmails.size) {
       const lines = pastedRows.split(/\r?\n/);
       const delimiter = lines[0]?.includes("\t") ? "\t" : ",";
       setPastedRows(lines.filter((line, index) => {
@@ -1906,11 +1926,17 @@ function BulkInviteImportPanel({
         const headers = splitDelimitedLine(lines[0] ?? "", delimiter).map(normalizeHeader);
         const emailIndex = headers.indexOf("email") >= 0 ? headers.indexOf("email") : headers.indexOf("emailaddress");
         const rowEmail = readCell(cells, emailIndex).toLowerCase();
-        return !deliveredEmails.has(rowEmail);
+        return !completedEmails.has(rowEmail);
       }).join("\n").trimEnd());
     }
     onRefresh();
-    const resultMessage = failures.length ? `Invited ${sent}; ${failures.length} failed. ${failures[0]}` : `Invited ${sent} person${sent === 1 ? "" : "s"} and removed them from the import list.`;
+    const successParts = [
+      sent ? `sent ${sent} invite${sent === 1 ? "" : "s"}` : "",
+      createdOnly ? `created ${createdOnly} person record${createdOnly === 1 ? "" : "s"} without invites` : ""
+    ].filter(Boolean);
+    const resultMessage = failures.length
+      ? `${successParts.join(" and ") || "Processed 0 rows"}; ${failures.length} failed. ${failures[0]}`
+      : `${successParts.join(" and ") || "Processed 0 rows"} and removed them from the import list.`;
     setSendStatus({ tone: failures.length ? "error" : "success", text: resultMessage });
     onMessage(resultMessage);
   }
@@ -1935,18 +1961,20 @@ function BulkInviteImportPanel({
           />
         </label>
         <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
-          <div className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73]">
+          <div className="grid grid-cols-[1.2fr_1.4fr_1fr_.8fr_1fr] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73]">
             <span>Name</span>
             <span>Email</span>
             <span>Role</span>
+            <span>Invite</span>
             <span>Status</span>
           </div>
           <div className="max-h-56 overflow-auto">
             {parsedRows.length ? parsedRows.map((row, index) => (
-              <div key={`${row.email}-${index}`} className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr] gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f]">
+              <div key={`${row.email}-${index}`} className="grid grid-cols-[1.2fr_1.4fr_1fr_.8fr_1fr] gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f]">
                 <span className="min-w-0 truncate">{row.name || "-"}</span>
                 <span className="min-w-0 truncate">{row.email || "-"}</span>
                 <span className="min-w-0 truncate">{row.role}{row.team ? ` - ${row.team}` : ""}</span>
+                <span className={row.sendInvite ? "text-[#1b8a72]" : "text-[#6c5a73]"}>{row.sendInvite ? "Yes" : "No"}</span>
                 <span className={row.error ? "text-[#ba1a1a]" : "text-[#1b8a72]"}>{row.error || "Ready"}</span>
               </div>
             )) : (
@@ -1956,7 +1984,7 @@ function BulkInviteImportPanel({
         </div>
         <Button onClick={sendBulkInvites} disabled={sending || !readyRows.length}>
           <FileSpreadsheet className="h-4 w-4" />
-          {sending ? "Sending invites..." : "Send imported invite emails"}
+          {sending ? "Processing import..." : "Import rows"}
         </Button>
         {sendStatus ? <InviteSendStatus tone={sendStatus.tone} text={sendStatus.text} /> : null}
       </CardContent>
@@ -2147,7 +2175,8 @@ function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedI
     club: indexFor("club"),
     role: indexFor("role", "roles"),
     team: indexFor("team"),
-    administrator: indexFor("administrator", "admin", "platform admin")
+    administrator: indexFor("administrator", "admin", "platform admin"),
+    sendInvite: indexFor("send_invite", "send invite", "invite", "email invite", "send email")
   };
   const clubs = uniqueClubs(teams);
 
@@ -2156,6 +2185,7 @@ function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedI
     const role = normalizeInviteRole(readCell(cells, indexes.role) || "Player");
     const clubName = readCell(cells, indexes.club);
     const teamName = readCell(cells, indexes.team);
+    const sendInviteValue = readCell(cells, indexes.sendInvite);
     const club = clubs.find((item) => normalizeText(item.clubName) === normalizeText(clubName));
     const team = teamName
       ? teams.find((item) => normalizeText(item.teamName) === normalizeText(teamName) && (!club || item.clubId === club.clubId))
@@ -2168,6 +2198,7 @@ function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedI
       role,
       team: teamName,
       administrator: ["yes", "y", "true", "1", "admin"].includes(readCell(cells, indexes.administrator).toLowerCase()),
+      sendInvite: sendInviteValue ? !["no", "n", "false", "0", "create only", "createonly", "none"].includes(normalizeText(sendInviteValue).replace(/\s+/g, "")) : true,
       clubId: club?.clubId,
       teamId: team?.teamId
     };
