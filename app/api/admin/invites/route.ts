@@ -32,7 +32,6 @@ function buildInviteEmail({
   request,
   inviteToken,
   email,
-  deliveryEmail,
   name,
   club,
   roleLabels,
@@ -42,7 +41,6 @@ function buildInviteEmail({
   request: NextRequest;
   inviteToken: string;
   email: string;
-  deliveryEmail: string;
   name: string;
   club: { name: string; logo_path?: string | null; primary_color?: string | null; accent_color?: string | null };
   roleLabels: string[];
@@ -72,9 +70,7 @@ function buildInviteEmail({
     welcomeBody,
     `${roleLabel}: ${roleSummary || "Platform access"}.`,
     "",
-    `Click here to join: ${activationUrl}`,
-    "",
-    deliveryEmail !== email ? `For testing this invite email is delivered to ${deliveryEmail}.` : ""
+    `Click here to join: ${activationUrl}`
   ].join("\n");
   const bodyHtml = `
         <style>
@@ -143,7 +139,6 @@ export async function POST(request: NextRequest) {
     const administrator = await assertAdministrator();
     const body = await request.json();
     const email = String(body.email ?? "").trim().toLowerCase();
-    const deliveryEmail = process.env.INVITE_EMAIL_TEST_TO?.trim() || email;
     const name = String(body.name ?? "").trim();
     const phone = String(body.phone ?? "").trim();
     const clubId = String(body.clubId ?? "").trim();
@@ -215,7 +210,6 @@ export async function POST(request: NextRequest) {
         request,
         inviteToken,
         email,
-        deliveryEmail,
         name,
         club,
         roleLabels,
@@ -223,13 +217,13 @@ export async function POST(request: NextRequest) {
         isClubOnlyInvite
       });
 
-      const emailResult = await sendAppEmail({ to: deliveryEmail, subject, html: bodyHtml, text: bodyText });
+      const emailResult = await sendAppEmail({ to: email, subject, html: bodyHtml, text: bodyText });
 
       const emailInsert = await client.query(
         `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
          values ($1, $2, $3, $4, $5, 'Queued')
          returning id`,
-        [invitationId, deliveryEmail, subject, bodyHtml, bodyText]
+        [invitationId, email, subject, bodyHtml, bodyText]
       );
       await client.query(
         `update public.invitation_email
@@ -242,7 +236,7 @@ export async function POST(request: NextRequest) {
         await client.query("update public.invitation set sent_at = now() where id = $1", [invitationId]);
       }
 
-      return { ...invitationResult.rows[0], activation_url: activationUrl, email_to: deliveryEmail, email_subject: subject, email_preview: bodyText, email_status: emailResult.status, email_error: emailResult.error };
+      return { ...invitationResult.rows[0], activation_url: activationUrl, email_to: email, email_subject: subject, email_preview: bodyText, email_status: emailResult.status, email_error: emailResult.error };
     });
 
     return NextResponse.json({
@@ -333,12 +327,10 @@ export async function PATCH(request: NextRequest) {
         ...memberRoles.rows.map((role) => role.role),
         invitation.invite_administrator ? "Administrator" : ""
       ].filter(Boolean);
-      const deliveryEmail = process.env.INVITE_EMAIL_TEST_TO?.trim() || invitation.email;
       const { activationUrl, subject, bodyHtml, bodyText } = buildInviteEmail({
         request,
         inviteToken,
         email: invitation.email,
-        deliveryEmail,
         name: invitation.invited_person_name,
         club: {
           name: invitation.club_name,
@@ -356,12 +348,12 @@ export async function PATCH(request: NextRequest) {
         [invitationId, hashSecretToken(inviteToken)]
       );
 
-      const emailResult = await sendAppEmail({ to: deliveryEmail, subject, html: bodyHtml, text: bodyText });
+      const emailResult = await sendAppEmail({ to: invitation.email, subject, html: bodyHtml, text: bodyText });
       const emailInsert = await client.query(
         `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
          values ($1, $2, $3, $4, $5, 'Queued')
          returning id`,
-        [invitationId, deliveryEmail, subject, bodyHtml, bodyText]
+        [invitationId, invitation.email, subject, bodyHtml, bodyText]
       );
       await client.query(
         `update public.invitation_email
@@ -376,7 +368,7 @@ export async function PATCH(request: NextRequest) {
 
       return {
         activation_url: activationUrl,
-        email_to: deliveryEmail,
+        email_to: invitation.email,
         email_status: emailResult.status,
         email_error: emailResult.error
       };

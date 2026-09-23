@@ -1728,7 +1728,7 @@ function InvitesPanel({
       if (!response.ok) throw new Error(data.error || "Could not create invite.");
       const emailStatus = data.email_status ? String(data.email_status).toLowerCase() : "queued";
       setEmailPreview({
-        to: data.email_to ?? "garlyons@gmail.com",
+        to: data.email_to ?? email,
         subject: data.email_subject ?? "You have been invited to join Interclub Snooker",
         body: data.email_preview ?? "",
         activationUrl: data.activation_url ?? ""
@@ -1829,7 +1829,7 @@ function InvitesPanel({
               </div>
             ) : (
               <div className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-semibold text-[#6c5a73]">
-                The next invite will queue a branded email record and, for testing, address it to garlyons@gmail.com.
+                The next invite will queue a branded activation email to the invited person's email address.
               </div>
             )}
           </CardContent>
