@@ -80,6 +80,7 @@ from (
       (g.away_player_2_id, g.home_player_2_id, f.away_team_id)
   ) as player_pair(player_1_id, player_2_id, player_1_team_id)
   where g.winner_team_id is not null
+    and coalesce(f.fixture_type, 'League') = 'League'
     and player_pair.player_1_id is not null
     and player_pair.player_2_id is not null
     and not exists (

@@ -43,6 +43,7 @@ export async function POST() {
          select f.id as fixture_id
          from public.fixture f
          join target_season s on s.id = f.season_id
+         where coalesce(f.fixture_type, 'League') = 'League'
        ),
        target_matches as (
          select m.id as match_id

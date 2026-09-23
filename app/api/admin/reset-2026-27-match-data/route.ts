@@ -36,6 +36,7 @@ export async function POST() {
            from public.fixture f
            join target_season s on s.id = f.season_id
            left join public.match m on m.fixture_id = f.id
+           where coalesce(f.fixture_type, 'League') = 'League'
          ),
          deleted_breaks as (
            delete from public.break b
@@ -48,6 +49,7 @@ export async function POST() {
                 join public.fixture f on f.id = m.fixture_id
                 where g.id = b.game_id
                   and f.season_id = s.id
+                  and coalesce(f.fixture_type, 'League') = 'League'
               )
            returning 1
          ),

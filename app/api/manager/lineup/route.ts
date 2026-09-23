@@ -232,11 +232,11 @@ export async function POST(request: NextRequest) {
         throw new Error("Published lineups are locked and cannot be changed.");
       }
       const playerIds = await loadTeamPlayerIds(client, teamId);
-      const slotDefinitions = await loadFixtureLineupSlots(client, fixtureId);
-      const normalized = normalizeSlots(slots, playerIds, action === "publish", slotDefinitions);
+      const fixtureMeta = await loadFixtureLineupMeta(client, fixtureId);
+      const normalized = normalizeSlots(slots, playerIds, action === "publish", fixtureMeta.slotDefinitions, fixtureMeta.fixtureType === "Friendly");
       const lineupId = await upsertLineup(client, fixtureId, teamId, user.personId, action === "publish");
 
-      for (const slot of slotDefinitions) {
+      for (const slot of fixtureMeta.slotDefinitions) {
         const selected = normalized.find((item) => item.slotNumber === slot.slotNumber);
         await client.query(
           `insert into public.fixture_lineup_slot (lineup_id, slot_number, game_type, player_1_id, player_2_id)
@@ -274,6 +274,7 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     league_name: string;
     season_name: string;
     status: string;
+    fixture_type: "League" | "Friendly";
   }>(
     `${fixtureSelectSql}
      where (
@@ -281,6 +282,7 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
          or ($1::uuid is null and f.status = 'Scheduled')
        )
        and (f.home_team_id = $2 or f.away_team_id = $2)
+       and ($1::uuid is not null or coalesce(f.fixture_type, 'League') = 'League')
      order by case when $1::uuid is not null then 0 else 1 end, f.fixture_date asc
      limit 1`,
     [preferredFixtureId || null, teamId]
@@ -391,15 +393,25 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
      left join public.match m on m.fixture_id = wf.id
      left join public.fixture_lineup hfl on hfl.fixture_id = wf.id and hfl.team_id = wf.home_team_id
      left join public.fixture_lineup afl on afl.fixture_id = wf.id and afl.team_id = wf.away_team_id
-     where wf.season_id = (
-         select season_id from public.fixture where id = $1
+     where (
+       (
+         (select coalesce(fixture_type, 'League') from public.fixture where id = $1) = 'Friendly'
+         and wf.id = $1
        )
-       and wf.league_id = (
-         select league_id from public.fixture where id = $1
+       or (
+         (select coalesce(fixture_type, 'League') from public.fixture where id = $1) = 'League'
+         and wf.season_id = (
+           select season_id from public.fixture where id = $1
+         )
+         and wf.league_id = (
+           select league_id from public.fixture where id = $1
+         )
+         and wf.fixture_date::date = (
+           select fixture_date::date from public.fixture where id = $1
+         )
+         and coalesce(wf.fixture_type, 'League') = 'League'
        )
-       and wf.fixture_date::date = (
-         select fixture_date::date from public.fixture where id = $1
-       )
+     )
      order by
        case when wf.home_team_id = $2 or wf.away_team_id = $2 then 0 else 1 end,
        wf.fixture_date,
@@ -445,15 +457,25 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
      left join public.person hp2 on hp2.id = g.home_player_2_id
      left join public.person ap1 on ap1.id = g.away_player_1_id
      left join public.person ap2 on ap2.id = g.away_player_2_id
-     where wf.season_id = (
-         select season_id from public.fixture where id = $1
+     where (
+       (
+         (select coalesce(fixture_type, 'League') from public.fixture where id = $1) = 'Friendly'
+         and wf.id = $1
        )
-       and wf.league_id = (
-         select league_id from public.fixture where id = $1
+       or (
+         (select coalesce(fixture_type, 'League') from public.fixture where id = $1) = 'League'
+         and wf.season_id = (
+           select season_id from public.fixture where id = $1
+         )
+         and wf.league_id = (
+           select league_id from public.fixture where id = $1
+         )
+         and wf.fixture_date::date = (
+           select fixture_date::date from public.fixture where id = $1
+         )
+         and coalesce(wf.fixture_type, 'League') = 'League'
        )
-       and wf.fixture_date::date = (
-         select fixture_date::date from public.fixture where id = $1
-       )
+     )
      order by wf.fixture_date, g.game_number`,
     [fixture.fixture_id]
   )).rows;
@@ -524,7 +546,8 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
       awayTeamName: fixture.away_team_name,
       league: fixture.league_name,
       season: fixture.season_name,
-      status: fixture.status
+      status: fixture.status,
+      fixtureType: fixture.fixture_type
     },
     players,
     lineup: own,
@@ -549,7 +572,8 @@ const fixtureSelectSql = `
     at.name as away_team_name,
     l.name as league_name,
     s.name as season_name,
-    f.status::text as status
+    f.status::text as status,
+    coalesce(f.fixture_type, 'League') as fixture_type
   from public.fixture f
   join public.team ht on ht.id = f.home_team_id
   join public.team at on at.id = f.away_team_id
@@ -675,7 +699,7 @@ async function loadLineupStatus(client: PoolClient, fixtureId: string, teamId: s
   return result.rows[0]?.status ?? null;
 }
 
-function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, requireComplete: boolean, slotDefinitions: LineupSlotDefinition[]) {
+function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, requireComplete: boolean, slotDefinitions: LineupSlotDefinition[], allowDuplicatePlayers = false) {
   const normalized = slotDefinitions.map((slot) => {
     const input = slots.find((item) => Number(item.slotNumber) === slot.slotNumber);
     const player1Id = String(input?.player1Id ?? "").trim();
@@ -692,10 +716,12 @@ function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, requir
       player2Id: slot.gameType === "Doubles" ? player2Id : ""
     };
   });
-  const selectedIds = normalized.flatMap((slot) => [slot.player1Id, slot.player2Id].filter(Boolean));
-  const duplicateId = selectedIds.find((playerId, index) => selectedIds.indexOf(playerId) !== index);
-  if (duplicateId) {
-    throw new Error("A player can only be selected once in a lineup.");
+  if (!allowDuplicatePlayers) {
+    const selectedIds = normalized.flatMap((slot) => [slot.player1Id, slot.player2Id].filter(Boolean));
+    const duplicateId = selectedIds.find((playerId, index) => selectedIds.indexOf(playerId) !== index);
+    if (duplicateId) {
+      throw new Error("A player can only be selected once in a lineup.");
+    }
   }
   return normalized;
 }
@@ -719,16 +745,19 @@ async function upsertLineup(client: PoolClient, fixtureId: string, teamId: strin
   return result.rows[0].id;
 }
 
-async function loadFixtureLineupSlots(client: PoolClient, fixtureId: string) {
-  const result = await client.query<{ league_name: string }>(
-    `select l.name as league_name
+async function loadFixtureLineupMeta(client: PoolClient, fixtureId: string) {
+  const result = await client.query<{ league_name: string; fixture_type: "League" | "Friendly" }>(
+    `select l.name as league_name, coalesce(f.fixture_type, 'League') as fixture_type
      from public.fixture f
      join public.league l on l.id = f.league_id
      where f.id = $1
      limit 1`,
     [fixtureId]
   );
-  return lineupSlotsForLeague(result.rows[0]?.league_name);
+  return {
+    slotDefinitions: lineupSlotsForLeague(result.rows[0]?.league_name),
+    fixtureType: result.rows[0]?.fixture_type ?? "League"
+  };
 }
 
 async function generateGamesIfBothPublished(client: PoolClient, fixtureId: string, personId: string) {

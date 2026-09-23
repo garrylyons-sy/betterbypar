@@ -16,7 +16,8 @@ select
 from public.fixture f
 join public.season s on s.id = f.season_id
 join public.league l on l.id = f.league_id
-where s.name = '2026/27';
+where s.name = '2026/27'
+  and coalesce(f.fixture_type, 'League') = 'League';
 
 delete from public.break b
 where b.game_id in (

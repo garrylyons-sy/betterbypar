@@ -992,6 +992,7 @@ export async function loadSessionPayload(user: AppUser) {
      left join public.fixture_week_match fwm on fwm.match_id = m.id
      left join public.fixture_week fw on fw.id = fwm.week_id
      where f.status = 'Completed'
+       and coalesce(f.fixture_type, 'League') = 'League'
      order by s.name desc, l.name, coalesce(fw.week_number, 0) desc, f.fixture_date desc, ht.name, at.name`
   )).rows.map((row) => ({
     id: row.fixture_id,
@@ -1011,6 +1012,7 @@ export async function loadSessionPayload(user: AppUser) {
     `select count(*) as count
      from public.fixture f
      where f.fixture_date::date = (now() at time zone 'Europe/Dublin')::date
+       and coalesce(f.fixture_type, 'League') = 'League'
        and (now() at time zone 'Europe/Dublin')::time >= time '19:30'
        and (now() at time zone 'Europe/Dublin')::time < time '23:30'`
   )).rows[0]?.count ?? 0);

@@ -346,6 +346,7 @@ create table public.fixture (
   home_team_id uuid not null references public.team(id) on delete restrict,
   away_team_id uuid not null references public.team(id) on delete restrict,
   status fixture_status not null default 'Scheduled',
+  fixture_type text not null default 'League' check (fixture_type in ('League', 'Friendly')),
   check (home_team_id <> away_team_id)
 );
 
@@ -540,12 +541,15 @@ select
 from public.match m
 join public.fixture f on f.id = m.fixture_id
 left join public.game g on g.match_id = m.id
-where f.status = 'Completed'
-   or exists (
+where coalesce(f.fixture_type, 'League') = 'League'
+  and (
+    f.status = 'Completed'
+    or exists (
     select 1
     from public.game active_game
     where active_game.match_id = m.id
       and active_game.winner_team_id is not null
+    )
   )
 group by m.id, f.id, f.season_id, f.league_id, f.home_team_id, f.away_team_id;
 
@@ -646,7 +650,16 @@ with appearances as (
       (g.away_player_2_id, f.away_team_id)
   ) as player_appearance(person_id, team_id)
   where g.winner_team_id is not null
+    and coalesce(f.fixture_type, 'League') = 'League'
     and player_appearance.person_id is not null
+),
+break_values as (
+  select b.*
+  from public.break b
+  left join public.game g on g.id = b.game_id
+  left join public.match m on m.id = g.match_id
+  left join public.fixture f on f.id = m.fixture_id
+  where f.id is null or coalesce(f.fixture_type, 'League') = 'League'
 )
 select
   p.id as person_id,
@@ -658,7 +671,7 @@ select
   count(distinct b.id) filter (where b.break_value >= 100) as century_breaks
 from public.person p
 left join appearances a on a.person_id = p.id
-left join public.break b on b.player_id = p.id
+left join break_values b on b.player_id = p.id
 group by p.id;
 
 create or replace view public.player_break_leaderboard_view as
@@ -685,7 +698,8 @@ left join public.game g on g.id = b.game_id
 left join public.match m on m.id = g.match_id
 left join public.fixture f on f.id = m.fixture_id
 left join public.season s on s.id = coalesce(b.season_id, f.season_id)
-left join public.league l on l.id = coalesce(b.league_id, f.league_id);
+left join public.league l on l.id = coalesce(b.league_id, f.league_id)
+where f.id is null or coalesce(f.fixture_type, 'League') = 'League';
 
 create or replace view public.player_game_result_view
 with (security_invoker = true) as
@@ -766,6 +780,7 @@ from (
       (g.away_player_2_id, g.home_player_2_id, f.away_team_id)
   ) as player_pair(player_1_id, player_2_id, player_1_team_id)
   where g.winner_team_id is not null
+    and coalesce(f.fixture_type, 'League') = 'League'
     and player_pair.player_1_id is not null
     and player_pair.player_2_id is not null
     and not exists (

@@ -18,7 +18,16 @@ with appearances as (
       (g.away_player_2_id, f.away_team_id)
   ) as player_appearance(person_id, team_id)
   where g.winner_team_id is not null
+    and coalesce(f.fixture_type, 'League') = 'League'
     and player_appearance.person_id is not null
+),
+break_values as (
+  select b.*
+  from public.break b
+  left join public.game g on g.id = b.game_id
+  left join public.match m on m.id = g.match_id
+  left join public.fixture f on f.id = m.fixture_id
+  where f.id is null or coalesce(f.fixture_type, 'League') = 'League'
 )
 select
   p.id as person_id,
@@ -30,5 +39,5 @@ select
   count(distinct b.id) filter (where b.break_value >= 100) as century_breaks
 from public.person p
 left join appearances a on a.person_id = p.id
-left join public.break b on b.player_id = p.id
+left join break_values b on b.player_id = p.id
 group by p.id;

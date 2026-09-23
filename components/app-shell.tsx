@@ -17,6 +17,7 @@ import {
   Menu as MenuIcon,
   PlusCircle,
   Share2,
+  Swords,
   Trophy,
   UserCircle,
   Users,
@@ -30,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
+type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member", "Club Admin"];
 const RECENT_FORM_LIMIT = 3;
@@ -80,6 +81,7 @@ const menuIconMap: Record<AppearanceMenuId | "Menu", typeof Home> = {
   Club: CalendarPlus,
   Bookings: CalendarPlus,
   Competitions: Trophy,
+  Friendlies: Swords,
   Players: Users,
   Stats: BarChart3,
   Messages: Mail,
@@ -109,9 +111,9 @@ function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): App
     return ["Home", "Competitions", "Bookings", "Interclub Leagues"];
   }
 
-  const base: AppearanceMenuId[] = ["Home", "Fixtures", "Table", "Results", "Club"];
+  const base: AppearanceMenuId[] = ["Home", "Fixtures", "Table", "Results", "Friendlies", "Club"];
   if (enteredCompetitionCount > 0) {
-    return withMyClubLast(["Home", "Fixtures", "Table", "Results", "Competitions", "Club"]);
+    return withMyClubLast(["Home", "Fixtures", "Table", "Results", "Friendlies", "Competitions", "Club"]);
   }
   return withMyClubLast(base);
 }
@@ -477,6 +479,15 @@ function PageContent({
   if (activePage === "Club") return <ClubHubPage activeTeam={activeTeam} onNavigate={onNavigate} />;
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Competitions") return <CompetitionsPage activeTeam={activeTeam} />;
+  if (activePage === "Friendlies") {
+    return (
+      <FriendliesPage
+        activeTeam={activeTeam}
+        onDataRefresh={onDataRefresh}
+        onTeamSummaryUpdate={onTeamSummaryUpdate}
+      />
+    );
+  }
   if (activePage === "Fixtures") {
     return (
       <FixturesPage
@@ -3267,6 +3278,235 @@ function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panel
   );
 }
 
+type FriendlySummary = {
+  id: string;
+  fixtureDate: string;
+  status: "Scheduled" | "Completed";
+  homeTeamId: string;
+  awayTeamId: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  homeTeamScore: number | null;
+  awayTeamScore: number | null;
+  homeLineupStatus: "Draft" | "Published" | null;
+  awayLineupStatus: "Draft" | "Published" | null;
+  completedGames: number;
+  totalGames: number;
+};
+
+type FriendlyTeamOption = {
+  id: string;
+  name: string;
+  clubName: string;
+  league: string;
+};
+
+function defaultFriendlyDateTime() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(19, 30, 0, 0);
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function FriendliesPage({
+  activeTeam,
+  onDataRefresh,
+  onTeamSummaryUpdate
+}: {
+  activeTeam: TeamContext;
+  onDataRefresh?: () => void;
+  onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
+}) {
+  const [friendlies, setFriendlies] = useState<FriendlySummary[]>([]);
+  const [teams, setTeams] = useState<FriendlyTeamOption[]>([]);
+  const [canManage, setCanManage] = useState(false);
+  const [selectedFixtureId, setSelectedFixtureId] = useState("");
+  const [opponentTeamId, setOpponentTeamId] = useState("");
+  const [fixtureDate, setFixtureDate] = useState(defaultFriendlyDateTime);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function loadFriendlies(selectFixtureId?: string) {
+    if (!activeTeam.teamId) return;
+    setLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch(withTestUser(`/api/friendlies?teamId=${encodeURIComponent(activeTeam.teamId)}`), {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Friendlies unavailable.");
+      const nextFriendlies: FriendlySummary[] = data.friendlies ?? [];
+      const nextTeams: FriendlyTeamOption[] = data.teams ?? [];
+      setFriendlies(nextFriendlies);
+      setTeams(nextTeams);
+      setCanManage(Boolean(data.canManage));
+      setOpponentTeamId((current) => current || nextTeams[0]?.id || "");
+      setSelectedFixtureId((current) => {
+        if (selectFixtureId) return selectFixtureId;
+        if (current && nextFriendlies.some((friendly) => friendly.id === current)) return current;
+        return nextFriendlies[0]?.id ?? "";
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Friendlies unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadFriendlies();
+  }, [activeTeam.teamId]);
+
+  async function createFriendly() {
+    if (!activeTeam.teamId || !opponentTeamId || !fixtureDate) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/friendlies", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          teamId: activeTeam.teamId,
+          opponentTeamId,
+          fixtureDate,
+          testUser: currentTestUserParam()
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not create friendly.");
+      await loadFriendlies(data.fixtureId);
+      setMessage("Friendly created. You can now pick the team.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not create friendly.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!activeTeam.teamId) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Friendlies</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            Friendlies are linked to interclub teams.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const selectedFriendly = friendlies.find((friendly) => friendly.id === selectedFixtureId);
+
+  return (
+    <section className="grid gap-4">
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>Friendlies</CardTitle>
+            <p className="mt-1 text-sm font-semibold text-[#6c5a73]">
+              Private matches for {activeTeam.name}. They do not affect league tables or player stats.
+            </p>
+          </div>
+          <Badge variant="muted">{friendlies.length}</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {message ? <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">{message}</p> : null}
+          {canManage ? (
+            <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
+              <label className="grid gap-1">
+                <span className="text-xs font-extrabold uppercase text-[#6c5a73]">Opponent</span>
+                <select
+                  value={opponentTeamId}
+                  onChange={(event) => setOpponentTeamId(event.target.value)}
+                  className="min-h-11 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold text-[#10233f]"
+                >
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name} - {team.league}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs font-extrabold uppercase text-[#6c5a73]">Date</span>
+                <input
+                  type="datetime-local"
+                  value={fixtureDate}
+                  onChange={(event) => setFixtureDate(event.target.value)}
+                  className="min-h-11 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold text-[#10233f]"
+                />
+              </label>
+              <Button onClick={createFriendly} disabled={busy || !opponentTeamId || !fixtureDate}>
+                <PlusCircle className="h-4 w-4" />
+                {busy ? "Creating..." : "Create"}
+              </Button>
+            </div>
+          ) : null}
+          {loading ? (
+            <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Loading friendlies...</p>
+          ) : friendlies.length ? (
+            <div className="grid gap-2">
+              {friendlies.map((friendly) => {
+                const selected = friendly.id === selectedFixtureId;
+                const hasScore = friendly.homeTeamScore !== null && friendly.awayTeamScore !== null;
+                return (
+                  <button
+                    key={friendly.id}
+                    type="button"
+                    onClick={() => setSelectedFixtureId(friendly.id)}
+                    className={cn(
+                      "grid gap-2 rounded-xl border p-3 text-left transition-colors",
+                      selected ? "border-[#10233f] bg-[#eef3f7]" : "border-[#eeeaf2] bg-white hover:bg-[#f7f5fa]"
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{formatFixtureDate(friendly.fixtureDate)}</p>
+                      <Badge variant={friendly.status === "Completed" ? "green" : friendly.totalGames ? "cyan" : "muted"}>
+                        {friendly.status === "Completed" ? "Completed" : friendly.totalGames ? `${friendly.completedGames}/${friendly.totalGames} played` : "Planning"}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-sm font-black">
+                      <span className="min-w-0 truncate" style={{ color: teamColors(friendly.homeTeamName).primaryColor }}>{friendly.homeTeamName}</span>
+                      <span className="rounded-lg bg-[#10233f] px-2 py-1 text-xs text-white">
+                        {hasScore ? `${friendly.homeTeamScore}-${friendly.awayTeamScore}` : "v"}
+                      </span>
+                      <span className="min-w-0 truncate text-right" style={{ color: teamColors(friendly.awayTeamName).primaryColor }}>{friendly.awayTeamName}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+              No friendlies have been created for {activeTeam.name}.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+      {selectedFriendly ? (
+        <ManagerLineupCard
+          activeTeam={activeTeam}
+          preferredFixtureId={selectedFriendly.id}
+          onDataRefresh={() => {
+            void loadFriendlies(selectedFriendly.id);
+            onDataRefresh?.();
+          }}
+          onTeamSummaryUpdate={onTeamSummaryUpdate}
+        />
+      ) : null}
+    </section>
+  );
+}
+
 function TeamStatsCard({ activeTeam, onNavigate, leagueTeamCount, userCanShare = false }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; leagueTeamCount: number; userCanShare?: boolean }) {
   const hasLeagueTable = teamHasActivity(activeTeam);
   const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
@@ -3914,6 +4154,7 @@ type ManagerLineupPayload = {
     league: string;
     season: string;
     status: string;
+    fixtureType?: "League" | "Friendly";
   } | null;
   players: Array<{ id: string; name: string }>;
   lineup: { id?: string; status: "Draft" | "Published"; publishedAt?: string | null; slots: ManagerLineupSlot[] } | null;
@@ -4353,6 +4594,7 @@ function ManagerLineupCard({
   }
 
   function selectedPlayerIdsExcept(slotNumber?: number, key?: "player1Id" | "player2Id") {
+    if (payload?.fixture?.fixtureType === "Friendly") return new Set<string>();
     return new Set(
       slots.flatMap((slot) => {
         const ids = [];
@@ -4406,7 +4648,10 @@ function ManagerLineupCard({
   const matchReady = Boolean(payload?.games.length);
   const matchLocked = payload?.fixture?.status === "Completed";
   const allGamesScored = Boolean(payload?.games.length && payload.games.every((game) => game.winner_team_id));
-  const selectedCount = selectedPlayerIdsExcept().size;
+  const selectedCount = slots.reduce((count, slot) => {
+    return count + (slot.player1Id ? 1 : 0) + (slot.gameType === "Doubles" && slot.player2Id ? 1 : 0);
+  }, 0);
+  const requiredPlayerSlots = slots.reduce((count, slot) => count + (slot.gameType === "Doubles" ? 2 : 1), 0);
   const directFixtureMode = Boolean(preferredFixtureId && payload?.fixture?.id === preferredFixtureId);
   const fixtureOpen = Boolean(payload?.fixture && (openedFixtureId === payload.fixture.id || directFixtureMode));
   const weekFixtures = payload?.weekFixtures?.length ? payload.weekFixtures : [];
@@ -4414,7 +4659,7 @@ function ManagerLineupCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Next Matches</CardTitle>
+          <CardTitle>{payload?.fixture?.fixtureType === "Friendly" ? "Friendly Match" : "Next Matches"}</CardTitle>
         {matchLocked && fixtureDateHasPassed(payload?.fixture?.fixtureDate) ? null : (
           <Badge variant={matchLocked ? "green" : matchReady ? "cyan" : ownStatus === "Published" ? "cyan" : payload?.lineup?.id ? "muted" : "muted"}>
             {matchLocked ? "Completed" : matchReady ? "Score ready" : ownStatus === "Published" ? "Published" : payload?.lineup?.id ? "Picked" : "Plan"}
@@ -4569,7 +4814,7 @@ function ManagerLineupCard({
                               onRecord={recordGameWinner}
                               onBreak={(game) => setBreakTarget({ game, fixture: payload.fixture! })}
                               pendingGameIds={pendingGameIds}
-                              locked={matchLocked}
+                              locked={matchLocked || !payload.canManage}
                             />
                           ) : null}
                           {isOwnFixture && payload.canManage && matchReady && !matchLocked ? (
@@ -4599,7 +4844,7 @@ function ManagerLineupCard({
                                       Tap each slot to pick a player for the fixed match order.
                                     </p>
                                   </div>
-                                  <Badge variant="muted">{selectedCount}/7 picked</Badge>
+                                  <Badge variant="muted">{selectedCount}/{requiredPlayerSlots} picked</Badge>
                                 </div>
                                 {slots.map((slot) => (
                                   <LineupSlotRow
@@ -4615,13 +4860,13 @@ function ManagerLineupCard({
                                 <Button variant="secondary" onClick={() => submitLineup("save")} disabled={busy}>
                                   Save draft
                                 </Button>
-                                <Button onClick={() => submitLineup("publish")} disabled={busy || selectedCount < 7}>
-                                  {selectedCount < 7 ? `Pick ${7 - selectedCount} more` : "Publish lineup"}
+                                <Button onClick={() => submitLineup("publish")} disabled={busy || selectedCount < requiredPlayerSlots}>
+                                  {selectedCount < requiredPlayerSlots ? `Pick ${requiredPlayerSlots - selectedCount} more` : "Publish lineup"}
                                 </Button>
                               </div>
-                              {selectedCount < 7 ? (
+                              {selectedCount < requiredPlayerSlots ? (
                                 <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#6c5a73]">
-                                  Pick all 7 player slots before publishing. Drafts can still be saved.
+                                  Pick all {requiredPlayerSlots} player slots before publishing. Drafts can still be saved.
                                 </p>
                               ) : null}
                             </>
@@ -4898,6 +5143,7 @@ function fixtureIsComplete(payload: ManagerLineupPayload) {
 
 function liveSummaryFromGameChange(activeTeam: TeamContext, previousPayload: ManagerLineupPayload, nextPayload: ManagerLineupPayload): TeamSummaryUpdate | null {
   if (!activeTeam.teamId || !nextPayload.fixture) return null;
+  if (nextPayload.fixture.fixtureType === "Friendly") return null;
 
   const previousScore = fixtureScoreForTeam(previousPayload, activeTeam.teamId);
   const nextScore = fixtureScoreForTeam(nextPayload, activeTeam.teamId);

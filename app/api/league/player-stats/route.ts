@@ -132,6 +132,7 @@ export async function GET(request: NextRequest) {
            on f.season_id = lt.season_id
           and f.league_id = lt.league_id
           and f.status = 'Scheduled'
+          and coalesce(f.fixture_type, 'League') = 'League'
           and (f.home_team_id = lt.team_id or f.away_team_id = lt.team_id)
          group by lt.team_id
        ),

@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
        left join public.game g on g.match_id = m.id
        where l.name = $1
          and s.name = $2
+         and coalesce(f.fixture_type, 'League') = 'League'
        group by
          fw.id,
          fw.week_number,

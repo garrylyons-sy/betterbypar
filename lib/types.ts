@@ -20,7 +20,7 @@ export type AppearancePanelId =
   | "squadManagement"
   | "managerSnapshot"
   | "assistantHub";
-export type AppearanceMenuId = "Home" | "Fixtures" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Players" | "Stats" | "Messages" | "Interclub Leagues";
+export type AppearanceMenuId = "Home" | "Fixtures" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Players" | "Stats" | "Messages" | "Interclub Leagues";
 export type RoleAppearance = {
   role: Role;
   panels: AppearancePanelId[];

@@ -32,6 +32,7 @@ export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string;
   { id: "Club", label: "My Club", description: "Bookings and club competitions.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "Bookings", label: "Bookings", description: "Club table bookings.", roles: appearanceRoles },
   { id: "Competitions", label: "Competitions", description: "Club competition entries, draws and results.", roles: appearanceRoles },
+  { id: "Friendlies", label: "Friendlies", description: "Private practice matches between two teams.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "Players", label: "Players", description: "Players and squad views.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "Stats", label: "Stats", description: "Stats dashboard.", roles: ["Player", "Manager", "Assistant Manager"] },
   { id: "Messages", label: "Messages", description: "Messages and account access.", roles: [] },
@@ -42,17 +43,17 @@ export const defaultAppearanceConfig: AppearanceConfig = {
   Player: {
     role: "Player",
     panels: ["matchPlanning", "myStats", "leagueTableSnapshot", "teamStats", "teamRecentForm", "personalRecentForm", "individualGames"],
-    menuItems: ["Home", "Fixtures", "Table", "Club"]
+    menuItems: ["Home", "Fixtures", "Table", "Friendlies", "Club"]
   },
   Manager: {
     role: "Manager",
     panels: ["matchPlanning", "squadManagement", "seasonComplete", "teamRecentForm", "managerSnapshot"],
-    menuItems: ["Home", "Fixtures", "Table", "Club", "Results"]
+    menuItems: ["Home", "Fixtures", "Table", "Friendlies", "Club", "Results"]
   },
   "Assistant Manager": {
     role: "Assistant Manager",
     panels: ["assistantHub", "seasonComplete", "managerSnapshot"],
-    menuItems: ["Home", "Fixtures", "Table", "Club", "Results"]
+    menuItems: ["Home", "Fixtures", "Table", "Friendlies", "Club", "Results"]
   },
   "Club Member": {
     role: "Club Member",
