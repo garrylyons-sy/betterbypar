@@ -3493,17 +3493,91 @@ function FriendliesPage({
         </CardContent>
       </Card>
       {selectedFriendly ? (
-        <ManagerLineupCard
-          activeTeam={activeTeam}
-          preferredFixtureId={selectedFriendly.id}
-          onDataRefresh={() => {
-            void loadFriendlies(selectedFriendly.id);
-            onDataRefresh?.();
-          }}
-          onTeamSummaryUpdate={onTeamSummaryUpdate}
-        />
+        canManage ? (
+          <ManagerLineupCard
+            activeTeam={activeTeam}
+            preferredFixtureId={selectedFriendly.id}
+            onDataRefresh={() => {
+              void loadFriendlies(selectedFriendly.id);
+              onDataRefresh?.();
+            }}
+            onTeamSummaryUpdate={onTeamSummaryUpdate}
+          />
+        ) : (
+          <FriendlyReadOnlyCard
+            activeTeam={activeTeam}
+            fixtureId={selectedFriendly.id}
+          />
+        )
       ) : null}
     </section>
+  );
+}
+
+function FriendlyReadOnlyCard({ activeTeam, fixtureId }: { activeTeam: TeamContext; fixtureId: string }) {
+  const [payload, setPayload] = useState<ManagerLineupPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!activeTeam.teamId || !fixtureId) return;
+    let cancelled = false;
+    const teamId = activeTeam.teamId;
+
+    async function loadFriendly() {
+      setLoading(true);
+      setMessage("");
+      try {
+        const params = new URLSearchParams({ teamId, fixtureId });
+        const testUser = currentTestUserParam();
+        if (testUser) params.set("testUser", testUser);
+        const response = await fetch(`/api/manager/lineup?${params.toString()}`, {
+          credentials: "same-origin",
+          cache: "no-store"
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Friendly details unavailable.");
+        if (!cancelled) setPayload(data);
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Friendly details unavailable.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadFriendly();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTeam.teamId, fixtureId]);
+
+  const fixture = payload?.weekFixtures?.[0];
+
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>Friendly details</CardTitle>
+          <p className="mt-1 text-sm font-semibold text-[#6c5a73]">
+            Friendlies are read-only for players and do not affect league tables or player stats.
+          </p>
+        </div>
+        <Badge variant="cyan">Friendly</Badge>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">Loading friendly...</p>
+        ) : message ? (
+          <p className="rounded-xl bg-[#fff8eb] p-3 text-sm font-semibold text-[#8a5a00] ring-1 ring-[#ffb00055]">{message}</p>
+        ) : fixture ? (
+          <ReadOnlyFixtureDetails fixture={fixture} />
+        ) : (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            Friendly details will appear once the teams publish lineups or scoring starts.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
