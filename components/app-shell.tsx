@@ -345,16 +345,12 @@ export function AppShell({
         contexts={visibleContexts.length ? visibleContexts : contexts}
         selectedId={selectedId}
         onContextChange={changeContext}
-        seasons={seasons}
-        selectedSeason={selectedSeason}
-        onSeasonChange={changeSeason}
         simulatedRole={simulatedRole}
         simulatedClub={simulatedClub}
         onRoleChange={changeSimulatedRole}
         onClubChange={changeSimulatedClub}
         onSignOut={onSignOut}
         userLabel={userLabel}
-        showSeasonSwitcher={!clubOnlyView}
       />
       <section className={cn(
         "mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:items-start lg:gap-6 lg:px-8 xl:px-10",
@@ -539,31 +535,23 @@ function Header({
   contexts,
   selectedId,
   onContextChange,
-  seasons,
-  selectedSeason,
-  onSeasonChange,
   simulatedRole,
   simulatedClub,
   userLabel,
   onRoleChange,
   onClubChange,
-  onSignOut,
-  showSeasonSwitcher = true
+  onSignOut
 }: {
   activeTeam: TeamContext;
   contexts: TeamContext[];
   selectedId: string;
   onContextChange: (id: string) => void;
-  seasons: string[];
-  selectedSeason: string;
-  onSeasonChange: (season: string) => void;
   simulatedRole: Role;
   simulatedClub: string;
   userLabel?: string;
   onRoleChange: (role: Role) => void;
   onClubChange: (club: string) => void;
   onSignOut?: () => void;
-  showSeasonSwitcher?: boolean;
 }) {
   const [accountOpen, setAccountOpen] = useState(false);
 
@@ -589,11 +577,7 @@ function Header({
           </div>
           <AccountMenu userLabel={userLabel} onSignOut={onSignOut} accountOpen={accountOpen} setAccountOpen={setAccountOpen} />
         </div>
-        <div className={cn(
-          "grid min-w-0 w-full gap-2",
-          showSeasonSwitcher ? "sm:w-[390px] sm:grid-cols-[130px_minmax(0,1fr)]" : "sm:w-[270px]"
-        )}>
-          {showSeasonSwitcher ? <SeasonSwitcher seasons={seasons} selectedSeason={selectedSeason} onChange={onSeasonChange} /> : null}
+        <div className="grid min-w-0 w-full gap-2 sm:w-[270px]">
           <ContextSwitcher
             contexts={contexts}
             selectedId={selectedId}
@@ -674,35 +658,6 @@ function contextLabel(context: TeamContext) {
 function contextDescription(context: TeamContext) {
   if (isClubOnlyRole(context.role)) return context.role === "Club Admin" ? "Club administration" : "Club access";
   return `${context.league} - ${context.club.replace(" Golf Club", "")}`;
-}
-
-function SeasonSwitcher({ seasons, selectedSeason, onChange }: { seasons: string[]; selectedSeason: string; onChange: (season: string) => void }) {
-  if (seasons.length <= 1) {
-    return (
-      <div className="min-h-11 rounded-xl bg-white/95 px-4 py-2 text-[#10233f] shadow-card">
-        <p className="truncate text-[11px] font-bold uppercase text-[#6c5a73]">Season</p>
-        <p className="truncate text-sm font-extrabold">{selectedSeason}</p>
-      </div>
-    );
-  }
-
-  return (
-    <label className="relative block w-full">
-      <span className="sr-only">Switch season</span>
-      <select
-        value={selectedSeason}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full appearance-none rounded-xl border border-white/15 bg-white/95 px-4 pr-10 text-sm font-bold text-[#10233f] shadow-card outline-none"
-      >
-        {seasons.map((season) => (
-          <option key={season} value={season}>
-            {season}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-[#10233f]" />
-    </label>
-  );
 }
 
 function ContextSwitcher({
