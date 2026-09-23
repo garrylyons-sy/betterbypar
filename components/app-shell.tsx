@@ -5535,11 +5535,11 @@ function GeneratedMatchCard({
                   {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""} <span className="text-white/55">v</span> {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={locked || pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                <Button className="min-h-10 whitespace-normal px-2 py-1 text-xs leading-tight" size="sm" disabled={locked || pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
                   {pendingGameIds.has(game.id) && game.winner_team_id === fixture.homeTeamId ? "..." : fixture.homeTeamName.replace(/ Golf Club/g, "")}
                 </Button>
-                <Button className="min-h-9 px-2 py-1 text-xs" size="sm" disabled={locked || pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
+                <Button className="min-h-10 whitespace-normal px-2 py-1 text-xs leading-tight" size="sm" disabled={locked || pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
                   {pendingGameIds.has(game.id) && game.winner_team_id === fixture.awayTeamId ? "..." : fixture.awayTeamName.replace(/ Golf Club/g, "")}
                 </Button>
               </div>
