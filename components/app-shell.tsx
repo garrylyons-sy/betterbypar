@@ -54,6 +54,18 @@ function isClubOnlyRole(role: Role) {
   return role === "Club Member" || role === "Club Admin";
 }
 
+function seasonSortValue(season: string) {
+  const match = season.match(/^(\d{4})\/(\d{2})$/);
+  return match ? Number(match[1]) : 0;
+}
+
+function currentAppSeason(contexts: TeamContext[]) {
+  const seasons = Array.from(new Set(contexts.filter((context) => !isClubOnlyRole(context.role)).map((context) => context.season).filter(Boolean)));
+  if (!seasons.length) return "Club";
+  return seasons.find((season) => seasonStatusFor(season) === "in-progress")
+    ?? [...seasons].sort((a, b) => seasonSortValue(b) - seasonSortValue(a))[0];
+}
+
 function currentTestUserParam() {
   if (typeof window === "undefined") return "";
   return new URLSearchParams(window.location.search).get("testUser")?.trim() ?? "";
@@ -143,27 +155,29 @@ export function AppShell({
   onPageVisit?: (pageLabel: string, activeTeam: TeamContext) => void;
   onDataRefresh?: () => void;
 }) {
-  const seasons = useMemo(() => Array.from(new Set(contexts.map((context) => context.season))).filter(Boolean), [contexts]);
+  const appSeason = useMemo(() => currentAppSeason(contexts), [contexts]);
+  const appContexts = useMemo(
+    () => contexts.filter((context) => context.season === appSeason || isClubOnlyRole(context.role)),
+    [appSeason, contexts]
+  );
   const preferredContextId = useMemo(() => {
-    if (typeof window === "undefined") return contexts[0]?.id ?? teamContexts[0].id;
+    const availableContexts = appContexts.length ? appContexts : contexts;
+    if (typeof window === "undefined") return availableContexts[0]?.id ?? teamContexts[0].id;
     const params = new URLSearchParams(window.location.search);
     const requestedTeam = params.get("team")?.trim().toLowerCase();
     const requestedRole = params.get("role")?.trim().toLowerCase();
-    const requestedSeason = params.get("season")?.trim().toLowerCase();
-    if (!requestedTeam && !requestedRole && !requestedSeason) return contexts[0]?.id ?? teamContexts[0].id;
-    return contexts.find((team) => {
+    if (!requestedTeam && !requestedRole) return availableContexts[0]?.id ?? teamContexts[0].id;
+    return availableContexts.find((team) => {
       const teamMatches = requestedTeam ? normalizeLookupKey(team.name) === normalizeLookupKey(requestedTeam) : true;
       const roleMatches = requestedRole ? team.role.toLowerCase() === requestedRole : true;
-      const seasonMatches = requestedSeason ? team.season.toLowerCase() === requestedSeason : true;
-      return teamMatches && roleMatches && seasonMatches;
-    })?.id ?? contexts[0]?.id ?? teamContexts[0].id;
-  }, [contexts]);
+      return teamMatches && roleMatches;
+    })?.id ?? availableContexts[0]?.id ?? teamContexts[0].id;
+  }, [appContexts, contexts]);
   const preferredContext = useMemo(
-    () => contexts.find((team) => team.id === preferredContextId) ?? contexts[0] ?? teamContexts[0],
-    [contexts, preferredContextId]
+    () => appContexts.find((team) => team.id === preferredContextId) ?? appContexts[0] ?? contexts[0] ?? teamContexts[0],
+    [appContexts, contexts, preferredContextId]
   );
   const [selectedId, setSelectedId] = useState(preferredContextId);
-  const [selectedSeason, setSelectedSeason] = useState(preferredContext.season);
   const [activePage, setActivePage] = useState<AppPage>(() => {
     if (typeof window === "undefined") return "Home";
     const requestedPage = new URLSearchParams(window.location.search).get("page");
@@ -178,27 +192,6 @@ export function AppShell({
   useEffect(() => {
     setTeamSummaryOverrides({});
   }, [contexts]);
-  const visibleContexts = useMemo(
-    () => contexts.filter((context) => context.season === selectedSeason || isClubOnlyRole(context.role)),
-    [contexts, selectedSeason]
-  );
-
-  function changeSeason(nextSeason: string) {
-    const current = contexts.find((team) => team.id === selectedId);
-    const nextContext = contexts.find((team) =>
-      team.season === nextSeason &&
-      current &&
-      team.name === current.name &&
-      team.role === current.role &&
-      team.club === current.club
-    ) ?? contexts.find((team) => team.season === nextSeason) ?? contexts[0];
-
-    setSelectedSeason(nextSeason);
-    if (nextContext) setSelectedId(nextContext.id);
-    setSelectedFixtureId("");
-    setActivePage("Home");
-  }
-
   function changeContext(nextId: string) {
     setSelectedId(nextId);
     setSelectedFixtureId("");
@@ -218,28 +211,23 @@ export function AppShell({
   }
 
   useEffect(() => {
-    if (!seasons.includes(selectedSeason)) {
-      setSelectedSeason(preferredContext.season);
-      return;
+    if (!appContexts.some((team) => team.id === selectedId)) {
+      setSelectedId(appContexts[0]?.id ?? preferredContextId);
     }
-    if (!visibleContexts.some((team) => team.id === selectedId)) {
-      setSelectedId(visibleContexts[0]?.id ?? preferredContextId);
-    }
-  }, [preferredContext.season, preferredContextId, visibleContexts, seasons, selectedId, selectedSeason]);
+  }, [appContexts, preferredContextId, selectedId]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (hasAppliedUrlContext.current) return;
     const params = new URLSearchParams(window.location.search);
     if (params.has("team") || params.has("role") || params.has("season")) {
       hasAppliedUrlContext.current = true;
-      setSelectedSeason(preferredContext.season);
       setSelectedId(preferredContextId);
     }
-  }, [preferredContext.season, preferredContextId]);
+  }, [preferredContextId]);
 
   const realActiveTeam = useMemo(
-    () => visibleContexts.find((team) => team.id === selectedId) ?? visibleContexts[0] ?? contexts[0] ?? teamContexts[0],
-    [contexts, visibleContexts, selectedId]
+    () => appContexts.find((team) => team.id === selectedId) ?? appContexts[0] ?? contexts[0] ?? teamContexts[0],
+    [appContexts, contexts, selectedId]
   );
   useEffect(() => {
     setSimulatedRole(realActiveTeam.role);
@@ -342,7 +330,7 @@ export function AppShell({
     <main className="min-h-screen overflow-x-hidden app-bg pb-24 text-[#10233f]">
       <Header
         activeTeam={activeTeam}
-        contexts={visibleContexts.length ? visibleContexts : contexts}
+        contexts={appContexts.length ? appContexts : contexts}
         selectedId={selectedId}
         onContextChange={changeContext}
         simulatedRole={simulatedRole}
