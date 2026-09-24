@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Mail, Send, UserPlus } from "lucide-react";
 
-import { AppShell } from "@/components/app-shell";
+import { AppShell, currentAppSeason } from "@/components/app-shell";
 import { AuthSelectField, AuthSignInForm, AuthTextAreaField, AuthTextField, GoogleAuthButton, authJsonFetch } from "@/components/auth-controls";
 import { PasswordChecklist } from "@/components/password-checklist";
 import { SplashScreen } from "@/components/splash-screen";
@@ -260,7 +260,7 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
   const requestedRole = normalizeEmbeddedRole(params.get("role"));
   const requestedTeam = normalizeLookupKey(params.get("team"));
   const requestedClub = normalizeLookupKey(params.get("club"));
-  const requestedSeason = params.get("season")?.trim() || "2026/27";
+  const activeSeason = currentAppSeason(contexts);
   if (!embedded || !requestedRole) return contexts;
 
   const existing = contexts.find((context) => {
@@ -268,7 +268,7 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
     if (requestedRole === "Club Member" || requestedRole === "Club Admin") {
       return requestedClub ? normalizeLookupKey(context.club) === requestedClub : normalizeLookupKey(context.club) === "castle golf club";
     }
-    return Boolean(requestedTeam) && normalizeLookupKey(context.name) === requestedTeam && context.season === requestedSeason;
+    return Boolean(requestedTeam) && normalizeLookupKey(context.name) === requestedTeam && context.season === activeSeason;
   });
   if (existing) return params.get("isolate") === "1" ? [existing] : contexts;
 
@@ -296,7 +296,7 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
   if (!requestedTeam) return contexts;
   const option = teamOptions.find((team) =>
     normalizeLookupKey(team.teamName) === requestedTeam &&
-    team.seasonName === requestedSeason
+    team.seasonName === activeSeason
   );
   if (!option || !/^[0-9a-f-]{36}$/i.test(option.teamId)) return contexts;
 

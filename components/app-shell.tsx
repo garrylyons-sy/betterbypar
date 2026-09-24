@@ -59,7 +59,7 @@ function seasonSortValue(season: string) {
   return match ? Number(match[1]) : 0;
 }
 
-function currentAppSeason(contexts: TeamContext[]) {
+export function currentAppSeason(contexts: TeamContext[]) {
   const seasons = Array.from(new Set(contexts.filter((context) => !isClubOnlyRole(context.role)).map((context) => context.season).filter(Boolean)));
   if (!seasons.length) return "Club";
   return seasons.find((season) => seasonStatusFor(season) === "in-progress")
