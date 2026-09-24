@@ -6186,8 +6186,8 @@ function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePa
   const items = hasOverflow
     ? [
         ...primaryItems,
-        { label: "More", page: "Menu" as AppPage, icon: MenuIcon, description: "More options" },
-        ...(myClubItem ? [myClubItem] : [])
+        ...(myClubItem ? [myClubItem] : []),
+        { label: "More", page: "Menu" as AppPage, icon: MenuIcon, description: "More options" }
       ]
     : [...primaryItems, ...(myClubItem ? [myClubItem] : [])];
   const morePages: AppPage[] = ["Menu", ...overflowItems.map((item) => item.page)];
