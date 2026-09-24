@@ -1492,7 +1492,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
               <p className="text-xs font-extrabold uppercase text-white/65">Table bookings</p>
               <h2 className="mt-1 text-3xl font-black leading-none">{activeTeam.club}</h2>
               <p className="mt-2 text-sm font-semibold text-white/75">
-                Club-specific table booking is ready for Castle first. This club can be switched on when its tables are added.
+                This has not been set up for your club as of yet.
               </p>
             </div>
           </CardContent>
