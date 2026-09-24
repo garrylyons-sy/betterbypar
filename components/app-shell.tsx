@@ -6206,6 +6206,7 @@ function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePa
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 text-[10px] font-bold leading-tight text-[#6c5a73]",
+                item.page === "Menu" && "order-last",
                 active && "bg-[#10233f] text-white shadow-card"
               )}
             >
