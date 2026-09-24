@@ -5486,7 +5486,7 @@ function GeneratedMatchCard({
             <div key={game.id} className="grid gap-2 rounded-lg bg-white/10 p-2 text-sm font-bold">
               <div className="min-w-0">
                 <p className="text-xs font-extrabold uppercase text-white/55">Game {game.game_number} - {game.points_awarded} pts</p>
-                <p className="mt-1 leading-tight">
+                <p className="mt-1 break-words leading-tight">
                   {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""} <span className="text-white/55">v</span> {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}
                 </p>
               </div>
@@ -5503,9 +5503,9 @@ function GeneratedMatchCard({
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <span className="text-[10px] font-extrabold uppercase tracking-wide text-white/55">Breaks</span>
                     {breaks.map((item) => (
-                      <span key={item.id} className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-1 text-xs font-extrabold text-white">
+                      <span key={item.id} className="inline-flex min-w-0 items-center gap-1 rounded-md bg-white/10 px-2 py-1 text-xs font-extrabold text-white">
                         <span className="h-1.5 w-1.5 rounded-full bg-[#7bc7d6]" />
-                        <span>{item.playerName}</span>
+                        <span className="break-words">{item.playerName}</span>
                         <span className="rounded bg-white/15 px-1.5 py-0.5">{item.breakValue}</span>
                       </span>
                     ))}
