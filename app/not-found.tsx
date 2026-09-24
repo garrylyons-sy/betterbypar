@@ -1,15 +1,20 @@
 import Link from "next/link";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Frame not found | Interclub Snooker"
+};
 
 function BrokenCueLogo() {
   return (
-    <div className="relative mx-auto h-44 w-44">
-      <div className="absolute inset-x-5 bottom-1 h-8 rounded-full bg-[#10233f]/14 blur-xl" />
+    <div className="relative mx-auto h-56 w-56 sm:h-64 sm:w-64">
+      <div className="absolute inset-x-6 bottom-3 h-10 rounded-full bg-[#10233f]/14 blur-xl" />
       <img
         src="/snooker-logo-broken-cue.png"
         alt="Sad Interclub Snooker mascot holding a broken cue"
         className="relative h-full w-full object-contain drop-shadow-[0_18px_32px_rgba(16,35,63,.24)]"
       />
-      <div className="absolute -right-1 top-2 grid h-12 w-12 place-items-center rounded-2xl bg-[#00ff85] text-lg font-black text-[#071426] shadow-[0_14px_30px_rgba(0,255,133,.22)]">
+      <div className="absolute right-0 top-6 grid h-14 w-14 place-items-center rounded-2xl bg-[#00ff85] text-xl font-black text-[#071426] shadow-[0_14px_30px_rgba(0,255,133,.22)]">
         404
       </div>
     </div>
