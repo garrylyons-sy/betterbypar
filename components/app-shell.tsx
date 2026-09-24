@@ -3050,7 +3050,7 @@ function MoreMenu({
 }) {
   const configured = menuItems.map(menuEntry);
   const overflowItems = configured.length > 5 ? configured.slice(4) : configured;
-  const items = overflowItems.filter((item) => item.page !== "Home");
+  const items = overflowItems.filter((item) => item.page !== "Home" && item.page !== "Club");
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
