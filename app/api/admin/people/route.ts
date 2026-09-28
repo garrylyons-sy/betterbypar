@@ -149,12 +149,75 @@ export async function PATCH(request: NextRequest) {
   try {
     const user = await assertAdministrator();
     const body = await request.json();
+    const action = String(body.action ?? "login").trim();
     const personId = String(body.personId ?? "").trim();
-    const loginActive = Boolean(body.loginActive);
 
     if (!personId) {
       return NextResponse.json({ error: "Person is required." }, { status: 400 });
     }
+
+    if (action === "details") {
+      const firstName = String(body.firstName ?? "").trim();
+      const lastName = String(body.lastName ?? "").trim();
+      const emailInput = String(body.email ?? "").trim().toLowerCase();
+      const phoneInput = String(body.phone ?? "").trim();
+      const handicapInput = String(body.handicap ?? "").trim();
+      const handicap = handicapInput === "" ? null : Number(handicapInput);
+
+      if (!firstName || !lastName) {
+        return NextResponse.json({ error: "First name and last name are required." }, { status: 400 });
+      }
+      if (handicap !== null && (!Number.isFinite(handicap) || handicap < -200 || handicap > 200)) {
+        return NextResponse.json({ error: "Handicap must be between -200 and 200, or left blank." }, { status: 400 });
+      }
+
+      const updated = await withTransaction(async (client) => {
+        if (emailInput) {
+          const duplicateResult = await client.query<{ id: string }>(
+            `select id
+             from public.person
+             where lower(email) = lower($1)
+               and id <> $2
+               and active = true
+             limit 1`,
+            [emailInput, personId]
+          );
+          if (duplicateResult.rowCount) {
+            throw new Error("That email address is already used by another person.");
+          }
+        }
+
+        const personResult = await client.query<{ id: string; first_name: string; last_name: string; email: string | null; phone: string | null }>(
+          `update public.person
+           set first_name = $2,
+               last_name = $3,
+               email = nullif($4, ''),
+               phone = nullif($5, '')
+           where id = $1
+             and active = true
+           returning id, first_name, last_name, email, phone`,
+          [personId, firstName, lastName, emailInput, phoneInput]
+        );
+
+        if (!personResult.rowCount) {
+          throw new Error("Person was not found.");
+        }
+
+        await client.query(
+          `update public.club_membership
+           set handicap = $2
+           where person_id = $1
+             and active = true`,
+          [personId, handicap]
+        );
+
+        return personResult.rows[0];
+      });
+
+      return NextResponse.json({ ok: true, person: updated });
+    }
+
+    const loginActive = Boolean(body.loginActive);
     if (personId === user.personId && !loginActive) {
       return NextResponse.json({ error: "You cannot disable your own login." }, { status: 400 });
     }

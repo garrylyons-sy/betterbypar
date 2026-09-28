@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, Eye, FileSpreadsheet, KeyRound, LayoutPanelTop, LogOut, Mail, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, Eye, FileSpreadsheet, KeyRound, LayoutPanelTop, LogOut, Mail, Pencil, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ type ClubOption = {
 type PersonOption = {
   personId: string;
   name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone?: string;
   accountId?: string | null;
@@ -142,9 +144,9 @@ const demoTeams: TeamOption[] = clubTeamStructure.flatMap((club) =>
   }))
 );
 const demoPeople: PersonOption[] = [
-  { personId: "person-garry", name: "Garry Lyons", email: "garry@example.com" },
-  { personId: "person-andrew", name: "Andrew Foley", email: "andrew@example.com" },
-  { personId: "person-conor", name: "Conor O'Boyle", email: "conor@example.com" }
+  { personId: "person-garry", name: "Garry Lyons", firstName: "Garry", lastName: "Lyons", email: "garry@example.com" },
+  { personId: "person-andrew", name: "Andrew Foley", firstName: "Andrew", lastName: "Foley", email: "andrew@example.com" },
+  { personId: "person-conor", name: "Conor O'Boyle", firstName: "Conor", lastName: "O'Boyle", email: "conor@example.com" }
 ];
 const demoLogs: ActivityRow[] = [
   {
@@ -291,7 +293,9 @@ export function AdminConsole() {
         for (const person of data.people ?? []) {
           seen.set(person.person_id, {
             personId: person.person_id,
-            name: `${person.first_name} ${person.last_name}`.trim(),
+            firstName: person.first_name ?? "",
+            lastName: person.last_name ?? "",
+            name: `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim(),
             email: person.email ?? "",
             phone: person.phone ?? "",
             accountId: person.account_id ?? null,
@@ -1240,6 +1244,7 @@ function PeoplePanel({
   const [admin, setAdmin] = useState(false);
   const [busyPersonId, setBusyPersonId] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<PersonOption | null>(null);
+  const [editTarget, setEditTarget] = useState<PersonOption | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [clubFilter, setClubFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -1303,6 +1308,33 @@ function PeoplePanel({
       onRefresh();
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not update user.");
+    } finally {
+      setBusyPersonId("");
+    }
+  }
+
+  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string }) {
+    if (demo) {
+      onMessage("Person details updated.");
+      setEditTarget(null);
+      return;
+    }
+
+    setBusyPersonId(details.personId);
+    try {
+      const response = await fetch("/api/admin/people", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "details", ...details })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not update person.");
+      onMessage(`${details.firstName} ${details.lastName}`.trim() + " updated.");
+      setEditTarget(null);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not update person.");
     } finally {
       setBusyPersonId("");
     }
@@ -1588,7 +1620,7 @@ function PeoplePanel({
           </div>
           {inviteSelectionStatus ? <InviteSendStatus tone={inviteSelectionStatus.tone} text={inviteSelectionStatus.text} /> : null}
           <div className="min-w-0 overflow-x-auto rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden min-w-[1120px] grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_260px] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden min-w-[1210px] grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_330px] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
               <span>
                 <input
                   className="h-4 w-4 accent-[#10233f]"
@@ -1607,7 +1639,7 @@ function PeoplePanel({
               <span>Invite status</span>
               <span className="text-right">Actions</span>
             </div>
-            <div className="max-h-[680px] min-w-[1120px] overflow-y-auto">
+            <div className="max-h-[680px] min-w-[1210px] overflow-y-auto">
               {visiblePeople.map((person) => {
                 const handicaps = (person.clubHandicaps ?? []).filter((item) => item.handicap !== null && item.handicap !== undefined);
                 const clubsForPerson = Array.from(new Set([
@@ -1616,7 +1648,7 @@ function PeoplePanel({
                 ].filter(Boolean)));
                 const canInvitePerson = Boolean(person.email && !person.invitedAt);
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_260px] lg:items-center lg:gap-2">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_330px] lg:items-center lg:gap-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6c5a73]">
                       <input
                         className="h-4 w-4 accent-[#10233f]"
@@ -1649,6 +1681,16 @@ function PeoplePanel({
                     <p className="min-w-0 truncate text-xs text-[#6c5a73]">{person.invitedAt ? formatAdminDate(person.invitedAt) : "-"}</p>
                     <InviteStatusBadge person={person} />
                     <div className="flex min-w-0 items-center justify-end gap-1">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setEditTarget(person)}
+                        disabled={busyPersonId === person.personId}
+                        className="min-h-9 shrink-0 px-2 text-xs"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
                       {person.invitationId && person.inviteStatus === "Pending" ? (
                         <Button
                           variant="secondary"
@@ -1724,6 +1766,14 @@ function PeoplePanel({
           <AdminCheckbox label="Make administrator" checked={admin} onChange={setAdmin} description="Administrators can access the admin console once they have a login." />
         </CardContent>
       </Card>
+      {editTarget ? (
+        <EditPersonModal
+          person={editTarget}
+          busy={busyPersonId === editTarget.personId}
+          onCancel={() => setEditTarget(null)}
+          onConfirm={updatePersonDetails}
+        />
+      ) : null}
       {deleteTarget ? (
         <ConfirmDeletePersonModal
           person={deleteTarget}
@@ -1750,6 +1800,71 @@ function InviteStatusBadge({ person }: { person: PersonOption }) {
     <span title={detail || undefined}>
       <Badge variant={variant}>{status}</Badge>
     </span>
+  );
+}
+
+function EditPersonModal({
+  person,
+  busy,
+  onCancel,
+  onConfirm
+}: {
+  person: PersonOption;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string }) => void;
+}) {
+  const firstHandicap = person.clubHandicaps?.find((item) => item.handicap !== null && item.handicap !== undefined)?.handicap;
+  const [firstName, setFirstName] = useState(person.firstName);
+  const [lastName, setLastName] = useState(person.lastName);
+  const [email, setEmail] = useState(person.email ?? "");
+  const [phone, setPhone] = useState(person.phone ?? "");
+  const [handicap, setHandicap] = useState(firstHandicap === null || firstHandicap === undefined ? "" : String(firstHandicap));
+  const canSave = Boolean(firstName.trim() && lastName.trim());
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Edit person">
+      <div className="w-full max-w-2xl rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase text-[#6c5a73]">Edit person</p>
+            <h2 className="mt-1 text-xl font-extrabold leading-tight text-[#10233f]">{person.name}</h2>
+            <p className="mt-1 text-sm font-bold text-[#6c5a73]">This changes contact details only. Team roles are kept as they are.</p>
+          </div>
+          {person.accountId ? (
+            <Badge variant={person.loginActive ? "green" : "muted"}>{person.loginActive ? "Login on" : "Login off"}</Badge>
+          ) : (
+            <Badge variant="muted">No login</Badge>
+          )}
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <AdminInput label="First name" value={firstName} onChange={setFirstName} />
+          <AdminInput label="Last name" value={lastName} onChange={setLastName} />
+          <AdminInput label="Email" value={email} onChange={setEmail} type="email" placeholder="No email yet" />
+          <AdminInput label="Phone" value={phone} onChange={setPhone} type="tel" placeholder="Blank" />
+          <AdminInput label="Club handicap" value={handicap} onChange={setHandicap} type="number" placeholder="Blank" />
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <Button variant="secondary" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => onConfirm({
+              personId: person.personId,
+              firstName: firstName.trim(),
+              lastName: lastName.trim(),
+              email: email.trim(),
+              phone: phone.trim(),
+              handicap: handicap.trim()
+            })}
+            disabled={busy || !canSave}
+          >
+            <Pencil className="h-4 w-4" />
+            {busy ? "Saving..." : "Save changes"}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
