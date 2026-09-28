@@ -99,16 +99,14 @@ export async function GET(request: NextRequest) {
        game_stats as (
          select
            tp.person_id,
-           count(pgr.game_id) filter (
+           count(distinct pgr.game_id) filter (
              where pgr.player_1_id = tp.person_id or pgr.player_2_id = tp.person_id
            ) as played,
-           count(pgr.game_id) filter (
-             where (pgr.player_1_id = tp.person_id and pgr.result = 1)
-                or (pgr.player_2_id = tp.person_id and pgr.result = 0)
+           count(distinct pgr.game_id) filter (
+             where pgr.winner_player_id = tp.person_id
            ) as won,
-           count(pgr.game_id) filter (
-             where (pgr.player_1_id = tp.person_id and pgr.result = 0)
-                or (pgr.player_2_id = tp.person_id and pgr.result = 1)
+           count(distinct pgr.game_id) filter (
+             where pgr.loser_player_id = tp.person_id
            ) as lost
          from team_players tp
          left join public.player_game_result_view pgr
