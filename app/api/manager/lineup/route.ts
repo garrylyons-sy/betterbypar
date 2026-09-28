@@ -991,7 +991,7 @@ async function generateGamesIfBothPublished(client: PoolClient, fixtureId: strin
          away_player_1_counts_for_stats, away_player_2_counts_for_stats,
          points_awarded
        )
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        on conflict (match_id, game_number) do update
        set home_player_1_id = excluded.home_player_1_id,
            home_player_2_id = excluded.home_player_2_id,
