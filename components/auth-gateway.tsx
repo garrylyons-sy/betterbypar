@@ -165,6 +165,7 @@ export function AuthGateway() {
 
     const poll = window.setInterval(() => {
       refreshSession({ silent: true });
+      window.dispatchEvent(new Event("interclub:refresh-panels"));
     }, 60000);
 
     return () => window.clearInterval(poll);
@@ -174,7 +175,10 @@ export function AuthGateway() {
     if (!session?.authenticated) return;
 
     const refreshVisibleSession = () => {
-      if (document.visibilityState === "visible") refreshSession({ silent: true });
+      if (document.visibilityState === "visible") {
+        refreshSession({ silent: true });
+        window.dispatchEvent(new Event("interclub:refresh-panels"));
+      }
     };
 
     window.addEventListener("focus", refreshVisibleSession);

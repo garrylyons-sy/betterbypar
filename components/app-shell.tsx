@@ -241,6 +241,8 @@ export function AppShell({
     ...activeTeamBase,
     ...(activeTeamBase.teamId ? teamSummaryOverrides[activeTeamBase.teamId] : undefined)
   };
+  const appRefreshKey = `${activeTeam.id}|${activeTeam.role}|${activePage}`;
+  const appRefreshKeyRef = useRef("");
   const updateTeamSummary = (teamId: string, summary: TeamSummaryUpdate) => {
     setTeamSummaryOverrides((current) => ({
       ...current,
@@ -250,6 +252,16 @@ export function AppShell({
       }
     }));
   };
+  useEffect(() => {
+    if (!appRefreshKeyRef.current) {
+      appRefreshKeyRef.current = appRefreshKey;
+      return;
+    }
+    if (appRefreshKeyRef.current === appRefreshKey) return;
+    appRefreshKeyRef.current = appRefreshKey;
+    onDataRefresh?.();
+    window.dispatchEvent(new Event("interclub:refresh-panels"));
+  }, [appRefreshKey, onDataRefresh]);
   const appearanceConfig = useMemo(() => normalizeAppearanceConfig(appearance ?? defaultAppearanceConfig), [appearance]);
   const activeAppearance = appearanceConfig[activeTeam.role] ?? defaultAppearanceConfig[activeTeam.role];
   const userCanShare = useMemo(() => contexts.some((context) => isManagerRole(context.role)), [contexts]);
@@ -4318,18 +4330,19 @@ function weekDistanceFromToday(week: FixtureWeek) {
 function fixtureWeekShouldPoll(week?: FixtureWeek) {
   if (!week) return false;
   const today = localIsoDate();
-  const weekStarts = week.startsOn.slice(0, 10);
-  return (weekStarts === today && isMatchPollingWindow()) || week.fixtures.some((fixture) => {
-    const inProgressMatch = fixture.totalGames > 0 && fixture.completedGames < fixture.totalGames;
-    const lineupStarted = Boolean(fixture.homeLineupStatus || fixture.awayLineupStatus);
-    return inProgressMatch || lineupStarted;
-  });
+  if (!isMatchPollingWindow()) return false;
+  return week.fixtures.some((fixture) => fixture.fixtureDate.slice(0, 10) === today && fixture.status !== "Completed");
 }
 
 function isMatchPollingWindow() {
   const now = new Date();
   const minutes = now.getHours() * 60 + now.getMinutes();
   return minutes >= 19 * 60 + 30 && minutes <= 23 * 60 + 30;
+}
+
+function managerLineupShouldPoll(payload: ManagerLineupPayload | null) {
+  if (!payload?.fixture || payload.fixture.status === "Completed") return false;
+  return payload.fixture.fixtureDate.slice(0, 10) === localIsoDate() && isMatchPollingWindow();
 }
 
 function fixtureHasStarted(fixture: FixtureWeekFixture) {
@@ -4411,8 +4424,13 @@ function FixtureWeekCarouselCard({
       .finally(() => {
         if (active) setLoading(false);
       });
+    const refreshPanels = () => {
+      loadWeeks(false).catch(() => undefined);
+    };
+    window.addEventListener("interclub:refresh-panels", refreshPanels);
     return () => {
       active = false;
+      window.removeEventListener("interclub:refresh-panels", refreshPanels);
       if (pollId) window.clearInterval(pollId);
     };
   }, [activeTeam.league, activeTeam.season, activeTeam.teamId, embeddedDemoMode]);
@@ -4597,6 +4615,7 @@ function ManagerLineupCard({
   const dirtyDraftRef = useRef(false);
   const fixtureIdRef = useRef("");
   const matchSnapshotRef = useRef("");
+  const payloadRef = useRef<ManagerLineupPayload | null>(null);
   const testManagerMode = typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("embed") === "1" &&
     new URLSearchParams(window.location.search).get("role")?.toLowerCase() === "manager";
@@ -4619,6 +4638,7 @@ function ManagerLineupCard({
     dirtyDraftRef.current = false;
     fixtureIdRef.current = "";
     matchSnapshotRef.current = "";
+    payloadRef.current = null;
     setSlots(defaultLineupSlotsForLeague(activeTeam.league));
 
     async function loadLineup() {
@@ -4635,6 +4655,7 @@ function ManagerLineupCard({
         if (cancelled) return;
         if (!response.ok) throw new Error(data.error || "Lineup unavailable.");
         setPayload(data);
+        payloadRef.current = data;
         const fixtureId = data.fixture?.id ?? "";
         const fixtureChanged = fixtureId !== fixtureIdRef.current;
         const lineupStatus = data.lineup?.status ?? "Draft";
@@ -4661,13 +4682,22 @@ function ManagerLineupCard({
     }
 
     loadLineup();
-    const poll = window.setInterval(loadLineup, 8000);
+    const poll = window.setInterval(() => {
+      if (testManagerMode || managerLineupShouldPoll(payloadRef.current)) {
+        loadLineup();
+      }
+    }, 8000);
+    const refreshPanels = () => {
+      loadLineup();
+    };
+    window.addEventListener("interclub:refresh-panels", refreshPanels);
 
     return () => {
       cancelled = true;
+      window.removeEventListener("interclub:refresh-panels", refreshPanels);
       window.clearInterval(poll);
     };
-  }, [activeTeam.teamId, activeTeam.league, preferredFixtureId]);
+  }, [activeTeam.teamId, activeTeam.league, preferredFixtureId, testManagerMode, testUserEmail]);
 
   function updateSlot(slotNumber: number, key: "player1Id" | "player2Id", value: string) {
     dirtyDraftRef.current = true;
