@@ -878,8 +878,8 @@ function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, guestP
     if (player2Id && !player2IsGuest && !playerIds.has(player2Id)) throw new Error(`${slot.label} doubles partner is not in this team.`);
     if (player1Id && player1IsGuest && !guestPlayerIds.has(player1Id)) throw new Error(`${slot.label} Guest Player must be from a lower team in this club.`);
     if (player2Id && player2IsGuest && !guestPlayerIds.has(player2Id)) throw new Error(`${slot.label} doubles Guest Player must be from a lower team in this club.`);
-    if (player1IsGuest && !player1Id) throw new Error(`${slot.label} Guest Player must be selected from a lower team.`);
-    if (player2IsGuest && !player2Id) throw new Error(`${slot.label} doubles Guest Player must be selected from a lower team.`);
+    if (player1IsGuest && !player1Id && !player1GuestName) throw new Error(`${slot.label} Guest Player must be selected from a lower team or entered as a fallback name.`);
+    if (player2IsGuest && !player2Id && !player2GuestName) throw new Error(`${slot.label} doubles Guest Player must be selected from a lower team or entered as a fallback name.`);
     if (player1Id && player2Id && player1Id === player2Id) throw new Error(`${slot.label} needs two different players.`);
     if (requireComplete && !player1Id && !player1GuestName) throw new Error(`${slot.label} needs a player before publishing.`);
     if (requireComplete && slot.gameType === "Doubles" && !player2Id && !player2GuestName) throw new Error("Doubles needs two players before publishing.");

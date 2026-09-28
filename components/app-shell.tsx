@@ -5360,6 +5360,8 @@ function PlayerPickerSheet({
   const prefix = lineupPlayerPrefix(target.key);
   const selectedGuestName = String(slot?.[`${prefix}GuestName` as keyof ManagerLineupSlot] ?? "");
   const selectedIsGuest = Boolean(slot?.[`${prefix}IsGuest` as keyof ManagerLineupSlot]);
+  const [manualGuestName, setManualGuestName] = useState(selectedGuestName);
+  const cleanManualGuestName = manualGuestName.trim().replace(/\s+/g, " ");
 
   return (
     <div className="fixed inset-0 z-50 grid items-end bg-[#071426]/50 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label={`Pick player for ${target.label}`}>
@@ -5455,11 +5457,29 @@ function PlayerPickerSheet({
                   No lower-team players are available for this team.
                 </p>
               )}
-              {selectedGuestName && !value ? (
-                <p className="rounded-xl bg-[#fff7e6] p-3 text-sm font-bold text-[#6c5a73]">
-                  Previously selected typed Guest Player: {selectedGuestName}. Pick a lower-team player to replace them.
-                </p>
-              ) : null}
+              <div className="grid gap-2 rounded-xl bg-[#fff7e6] p-2 ring-1 ring-[#f0d8a8]">
+                <div>
+                  <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Fallback</p>
+                  <p className="text-xs font-bold text-[#6c5a73]">Only use this if the lower-team player is not yet in the system.</p>
+                </div>
+                <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
+                  Type Guest Player name
+                  <input
+                    className="min-h-11 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f] outline-none focus:border-[#7bc7d6] focus:ring-2 focus:ring-[#7bc7d6]/30"
+                    value={manualGuestName}
+                    onChange={(event) => setManualGuestName(event.target.value)}
+                    placeholder="Guest player name"
+                  />
+                </label>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={cleanManualGuestName.length < 2}
+                  onClick={() => onSelectGuest({ guestName: cleanManualGuestName })}
+                >
+                  Use typed Guest Player
+                </Button>
+              </div>
             </div>
           </div>
         </div>
