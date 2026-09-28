@@ -6160,11 +6160,20 @@ function ScoreRow({ team, score, winner = false }: { team: string; score: string
 
 function ManagerSeasonSnapshot({ activeTeam = teamContexts[0], leagueTeamCount = standings.length }: { activeTeam?: TeamContext; leagueTeamCount?: number }) {
   const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
+  const seasonStatus = seasonStatusFor(activeTeam.season);
+  const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
   const playoffText = qualification === "final"
-    ? `inside the ${activeTeam.league} direct final place`
+    ? `in the ${activeTeam.league} direct final place`
     : qualification === "semi"
-      ? `inside the ${activeTeam.league} semi-final places`
+      ? `in the ${activeTeam.league} semi-final places`
       : `outside the ${activeTeam.league} playoff places`;
+  const playoffLine = (() => {
+    if (!hasLeagueTable) return `${activeTeam.name} has no league table position yet.`;
+    if (seasonStatus === "complete") {
+      return `${activeTeam.name} finished ${ordinal(activeTeam.leaguePosition)} and ${playoffText}.`;
+    }
+    return `${activeTeam.name} is currently ${ordinal(activeTeam.leaguePosition)} and ${playoffText}.`;
+  })();
 
   return (
     <Card>
@@ -6181,9 +6190,7 @@ function ManagerSeasonSnapshot({ activeTeam = teamContexts[0], leagueTeamCount =
         </div>
         <div className="mt-3 rounded-xl bg-[#f7f5fa] p-3">
           <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Playoff line</p>
-          <p className="mt-1 font-black">
-            {activeTeam.name} finished {activeTeam.leaguePosition ? ordinal(activeTeam.leaguePosition) : "-"}, {playoffText}.
-          </p>
+          <p className="mt-1 font-black">{playoffLine}</p>
         </div>
       </CardContent>
     </Card>
