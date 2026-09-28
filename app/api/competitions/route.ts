@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const user = await currentUserFromRequest(request);
     if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
     const url = new URL(request.url);
-    const contextClubName = url.searchParams.has("testUser") ? url.searchParams.get("contextClub")?.trim() ?? "" : "";
+    const contextClubName = url.searchParams.get("contextClub")?.trim() ?? "";
     const [competitions, memberships, adminClubIds, platformAdmin, clubs] = await Promise.all([
       listCompetitions(user, { contextClubName }),
       clubMembershipsForPerson(user.personId),

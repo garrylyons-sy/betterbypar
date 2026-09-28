@@ -79,7 +79,7 @@ function withTestUser(path: string) {
 }
 
 function withCompetitionContext(path: string, activeTeam: TeamContext) {
-  const contextualPath = currentTestUserParam()
+  const contextualPath = activeTeam.club
     ? `${path}${path.includes("?") ? "&" : "?"}contextClub=${encodeURIComponent(activeTeam.club)}`
     : path;
   return withTestUser(contextualPath);

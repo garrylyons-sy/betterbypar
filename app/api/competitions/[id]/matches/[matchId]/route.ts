@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const user = await currentUserFromRequest(request);
     if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
     const { id, matchId } = await params;
-    const contextClubName = request.nextUrl.searchParams.has("testUser") ? request.nextUrl.searchParams.get("contextClub")?.trim() ?? "" : "";
+    const contextClubName = request.nextUrl.searchParams.get("contextClub")?.trim() ?? "";
     const body = await request.json();
     const player1Score = Number(body.player1Score);
     const player2Score = Number(body.player2Score);

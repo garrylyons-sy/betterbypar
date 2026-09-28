@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json().catch(() => ({}));
     const requestedClubMembershipId = String(body.clubMembershipId ?? "").trim();
     const canManage = await canManageCompetition(user, id);
-    const contextClubName = request.nextUrl.searchParams.has("testUser") ? request.nextUrl.searchParams.get("contextClub")?.trim() ?? "" : "";
+    const contextClubName = request.nextUrl.searchParams.get("contextClub")?.trim() ?? "";
 
     const competition = await loadCompetitionDetail(user, id, { contextClubName });
     if (!competition) return NextResponse.json({ error: "Competition not found." }, { status: 404 });
@@ -63,7 +63,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const user = await currentUserFromRequest(request);
     if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
     const { id } = await params;
-    const contextClubName = request.nextUrl.searchParams.has("testUser") ? request.nextUrl.searchParams.get("contextClub")?.trim() ?? "" : "";
+    const contextClubName = request.nextUrl.searchParams.get("contextClub")?.trim() ?? "";
     if (!await canManageCompetition(user, id)) {
       return NextResponse.json({ error: "Club admin access is required." }, { status: 403 });
     }
