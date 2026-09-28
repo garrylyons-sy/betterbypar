@@ -37,6 +37,12 @@ type LineupSlotInput = {
   slotNumber?: number;
   player1Id?: string;
   player2Id?: string;
+  player1GuestName?: string;
+  player2GuestName?: string;
+  player1IsGuest?: boolean;
+  player2IsGuest?: boolean;
+  player1CountsForStats?: boolean;
+  player2CountsForStats?: boolean;
 };
 
 type GameBreakRow = {
@@ -232,19 +238,43 @@ export async function POST(request: NextRequest) {
         throw new Error("Published lineups are locked and cannot be changed.");
       }
       const playerIds = await loadTeamPlayerIds(client, teamId);
+      const guestPlayerIds = await loadSameClubPersonIds(client, teamId);
       const fixtureMeta = await loadFixtureLineupMeta(client, fixtureId);
-      const normalized = normalizeSlots(slots, playerIds, action === "publish", fixtureMeta.slotDefinitions, fixtureMeta.fixtureType === "Friendly");
+      const normalized = normalizeSlots(slots, playerIds, guestPlayerIds, action === "publish", fixtureMeta.slotDefinitions, fixtureMeta.fixtureType === "Friendly");
       const lineupId = await upsertLineup(client, fixtureId, teamId, user.personId, action === "publish");
 
       for (const slot of fixtureMeta.slotDefinitions) {
         const selected = normalized.find((item) => item.slotNumber === slot.slotNumber);
         await client.query(
-          `insert into public.fixture_lineup_slot (lineup_id, slot_number, game_type, player_1_id, player_2_id)
-           values ($1, $2, $3, $4, $5)
+          `insert into public.fixture_lineup_slot (
+             lineup_id, slot_number, game_type, player_1_id, player_2_id,
+             player_1_guest_name, player_2_guest_name,
+             player_1_is_guest, player_2_is_guest,
+             player_1_counts_for_stats, player_2_counts_for_stats
+           )
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            on conflict (lineup_id, slot_number) do update
            set player_1_id = excluded.player_1_id,
-               player_2_id = excluded.player_2_id`,
-          [lineupId, slot.slotNumber, slot.gameType, selected?.player1Id || null, selected?.player2Id || null]
+               player_2_id = excluded.player_2_id,
+               player_1_guest_name = excluded.player_1_guest_name,
+               player_2_guest_name = excluded.player_2_guest_name,
+               player_1_is_guest = excluded.player_1_is_guest,
+               player_2_is_guest = excluded.player_2_is_guest,
+               player_1_counts_for_stats = excluded.player_1_counts_for_stats,
+               player_2_counts_for_stats = excluded.player_2_counts_for_stats`,
+          [
+            lineupId,
+            slot.slotNumber,
+            slot.gameType,
+            selected?.player1Id || null,
+            selected?.player2Id || null,
+            selected?.player1GuestName || null,
+            selected?.player2GuestName || null,
+            Boolean(selected?.player1IsGuest),
+            Boolean(selected?.player2IsGuest),
+            selected?.player1CountsForStats ?? true,
+            selected?.player2CountsForStats ?? true
+          ]
         );
       }
 
@@ -315,9 +345,24 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
      order by player_name`,
     [teamId]
   )).rows.map((row) => ({ id: row.person_id, name: row.player_name }));
+  const playerIds = new Set(players.map((player) => player.id));
+  const guestPlayers = (await dbQuery<{ person_id: string; player_name: string }>(
+    `select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name
+     from public.team target_team
+     join public.club_membership cm
+       on cm.club_id = target_team.club_id
+      and cm.active = true
+     join public.person p on p.id = cm.person_id
+     where target_team.id = $1
+       and p.active = true
+     order by player_name`,
+    [teamId]
+  )).rows
+    .filter((row) => !playerIds.has(row.person_id))
+    .map((row) => ({ id: row.person_id, name: row.player_name }));
 
   if (!fixture) {
-    return { fixture: null, players, lineup: null, opponentStatus: null, opponentLineup: null, games: [], weekFixtures: [] };
+    return { fixture: null, players, guestPlayers, lineup: null, opponentStatus: null, opponentLineup: null, games: [], weekFixtures: [] };
   }
 
   const lineupRows = (await dbQuery<LineupRow>(
@@ -343,13 +388,21 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
        g.points_awarded,
        g.winner_team_id,
        hp1.id as home_player_1_id,
-       concat_ws(' ', hp1.first_name, hp1.last_name) as home_player_1_name,
+       coalesce(nullif(g.home_player_1_guest_name, ''), concat_ws(' ', hp1.first_name, hp1.last_name)) as home_player_1_name,
+       coalesce(g.home_player_1_is_guest, false) as home_player_1_is_guest,
+       coalesce(g.home_player_1_counts_for_stats, true) as home_player_1_counts_for_stats,
        hp2.id as home_player_2_id,
-       concat_ws(' ', hp2.first_name, hp2.last_name) as home_player_2_name,
+       coalesce(nullif(g.home_player_2_guest_name, ''), concat_ws(' ', hp2.first_name, hp2.last_name)) as home_player_2_name,
+       coalesce(g.home_player_2_is_guest, false) as home_player_2_is_guest,
+       coalesce(g.home_player_2_counts_for_stats, true) as home_player_2_counts_for_stats,
        ap1.id as away_player_1_id,
-       concat_ws(' ', ap1.first_name, ap1.last_name) as away_player_1_name,
+       coalesce(nullif(g.away_player_1_guest_name, ''), concat_ws(' ', ap1.first_name, ap1.last_name)) as away_player_1_name,
+       coalesce(g.away_player_1_is_guest, false) as away_player_1_is_guest,
+       coalesce(g.away_player_1_counts_for_stats, true) as away_player_1_counts_for_stats,
        ap2.id as away_player_2_id,
-       concat_ws(' ', ap2.first_name, ap2.last_name) as away_player_2_name
+       coalesce(nullif(g.away_player_2_guest_name, ''), concat_ws(' ', ap2.first_name, ap2.last_name)) as away_player_2_name,
+       coalesce(g.away_player_2_is_guest, false) as away_player_2_is_guest,
+       coalesce(g.away_player_2_counts_for_stats, true) as away_player_2_counts_for_stats
      from public.match m
      join public.game g on g.match_id = m.id
      left join public.person hp1 on hp1.id = g.home_player_1_id
@@ -428,12 +481,20 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     winner_team_id: string | null;
     home_player_1_id: string | null;
     home_player_1_name: string;
+    home_player_1_is_guest: boolean;
+    home_player_1_counts_for_stats: boolean;
     home_player_2_id: string | null;
     home_player_2_name: string | null;
+    home_player_2_is_guest: boolean;
+    home_player_2_counts_for_stats: boolean;
     away_player_1_id: string | null;
     away_player_1_name: string;
+    away_player_1_is_guest: boolean;
+    away_player_1_counts_for_stats: boolean;
     away_player_2_id: string | null;
     away_player_2_name: string | null;
+    away_player_2_is_guest: boolean;
+    away_player_2_counts_for_stats: boolean;
   }>(
     `select
        wf.id as fixture_id,
@@ -443,13 +504,21 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
        g.points_awarded,
        g.winner_team_id,
        hp1.id as home_player_1_id,
-       concat_ws(' ', hp1.first_name, hp1.last_name) as home_player_1_name,
+       coalesce(nullif(g.home_player_1_guest_name, ''), concat_ws(' ', hp1.first_name, hp1.last_name)) as home_player_1_name,
+       coalesce(g.home_player_1_is_guest, false) as home_player_1_is_guest,
+       coalesce(g.home_player_1_counts_for_stats, true) as home_player_1_counts_for_stats,
        hp2.id as home_player_2_id,
-       concat_ws(' ', hp2.first_name, hp2.last_name) as home_player_2_name,
+       coalesce(nullif(g.home_player_2_guest_name, ''), concat_ws(' ', hp2.first_name, hp2.last_name)) as home_player_2_name,
+       coalesce(g.home_player_2_is_guest, false) as home_player_2_is_guest,
+       coalesce(g.home_player_2_counts_for_stats, true) as home_player_2_counts_for_stats,
        ap1.id as away_player_1_id,
-       concat_ws(' ', ap1.first_name, ap1.last_name) as away_player_1_name,
+       coalesce(nullif(g.away_player_1_guest_name, ''), concat_ws(' ', ap1.first_name, ap1.last_name)) as away_player_1_name,
+       coalesce(g.away_player_1_is_guest, false) as away_player_1_is_guest,
+       coalesce(g.away_player_1_counts_for_stats, true) as away_player_1_counts_for_stats,
        ap2.id as away_player_2_id,
-       concat_ws(' ', ap2.first_name, ap2.last_name) as away_player_2_name
+       coalesce(nullif(g.away_player_2_guest_name, ''), concat_ws(' ', ap2.first_name, ap2.last_name)) as away_player_2_name,
+       coalesce(g.away_player_2_is_guest, false) as away_player_2_is_guest,
+       coalesce(g.away_player_2_counts_for_stats, true) as away_player_2_counts_for_stats
      from public.fixture wf
      join public.match m on m.fixture_id = wf.id
      join public.game g on g.match_id = m.id
@@ -526,12 +595,20 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
         winner_team_id: game.winner_team_id,
         home_player_1_id: game.home_player_1_id,
         home_player_1_name: game.home_player_1_name,
+        home_player_1_is_guest: game.home_player_1_is_guest,
+        home_player_1_counts_for_stats: game.home_player_1_counts_for_stats,
         home_player_2_id: game.home_player_2_id,
         home_player_2_name: game.home_player_2_name,
+        home_player_2_is_guest: game.home_player_2_is_guest,
+        home_player_2_counts_for_stats: game.home_player_2_counts_for_stats,
         away_player_1_id: game.away_player_1_id,
         away_player_1_name: game.away_player_1_name,
+        away_player_1_is_guest: game.away_player_1_is_guest,
+        away_player_1_counts_for_stats: game.away_player_1_counts_for_stats,
         away_player_2_id: game.away_player_2_id,
         away_player_2_name: game.away_player_2_name,
+        away_player_2_is_guest: game.away_player_2_is_guest,
+        away_player_2_counts_for_stats: game.away_player_2_counts_for_stats,
         breaks: breaksForGame(game.id)
       }))
   }));
@@ -550,6 +627,7 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
       fixtureType: fixture.fixture_type
     },
     players,
+    guestPlayers,
     lineup: own,
     opponentStatus,
     opponentLineup: opponent,
@@ -592,8 +670,14 @@ type LineupRow = {
   game_type: "Singles" | "Doubles" | null;
   player_1_id: string | null;
   player_1_name: string | null;
+  player_1_guest_name: string | null;
+  player_1_is_guest: boolean | null;
+  player_1_counts_for_stats: boolean | null;
   player_2_id: string | null;
   player_2_name: string | null;
+  player_2_guest_name: string | null;
+  player_2_is_guest: boolean | null;
+  player_2_counts_for_stats: boolean | null;
 };
 
 const lineupQuerySql = `
@@ -607,9 +691,15 @@ const lineupQuerySql = `
     fls.slot_number,
     fls.game_type::text as game_type,
     fls.player_1_id,
-    concat_ws(' ', p1.first_name, p1.last_name) as player_1_name,
+    coalesce(nullif(fls.player_1_guest_name, ''), concat_ws(' ', p1.first_name, p1.last_name)) as player_1_name,
+    fls.player_1_guest_name,
+    coalesce(fls.player_1_is_guest, false) as player_1_is_guest,
+    coalesce(fls.player_1_counts_for_stats, true) as player_1_counts_for_stats,
     fls.player_2_id,
-    concat_ws(' ', p2.first_name, p2.last_name) as player_2_name
+    coalesce(nullif(fls.player_2_guest_name, ''), concat_ws(' ', p2.first_name, p2.last_name)) as player_2_name,
+    fls.player_2_guest_name,
+    coalesce(fls.player_2_is_guest, false) as player_2_is_guest,
+    coalesce(fls.player_2_counts_for_stats, true) as player_2_counts_for_stats
   from public.fixture_lineup fl
   join public.team t on t.id = fl.team_id
   left join public.fixture_lineup_slot fls on fls.lineup_id = fl.id
@@ -625,7 +715,19 @@ function buildLineup(rows: LineupRow[], fixture: { fixture_id: string }, slotDef
     return {
       fixtureId: fixture.fixture_id,
       status: "Draft",
-      slots: slotDefinitions.map((slot) => ({ ...slot, player1Id: "", player1Name: "", player2Id: "", player2Name: "" }))
+      slots: slotDefinitions.map((slot) => ({
+        ...slot,
+        player1Id: "",
+        player1Name: "",
+        player1GuestName: "",
+        player1IsGuest: false,
+        player1CountsForStats: true,
+        player2Id: "",
+        player2Name: "",
+        player2GuestName: "",
+        player2IsGuest: false,
+        player2CountsForStats: true
+      }))
     };
   }
 
@@ -642,8 +744,14 @@ function buildLineup(rows: LineupRow[], fixture: { fixture_id: string }, slotDef
         ...slot,
         player1Id: row?.player_1_id ?? "",
         player1Name: row?.player_1_name ?? "",
+        player1GuestName: row?.player_1_guest_name ?? "",
+        player1IsGuest: Boolean(row?.player_1_is_guest),
+        player1CountsForStats: row?.player_1_counts_for_stats ?? true,
         player2Id: row?.player_2_id ?? "",
-        player2Name: row?.player_2_name ?? ""
+        player2Name: row?.player_2_name ?? "",
+        player2GuestName: row?.player_2_guest_name ?? "",
+        player2IsGuest: Boolean(row?.player_2_is_guest),
+        player2CountsForStats: row?.player_2_counts_for_stats ?? true
       };
     })
   };
@@ -687,6 +795,21 @@ async function loadTeamPlayerIds(client: PoolClient, teamId: string) {
   return new Set(result.rows.map((row) => row.person_id));
 }
 
+async function loadSameClubPersonIds(client: PoolClient, teamId: string) {
+  const result = await client.query<{ person_id: string }>(
+    `select distinct cm.person_id
+     from public.team target_team
+     join public.club_membership cm
+       on cm.club_id = target_team.club_id
+      and cm.active = true
+     join public.person p on p.id = cm.person_id
+     where target_team.id = $1
+       and p.active = true`,
+    [teamId]
+  );
+  return new Set(result.rows.map((row) => row.person_id));
+}
+
 async function loadLineupStatus(client: PoolClient, fixtureId: string, teamId: string) {
   const result = await client.query<{ status: "Draft" | "Published" }>(
     `select status
@@ -699,21 +822,35 @@ async function loadLineupStatus(client: PoolClient, fixtureId: string, teamId: s
   return result.rows[0]?.status ?? null;
 }
 
-function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, requireComplete: boolean, slotDefinitions: LineupSlotDefinition[], allowDuplicatePlayers = false) {
+function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, guestPlayerIds: Set<string>, requireComplete: boolean, slotDefinitions: LineupSlotDefinition[], allowDuplicatePlayers = false) {
   const normalized = slotDefinitions.map((slot) => {
     const input = slots.find((item) => Number(item.slotNumber) === slot.slotNumber);
     const player1Id = String(input?.player1Id ?? "").trim();
     const player2Id = String(input?.player2Id ?? "").trim();
-    if (player1Id && !playerIds.has(player1Id)) throw new Error(`${slot.label} player is not in this team.`);
-    if (player2Id && !playerIds.has(player2Id)) throw new Error(`${slot.label} doubles partner is not in this team.`);
+    const player1GuestName = cleanGuestName(input?.player1GuestName);
+    const player2GuestName = cleanGuestName(input?.player2GuestName);
+    const player1IsGuest = Boolean(input?.player1IsGuest || player1GuestName);
+    const player2IsGuest = Boolean(input?.player2IsGuest || player2GuestName);
+    if (player1Id && !player1IsGuest && !playerIds.has(player1Id)) throw new Error(`${slot.label} player is not in this team.`);
+    if (player2Id && !player2IsGuest && !playerIds.has(player2Id)) throw new Error(`${slot.label} doubles partner is not in this team.`);
+    if (player1Id && player1IsGuest && !guestPlayerIds.has(player1Id)) throw new Error(`${slot.label} Guest Player must be from this club.`);
+    if (player2Id && player2IsGuest && !guestPlayerIds.has(player2Id)) throw new Error(`${slot.label} doubles Guest Player must be from this club.`);
+    if (player1IsGuest && !player1Id && !player1GuestName) throw new Error(`${slot.label} Guest Player needs a name.`);
+    if (player2IsGuest && !player2Id && !player2GuestName) throw new Error(`${slot.label} doubles Guest Player needs a name.`);
     if (player1Id && player2Id && player1Id === player2Id) throw new Error(`${slot.label} needs two different players.`);
-    if (requireComplete && !player1Id) throw new Error(`${slot.label} needs a player before publishing.`);
-    if (requireComplete && slot.gameType === "Doubles" && !player2Id) throw new Error("Doubles needs two players before publishing.");
-    if (requireComplete && slot.gameType === "Singles" && player2Id) throw new Error(`${slot.label} is a singles slot.`);
+    if (requireComplete && !player1Id && !player1GuestName) throw new Error(`${slot.label} needs a player before publishing.`);
+    if (requireComplete && slot.gameType === "Doubles" && !player2Id && !player2GuestName) throw new Error("Doubles needs two players before publishing.");
+    if (requireComplete && slot.gameType === "Singles" && (player2Id || player2GuestName)) throw new Error(`${slot.label} is a singles slot.`);
     return {
       slotNumber: slot.slotNumber,
       player1Id,
-      player2Id: slot.gameType === "Doubles" ? player2Id : ""
+      player1GuestName,
+      player1IsGuest,
+      player1CountsForStats: !player1IsGuest,
+      player2Id: slot.gameType === "Doubles" ? player2Id : "",
+      player2GuestName: slot.gameType === "Doubles" ? player2GuestName : "",
+      player2IsGuest: slot.gameType === "Doubles" ? player2IsGuest : false,
+      player2CountsForStats: slot.gameType === "Doubles" ? !player2IsGuest : true
     };
   });
   if (!allowDuplicatePlayers) {
@@ -724,6 +861,10 @@ function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, requir
     }
   }
   return normalized;
+}
+
+function cleanGuestName(value: unknown) {
+  return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
 }
 
 async function upsertLineup(client: PoolClient, fixtureId: string, teamId: string, personId: string, publish: boolean) {
@@ -798,14 +939,33 @@ async function generateGamesIfBothPublished(client: PoolClient, fixtureId: strin
     await client.query(
       `insert into public.game (
          match_id, game_type, game_number, home_player_1_id, home_player_2_id,
-         away_player_1_id, away_player_2_id, points_awarded
+         away_player_1_id, away_player_2_id,
+         home_player_1_guest_name, home_player_2_guest_name,
+         away_player_1_guest_name, away_player_2_guest_name,
+         home_player_1_is_guest, home_player_2_is_guest,
+         away_player_1_is_guest, away_player_2_is_guest,
+         home_player_1_counts_for_stats, home_player_2_counts_for_stats,
+         away_player_1_counts_for_stats, away_player_2_counts_for_stats,
+         points_awarded
        )
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
        on conflict (match_id, game_number) do update
        set home_player_1_id = excluded.home_player_1_id,
            home_player_2_id = excluded.home_player_2_id,
            away_player_1_id = excluded.away_player_1_id,
            away_player_2_id = excluded.away_player_2_id,
+           home_player_1_guest_name = excluded.home_player_1_guest_name,
+           home_player_2_guest_name = excluded.home_player_2_guest_name,
+           away_player_1_guest_name = excluded.away_player_1_guest_name,
+           away_player_2_guest_name = excluded.away_player_2_guest_name,
+           home_player_1_is_guest = excluded.home_player_1_is_guest,
+           home_player_2_is_guest = excluded.home_player_2_is_guest,
+           away_player_1_is_guest = excluded.away_player_1_is_guest,
+           away_player_2_is_guest = excluded.away_player_2_is_guest,
+           home_player_1_counts_for_stats = excluded.home_player_1_counts_for_stats,
+           home_player_2_counts_for_stats = excluded.home_player_2_counts_for_stats,
+           away_player_1_counts_for_stats = excluded.away_player_1_counts_for_stats,
+           away_player_2_counts_for_stats = excluded.away_player_2_counts_for_stats,
            game_type = excluded.game_type,
            points_awarded = excluded.points_awarded`,
       [
@@ -816,6 +976,18 @@ async function generateGamesIfBothPublished(client: PoolClient, fixtureId: strin
         slot.gameType === "Doubles" ? homeSlot?.player2Id || null : null,
         awaySlot?.player1Id || null,
         slot.gameType === "Doubles" ? awaySlot?.player2Id || null : null,
+        homeSlot?.player1GuestName || null,
+        slot.gameType === "Doubles" ? homeSlot?.player2GuestName || null : null,
+        awaySlot?.player1GuestName || null,
+        slot.gameType === "Doubles" ? awaySlot?.player2GuestName || null : null,
+        Boolean(homeSlot?.player1IsGuest),
+        slot.gameType === "Doubles" ? Boolean(homeSlot?.player2IsGuest) : false,
+        Boolean(awaySlot?.player1IsGuest),
+        slot.gameType === "Doubles" ? Boolean(awaySlot?.player2IsGuest) : false,
+        homeSlot?.player1CountsForStats ?? true,
+        slot.gameType === "Doubles" ? homeSlot?.player2CountsForStats ?? true : true,
+        awaySlot?.player1CountsForStats ?? true,
+        slot.gameType === "Doubles" ? awaySlot?.player2CountsForStats ?? true : true,
         slot.gameType === "Doubles" ? 2 : 1
       ]
     );
@@ -877,11 +1049,17 @@ async function recordPlayerBreak(client: PoolClient, fixtureId: string, gameId: 
      where f.id = $1
        and g.id = $2
        and $3::uuid in (g.home_player_1_id, g.home_player_2_id, g.away_player_1_id, g.away_player_2_id)
+       and (
+         ($3::uuid = g.home_player_1_id and coalesce(g.home_player_1_counts_for_stats, true))
+         or ($3::uuid = g.home_player_2_id and coalesce(g.home_player_2_counts_for_stats, true))
+         or ($3::uuid = g.away_player_1_id and coalesce(g.away_player_1_counts_for_stats, true))
+         or ($3::uuid = g.away_player_2_id and coalesce(g.away_player_2_counts_for_stats, true))
+       )
        and f.status <> 'Completed'
      limit 1`,
     [fixtureId, gameId, playerId]
   );
-  if (!result.rowCount) throw new Error("Break player must be one of the players in this game.");
+  if (!result.rowCount) throw new Error("Break player must be one of the stat-eligible players in this game.");
 
   await client.query(
     `insert into public.break (game_id, player_id, break_value, source_label)

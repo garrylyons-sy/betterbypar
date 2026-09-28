@@ -4133,9 +4133,17 @@ type ManagerLineupSlot = {
   label: string;
   player1Id: string;
   player1Name?: string;
+  player1GuestName?: string;
+  player1IsGuest?: boolean;
+  player1CountsForStats?: boolean;
   player2Id: string;
   player2Name?: string;
+  player2GuestName?: string;
+  player2IsGuest?: boolean;
+  player2CountsForStats?: boolean;
 };
+
+type LineupPlayerOption = { id: string; name: string };
 
 type ManagerLineupGame = {
   id: string;
@@ -4145,12 +4153,20 @@ type ManagerLineupGame = {
   winner_team_id: string | null;
   home_player_1_id: string | null;
   home_player_1_name: string;
+  home_player_1_is_guest?: boolean;
+  home_player_1_counts_for_stats?: boolean;
   home_player_2_id: string | null;
   home_player_2_name: string | null;
+  home_player_2_is_guest?: boolean;
+  home_player_2_counts_for_stats?: boolean;
   away_player_1_id: string | null;
   away_player_1_name: string;
+  away_player_1_is_guest?: boolean;
+  away_player_1_counts_for_stats?: boolean;
   away_player_2_id: string | null;
   away_player_2_name: string | null;
+  away_player_2_is_guest?: boolean;
+  away_player_2_counts_for_stats?: boolean;
   breaks?: Array<{
     id: string;
     playerId: string;
@@ -4173,7 +4189,8 @@ type ManagerLineupPayload = {
     status: string;
     fixtureType?: "League" | "Friendly";
   } | null;
-  players: Array<{ id: string; name: string }>;
+  players: LineupPlayerOption[];
+  guestPlayers?: LineupPlayerOption[];
   lineup: { id?: string; status: "Draft" | "Published"; publishedAt?: string | null; slots: ManagerLineupSlot[] } | null;
   opponentStatus: { teamName: string; status: "Draft" | "Published"; publishedAt?: string | null } | null;
   opponentLineup: { teamName: string; status: "Draft" | "Published"; slots: ManagerLineupSlot[] } | null;
@@ -4204,6 +4221,11 @@ type LineupPickerTarget = {
   label: string;
 } | null;
 
+type GuestPlayerSelection = {
+  playerId?: string;
+  guestName?: string;
+};
+
 type BreakEntryTarget = {
   game: ManagerLineupGame;
   fixture: NonNullable<ManagerLineupPayload["fixture"]>;
@@ -4228,6 +4250,19 @@ const cLeagueLineupSlots: ManagerLineupSlot[] = [
 
 function defaultLineupSlotsForLeague(league: string): ManagerLineupSlot[] {
   return (league === "C League" ? cLeagueLineupSlots : standardLineupSlots).map((slot) => ({ ...slot }));
+}
+
+function lineupPlayerPrefix(key: "player1Id" | "player2Id") {
+  return key === "player1Id" ? "player1" : "player2";
+}
+
+function lineupSlotDisplayName(slot: ManagerLineupSlot, key: "player1Id" | "player2Id", players: LineupPlayerOption[], guestPlayers: LineupPlayerOption[]) {
+  const prefix = lineupPlayerPrefix(key);
+  const playerId = slot[key];
+  const guestName = String(slot[`${prefix}GuestName` as keyof ManagerLineupSlot] ?? "");
+  if (guestName) return guestName;
+  if (!playerId) return "";
+  return [...players, ...guestPlayers].find((player) => player.id === playerId)?.name ?? "";
 }
 
 type FixtureWeekFixture = {
@@ -4617,7 +4652,32 @@ function ManagerLineupCard({
 
   function updateSlot(slotNumber: number, key: "player1Id" | "player2Id", value: string) {
     dirtyDraftRef.current = true;
-    setSlots((current) => current.map((slot) => slot.slotNumber === slotNumber ? { ...slot, [key]: value } : slot));
+    setSlots((current) => current.map((slot) => {
+      if (slot.slotNumber !== slotNumber) return slot;
+      const prefix = lineupPlayerPrefix(key);
+      return {
+        ...slot,
+        [key]: value,
+        [`${prefix}GuestName`]: "",
+        [`${prefix}IsGuest`]: false,
+        [`${prefix}CountsForStats`]: true
+      };
+    }));
+  }
+
+  function updateGuestSlot(slotNumber: number, key: "player1Id" | "player2Id", selection: GuestPlayerSelection) {
+    dirtyDraftRef.current = true;
+    setSlots((current) => current.map((slot) => {
+      if (slot.slotNumber !== slotNumber) return slot;
+      const prefix = lineupPlayerPrefix(key);
+      return {
+        ...slot,
+        [key]: selection.playerId ?? "",
+        [`${prefix}GuestName`]: selection.guestName ?? "",
+        [`${prefix}IsGuest`]: true,
+        [`${prefix}CountsForStats`]: false
+      };
+    }));
   }
 
   function selectedPlayerIdsExcept(slotNumber?: number, key?: "player1Id" | "player2Id") {
@@ -4625,8 +4685,8 @@ function ManagerLineupCard({
     return new Set(
       slots.flatMap((slot) => {
         const ids = [];
-        if (!(slot.slotNumber === slotNumber && key === "player1Id") && slot.player1Id) ids.push(slot.player1Id);
-        if (!(slot.slotNumber === slotNumber && key === "player2Id") && slot.player2Id) ids.push(slot.player2Id);
+        if (!(slot.slotNumber === slotNumber && key === "player1Id") && slot.player1Id && !slot.player1IsGuest) ids.push(slot.player1Id);
+        if (!(slot.slotNumber === slotNumber && key === "player2Id") && slot.player2Id && !slot.player2IsGuest) ids.push(slot.player2Id);
         return ids;
       })
     );
@@ -4665,6 +4725,7 @@ function ManagerLineupCard({
   }
 
   const playerOptions = payload?.players ?? [];
+  const guestPlayerOptions = payload?.guestPlayers ?? [];
   const ownStatus = payload?.lineup?.status ?? "Draft";
   const opponentName = payload?.fixture
     ? payload.fixture.homeTeamId === activeTeam.teamId ? payload.fixture.awayTeamName : payload.fixture.homeTeamName
@@ -4676,7 +4737,9 @@ function ManagerLineupCard({
   const matchLocked = payload?.fixture?.status === "Completed";
   const allGamesScored = Boolean(payload?.games.length && payload.games.every((game) => game.winner_team_id));
   const selectedCount = slots.reduce((count, slot) => {
-    return count + (slot.player1Id ? 1 : 0) + (slot.gameType === "Doubles" && slot.player2Id ? 1 : 0);
+    return count
+      + (slot.player1Id || slot.player1GuestName ? 1 : 0)
+      + (slot.gameType === "Doubles" && (slot.player2Id || slot.player2GuestName) ? 1 : 0);
   }, 0);
   const requiredPlayerSlots = slots.reduce((count, slot) => count + (slot.gameType === "Doubles" ? 2 : 1), 0);
   const directFixtureMode = Boolean(preferredFixtureId && payload?.fixture?.id === preferredFixtureId);
@@ -4878,6 +4941,7 @@ function ManagerLineupCard({
                                     key={slot.slotNumber}
                                     slot={slot}
                                     players={playerOptions}
+                                    guestPlayers={guestPlayerOptions}
                                     onPick={(key, label) => setPickerTarget({ slotNumber: slot.slotNumber, key, label })}
                                     onClear={(key) => updateSlot(slot.slotNumber, key, "")}
                                   />
@@ -4912,10 +4976,16 @@ function ManagerLineupCard({
               <PlayerPickerSheet
                 target={pickerTarget}
                 players={playerOptions}
+                guestPlayers={guestPlayerOptions}
+                slot={slots.find((slot) => slot.slotNumber === pickerTarget.slotNumber)}
                 value={slots.find((slot) => slot.slotNumber === pickerTarget.slotNumber)?.[pickerTarget.key] ?? ""}
                 unavailablePlayerIds={selectedPlayerIdsExcept(pickerTarget.slotNumber, pickerTarget.key)}
                 onSelect={(playerId) => {
                   updateSlot(pickerTarget.slotNumber, pickerTarget.key, playerId);
+                  setPickerTarget(null);
+                }}
+                onSelectGuest={(selection) => {
+                  updateGuestSlot(pickerTarget.slotNumber, pickerTarget.key, selection);
                   setPickerTarget(null);
                 }}
                 onClose={() => setPickerTarget(null)}
@@ -5195,16 +5265,16 @@ function liveSummaryFromGameChange(activeTeam: TeamContext, previousPayload: Man
 function LineupSlotRow({
   slot,
   players,
+  guestPlayers,
   onPick,
   onClear
 }: {
   slot: ManagerLineupSlot;
-  players: Array<{ id: string; name: string }>;
+  players: LineupPlayerOption[];
+  guestPlayers: LineupPlayerOption[];
   onPick: (key: "player1Id" | "player2Id", label: string) => void;
   onClear: (key: "player1Id" | "player2Id") => void;
 }) {
-  const playerName = (playerId: string) => players.find((player) => player.id === playerId)?.name ?? "";
-
   return (
     <div className="grid gap-3 rounded-xl border border-[#eeeaf2] bg-white p-3">
       <div className="flex items-start justify-between gap-3">
@@ -5217,14 +5287,16 @@ function LineupSlotRow({
       <div className={cn("grid gap-2", slot.gameType === "Doubles" ? "sm:grid-cols-2" : "")}>
         <PlayerSlotButton
           label={slot.gameType === "Doubles" ? "Player 1" : "Player"}
-          value={playerName(slot.player1Id)}
+          value={lineupSlotDisplayName(slot, "player1Id", players, guestPlayers)}
+          isGuest={Boolean(slot.player1IsGuest)}
           onPick={() => onPick("player1Id", `${slot.label} ${slot.gameType === "Doubles" ? "Player 1" : "Player"}`)}
           onClear={() => onClear("player1Id")}
         />
         {slot.gameType === "Doubles" ? (
           <PlayerSlotButton
             label="Player 2"
-            value={playerName(slot.player2Id)}
+            value={lineupSlotDisplayName(slot, "player2Id", players, guestPlayers)}
+            isGuest={Boolean(slot.player2IsGuest)}
             onPick={() => onPick("player2Id", `${slot.label} Player 2`)}
             onClear={() => onClear("player2Id")}
           />
@@ -5234,7 +5306,7 @@ function LineupSlotRow({
   );
 }
 
-function PlayerSlotButton({ label, value, onPick, onClear }: { label: string; value: string; onPick: () => void; onClear: () => void }) {
+function PlayerSlotButton({ label, value, isGuest = false, onPick, onClear }: { label: string; value: string; isGuest?: boolean; onPick: () => void; onClear: () => void }) {
   return (
     <div className="grid gap-1">
       <p className="text-xs font-bold uppercase text-[#6c5a73]">{label}</p>
@@ -5244,7 +5316,10 @@ function PlayerSlotButton({ label, value, onPick, onClear }: { label: string; va
           className="min-h-10 min-w-0 flex-1 rounded-lg bg-white px-3 text-left text-sm font-bold text-[#10233f] shadow-sm transition-colors hover:bg-[#eef7f5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
           onClick={onPick}
         >
-          {value || "Pick player"}
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate">{value || "Pick player"}</span>
+            {value && isGuest ? <Badge variant="cyan">Guest Player</Badge> : null}
+          </span>
         </button>
         {value ? (
           <button
@@ -5264,18 +5339,30 @@ function PlayerSlotButton({ label, value, onPick, onClear }: { label: string; va
 function PlayerPickerSheet({
   target,
   players,
+  guestPlayers,
+  slot,
   value,
   unavailablePlayerIds,
   onSelect,
+  onSelectGuest,
   onClose
 }: {
   target: NonNullable<LineupPickerTarget>;
-  players: Array<{ id: string; name: string }>;
+  players: LineupPlayerOption[];
+  guestPlayers: LineupPlayerOption[];
+  slot?: ManagerLineupSlot;
   value: string;
   unavailablePlayerIds: Set<string>;
   onSelect: (playerId: string) => void;
+  onSelectGuest: (selection: GuestPlayerSelection) => void;
   onClose: () => void;
 }) {
+  const prefix = lineupPlayerPrefix(target.key);
+  const selectedGuestName = String(slot?.[`${prefix}GuestName` as keyof ManagerLineupSlot] ?? "");
+  const selectedIsGuest = Boolean(slot?.[`${prefix}IsGuest` as keyof ManagerLineupSlot]);
+  const [manualGuestName, setManualGuestName] = useState(selectedGuestName);
+  const cleanManualGuestName = manualGuestName.trim().replace(/\s+/g, " ");
+
   return (
     <div className="fixed inset-0 z-50 grid items-end bg-[#071426]/50 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label={`Pick player for ${target.label}`}>
       <div className="mx-auto flex max-h-[min(82vh,680px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-elevated">
@@ -5305,7 +5392,7 @@ function PlayerPickerSheet({
               </button>
             ) : null}
             {players.map((player) => {
-              const selected = player.id === value;
+              const selected = player.id === value && !selectedIsGuest;
               const unavailable = !selected && unavailablePlayerIds.has(player.id);
               return (
                 <button
@@ -5333,6 +5420,51 @@ function PlayerPickerSheet({
                 </button>
               );
             })}
+            <div className="mt-2 grid gap-2 border-t border-[#eeeaf2] pt-3">
+              <div>
+                <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Guest Player</p>
+                <p className="text-xs font-bold text-[#6c5a73]">Use only when someone outside this team panel plays. Guest Players do not count in player stats.</p>
+              </div>
+              {guestPlayers.length ? (
+                <div className="grid gap-2">
+                  {guestPlayers.map((player) => {
+                    const selected = selectedIsGuest && player.id === value;
+                    return (
+                      <button
+                        key={player.id}
+                        type="button"
+                        className={cn(
+                          "flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 text-left text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]",
+                          selected ? "border-[#04f5ff] bg-[#eefbff] text-[#10233f]" : "border-[#eeeaf2] bg-[#f7f5fa] text-[#10233f] hover:bg-[#eef7f5]"
+                        )}
+                        onClick={() => onSelectGuest({ playerId: player.id })}
+                      >
+                        <span className="min-w-0 truncate">{player.name}</span>
+                        <Badge variant={selected ? "cyan" : "muted"}>Guest Player</Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-2">
+                <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
+                  Type guest name
+                  <input
+                    className="min-h-11 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f] outline-none focus:border-[#7bc7d6] focus:ring-2 focus:ring-[#7bc7d6]/30"
+                    value={manualGuestName}
+                    onChange={(event) => setManualGuestName(event.target.value)}
+                    placeholder="Guest player name"
+                  />
+                </label>
+                <Button
+                  size="sm"
+                  disabled={cleanManualGuestName.length < 2}
+                  onClick={() => onSelectGuest({ guestName: cleanManualGuestName })}
+                >
+                  Use typed Guest Player
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -5352,6 +5484,21 @@ function PublishedLineupSummary({ title, slots }: { title: string; slots: Manage
         ))}
       </div>
     </div>
+  );
+}
+
+function gameSidePlayersLabel(game: ManagerLineupGame, side: "home" | "away") {
+  const first = side === "home" ? game.home_player_1_name : game.away_player_1_name;
+  const second = side === "home" ? game.home_player_2_name : game.away_player_2_name;
+  return `${first}${second ? ` / ${second}` : ""}`;
+}
+
+function GamePlayerLabel({ label, isGuest, className }: { label: string; isGuest?: boolean; className?: string }) {
+  return (
+    <p className={cn("flex min-w-0 items-center gap-1.5 truncate rounded-md px-2 py-1", className)}>
+      <span className="min-w-0 truncate">{label}</span>
+      {isGuest ? <span className="shrink-0 rounded bg-[#eefbff] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#10233f] ring-1 ring-[#04f5ff55]">Guest</span> : null}
+    </p>
   );
 }
 
@@ -5418,8 +5565,8 @@ function ReadOnlyFixtureDetails({
         {games.map((game) => {
           const homeWon = game.winner_team_id === fixture.homeTeamId;
           const awayWon = game.winner_team_id === fixture.awayTeamId;
-          const homePlayers = `${game.home_player_1_name}${game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""}`;
-          const awayPlayers = `${game.away_player_1_name}${game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}`;
+          const homePlayers = gameSidePlayersLabel(game, "home");
+          const awayPlayers = gameSidePlayersLabel(game, "away");
           return (
             <div key={game.id} className="grid gap-1.5 px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">
@@ -5429,13 +5576,9 @@ function ReadOnlyFixtureDetails({
                 {!game.winner_team_id ? <Badge variant="muted">Awaiting</Badge> : null}
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] items-center gap-2 text-sm font-extrabold">
-                <p className={cn("min-w-0 truncate rounded-md px-2 py-1", homeWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")}>
-                  {homePlayers}
-                </p>
+                <GamePlayerLabel className={cn(homeWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} label={homePlayers} isGuest={game.home_player_1_is_guest || game.home_player_2_is_guest} />
                 <span className="text-center text-xs font-black uppercase text-[#6c5a73]">v</span>
-                <p className={cn("min-w-0 truncate rounded-md px-2 py-1 text-right", awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")}>
-                  {awayPlayers}
-                </p>
+                <GamePlayerLabel className={cn("justify-end text-right", awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} label={awayPlayers} isGuest={game.away_player_1_is_guest || game.away_player_2_is_guest} />
               </div>
               {game.breaks?.length ? (
                 <div className="flex flex-wrap gap-1">
@@ -5485,7 +5628,7 @@ function GeneratedMatchCard({
               <div className="min-w-0">
                 <p className="text-xs font-extrabold uppercase text-white/55">Game {game.game_number} - {game.points_awarded} pts</p>
                 <p className="mt-1 break-words leading-tight">
-                  {game.home_player_1_name}{game.home_player_2_name ? ` / ${game.home_player_2_name}` : ""} <span className="text-white/55">v</span> {game.away_player_1_name}{game.away_player_2_name ? ` / ${game.away_player_2_name}` : ""}
+                  {gameSidePlayersLabel(game, "home")} {game.home_player_1_is_guest || game.home_player_2_is_guest ? <span className="text-[#7bc7d6]">(Guest Player)</span> : null} <span className="text-white/55">v</span> {gameSidePlayersLabel(game, "away")} {game.away_player_1_is_guest || game.away_player_2_is_guest ? <span className="text-[#7bc7d6]">(Guest Player)</span> : null}
                 </p>
               </div>
               <div className="grid gap-1.5 sm:grid-cols-2">
@@ -5529,11 +5672,11 @@ function GeneratedMatchCard({
 
 function gameBreakPlayers(game: ManagerLineupGame) {
   return [
-    { id: game.home_player_1_id, name: game.home_player_1_name },
-    { id: game.home_player_2_id, name: game.home_player_2_name ?? "" },
-    { id: game.away_player_1_id, name: game.away_player_1_name },
-    { id: game.away_player_2_id, name: game.away_player_2_name ?? "" }
-  ].filter((player): player is { id: string; name: string } => Boolean(player.id && player.name));
+    { id: game.home_player_1_id, name: game.home_player_1_name, countsForStats: game.home_player_1_counts_for_stats !== false },
+    { id: game.home_player_2_id, name: game.home_player_2_name ?? "", countsForStats: game.home_player_2_counts_for_stats !== false },
+    { id: game.away_player_1_id, name: game.away_player_1_name, countsForStats: game.away_player_1_counts_for_stats !== false },
+    { id: game.away_player_2_id, name: game.away_player_2_name ?? "", countsForStats: game.away_player_2_counts_for_stats !== false }
+  ].filter((player): player is { id: string; name: string; countsForStats: boolean } => Boolean(player.id && player.name && player.countsForStats));
 }
 
 function BreakEntrySheet({
