@@ -22,6 +22,14 @@ type InviteEmailContent = {
   bodyText: string;
 };
 
+type ExistingPersonInviteResult = {
+  personId: string;
+  email: string;
+  name: string;
+  status: "Sent" | "Queued" | "Failed" | "Skipped";
+  error?: string;
+};
+
 async function assertAdministrator() {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated.");
@@ -140,6 +148,232 @@ export async function POST(request: NextRequest) {
   try {
     const administrator = await assertAdministrator();
     const body = await request.json();
+    const personIds: string[] = Array.isArray(body.personIds)
+      ? Array.from(new Set(body.personIds.map((value: unknown) => String(value ?? "").trim()).filter(Boolean)))
+      : [];
+
+    if (personIds.length) {
+      const expiresAt = body.expiresAt ? new Date(String(body.expiresAt)) : new Date(Date.now() + 1000 * 60 * 60 * 24 * 90);
+      const results: ExistingPersonInviteResult[] = [];
+
+      for (const personId of personIds) {
+        try {
+          const result = await withTransaction(async (client) => {
+            const personResult = await client.query<{
+              id: string;
+              first_name: string;
+              last_name: string;
+              email: string | null;
+              phone: string | null;
+              invite_administrator: boolean;
+              club_id: string;
+              club_name: string;
+              logo_path: string | null;
+              primary_color: string | null;
+              accent_color: string | null;
+            }>(
+              `with primary_club as (
+                 select cm.club_id
+                 from public.club_membership cm
+                 where cm.person_id = $1
+                   and cm.active = true
+                 order by cm.created_at desc
+                 limit 1
+               )
+               select
+                 p.id,
+                 p.first_name,
+                 p.last_name,
+                 p.email,
+                 p.phone,
+                 exists (
+                   select 1
+                   from public.app_operator ao
+                   where ao.person_id = p.id
+                     and ao.active = true
+                 ) as invite_administrator,
+                 c.id as club_id,
+                 c.name as club_name,
+                 c.logo_path,
+                 c.primary_color,
+                 c.accent_color
+               from public.person p
+               join primary_club pc on true
+               join public.club c on c.id = pc.club_id
+               where p.id = $1
+                 and p.active = true
+               limit 1
+               for update of p`,
+              [personId]
+            );
+            const person = personResult.rows[0];
+            if (!person) throw new Error("Person was not found or has no active club.");
+            if (!person.email) throw new Error("Person does not have an email address.");
+
+            const existingInvite = await client.query<{ id: string; status: string }>(
+              `select id, status::text
+               from public.invitation
+               where lower(email) = lower($1)
+                 and status = 'Pending'
+                 and expires_at > now()
+               order by created_at desc
+               limit 1`,
+              [person.email]
+            );
+            if (existingInvite.rows[0]) {
+              return {
+                personId: person.id,
+                email: person.email,
+                name: `${person.first_name} ${person.last_name}`.trim(),
+                status: "Skipped" as const,
+                error: "Pending invite already exists"
+              };
+            }
+
+            const teamRoles = await client.query<{ team_id: string; role: string; team_name: string }>(
+              `select distinct on (ptr.league_id, ptr.team_name, ptr.role)
+                 t.id as team_id,
+                 ptr.role::text as role,
+                 ptr.team_name
+               from public.person_team_role ptr
+               join public.team t
+                 on t.club_id = ptr.club_id
+                and t.league_id = ptr.league_id
+                and t.name = ptr.team_name
+                and t.active = true
+               join public.season s on s.id = t.season_id
+               where ptr.person_id = $1
+                 and ptr.active = true
+                 and ptr.role in ('Player', 'Manager', 'Assistant Manager')
+               order by ptr.league_id, ptr.team_name, ptr.role, s.starts_on desc nulls last, s.name desc`,
+              [person.id]
+            );
+            const clubRoles = await client.query<{ club_id: string; role: string }>(
+              `select cm.club_id, 'Club Member' as role
+               from public.club_membership cm
+               where cm.person_id = $1
+                 and cm.active = true
+                 and not exists (
+                   select 1
+                   from public.person_team_role ptr
+                   where ptr.person_id = cm.person_id
+                     and ptr.club_id = cm.club_id
+                     and ptr.active = true
+                 )
+               union
+               select ca.club_id, 'Club Admin' as role
+               from public.club_admin ca
+               where ca.person_id = $1
+                 and ca.active = true
+               order by role`,
+              [person.id]
+            );
+
+            if (!teamRoles.rowCount && !clubRoles.rowCount && !person.invite_administrator) {
+              throw new Error("Person has no role to invite.");
+            }
+
+            const code = `IS-${createToken(8).toUpperCase()}`;
+            const inviteToken = createToken(32);
+            const invitedRole = teamRoles.rows[0]?.role ?? "Player";
+            const invitationResult = await client.query<{ id: string; invitation_code: string }>(
+              `insert into public.invitation (email, phone, invitation_code, invitation_token_hash, invited_person_name, invited_club_id, invited_role, invite_administrator, expires_at, status, created_by)
+               values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending', $10)
+               returning id, invitation_code`,
+              [
+                person.email,
+                person.phone,
+                code,
+                hashSecretToken(inviteToken),
+                `${person.first_name} ${person.last_name}`.trim(),
+                person.club_id,
+                invitedRole,
+                person.invite_administrator,
+                expiresAt.toISOString(),
+                administrator.personId
+              ]
+            );
+            const invitationId = invitationResult.rows[0].id;
+
+            for (const role of teamRoles.rows) {
+              await client.query(
+                `insert into public.invitation_membership (invitation_id, team_id, role)
+                 values ($1, $2, $3)
+                 on conflict do nothing`,
+                [invitationId, role.team_id, role.role]
+              );
+            }
+
+            for (const role of clubRoles.rows) {
+              await client.query(
+                `insert into public.invitation_club_membership (invitation_id, club_id, role)
+                 values ($1, $2, $3)
+                 on conflict do nothing`,
+                [invitationId, role.club_id, role.role]
+              );
+            }
+
+            const roleLabels = [
+              ...teamRoles.rows.map((role) => `${role.role} - ${role.team_name}`),
+              ...clubRoles.rows.map((role) => role.role),
+              person.invite_administrator ? "Administrator" : ""
+            ].filter(Boolean);
+            const { subject, bodyHtml, bodyText } = buildInviteEmail({
+              request,
+              inviteToken,
+              email: person.email,
+              name: `${person.first_name} ${person.last_name}`.trim(),
+              club: {
+                name: person.club_name,
+                logo_path: person.logo_path,
+                primary_color: person.primary_color,
+                accent_color: person.accent_color
+              },
+              roleLabels,
+              expiresAt,
+              isClubOnlyInvite: !teamRoles.rowCount && (clubRoles.rowCount ?? 0) > 0
+            });
+            const emailResult = await sendAppEmail({ to: person.email, bcc: inviteAuditBcc, subject, html: bodyHtml, text: bodyText });
+            const emailInsert = await client.query(
+              `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
+               values ($1, $2, $3, $4, $5, 'Queued')
+               returning id`,
+              [invitationId, person.email, subject, bodyHtml, bodyText]
+            );
+            await client.query(
+              `update public.invitation_email
+               set status = $2,
+                   sent_at = case when $2 = 'Sent' then now() else sent_at end
+               where id = $1`,
+              [emailInsert.rows[0]?.id, emailResult.status]
+            );
+            if (emailResult.status === "Sent") {
+              await client.query("update public.invitation set sent_at = now() where id = $1", [invitationId]);
+            }
+
+            return {
+              personId: person.id,
+              email: person.email,
+              name: `${person.first_name} ${person.last_name}`.trim(),
+              status: emailResult.status as ExistingPersonInviteResult["status"],
+              error: emailResult.error
+            };
+          });
+          results.push(result);
+        } catch (error) {
+          results.push({
+            personId,
+            email: "",
+            name: "",
+            status: "Failed",
+            error: error instanceof Error ? error.message : "Could not send invite."
+          });
+        }
+      }
+
+      return NextResponse.json({ ok: true, results });
+    }
+
     const email = String(body.email ?? "").trim().toLowerCase();
     const name = String(body.name ?? "").trim();
     const phone = String(body.phone ?? "").trim();

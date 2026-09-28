@@ -56,7 +56,6 @@ type ParsedInviteRow = {
   role: InviteRole;
   team: string;
   administrator: boolean;
-  sendInvite: boolean;
   clubId?: string;
   teamId?: string;
   error?: string;
@@ -1243,6 +1242,8 @@ function PeoplePanel({
   const [clubFilter, setClubFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("name");
+  const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
+  const [inviteSelectionStatus, setInviteSelectionStatus] = useState<{ tone: "info" | "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     const nextTeams = teams.filter((team) => team.clubId === clubId);
@@ -1331,6 +1332,53 @@ function PeoplePanel({
     }
   }
 
+  async function inviteSelectedPeople() {
+    const selectedPeople = people.filter((person) => selectedPersonIds.includes(person.personId));
+    const eligiblePeople = selectedPeople.filter((person) => person.email && !person.invitedAt);
+    if (!eligiblePeople.length) {
+      onMessage("Select people who have an email address and have not already been invited.");
+      return;
+    }
+
+    if (demo) {
+      onMessage(`Invite emails queued for ${eligiblePeople.length} people.`);
+      setSelectedPersonIds([]);
+      return;
+    }
+
+    setInviteSelectionStatus({ tone: "info", text: `Sending ${eligiblePeople.length} invite email${eligiblePeople.length === 1 ? "" : "s"}...` });
+    setBusyPersonId("bulk-invite");
+    try {
+      const response = await fetch("/api/admin/invites", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ personIds: eligiblePeople.map((person) => person.personId) })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not send invite emails.");
+      const results = Array.isArray(data.results) ? data.results : [];
+      const sent = results.filter((item: { status?: string }) => item.status === "Sent" || item.status === "Queued").length;
+      const skipped = results.filter((item: { status?: string }) => item.status === "Skipped").length;
+      const failed = results.filter((item: { status?: string }) => item.status === "Failed").length;
+      const message = [
+        sent ? `${sent} invite${sent === 1 ? "" : "s"} sent/queued` : "",
+        skipped ? `${skipped} skipped` : "",
+        failed ? `${failed} failed` : ""
+      ].filter(Boolean).join(", ") || "No invites were sent.";
+      setInviteSelectionStatus({ tone: failed ? "error" : "success", text: message });
+      onMessage(message);
+      setSelectedPersonIds([]);
+      onRefresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send invite emails.";
+      setInviteSelectionStatus({ tone: "error", text: message });
+      onMessage(message);
+    } finally {
+      setBusyPersonId("");
+    }
+  }
+
   async function deletePerson() {
     if (!deleteTarget) return;
     if (demo) {
@@ -1412,6 +1460,27 @@ function PeoplePanel({
       });
   }, [clubFilter, people, searchTerm, sortBy, statusFilter]);
 
+  const selectedEligibleCount = useMemo(() => {
+    return people.filter((person) => selectedPersonIds.includes(person.personId) && person.email && !person.invitedAt).length;
+  }, [people, selectedPersonIds]);
+  const visibleSelectablePeople = visiblePeople.filter((person) => person.email && !person.invitedAt);
+  const allVisibleSelectableSelected = visibleSelectablePeople.length > 0 && visibleSelectablePeople.every((person) => selectedPersonIds.includes(person.personId));
+
+  function toggleSelectedPerson(personId: string, selected: boolean) {
+    setSelectedPersonIds((current) => {
+      if (selected) return current.includes(personId) ? current : [...current, personId];
+      return current.filter((id) => id !== personId);
+    });
+  }
+
+  function toggleVisibleSelectable(selected: boolean) {
+    const visibleIds = visibleSelectablePeople.map((person) => person.personId);
+    setSelectedPersonIds((current) => {
+      if (!selected) return current.filter((id) => !visibleIds.includes(id));
+      return Array.from(new Set([...current, ...visibleIds]));
+    });
+  }
+
   return (
     <div className="grid min-w-0 gap-4">
       <Card className="min-w-0">
@@ -1460,8 +1529,43 @@ function PeoplePanel({
               ]}
             />
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+            <div>
+              <p className="text-sm font-extrabold text-[#10233f]">Invite selected people</p>
+              <p className="text-xs font-semibold text-[#6c5a73]">Import people first, then tick the rows you want to email.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => toggleVisibleSelectable(!allVisibleSelectableSelected)}
+                disabled={!visibleSelectablePeople.length}
+              >
+                {allVisibleSelectableSelected ? "Clear visible" : "Select visible not invited"}
+              </Button>
+              <Button
+                size="sm"
+                onClick={inviteSelectedPeople}
+                disabled={!selectedEligibleCount || busyPersonId === "bulk-invite"}
+              >
+                <Mail className="h-4 w-4" />
+                {busyPersonId === "bulk-invite" ? "Sending..." : `Send invites (${selectedEligibleCount})`}
+              </Button>
+            </div>
+          </div>
+          {inviteSelectionStatus ? <InviteSendStatus tone={inviteSelectionStatus.tone} text={inviteSelectionStatus.text} /> : null}
           <div className="min-w-0 overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden grid-cols-[minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_300px] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_300px] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+              <span>
+                <input
+                  className="h-4 w-4 accent-[#10233f]"
+                  type="checkbox"
+                  checked={allVisibleSelectableSelected}
+                  disabled={!visibleSelectablePeople.length}
+                  onChange={(event) => toggleVisibleSelectable(event.target.checked)}
+                  aria-label="Select visible people who have not been invited"
+                />
+              </span>
               <span>Person</span>
               <span>Email</span>
               <span>Club</span>
@@ -1477,8 +1581,20 @@ function PeoplePanel({
                   ...(person.clubHandicaps ?? []).map((item) => item.club_name),
                   ...(person.clubAdmins ?? []).map((item) => item.club_name)
                 ].filter(Boolean)));
+                const canInvitePerson = Boolean(person.email && !person.invitedAt);
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_300px] lg:items-center lg:gap-2">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_300px] lg:items-center lg:gap-2">
+                    <label className="flex items-center gap-2 text-xs font-bold text-[#6c5a73]">
+                      <input
+                        className="h-4 w-4 accent-[#10233f]"
+                        type="checkbox"
+                        checked={selectedPersonIds.includes(person.personId)}
+                        disabled={!canInvitePerson}
+                        onChange={(event) => toggleSelectedPerson(person.personId, event.target.checked)}
+                        aria-label={`Select ${person.name} for invite`}
+                      />
+                      <span className="lg:hidden">Invite</span>
+                    </label>
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 truncate font-extrabold">{person.name}</span>
                       {person.admin ? <Badge variant="green">Admin</Badge> : null}
@@ -1852,7 +1968,7 @@ function BulkInviteImportPanel({
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
-  const example = "name\temail\tphone\tclub\trole\tteam\tadministrator\tsend_invite\nStephen Finlan\tstephen@example.com\t\tCastle Golf Club\tManager\tCastle A\tno\tyes\nCastle A Player\tplayer@example.com\t\tCastle Golf Club\tPlayer\tCastle A\tno\tno";
+  const example = "name\temail\tphone\tclub\trole\tteam\tadministrator\nStephen Finlan\tstephen@example.com\t\tCastle Golf Club\tManager\tCastle A\tno\nCastle A Player\tplayer@example.com\t\tCastle Golf Club\tPlayer\tCastle A\tno";
   const [pastedRows, setPastedRows] = useState(example);
   const [sending, setSending] = useState(false);
   const [sendStatus, setSendStatus] = useState<{ tone: "info" | "success" | "error"; text: string } | null>(null);
@@ -1870,48 +1986,35 @@ function BulkInviteImportPanel({
     }
 
     setSending(true);
-    const inviteRows = readyRows.filter((row) => row.sendInvite);
-    const createOnlyRows = readyRows.filter((row) => !row.sendInvite);
     setSendStatus({
       tone: "info",
-      text: `Processing ${readyRows.length} row${readyRows.length === 1 ? "" : "s"} (${inviteRows.length} invite${inviteRows.length === 1 ? "" : "s"}, ${createOnlyRows.length} create-only).`
+      text: `Importing ${readyRows.length} people/role row${readyRows.length === 1 ? "" : "s"}. No invite emails will be sent.`
     });
-    let sent = 0;
-    let createdOnly = 0;
+    let imported = 0;
     const failures: string[] = [];
     const completedEmails = new Set<string>();
     for (const row of readyRows) {
       try {
         const [firstName, ...lastNameParts] = row.name.trim().split(/\s+/);
-        const response = await fetch(row.sendInvite ? "/api/admin/invites" : "/api/admin/people", {
+        const response = await fetch("/api/admin/people", {
           method: "POST",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(row.sendInvite
-            ? {
-                email: row.email,
-                name: row.name,
-                phone: row.phone,
-                clubId: row.clubId,
-                roles: [{ role: row.role, teamId: row.teamId, clubId: row.clubId }],
-                administrator: row.administrator
-              }
-            : {
-                firstName,
-                lastName: lastNameParts.join(" ") || "-",
-                email: row.email,
-                phone: row.phone,
-                clubId: row.clubId,
-                role: row.role,
-                teamId: row.teamId,
-                admin: row.administrator
-              })
+          body: JSON.stringify({
+            firstName,
+            lastName: lastNameParts.join(" ") || "-",
+            email: row.email,
+            phone: row.phone,
+            clubId: row.clubId,
+            role: row.role,
+            teamId: row.teamId,
+            admin: row.administrator
+          })
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || (row.sendInvite ? "Could not create invite." : "Could not create person."));
-        if (row.sendInvite) sent += 1;
-        else createdOnly += 1;
-        if (!row.sendInvite || data.email_status !== "Failed") completedEmails.add(row.email);
+        if (!response.ok) throw new Error(data.error || "Could not import person.");
+        imported += 1;
+        completedEmails.add(row.email);
       } catch (error) {
         failures.push(`${row.email}: ${error instanceof Error ? error.message : "failed"}`);
       }
@@ -1930,13 +2033,9 @@ function BulkInviteImportPanel({
       }).join("\n").trimEnd());
     }
     onRefresh();
-    const successParts = [
-      sent ? `sent ${sent} invite${sent === 1 ? "" : "s"}` : "",
-      createdOnly ? `created ${createdOnly} person record${createdOnly === 1 ? "" : "s"} without invites` : ""
-    ].filter(Boolean);
     const resultMessage = failures.length
-      ? `${successParts.join(" and ") || "Processed 0 rows"}; ${failures.length} failed. ${failures[0]}`
-      : `${successParts.join(" and ") || "Processed 0 rows"} and removed them from the import list.`;
+      ? `Imported ${imported} row${imported === 1 ? "" : "s"}; ${failures.length} failed. ${failures[0]}`
+      : `Imported ${imported} row${imported === 1 ? "" : "s"} and removed them from the import list. Select people on the People screen to send invites.`;
     setSendStatus({ tone: failures.length ? "error" : "success", text: resultMessage });
     onMessage(resultMessage);
   }
@@ -1946,7 +2045,7 @@ function BulkInviteImportPanel({
       <CardHeader>
         <div>
           <CardTitle>Import from spreadsheet</CardTitle>
-          <p className="mt-1 text-sm font-semibold text-[#6c5a73]">Paste rows copied from Excel or Google Sheets. Headers are required.</p>
+          <p className="mt-1 text-sm font-semibold text-[#6c5a73]">Paste rows copied from Excel or Google Sheets. This imports people and roles only; invite emails are sent from the People list.</p>
         </div>
         <Badge variant="cyan">{readyRows.length} ready</Badge>
       </CardHeader>
@@ -1961,20 +2060,18 @@ function BulkInviteImportPanel({
           />
         </label>
         <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
-          <div className="grid grid-cols-[1.2fr_1.4fr_1fr_.8fr_1fr] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73]">
+          <div className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73]">
             <span>Name</span>
             <span>Email</span>
             <span>Role</span>
-            <span>Invite</span>
             <span>Status</span>
           </div>
           <div className="max-h-56 overflow-auto">
             {parsedRows.length ? parsedRows.map((row, index) => (
-              <div key={`${row.email}-${index}`} className="grid grid-cols-[1.2fr_1.4fr_1fr_.8fr_1fr] gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f]">
+              <div key={`${row.email}-${index}`} className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr] gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f]">
                 <span className="min-w-0 truncate">{row.name || "-"}</span>
                 <span className="min-w-0 truncate">{row.email || "-"}</span>
                 <span className="min-w-0 truncate">{row.role}{row.team ? ` - ${row.team}` : ""}</span>
-                <span className={row.sendInvite ? "text-[#1b8a72]" : "text-[#6c5a73]"}>{row.sendInvite ? "Yes" : "No"}</span>
                 <span className={row.error ? "text-[#ba1a1a]" : "text-[#1b8a72]"}>{row.error || "Ready"}</span>
               </div>
             )) : (
@@ -1984,7 +2081,7 @@ function BulkInviteImportPanel({
         </div>
         <Button onClick={sendBulkInvites} disabled={sending || !readyRows.length}>
           <FileSpreadsheet className="h-4 w-4" />
-          {sending ? "Processing import..." : "Import rows"}
+          {sending ? "Importing people..." : "Import people without emailing"}
         </Button>
         {sendStatus ? <InviteSendStatus tone={sendStatus.tone} text={sendStatus.text} /> : null}
       </CardContent>
@@ -2176,7 +2273,6 @@ function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedI
     role: indexFor("role", "roles"),
     team: indexFor("team"),
     administrator: indexFor("administrator", "admin", "platform admin"),
-    sendInvite: indexFor("send_invite", "send invite", "invite", "email invite", "send email")
   };
   const clubs = uniqueClubs(teams);
 
@@ -2185,7 +2281,6 @@ function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedI
     const role = normalizeInviteRole(readCell(cells, indexes.role) || "Player");
     const clubName = readCell(cells, indexes.club);
     const teamName = readCell(cells, indexes.team);
-    const sendInviteValue = readCell(cells, indexes.sendInvite);
     const club = clubs.find((item) => normalizeText(item.clubName) === normalizeText(clubName));
     const team = teamName
       ? teams.find((item) => normalizeText(item.teamName) === normalizeText(teamName) && (!club || item.clubId === club.clubId))
@@ -2198,7 +2293,6 @@ function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedI
       role,
       team: teamName,
       administrator: ["yes", "y", "true", "1", "admin"].includes(readCell(cells, indexes.administrator).toLowerCase()),
-      sendInvite: sendInviteValue ? !["no", "n", "false", "0", "create only", "createonly", "none"].includes(normalizeText(sendInviteValue).replace(/\s+/g, "")) : true,
       clubId: club?.clubId,
       teamId: team?.teamId
     };
