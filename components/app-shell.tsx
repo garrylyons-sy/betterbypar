@@ -5524,8 +5524,8 @@ function gameSidePlayersLabel(game: ManagerLineupGame, side: "home" | "away") {
 
 function GamePlayerLabel({ label, isGuest, className }: { label: string; isGuest?: boolean; className?: string }) {
   return (
-    <p className={cn("flex min-w-0 items-center gap-1.5 truncate rounded-md px-2 py-1", className)}>
-      <span className="min-w-0 truncate">{label}</span>
+    <p className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-md px-2 py-1.5 leading-tight", className)}>
+      <span className="min-w-0 whitespace-normal break-words">{label}</span>
       {isGuest ? <span className="shrink-0 rounded bg-[#eefbff] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#10233f] ring-1 ring-[#04f5ff55]">Guest</span> : null}
     </p>
   );
@@ -5604,9 +5604,9 @@ function ReadOnlyFixtureDetails({
                 </p>
                 {!game.winner_team_id ? <Badge variant="muted">Awaiting</Badge> : null}
               </div>
-              <div className="grid grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] items-center gap-2 text-sm font-extrabold">
+              <div className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-stretch gap-1.5 text-xs font-extrabold sm:grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] sm:gap-2 sm:text-sm">
                 <GamePlayerLabel className={cn(homeWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} label={homePlayers} isGuest={game.home_player_1_is_guest || game.home_player_2_is_guest} />
-                <span className="text-center text-xs font-black uppercase text-[#6c5a73]">v</span>
+                <span className="grid place-items-center text-center text-xs font-black uppercase text-[#6c5a73]">v</span>
                 <GamePlayerLabel className={cn("justify-end text-right", awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} label={awayPlayers} isGuest={game.away_player_1_is_guest || game.away_player_2_is_guest} />
               </div>
               {game.breaks?.length ? (
