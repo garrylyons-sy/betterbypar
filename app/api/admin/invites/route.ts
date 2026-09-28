@@ -7,8 +7,6 @@ import { hashSecretToken } from "@/lib/server/tokens";
 
 export const runtime = "nodejs";
 
-const inviteAuditBcc = "garlyons@gmail.com";
-
 type InviteRoleInput = {
   role?: string;
   teamId?: string;
@@ -333,7 +331,7 @@ export async function POST(request: NextRequest) {
               expiresAt,
               isClubOnlyInvite: !teamRoles.rowCount && (clubRoles.rowCount ?? 0) > 0
             });
-            const emailResult = await sendAppEmail({ to: person.email, bcc: inviteAuditBcc, subject, html: bodyHtml, text: bodyText });
+            const emailResult = await sendAppEmail({ to: person.email, subject, html: bodyHtml, text: bodyText });
             const emailInsert = await client.query(
               `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
                values ($1, $2, $3, $4, $5, 'Queued')
@@ -453,7 +451,7 @@ export async function POST(request: NextRequest) {
         isClubOnlyInvite
       });
 
-      const emailResult = await sendAppEmail({ to: email, bcc: inviteAuditBcc, subject, html: bodyHtml, text: bodyText });
+      const emailResult = await sendAppEmail({ to: email, subject, html: bodyHtml, text: bodyText });
 
       const emailInsert = await client.query(
         `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
@@ -584,7 +582,7 @@ export async function PATCH(request: NextRequest) {
         [invitationId, hashSecretToken(inviteToken)]
       );
 
-      const emailResult = await sendAppEmail({ to: invitation.email, bcc: inviteAuditBcc, subject, html: bodyHtml, text: bodyText });
+      const emailResult = await sendAppEmail({ to: invitation.email, subject, html: bodyHtml, text: bodyText });
       const emailInsert = await client.query(
         `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
          values ($1, $2, $3, $4, $5, 'Queued')
