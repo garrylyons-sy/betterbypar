@@ -102,6 +102,10 @@ export async function GET(request: NextRequest) {
       away_player_1_name: string;
       away_player_2_id: string | null;
       away_player_2_name: string | null;
+      home_player_1_is_guest: boolean;
+      home_player_2_is_guest: boolean;
+      away_player_1_is_guest: boolean;
+      away_player_2_is_guest: boolean;
     }>(
       `select
          f.id as fixture_id,
@@ -111,13 +115,17 @@ export async function GET(request: NextRequest) {
          g.points_awarded,
          g.winner_team_id,
          hp1.id as home_player_1_id,
-         concat_ws(' ', hp1.first_name, hp1.last_name) as home_player_1_name,
+         coalesce(nullif(g.home_player_1_guest_name, ''), concat_ws(' ', hp1.first_name, hp1.last_name)) as home_player_1_name,
          hp2.id as home_player_2_id,
-         concat_ws(' ', hp2.first_name, hp2.last_name) as home_player_2_name,
+         coalesce(nullif(g.home_player_2_guest_name, ''), concat_ws(' ', hp2.first_name, hp2.last_name)) as home_player_2_name,
          ap1.id as away_player_1_id,
-         concat_ws(' ', ap1.first_name, ap1.last_name) as away_player_1_name,
+         coalesce(nullif(g.away_player_1_guest_name, ''), concat_ws(' ', ap1.first_name, ap1.last_name)) as away_player_1_name,
          ap2.id as away_player_2_id,
-         concat_ws(' ', ap2.first_name, ap2.last_name) as away_player_2_name
+         coalesce(nullif(g.away_player_2_guest_name, ''), concat_ws(' ', ap2.first_name, ap2.last_name)) as away_player_2_name,
+         g.home_player_1_is_guest,
+         g.home_player_2_is_guest,
+         g.away_player_1_is_guest,
+         g.away_player_2_is_guest
        from public.fixture f
        join public.match m on m.fixture_id = f.id
        join public.game g on g.match_id = m.id
@@ -241,6 +249,10 @@ export async function GET(request: NextRequest) {
             away_player_1_name: game.away_player_1_name,
             away_player_2_id: game.away_player_2_id,
             away_player_2_name: game.away_player_2_name,
+            home_player_1_is_guest: game.home_player_1_is_guest,
+            home_player_2_is_guest: game.home_player_2_is_guest,
+            away_player_1_is_guest: game.away_player_1_is_guest,
+            away_player_2_is_guest: game.away_player_2_is_guest,
             breaks: breaksForGame(game.id)
           }))
       });
