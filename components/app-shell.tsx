@@ -4478,7 +4478,7 @@ function FixtureWeekCarouselCard({
                 const canOpenRow = canManage || canInspect;
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
-                const lineupsPublished = fixtureHasPublishedLineups(fixture) && !hasScore;
+                const lineupsPublished = fixtureHasPublishedLineups(fixture) && fixture.status !== "Completed" && fixture.completedGames === 0;
                 return (
                   <article
                     key={fixture.id}
