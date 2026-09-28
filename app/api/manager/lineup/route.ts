@@ -238,7 +238,7 @@ export async function POST(request: NextRequest) {
         throw new Error("Published lineups are locked and cannot be changed.");
       }
       const playerIds = await loadTeamPlayerIds(client, teamId);
-      const guestPlayerIds = await loadSameClubPersonIds(client, teamId);
+      const guestPlayerIds = await loadEligibleGuestPlayerIds(client, teamId);
       const fixtureMeta = await loadFixtureLineupMeta(client, fixtureId);
       const normalized = normalizeSlots(slots, playerIds, guestPlayerIds, action === "publish", fixtureMeta.slotDefinitions, fixtureMeta.fixtureType === "Friendly");
       const lineupId = await upsertLineup(client, fixtureId, teamId, user.personId, action === "publish");
@@ -346,20 +346,12 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     [teamId]
   )).rows.map((row) => ({ id: row.person_id, name: row.player_name }));
   const playerIds = new Set(players.map((player) => player.id));
-  const guestPlayers = (await dbQuery<{ person_id: string; player_name: string }>(
-    `select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name
-     from public.team target_team
-     join public.club_membership cm
-       on cm.club_id = target_team.club_id
-      and cm.active = true
-     join public.person p on p.id = cm.person_id
-     where target_team.id = $1
-       and p.active = true
-     order by player_name`,
+  const guestPlayers = (await dbQuery<{ person_id: string; player_name: string; team_name: string }>(
+    eligibleGuestPlayersSql,
     [teamId]
   )).rows
     .filter((row) => !playerIds.has(row.person_id))
-    .map((row) => ({ id: row.person_id, name: row.player_name }));
+    .map((row) => ({ id: row.person_id, name: `${row.player_name} (${row.team_name})` }));
 
   if (!fixture) {
     return { fixture: null, players, guestPlayers, lineup: null, opponentStatus: null, opponentLineup: null, games: [], weekFixtures: [] };
@@ -795,18 +787,69 @@ async function loadTeamPlayerIds(client: PoolClient, teamId: string) {
   return new Set(result.rows.map((row) => row.person_id));
 }
 
-async function loadSameClubPersonIds(client: PoolClient, teamId: string) {
-  const result = await client.query<{ person_id: string }>(
-    `select distinct cm.person_id
-     from public.team target_team
-     join public.club_membership cm
-       on cm.club_id = target_team.club_id
-      and cm.active = true
-     join public.person p on p.id = cm.person_id
-     where target_team.id = $1
-       and p.active = true`,
-    [teamId]
-  );
+const eligibleGuestPlayersSql = `
+  with target as (
+    select
+      t.*,
+      case upper(right(trim(t.name), 1))
+        when 'A' then 1
+        when 'B' then 2
+        when 'C' then 3
+        when 'D' then 4
+        else null
+      end as team_rank
+    from public.team t
+    where t.id = $1
+  ),
+  lower_teams as (
+    select
+      t.*,
+      case upper(right(trim(t.name), 1))
+        when 'A' then 1
+        when 'B' then 2
+        when 'C' then 3
+        when 'D' then 4
+        else null
+      end as team_rank
+    from public.team t
+    join target on target.club_id = t.club_id
+    where t.active = true
+      and t.season_id = target.season_id
+      and (
+        case upper(right(trim(t.name), 1))
+          when 'A' then 1
+          when 'B' then 2
+          when 'C' then 3
+          when 'D' then 4
+          else null
+        end
+      ) > target.team_rank
+  )
+  select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name, lt.name as team_name
+  from lower_teams lt
+  join public.person_team_role ptr
+    on ptr.league_id = lt.league_id
+   and ptr.team_name = lt.name
+   and ptr.role = 'Player'
+   and ptr.active = true
+  join public.club_membership cm
+    on cm.id = ptr.club_membership_id
+   and cm.club_id = lt.club_id
+   and cm.active = true
+  join public.person p on p.id = cm.person_id and p.active = true
+  union
+  select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name, lt.name as team_name
+  from lower_teams lt
+  join public.team_membership tm
+    on tm.team_id = lt.id
+   and tm.role = 'Player'
+   and tm.active = true
+  join public.person p on p.id = tm.person_id and p.active = true
+  order by team_name, player_name
+`;
+
+async function loadEligibleGuestPlayerIds(client: PoolClient, teamId: string) {
+  const result = await client.query<{ person_id: string }>(eligibleGuestPlayersSql, [teamId]);
   return new Set(result.rows.map((row) => row.person_id));
 }
 
@@ -833,10 +876,10 @@ function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, guestP
     const player2IsGuest = Boolean(input?.player2IsGuest || player2GuestName);
     if (player1Id && !player1IsGuest && !playerIds.has(player1Id)) throw new Error(`${slot.label} player is not in this team.`);
     if (player2Id && !player2IsGuest && !playerIds.has(player2Id)) throw new Error(`${slot.label} doubles partner is not in this team.`);
-    if (player1Id && player1IsGuest && !guestPlayerIds.has(player1Id)) throw new Error(`${slot.label} Guest Player must be from this club.`);
-    if (player2Id && player2IsGuest && !guestPlayerIds.has(player2Id)) throw new Error(`${slot.label} doubles Guest Player must be from this club.`);
-    if (player1IsGuest && !player1Id && !player1GuestName) throw new Error(`${slot.label} Guest Player needs a name.`);
-    if (player2IsGuest && !player2Id && !player2GuestName) throw new Error(`${slot.label} doubles Guest Player needs a name.`);
+    if (player1Id && player1IsGuest && !guestPlayerIds.has(player1Id)) throw new Error(`${slot.label} Guest Player must be from a lower team in this club.`);
+    if (player2Id && player2IsGuest && !guestPlayerIds.has(player2Id)) throw new Error(`${slot.label} doubles Guest Player must be from a lower team in this club.`);
+    if (player1IsGuest && !player1Id) throw new Error(`${slot.label} Guest Player must be selected from a lower team.`);
+    if (player2IsGuest && !player2Id) throw new Error(`${slot.label} doubles Guest Player must be selected from a lower team.`);
     if (player1Id && player2Id && player1Id === player2Id) throw new Error(`${slot.label} needs two different players.`);
     if (requireComplete && !player1Id && !player1GuestName) throw new Error(`${slot.label} needs a player before publishing.`);
     if (requireComplete && slot.gameType === "Doubles" && !player2Id && !player2GuestName) throw new Error("Doubles needs two players before publishing.");

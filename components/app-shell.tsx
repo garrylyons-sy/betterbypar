@@ -5360,8 +5360,6 @@ function PlayerPickerSheet({
   const prefix = lineupPlayerPrefix(target.key);
   const selectedGuestName = String(slot?.[`${prefix}GuestName` as keyof ManagerLineupSlot] ?? "");
   const selectedIsGuest = Boolean(slot?.[`${prefix}IsGuest` as keyof ManagerLineupSlot]);
-  const [manualGuestName, setManualGuestName] = useState(selectedGuestName);
-  const cleanManualGuestName = manualGuestName.trim().replace(/\s+/g, " ");
 
   return (
     <div className="fixed inset-0 z-50 grid items-end bg-[#071426]/50 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label={`Pick player for ${target.label}`}>
@@ -5423,7 +5421,7 @@ function PlayerPickerSheet({
             <div className="mt-2 grid gap-2 border-t border-[#eeeaf2] pt-3">
               <div>
                 <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Guest Player</p>
-                <p className="text-xs font-bold text-[#6c5a73]">Use only when someone outside this team panel plays. Guest Players do not count in player stats.</p>
+                <p className="text-xs font-bold text-[#6c5a73]">Use only for players from a lower team in your club. Guest Players do not count in player stats.</p>
               </div>
               {guestPlayers.length ? (
                 <div className="grid gap-2">
@@ -5445,25 +5443,16 @@ function PlayerPickerSheet({
                     );
                   })}
                 </div>
+              ) : (
+                <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#6c5a73]">
+                  No lower-team players are available for this team.
+                </p>
+              )}
+              {selectedGuestName && !value ? (
+                <p className="rounded-xl bg-[#fff7e6] p-3 text-sm font-bold text-[#6c5a73]">
+                  Previously selected typed Guest Player: {selectedGuestName}. Pick a lower-team player to replace them.
+                </p>
               ) : null}
-              <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-2">
-                <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
-                  Type guest name
-                  <input
-                    className="min-h-11 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f] outline-none focus:border-[#7bc7d6] focus:ring-2 focus:ring-[#7bc7d6]/30"
-                    value={manualGuestName}
-                    onChange={(event) => setManualGuestName(event.target.value)}
-                    placeholder="Guest player name"
-                  />
-                </label>
-                <Button
-                  size="sm"
-                  disabled={cleanManualGuestName.length < 2}
-                  onClick={() => onSelectGuest({ guestName: cleanManualGuestName })}
-                >
-                  Use typed Guest Player
-                </Button>
-              </div>
             </div>
           </div>
         </div>
