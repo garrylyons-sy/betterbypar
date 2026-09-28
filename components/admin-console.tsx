@@ -1247,6 +1247,7 @@ function PeoplePanel({
   const [editTarget, setEditTarget] = useState<PersonOption | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [clubFilter, setClubFilter] = useState("all");
+  const [teamFilter, setTeamFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("name");
@@ -1259,6 +1260,24 @@ function PeoplePanel({
       setTeamId(nextTeams[0]?.teamId ?? "");
     }
   }, [clubId, teamId, teams]);
+
+  const filterTeams = useMemo(() => {
+    const scopedTeams = clubFilter === "all" ? teams : teams.filter((team) => team.clubName === clubFilter);
+    const seen = new Set<string>();
+    return scopedTeams.filter((team) => {
+      const key = `${team.clubName}::${team.teamName}::${team.leagueName}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).sort((a, b) => a.clubName.localeCompare(b.clubName) || a.teamName.localeCompare(b.teamName) || a.leagueName.localeCompare(b.leagueName));
+  }, [clubFilter, teams]);
+
+  useEffect(() => {
+    if (teamFilter === "all") return;
+    if (!filterTeams.some((team) => team.teamName === teamFilter)) {
+      setTeamFilter("all");
+    }
+  }, [filterTeams, teamFilter]);
 
   async function addPerson() {
     if (demo) {
@@ -1473,6 +1492,11 @@ function PeoplePanel({
       return Boolean(person.teamRoles?.some((role) => role.role === roleFilter));
     }
 
+    function matchesTeam(person: PersonOption) {
+      if (teamFilter === "all") return true;
+      return Boolean(person.teamRoles?.some((role) => role.team_name === teamFilter));
+    }
+
     return people
       .filter((person) => {
         const clubsForPerson = personClubNames(person);
@@ -1494,6 +1518,7 @@ function PeoplePanel({
 
         return (!search || searchHaystack.includes(search))
           && (clubFilter === "all" || clubsForPerson.includes(clubFilter))
+          && matchesTeam(person)
           && matchesRole(person)
           && matchesStatus(person);
       })
@@ -1509,7 +1534,7 @@ function PeoplePanel({
         if (sortBy === "login") return Number(Boolean(b.loginActive)) - Number(Boolean(a.loginActive)) || a.name.localeCompare(b.name);
         return a.name.localeCompare(b.name);
       });
-  }, [clubFilter, people, roleFilter, searchTerm, sortBy, statusFilter]);
+  }, [clubFilter, people, roleFilter, searchTerm, sortBy, statusFilter, teamFilter]);
 
   const selectedEligibleCount = useMemo(() => {
     return people.filter((person) => selectedPersonIds.includes(person.personId) && person.email && !person.invitedAt).length;
@@ -1540,7 +1565,7 @@ function PeoplePanel({
           <Badge variant="muted">{visiblePeople.length} / {people.length}</Badge>
         </CardHeader>
         <CardContent className="grid min-w-0 gap-3">
-          <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-[minmax(180px,1.4fr)_1fr_1fr_1fr_1fr]">
+          <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-[minmax(180px,1.4fr)_repeat(5,minmax(0,1fr))]">
             <label className="grid gap-1">
               <span className="text-xs font-bold uppercase text-[#6c5a73]">Search</span>
               <input
@@ -1551,6 +1576,18 @@ function PeoplePanel({
               />
             </label>
             <AdminSelect label="Club" value={clubFilter} onChange={setClubFilter} options={[{ value: "all", label: "All clubs" }, ...clubs.map((club) => ({ value: club.clubName, label: club.clubName }))]} />
+            <AdminSelect
+              label="Team"
+              value={teamFilter}
+              onChange={setTeamFilter}
+              options={[
+                { value: "all", label: clubFilter === "all" ? "All teams" : `All ${clubFilter.replace(" Golf Club", "")} teams` },
+                ...filterTeams.map((team) => ({
+                  value: team.teamName,
+                  label: clubFilter === "all" ? `${team.teamName} - ${team.clubName.replace(" Golf Club", "")}` : `${team.teamName} - ${team.leagueName}`
+                }))
+              ]}
+            />
             <AdminSelect
               label="Role"
               value={roleFilter}
