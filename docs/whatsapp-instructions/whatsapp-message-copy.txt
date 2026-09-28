@@ -1,0 +1,40 @@
+WhatsApp message 1 - Activate your account
+
+Hi all. To activate your Interclub Snooker account:
+
+1. Open the invite email from Interclub Snooker.
+2. Tap Activate your account.
+3. Set your password, or use Google if it is the same email address you were invited on.
+4. After you are in, bookmark https://www.interclubsnooker.com on your phone.
+
+Only invited users can activate an account.
+Attach: 01-activate-account-whatsapp.png
+
+---
+
+WhatsApp message 2 - Managers: pick your team
+
+Managers: to pick your team for a match:
+
+1. Open Interclub Snooker and go to Fixtures.
+2. Tap your team’s match for the week.
+3. Pick the players into the match positions.
+4. Save the team first.
+5. Only press Publish when the team is final, because publishing locks it.
+
+When both teams publish, the match opens for scoring.
+Attach: 02-pick-team-whatsapp.png
+
+---
+
+WhatsApp message 3 - Managers: scores and breaks
+
+Managers: when a match is being played:
+
+1. Open the active match from Fixtures.
+2. Select the winner of each game.
+3. Record breaks only where there is a break worth recording.
+4. When every game is entered and checked, press Match Completed.
+
+Once completed, the match is locked and the league table updates.
+Attach: 03-enter-scores-breaks-whatsapp.png
