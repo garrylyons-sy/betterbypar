@@ -1664,7 +1664,19 @@ function PeoplePanel({
                       <span className="min-w-0 truncate font-extrabold">{person.name}</span>
                       {person.admin ? <Badge variant="green">Admin</Badge> : null}
                     </div>
-                    <p className="min-w-0 truncate text-[#6c5a73]">{person.email || "No email yet"}</p>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className="min-w-0 truncate text-[#6c5a73]">{person.email || "No email yet"}</p>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setEditTarget(person)}
+                        disabled={busyPersonId === person.personId}
+                        className="min-h-8 shrink-0 px-2 text-[11px]"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Edit
+                      </Button>
+                    </div>
                     <p className="min-w-0 truncate text-xs text-[#6c5a73]" title={clubsForPerson.join(" / ")}>
                       {clubsForPerson.length ? clubsForPerson.map((club) => club.replace(" Golf Club", "")).join(" / ") : "-"}
                       {handicaps.length ? ` (${handicaps.map((item) => formatHandicap(item.handicap)).join("/")})` : ""}
