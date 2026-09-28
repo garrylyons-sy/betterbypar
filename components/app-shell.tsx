@@ -4353,6 +4353,13 @@ function fixtureHasPublishedLineups(fixture: FixtureWeekFixture) {
   return fixture.homeLineupStatus === "Published" && fixture.awayLineupStatus === "Published";
 }
 
+function postponedFixtureLabel(fixture: FixtureWeekFixture, weekStartsOn: string) {
+  const fixtureDate = fixture.fixtureDate?.slice(0, 10);
+  const originalWeekDate = weekStartsOn?.slice(0, 10);
+  if (!fixtureDate || !originalWeekDate || fixtureDate === originalWeekDate || fixture.status === "Completed") return "";
+  return `Postponed until ${formatFixtureDate(fixture.fixtureDate)}`;
+}
+
 function FixtureWeekCarouselCard({
   activeTeam,
   selectedFixtureId,
@@ -4497,6 +4504,7 @@ function FixtureWeekCarouselCard({
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
                 const lineupsPublished = fixtureHasPublishedLineups(fixture) && fixture.status !== "Completed" && fixture.completedGames === 0;
+                const postponedLabel = postponedFixtureLabel(fixture, week.startsOn);
                 return (
                   <article
                     key={fixture.id}
@@ -4559,6 +4567,11 @@ function FixtureWeekCarouselCard({
                       {lineupsPublished ? (
                         <span className="justify-self-start rounded-lg bg-[#e9fff4] px-3 py-1.5 text-xs font-extrabold uppercase text-[#007a45] ring-1 ring-[#00a85a33]">
                           Lineups published
+                        </span>
+                      ) : null}
+                      {postponedLabel ? (
+                        <span className="justify-self-start rounded-lg bg-[#fff8eb] px-3 py-1.5 text-xs font-extrabold uppercase text-[#8a5a00] ring-1 ring-[#ffb00055]">
+                          {postponedLabel}
                         </span>
                       ) : null}
                     </button>
