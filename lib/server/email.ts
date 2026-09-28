@@ -1,5 +1,6 @@
 type EmailPayload = {
   to: string;
+  bcc?: string | string[];
   subject: string;
   html: string;
   text: string;
@@ -33,6 +34,7 @@ export async function sendAppEmail(payload: EmailPayload): Promise<EmailResult> 
       body: JSON.stringify({
         from,
         to: payload.to,
+        ...(payload.bcc ? { bcc: payload.bcc } : {}),
         subject: payload.subject,
         html: payload.html,
         text: payload.text
