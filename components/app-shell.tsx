@@ -4478,6 +4478,7 @@ function FixtureWeekCarouselCard({
                 const canOpenRow = canManage || canInspect;
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
+                const lineupsPublished = fixtureHasPublishedLineups(fixture) && !hasScore;
                 return (
                   <article
                     key={fixture.id}
@@ -4535,6 +4536,11 @@ function FixtureWeekCarouselCard({
                       {canManage ? (
                         <span className="justify-self-start rounded-lg px-3 py-2 text-xs font-extrabold uppercase text-white" style={{ backgroundColor: activeTeam.primaryColor }}>
                           {fixtureHasStarted(fixture) ? "Open match" : "Pick team"}
+                        </span>
+                      ) : null}
+                      {lineupsPublished ? (
+                        <span className="justify-self-start rounded-lg bg-[#e9fff4] px-3 py-1.5 text-xs font-extrabold uppercase text-[#007a45] ring-1 ring-[#00a85a33]">
+                          Lineups published
                         </span>
                       ) : null}
                     </button>
