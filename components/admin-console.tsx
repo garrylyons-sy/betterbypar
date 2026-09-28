@@ -42,6 +42,7 @@ type PersonOption = {
   admin?: boolean;
   clubHandicaps?: Array<{ club_id: string; club_name: string; handicap: number | string | null }>;
   clubAdmins?: Array<{ club_id: string; club_name: string }>;
+  teamRoles?: Array<{ role: string; team_name: string; league_name: string; club_name: string }>;
 };
 type InviteRoleRow = {
   id: string;
@@ -304,6 +305,7 @@ export function AdminConsole() {
             inviteAcceptedAt: person.invite_accepted_at ?? null,
             clubHandicaps: person.club_handicaps ?? [],
             clubAdmins: person.club_admins ?? [],
+            teamRoles: person.team_roles ?? [],
             admin: Boolean(person.admin)
           });
         }
@@ -1240,6 +1242,7 @@ function PeoplePanel({
   const [deleteTarget, setDeleteTarget] = useState<PersonOption | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [clubFilter, setClubFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
@@ -1430,20 +1433,36 @@ function PeoplePanel({
       return true;
     }
 
+    function matchesRole(person: PersonOption) {
+      if (roleFilter === "all") return true;
+      if (roleFilter === "admin") return Boolean(person.admin);
+      if (roleFilter === "club-admin") return Boolean(person.clubAdmins?.length);
+      if (roleFilter === "club-member") return Boolean(person.clubHandicaps?.length);
+      return Boolean(person.teamRoles?.some((role) => role.role === roleFilter));
+    }
+
     return people
       .filter((person) => {
         const clubsForPerson = personClubNames(person);
+        const roleLabels = [
+          ...(person.teamRoles ?? []).map((role) => `${role.role} ${role.team_name} ${role.league_name} ${role.club_name}`),
+          ...(person.clubAdmins ?? []).map((club) => `Club Admin ${club.club_name}`),
+          ...(person.clubHandicaps?.length ? ["Club Member"] : []),
+          person.admin ? "Administrator" : ""
+        ];
         const searchHaystack = [
           person.name,
           person.email,
           person.phone,
           person.username,
           person.inviteStatus,
+          ...roleLabels,
           ...clubsForPerson
         ].filter(Boolean).join(" ").toLowerCase();
 
         return (!search || searchHaystack.includes(search))
           && (clubFilter === "all" || clubsForPerson.includes(clubFilter))
+          && matchesRole(person)
           && matchesStatus(person);
       })
       .sort((a, b) => {
@@ -1458,7 +1477,7 @@ function PeoplePanel({
         if (sortBy === "login") return Number(Boolean(b.loginActive)) - Number(Boolean(a.loginActive)) || a.name.localeCompare(b.name);
         return a.name.localeCompare(b.name);
       });
-  }, [clubFilter, people, searchTerm, sortBy, statusFilter]);
+  }, [clubFilter, people, roleFilter, searchTerm, sortBy, statusFilter]);
 
   const selectedEligibleCount = useMemo(() => {
     return people.filter((person) => selectedPersonIds.includes(person.personId) && person.email && !person.invitedAt).length;
@@ -1489,7 +1508,7 @@ function PeoplePanel({
           <Badge variant="muted">{visiblePeople.length} / {people.length}</Badge>
         </CardHeader>
         <CardContent className="grid min-w-0 gap-3">
-          <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-[minmax(180px,1.5fr)_1fr_1fr_1fr]">
+          <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-[minmax(180px,1.4fr)_1fr_1fr_1fr_1fr]">
             <label className="grid gap-1">
               <span className="text-xs font-bold uppercase text-[#6c5a73]">Search</span>
               <input
@@ -1500,6 +1519,20 @@ function PeoplePanel({
               />
             </label>
             <AdminSelect label="Club" value={clubFilter} onChange={setClubFilter} options={[{ value: "all", label: "All clubs" }, ...clubs.map((club) => ({ value: club.clubName, label: club.clubName }))]} />
+            <AdminSelect
+              label="Role"
+              value={roleFilter}
+              onChange={setRoleFilter}
+              options={[
+                { value: "all", label: "All roles" },
+                { value: "Player", label: "Players" },
+                { value: "Manager", label: "Managers" },
+                { value: "Assistant Manager", label: "Assistant managers" },
+                { value: "club-member", label: "Club members" },
+                { value: "club-admin", label: "Club admins" },
+                { value: "admin", label: "Platform admins" }
+              ]}
+            />
             <AdminSelect
               label="Status"
               value={statusFilter}

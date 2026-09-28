@@ -42,6 +42,7 @@ export async function GET() {
            inv.accepted_at as invite_accepted_at,
            coalesce(ch.club_handicaps, '[]'::jsonb) as club_handicaps,
            coalesce(ca.club_admins, '[]'::jsonb) as club_admins,
+           coalesce(tr.team_roles, '[]'::jsonb) as team_roles,
            coalesce(ao.active, false) as admin
          from public.person p
          left join public.app_operator ao on ao.person_id = p.id
@@ -86,6 +87,25 @@ export async function GET() {
            where ca.person_id = p.id
              and ca.active = true
          ) ca on true
+         left join lateral (
+           select jsonb_agg(
+             jsonb_build_object(
+               'role', role_rows.role,
+               'team_name', role_rows.team_name,
+               'league_name', l.name,
+               'club_name', c.name
+             )
+             order by l.name, role_rows.team_name, role_rows.role
+           ) as team_roles
+           from (
+             select distinct ptr.role::text as role, ptr.team_name, ptr.league_id, ptr.club_id
+             from public.person_team_role ptr
+             where ptr.person_id = p.id
+               and ptr.active = true
+           ) role_rows
+           join public.league l on l.id = role_rows.league_id
+           join public.club c on c.id = role_rows.club_id
+         ) tr on true
          where p.active = true
          order by p.id, p.last_name nulls last, p.first_name`
       ),
