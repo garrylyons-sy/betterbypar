@@ -4143,7 +4143,7 @@ type ManagerLineupSlot = {
   player2CountsForStats?: boolean;
 };
 
-type LineupPlayerOption = { id: string; name: string };
+type LineupPlayerOption = { id: string; name: string; teamName?: string };
 
 type ManagerLineupGame = {
   id: string;
@@ -5437,7 +5437,14 @@ function PlayerPickerSheet({
                         )}
                         onClick={() => onSelectGuest({ playerId: player.id })}
                       >
-                        <span className="min-w-0 truncate">{player.name}</span>
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="min-w-0 truncate">{player.name}</span>
+                          {player.teamName ? (
+                            <span className="shrink-0 rounded bg-white px-1.5 py-0.5 align-super text-[10px] font-black uppercase leading-none text-[#6c5a73] ring-1 ring-[#d8d3df]">
+                              {player.teamName}
+                            </span>
+                          ) : null}
+                        </span>
                         <Badge variant={selected ? "cyan" : "muted"}>Guest Player</Badge>
                       </button>
                     );

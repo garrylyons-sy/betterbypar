@@ -351,7 +351,7 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     [teamId]
   )).rows
     .filter((row) => !playerIds.has(row.person_id))
-    .map((row) => ({ id: row.person_id, name: `${row.player_name} (${row.team_name})` }));
+    .map((row) => ({ id: row.person_id, name: row.player_name, teamName: row.team_name }));
 
   if (!fixture) {
     return { fixture: null, players, guestPlayers, lineup: null, opponentStatus: null, opponentLineup: null, games: [], weekFixtures: [] };
