@@ -789,10 +789,10 @@ function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = 
             ) : null}
           </div>
         ) : null}
-        <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(260px,340px)] xl:items-end">
+        <div className="relative grid gap-5">
           <div className="flex min-w-0 items-start gap-3">
             <ClubLogoTile club={activeTeam.club} logoPath={activeTeam.logoPath} size="hero" />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="cyan">{activeTeam.role}</Badge>
                 <Badge variant="muted">{activeTeam.league}</Badge>
@@ -803,7 +803,7 @@ function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = 
               <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">
                 {clubMember && interclubView ? "Interclub leagues" : activeTeam.role === "Club Admin" ? "Club admin home" : clubMember ? "Club member home" : manager ? "Manager home" : "Player home"}
               </p>
-              <h2 className="mt-1 break-words text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.name}</h2>
+              <h2 className="mt-1 whitespace-normal text-3xl font-extrabold leading-tight [overflow-wrap:normal] sm:text-4xl xl:text-5xl">{activeTeam.name}</h2>
               <p className="mt-2 text-sm font-semibold text-white/80">{activeTeam.club}</p>
               {userLabel ? (
                 <p className="mt-1 truncate text-xs font-bold text-white/65">
