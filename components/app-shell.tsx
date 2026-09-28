@@ -4549,6 +4549,16 @@ function ManagerLineupCard({
   const testUserEmail = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("testUser")?.trim() ?? "";
 
   useEffect(() => {
+    if (!pickerTarget || typeof document === "undefined") return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [pickerTarget]);
+
+  useEffect(() => {
     if (!activeTeam.teamId) return;
     let cancelled = false;
     let firstLoad = true;
@@ -5268,8 +5278,8 @@ function PlayerPickerSheet({
 }) {
   return (
     <div className="fixed inset-0 z-50 grid items-end bg-[#071426]/50 p-3 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label={`Pick player for ${target.label}`}>
-      <div className="mx-auto grid max-h-[82vh] w-full max-w-lg gap-3 overflow-hidden rounded-2xl bg-white p-4 shadow-elevated">
-        <div className="flex items-start justify-between gap-3">
+      <div className="mx-auto flex max-h-[min(82vh,680px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white p-4 shadow-elevated">
+        <div className="flex shrink-0 items-start justify-between gap-3">
           <div>
             <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Pick player</p>
             <h3 className="text-lg font-black text-[#10233f]">{target.label}</h3>
@@ -5283,7 +5293,7 @@ function PlayerPickerSheet({
             <XCircle className="h-5 w-5" />
           </button>
         </div>
-        <div className="overflow-y-auto pr-1">
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]">
           <div className="grid gap-2">
             {value ? (
               <button
