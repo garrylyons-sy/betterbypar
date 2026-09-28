@@ -78,6 +78,17 @@ function withTestUser(path: string) {
   return `${path}${joiner}testUser=${encodeURIComponent(testUser)}`;
 }
 
+function isPwaContainer() {
+  if (typeof window === "undefined") return false;
+  const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
+  return Boolean(
+    navigatorWithStandalone.standalone ||
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.matchMedia("(display-mode: fullscreen)").matches ||
+    window.matchMedia("(display-mode: minimal-ui)").matches
+  );
+}
+
 function withCompetitionContext(path: string, activeTeam: TeamContext) {
   const contextualPath = activeTeam.club
     ? `${path}${path.includes("?") ? "&" : "?"}contextClub=${encodeURIComponent(activeTeam.club)}`
@@ -340,6 +351,12 @@ export function AppShell({
 
   return (
     <main className="min-h-screen overflow-x-hidden app-bg pb-24 text-[#10233f]">
+      <PwaPullToRefresh
+        onRefresh={() => {
+          onDataRefresh?.();
+          window.dispatchEvent(new Event("interclub:refresh-panels"));
+        }}
+      />
       <Header
         activeTeam={activeTeam}
         contexts={appContexts.length ? appContexts : contexts}
@@ -743,6 +760,84 @@ function ClubSimulator({ value, onChange }: { value: string; onChange: (club: st
       </select>
       <ChevronDown className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-[#10233f]" />
     </label>
+  );
+}
+
+function PwaPullToRefresh({ onRefresh }: { onRefresh: () => void }) {
+  const [pullDistance, setPullDistance] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const startYRef = useRef<number | null>(null);
+  const trackingRef = useRef(false);
+  const pullDistanceRef = useRef(0);
+  const onRefreshRef = useRef(onRefresh);
+  const threshold = 82;
+
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
+
+  useEffect(() => {
+    if (!isPwaContainer()) return;
+
+    function onTouchStart(event: TouchEvent) {
+      if (window.scrollY > 0 || event.touches.length !== 1) return;
+      startYRef.current = event.touches[0].clientY;
+      trackingRef.current = true;
+    }
+
+    function onTouchMove(event: TouchEvent) {
+      if (!trackingRef.current || startYRef.current == null || window.scrollY > 0) return;
+      const distance = Math.max(0, event.touches[0].clientY - startYRef.current);
+      if (distance < 8) return;
+      const nextDistance = Math.min(120, distance * 0.55);
+      pullDistanceRef.current = nextDistance;
+      setPullDistance(nextDistance);
+    }
+
+    function onTouchEnd() {
+      if (!trackingRef.current) return;
+      const shouldRefresh = pullDistanceRef.current >= threshold;
+      trackingRef.current = false;
+      startYRef.current = null;
+      pullDistanceRef.current = 0;
+      if (!shouldRefresh) {
+        setPullDistance(0);
+        return;
+      }
+      setRefreshing(true);
+      setPullDistance(threshold);
+      onRefreshRef.current();
+      window.setTimeout(() => {
+        setRefreshing(false);
+        setPullDistance(0);
+      }, 650);
+    }
+
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, []);
+
+  if (!pullDistance && !refreshing) return null;
+
+  return (
+    <div
+      className="pointer-events-none fixed left-0 right-0 top-3 z-[80] flex justify-center transition-transform"
+      style={{ transform: `translateY(${Math.max(0, pullDistance - 42)}px)` }}
+      aria-live="polite"
+    >
+      <div className="rounded-xl bg-[#10233f] px-4 py-2 text-xs font-extrabold uppercase text-white shadow-elevated ring-1 ring-white/15">
+        {refreshing ? "Refreshing" : pullDistance >= threshold ? "Release to refresh" : "Pull to refresh"}
+      </div>
+    </div>
   );
 }
 
@@ -2467,12 +2562,12 @@ function AttackSnookerGameCard() {
         </div>
         <Badge variant="green">Attack Snooker</Badge>
       </CardHeader>
-      <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-        <div className="overflow-hidden rounded-[18px] bg-[#10233f] ring-1 ring-[#d8d1df]">
+      <CardContent className="grid gap-4 xl:grid-cols-[minmax(320px,0.82fr)_minmax(420px,1.18fr)]">
+        <div className="flex overflow-hidden rounded-[18px] bg-[#10233f] ring-1 ring-[#d8d1df] xl:max-h-[720px]">
           <img
             src="/attack-snooker.png"
             alt="Castle Attack Snooker Blitz rules poster"
-            className="h-auto w-full"
+            className="h-auto w-full object-contain"
             loading="lazy"
           />
         </div>
@@ -2484,13 +2579,13 @@ function AttackSnookerGameCard() {
               Six reds, 10-minute frames, pot-first scoring and one tactical Double call per frame.
             </p>
           </div>
-          <div className="grid gap-2">
+          <div className="grid gap-2 md:grid-cols-2 xl:auto-rows-fr">
             {attackSnookerRules.map((rule, index) => (
               <div key={rule} className="grid grid-cols-[34px_1fr] gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
                 <span className="grid h-8 w-8 place-items-center rounded-full bg-[#10233f] text-sm font-black text-white">
                   {index + 1}
                 </span>
-                <p className="text-sm font-semibold leading-relaxed text-[#10233f]">{rule}</p>
+                <p className="text-sm font-semibold leading-snug text-[#10233f]">{rule}</p>
               </div>
             ))}
           </div>
