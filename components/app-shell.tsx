@@ -4416,7 +4416,7 @@ function FixtureWeekCarouselCard({
             }
             return currentWeeks;
           });
-        }, 8000);
+        }, 30000);
       })
       .catch((error) => {
         if (active) setMessage(error instanceof Error ? error.message : "Fixtures unavailable.");
@@ -4686,7 +4686,7 @@ function ManagerLineupCard({
       if (testManagerMode || managerLineupShouldPoll(payloadRef.current)) {
         loadLineup();
       }
-    }, 8000);
+    }, 30000);
     const refreshPanels = () => {
       loadLineup();
     };
