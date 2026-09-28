@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, Eye, FileSpreadsheet, KeyRound, LayoutPanelTop, LogOut, Mail, Pencil, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, CalendarDays, Eye, FileSpreadsheet, KeyRound, LayoutPanelTop, LogOut, Mail, Pencil, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "desktop" | "competitions" | "people" | "invites" | "permissions" | "appearance" | "logs";
+type AdminTab = "desktop" | "competitions" | "matches" | "people" | "invites" | "permissions" | "appearance" | "logs";
 type TeamRole = "Player" | "Manager" | "Assistant Manager";
 type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin";
 type TeamOption = {
@@ -124,6 +124,46 @@ type AdminCompetitionDetail = {
   entries: Array<{ id: string; playerName: string; handicap: number | null; status: string }>;
   rounds: Array<{ id: string; name: string; roundNumber: number; playByDate: string; framesToPlay: number }>;
   matches: Array<{ id: string; roundName: string; matchNumber: number; player1Name: string; player2Name: string; status: string; isPlaceholder?: boolean }>;
+};
+type AdminMatchTeamOption = {
+  id: string;
+  name: string;
+  season_id: string;
+  season_name: string;
+  league_id: string;
+  league_name: string;
+  club_id: string;
+  club_name: string;
+};
+type AdminMatchRow = {
+  fixture_id: string;
+  fixture_date: string;
+  status: string;
+  fixture_type: string;
+  season_id: string;
+  season_name: string;
+  league_id: string;
+  league_name: string;
+  home_team_id: string;
+  home_team_name: string;
+  away_team_id: string;
+  away_team_name: string;
+  match_id: string | null;
+  home_team_score: number | null;
+  away_team_score: number | null;
+  lineup_count: number;
+  game_count: number;
+  completed_game_count: number;
+};
+type AdminMatchSeason = { id: string; name: string };
+type AdminMatchLeague = { id: string; name: string };
+type AdminMatchDraft = {
+  fixtureDate: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeTeamScore: string;
+  awayTeamScore: string;
+  status: string;
 };
 type AdminUser = {
   email: string;
@@ -412,6 +452,7 @@ function AdminLayout({
           {[
             { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
             { id: "competitions" as const, label: "Competitions", icon: Trophy },
+            { id: "matches" as const, label: "Matches", icon: CalendarDays },
             { id: "people" as const, label: "People", icon: UserPlus },
             { id: "invites" as const, label: "Invites", icon: KeyRound },
             { id: "permissions" as const, label: "Permissions", icon: Users },
@@ -457,6 +498,7 @@ function AdminTabPanel(props: {
 }) {
   if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
   if (props.tab === "permissions") return <PermissionsPanel {...props} />;
   if (props.tab === "appearance") return <AppearancePanel {...props} />;
@@ -634,6 +676,224 @@ function DesktopAdminPanel({
       ) : null}
     </div>
   );
+}
+
+function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void }) {
+  const [matches, setMatches] = useState<AdminMatchRow[]>([]);
+  const [teams, setTeams] = useState<AdminMatchTeamOption[]>([]);
+  const [seasons, setSeasons] = useState<AdminMatchSeason[]>([]);
+  const [leagues, setLeagues] = useState<AdminMatchLeague[]>([]);
+  const [season, setSeason] = useState("2026/27");
+  const [league, setLeague] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [fixtureType, setFixtureType] = useState("League");
+  const [loading, setLoading] = useState(false);
+  const [savingFixtureId, setSavingFixtureId] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, AdminMatchDraft>>({});
+
+  useEffect(() => {
+    loadMatches();
+  }, [season, league, status, fixtureType]);
+
+  async function loadMatches() {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ season, league, status, type: fixtureType });
+      const response = await fetch(`/api/admin/matches?${params.toString()}`, { credentials: "same-origin" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not load matches.");
+      const nextMatches = (data.matches ?? []) as AdminMatchRow[];
+      setMatches(nextMatches);
+      setTeams((data.teams ?? []) as AdminMatchTeamOption[]);
+      setSeasons((data.seasons ?? []) as AdminMatchSeason[]);
+      setLeagues((data.leagues ?? []) as AdminMatchLeague[]);
+      setDrafts(Object.fromEntries(nextMatches.map((match) => [match.fixture_id, matchDraft(match)])));
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not load matches.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function updateDraft(fixtureId: string, patch: Partial<AdminMatchDraft>) {
+    setDrafts((current) => ({
+      ...current,
+      [fixtureId]: {
+        ...current[fixtureId],
+        ...patch
+      }
+    }));
+  }
+
+  async function saveMatch(match: AdminMatchRow) {
+    const draft = drafts[match.fixture_id];
+    if (!draft) return;
+    setSavingFixtureId(match.fixture_id);
+    try {
+      const response = await fetch("/api/admin/matches", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fixtureId: match.fixture_id,
+          fixtureDate: draft.fixtureDate,
+          homeTeamId: draft.homeTeamId,
+          awayTeamId: draft.awayTeamId,
+          homeTeamScore: draft.homeTeamScore,
+          awayTeamScore: draft.awayTeamScore,
+          status: draft.status
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not update match.");
+      onMessage("Match updated.");
+      await loadMatches();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not update match.");
+    } finally {
+      setSavingFixtureId("");
+    }
+  }
+
+  const statusOptions = [
+    { value: "all", label: "All statuses" },
+    { value: "Scheduled", label: "Scheduled" },
+    { value: "Completed", label: "Completed" },
+    { value: "Cancelled", label: "Cancelled" }
+  ];
+  const typeOptions = [
+    { value: "League", label: "League" },
+    { value: "Friendly", label: "Friendly" },
+    { value: "all", label: "All match types" }
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Matches</CardTitle>
+        <Badge variant="cyan">{matches.length}</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="grid gap-3 rounded-2xl bg-[#f7f5fa] p-3 md:grid-cols-4">
+          <AdminSelect
+            label="Season"
+            value={season}
+            onChange={setSeason}
+            options={(seasons.length ? seasons : [{ id: "2026/27", name: "2026/27" }]).map((item) => ({ value: item.name, label: item.name }))}
+          />
+          <AdminSelect
+            label="League"
+            value={league}
+            onChange={setLeague}
+            options={[{ value: "all", label: "All leagues" }, ...leagues.map((item) => ({ value: item.name, label: item.name }))]}
+          />
+          <AdminSelect label="Status" value={status} onChange={setStatus} options={statusOptions} />
+          <AdminSelect label="Type" value={fixtureType} onChange={setFixtureType} options={typeOptions} />
+        </div>
+
+        {loading ? <p className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-bold text-[#6c5a73]">Loading matches...</p> : null}
+
+        <div className="grid gap-3">
+          {matches.map((match) => {
+            const draft = drafts[match.fixture_id] ?? matchDraft(match);
+            const teamOptions = teams
+              .filter((team) => team.season_id === match.season_id && team.league_id === match.league_id)
+              .map((team) => ({ value: team.id, label: `${team.name} - ${team.club_name}` }));
+            const teamsLocked = match.lineup_count > 0 || match.game_count > 0;
+            const completeStatus = match.status === "Completed" ? "green" : match.status === "Cancelled" ? "muted" : "cyan";
+
+            return (
+              <div key={match.fixture_id} className="grid gap-3 rounded-2xl border border-[#eeeaf2] bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={completeStatus as "green" | "muted" | "cyan"}>{match.status}</Badge>
+                      <Badge variant="muted">{match.league_name}</Badge>
+                      <Badge variant="muted">{match.fixture_type}</Badge>
+                    </div>
+                    <h3 className="mt-2 text-lg font-extrabold text-[#10233f]">
+                      {match.home_team_name} v {match.away_team_name}
+                    </h3>
+                    <p className="text-sm font-bold text-[#6c5a73]">
+                      {formatAdminDate(match.fixture_date)}
+                      {match.game_count ? ` - ${match.completed_game_count}/${match.game_count} frames scored` : ""}
+                      {match.lineup_count ? ` - ${match.lineup_count} lineup${match.lineup_count === 1 ? "" : "s"}` : ""}
+                    </p>
+                  </div>
+                  <Button onClick={() => saveMatch(match)} disabled={savingFixtureId === match.fixture_id}>
+                    {savingFixtureId === match.fixture_id ? "Saving..." : "Save"}
+                  </Button>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-[1fr_1fr_110px_110px]">
+                  <AdminSelect
+                    label="Home team"
+                    value={draft.homeTeamId}
+                    onChange={(value) => updateDraft(match.fixture_id, { homeTeamId: value })}
+                    options={teamOptions}
+                  />
+                  <AdminSelect
+                    label="Away team"
+                    value={draft.awayTeamId}
+                    onChange={(value) => updateDraft(match.fixture_id, { awayTeamId: value })}
+                    options={teamOptions}
+                  />
+                  <AdminInput
+                    label="Home score"
+                    value={draft.homeTeamScore}
+                    onChange={(value) => updateDraft(match.fixture_id, { homeTeamScore: value })}
+                    type="number"
+                  />
+                  <AdminInput
+                    label="Away score"
+                    value={draft.awayTeamScore}
+                    onChange={(value) => updateDraft(match.fixture_id, { awayTeamScore: value })}
+                    type="number"
+                  />
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+                  <AdminInput
+                    label="Fixture date / postponed until"
+                    value={draft.fixtureDate}
+                    onChange={(value) => updateDraft(match.fixture_id, { fixtureDate: value })}
+                    type="date"
+                  />
+                  <AdminSelect
+                    label="Status"
+                    value={draft.status}
+                    onChange={(value) => updateDraft(match.fixture_id, { status: value })}
+                    options={statusOptions.filter((option) => option.value !== "all")}
+                  />
+                </div>
+
+                {teamsLocked ? (
+                  <p className="rounded-xl bg-[#f7f5fa] p-3 text-xs font-bold text-[#6c5a73]">
+                    Teams are locked because lineups or frame details already exist. You can still change the date, status and score.
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+
+        {!loading && !matches.length ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-bold text-[#6c5a73]">No matches found for those filters.</p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function matchDraft(match: AdminMatchRow) {
+  return {
+    fixtureDate: match.fixture_date ? new Date(match.fixture_date).toISOString().slice(0, 10) : "",
+    homeTeamId: match.home_team_id,
+    awayTeamId: match.away_team_id,
+    homeTeamScore: match.home_team_score == null ? "" : String(match.home_team_score),
+    awayTeamScore: match.away_team_score == null ? "" : String(match.away_team_score),
+    status: match.status
+  };
 }
 
 function CompetitionsAdminPanel({
