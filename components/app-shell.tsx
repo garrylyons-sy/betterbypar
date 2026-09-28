@@ -2786,13 +2786,28 @@ function FixturesPage({
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
+  const orderedLeagues: TeamContext["league"][] = isClubOnlyRole(activeTeam.role)
+    ? leagueOrder
+    : [activeTeam.league, ...leagueOrder.filter((league) => league !== activeTeam.league)];
+
   return (
-    <section className="grid gap-4">
-      <FixtureWeekCarouselCard
-        activeTeam={activeTeam}
-        onOpenFixture={onOpenFixture}
-        userCanShare={userCanShare}
-      />
+    <section className="grid gap-5">
+      {orderedLeagues.map((league) => {
+        const leagueContext = {
+          ...activeTeam,
+          league,
+          teamId: league === activeTeam.league ? activeTeam.teamId : ""
+        } satisfies TeamContext;
+
+        return (
+          <FixtureWeekCarouselCard
+            key={`${activeTeam.season}-${league}`}
+            activeTeam={leagueContext}
+            onOpenFixture={league === activeTeam.league ? onOpenFixture : undefined}
+            userCanShare={userCanShare}
+          />
+        );
+      })}
     </section>
   );
 }
@@ -2949,14 +2964,12 @@ function StatsPage({
 
 function TablesPage({ activeTeam, standingsData, matchResults, userCanShare }: { activeTeam: TeamContext; standingsData: Standing[]; matchResults: MatchResult[]; userCanShare: boolean }) {
   const seasonRows = standingsData.filter((row) => row.season === activeTeam.season);
-  const availableLeagues = new Set(seasonRows.map((row) => row.league));
   const orderedLeagues: TeamContext["league"][] = isClubOnlyRole(activeTeam.role)
-    ? leagueOrder.filter((league) => availableLeagues.has(league))
+    ? leagueOrder
     : [
         activeTeam.league,
         ...leagueOrder
           .filter((league) => league !== activeTeam.league)
-          .filter((league) => availableLeagues.has(league))
           .sort((a, b) => a.localeCompare(b))
       ];
 
