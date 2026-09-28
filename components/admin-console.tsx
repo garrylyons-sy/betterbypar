@@ -1657,7 +1657,7 @@ function PeoplePanel({
           </div>
           {inviteSelectionStatus ? <InviteSendStatus tone={inviteSelectionStatus.tone} text={inviteSelectionStatus.text} /> : null}
           <div className="min-w-0 overflow-x-auto rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden min-w-[1210px] grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_330px] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden min-w-[1380px] grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.75fr)_minmax(190px,1.1fr)_82px_84px_104px_330px] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
               <span>
                 <input
                   className="h-4 w-4 accent-[#10233f]"
@@ -1671,21 +1671,23 @@ function PeoplePanel({
               <span>Person</span>
               <span>Email</span>
               <span>Club</span>
+              <span>Roles</span>
               <span>Login</span>
               <span>Invited</span>
               <span>Invite status</span>
               <span className="text-right">Actions</span>
             </div>
-            <div className="max-h-[680px] min-w-[1210px] overflow-y-auto">
+            <div className="max-h-[680px] min-w-[1380px] overflow-y-auto">
               {visiblePeople.map((person) => {
                 const handicaps = (person.clubHandicaps ?? []).filter((item) => item.handicap !== null && item.handicap !== undefined);
                 const clubsForPerson = Array.from(new Set([
                   ...(person.clubHandicaps ?? []).map((item) => item.club_name),
                   ...(person.clubAdmins ?? []).map((item) => item.club_name)
                 ].filter(Boolean)));
+                const roleLabels = visiblePersonRoleLabels(person);
                 const canInvitePerson = Boolean(person.email && !person.invitedAt);
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.85fr)_82px_84px_104px_330px] lg:items-center lg:gap-2">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.75fr)_minmax(190px,1.1fr)_82px_84px_104px_330px] lg:items-center lg:gap-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6c5a73]">
                       <input
                         className="h-4 w-4 accent-[#10233f]"
@@ -1718,6 +1720,16 @@ function PeoplePanel({
                       {clubsForPerson.length ? clubsForPerson.map((club) => club.replace(" Golf Club", "")).join(" / ") : "-"}
                       {handicaps.length ? ` (${handicaps.map((item) => formatHandicap(item.handicap)).join("/")})` : ""}
                     </p>
+                    <div className="flex min-w-0 flex-wrap gap-1" title={roleLabels.join(" / ")}>
+                      {roleLabels.length ? roleLabels.slice(0, 3).map((label) => (
+                        <Badge key={label} variant="muted" className="max-w-full truncate">
+                          {label}
+                        </Badge>
+                      )) : (
+                        <span className="text-xs font-bold text-[#6c5a73]">-</span>
+                      )}
+                      {roleLabels.length > 3 ? <Badge variant="cyan">+{roleLabels.length - 3}</Badge> : null}
+                    </div>
                     <div className="flex min-w-0 items-center gap-1">
                       {person.accountId ? (
                         <Badge variant={person.loginActive ? "green" : "muted"}>
@@ -1850,6 +1862,21 @@ function InviteStatusBadge({ person }: { person: PersonOption }) {
       <Badge variant={variant}>{status}</Badge>
     </span>
   );
+}
+
+function visiblePersonRoleLabels(person: PersonOption) {
+  const teamLabels = (person.teamRoles ?? []).map((role) => `${role.role} - ${role.team_name}`);
+  const clubAdminLabels = (person.clubAdmins ?? []).map((club) => `Club Admin - ${shortClubName(club.club_name)}`);
+  const clubMemberLabels = teamLabels.length || clubAdminLabels.length
+    ? []
+    : (person.clubHandicaps ?? []).map((club) => `Club Member - ${shortClubName(club.club_name)}`);
+  const platformLabels = person.admin ? ["Administrator"] : [];
+
+  return Array.from(new Set([...platformLabels, ...teamLabels, ...clubAdminLabels, ...clubMemberLabels]));
+}
+
+function shortClubName(name: string) {
+  return name.replace(/\s+Golf Club$/i, "").trim();
 }
 
 function EditPersonModal({
