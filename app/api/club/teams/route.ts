@@ -22,6 +22,11 @@ type ClubTeamRow = {
   next_fixture_date: string | null;
   next_opponent_name: string | null;
   next_home_away: "Home" | "Away" | null;
+  people: Array<{
+    personId: string;
+    name: string;
+    role: string;
+  }> | null;
 };
 
 export async function GET(request: NextRequest) {
@@ -112,12 +117,23 @@ export async function GET(request: NextRequest) {
          count(distinct rp.person_id) filter (where rp.role = 'Player')::text as player_count,
          count(distinct rp.person_id) filter (where rp.role = 'Manager')::text as manager_count,
          count(distinct rp.person_id) filter (where rp.role = 'Assistant Manager')::text as assistant_manager_count,
+         coalesce(
+           jsonb_agg(
+             distinct jsonb_build_object(
+               'personId', p.id,
+               'name', concat_ws(' ', p.first_name, p.last_name),
+               'role', rp.role
+             )
+           ) filter (where p.id is not null),
+           '[]'::jsonb
+         ) as people,
          next_fixture.fixture_date::text as next_fixture_date,
          next_fixture.opponent_name as next_opponent_name,
          next_fixture.home_away as next_home_away
        from target_teams tt
        left join public.league_table_view ltv on ltv.team_id = tt.id
        left join role_people rp on rp.team_id = tt.id
+       left join public.person p on p.id = rp.person_id and p.active = true
        left join lateral (
          select
            f.fixture_date,
@@ -169,7 +185,17 @@ export async function GET(request: NextRequest) {
         assistantManagerCount: Number(row.assistant_manager_count),
         nextFixtureDate: row.next_fixture_date,
         nextOpponentName: row.next_opponent_name,
-        nextHomeAway: row.next_home_away
+        nextHomeAway: row.next_home_away,
+        people: (row.people ?? [])
+          .map((person) => ({
+            personId: person.personId,
+            name: person.name,
+            role: person.role
+          }))
+          .sort((a, b) => {
+            const roleOrder = (role: string) => role === "Manager" ? 0 : role === "Assistant Manager" ? 1 : 2;
+            return roleOrder(a.role) - roleOrder(b.role) || a.name.localeCompare(b.name);
+          })
       }))
     });
   } catch (error) {

@@ -6,6 +6,7 @@ const variants = {
   gold: "bg-[#ffb000] text-[#25002b] ring-[#ffb000]/30",
   green: "bg-[#00ff85] text-[#25002b] ring-[#00a85a]/20",
   cyan: "bg-[#04f5ff] text-[#25002b] ring-[#04f5ff]/30",
+  soft: "bg-white/12 text-white ring-white/25",
   muted: "bg-[#eeeaf2] text-[#6c5a73] ring-[#b8afc2]/30",
   red: "bg-[#1b8a72] text-white ring-[#1b8a72]/20"
 };

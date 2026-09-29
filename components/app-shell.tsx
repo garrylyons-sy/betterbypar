@@ -2553,7 +2553,7 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
         </CardContent>
       </Card>
       <AttackSnookerGameCard />
-      <ClubTeamsOverview activeTeam={activeTeam} onNavigate={onNavigate} />
+      <ClubTeamsOverview activeTeam={activeTeam} />
       <CompetitionPanel activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />
     </section>
   );
@@ -2576,9 +2576,14 @@ type ClubTeamOverview = {
   nextFixtureDate: string | null;
   nextOpponentName: string | null;
   nextHomeAway: "Home" | "Away" | null;
+  people: Array<{
+    personId: string;
+    name: string;
+    role: Role;
+  }>;
 };
 
-function ClubTeamsOverview({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+function ClubTeamsOverview({ activeTeam }: { activeTeam: TeamContext }) {
   const [teams, setTeams] = useState<ClubTeamOverview[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -2635,39 +2640,7 @@ function ClubTeamsOverview({ activeTeam, onNavigate }: { activeTeam: TeamContext
               </div>
             </div>
             <div className="grid gap-3 p-4">
-              <div className="grid grid-cols-3 gap-2">
-                <MiniStat label="Position" value={team.position ? ordinal(team.position) : "-"} />
-                <MiniStat label="Played" value={String(team.matchesPlayed)} />
-                <MiniStat label="Pts" value={String(team.points)} />
-              </div>
-              <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#f7f5fa] p-3">
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-[#6c5a73]">Players</p>
-                  <p className="text-lg font-extrabold text-[#10233f]">{team.playerCount}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-[#6c5a73]">Managers</p>
-                  <p className="text-lg font-extrabold text-[#10233f]">{team.managerCount}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-[#6c5a73]">Assistants</p>
-                  <p className="text-lg font-extrabold text-[#10233f]">{team.assistantManagerCount}</p>
-                </div>
-              </div>
-              <div className="rounded-xl bg-[#f7f5fa] p-3">
-                <p className="text-[10px] font-bold uppercase text-[#6c5a73]">Next fixture</p>
-                {team.nextFixtureDate && team.nextOpponentName ? (
-                  <p className="mt-1 text-sm font-extrabold text-[#10233f]">
-                    {team.nextHomeAway} v {team.nextOpponentName} · {formatFixtureDate(team.nextFixtureDate)}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-sm font-semibold text-[#6c5a73]">No scheduled fixture.</p>
-                )}
-              </div>
-              <Button variant="secondary" className="w-full" onClick={() => onNavigate("Table")}>
-                <Trophy className="h-4 w-4" />
-                View tables
-              </Button>
+              <ClubTeamPeopleList team={team} />
             </div>
           </div>
         ))}
@@ -2678,6 +2651,43 @@ function ClubTeamsOverview({ activeTeam, onNavigate }: { activeTeam: TeamContext
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function ClubTeamPeopleList({ team }: { team: ClubTeamOverview }) {
+  const grouped = [
+    { label: "Managers", people: team.people.filter((person) => person.role === "Manager") },
+    { label: "Assistant Managers", people: team.people.filter((person) => person.role === "Assistant Manager") },
+    { label: "Players", people: team.people.filter((person) => person.role === "Player") }
+  ].filter((group) => group.people.length);
+
+  return (
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="muted">{team.playerCount} players</Badge>
+        {team.managerCount ? <Badge variant="muted">{team.managerCount} manager{team.managerCount === 1 ? "" : "s"}</Badge> : null}
+        {team.assistantManagerCount ? <Badge variant="muted">{team.assistantManagerCount} assistant{team.assistantManagerCount === 1 ? "" : "s"}</Badge> : null}
+      </div>
+      {grouped.map((group) => (
+        <div key={group.label} className="rounded-xl bg-[#f7f5fa] p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-[10px] font-bold uppercase text-[#6c5a73]">{group.label}</p>
+            <Badge variant="muted">{group.people.length}</Badge>
+          </div>
+          <div className="grid gap-1.5">
+            {group.people.map((person) => (
+              <div key={`${person.personId}-${person.role}`} className="flex min-h-9 items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-1.5 ring-1 ring-[#eeeaf2]">
+                <span className="min-w-0 truncate text-sm font-extrabold text-[#10233f]">{person.name}</span>
+                {person.role !== "Player" ? <Badge variant="muted">{person.role.replace("Assistant ", "Asst ")}</Badge> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {!grouped.length ? (
+        <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No people are linked to this team yet.</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -6564,10 +6574,10 @@ function LeagueTable({
               Share
             </Button>
           ) : null}
-          {sectionMode ? <Badge variant="cyan">{tableRows.length} teams</Badge> : <Badge variant="muted">{activeTeam.league}</Badge>}
-          {showDirectFinal ? <Badge variant="gold">Final</Badge> : null}
-          {showSemiFinals ? <Badge variant="green">Semi</Badge> : null}
-          {showPrelims ? <Badge variant="green">Prelim</Badge> : null}
+          {sectionMode ? <Badge variant="soft">{tableRows.length} teams</Badge> : <Badge variant="muted">{activeTeam.league}</Badge>}
+          {showDirectFinal ? <Badge variant={sectionMode ? "soft" : "gold"}>Final</Badge> : null}
+          {showSemiFinals ? <Badge variant={sectionMode ? "soft" : "green"}>Semi</Badge> : null}
+          {showPrelims ? <Badge variant={sectionMode ? "soft" : "green"}>Prelim</Badge> : null}
         </div>
       </CardHeader>
       <CardContent>
