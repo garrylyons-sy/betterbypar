@@ -449,9 +449,16 @@ function AdminLayout({
     <main className="min-h-screen bg-[#f7f5fa] text-[#25002b]">
       <header className="bg-[#10233f] px-4 py-5 text-white shadow-elevated sm:px-6 lg:px-10">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase text-white/65">League operations</p>
-            <h1 className="text-2xl font-extrabold leading-tight">Admin console</h1>
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              src="/admin-icon.png"
+              alt="Interclub Snooker admin"
+              className="h-14 w-14 shrink-0 rounded-2xl bg-black object-cover ring-1 ring-white/20"
+            />
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase text-white/65">League operations</p>
+              <h1 className="truncate text-2xl font-extrabold leading-tight">Admin console</h1>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden flex-col items-end gap-1 sm:flex">
@@ -3383,7 +3390,14 @@ function AdminShell({ title, subtitle, children, onLogout }: { title: string; su
     <main className="grid min-h-screen place-items-center bg-[#f7f5fa] px-4 text-[#25002b]">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>{title}</CardTitle>
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              src="/admin-icon.png"
+              alt="Interclub Snooker admin"
+              className="h-14 w-14 shrink-0 rounded-2xl bg-black object-cover ring-1 ring-[#eeeaf2]"
+            />
+            <CardTitle>{title}</CardTitle>
+          </div>
           <Badge variant="muted">Admin</Badge>
         </CardHeader>
         <CardContent className="grid gap-3">

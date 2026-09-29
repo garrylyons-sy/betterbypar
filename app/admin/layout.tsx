@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
-    apple: "/favicon.ico"
+    apple: "/admin-icon-180.png"
   }
 };
 
