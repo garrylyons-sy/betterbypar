@@ -316,7 +316,7 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
     teamId: option.teamId,
     name: option.teamName,
     club: option.clubName,
-    logoPath: club?.logoPath ?? "/favicon.ico",
+    logoPath: club?.logoPath ?? "/icons/icon-192.png",
     primaryColor: club?.primaryColor ?? "#10233F",
     accentColor: club?.accentColor ?? "#1B8A72",
     league: option.leagueName as TeamContext["league"],
@@ -370,7 +370,7 @@ function AuthHome({
       <section className="w-full max-w-md">
         <div className="mb-5 flex items-center gap-3">
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#10233f] p-1.5 shadow-card">
-            <img src="/favicon.ico" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
+            <img src="/icons/icon-192.png" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
           </div>
           <div>
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Interclub Snooker</p>

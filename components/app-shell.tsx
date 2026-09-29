@@ -577,7 +577,7 @@ function Header({
         <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white p-1.5 shadow-[0_6px_16px_rgba(0,0,0,0.16)] ring-1 ring-white/25">
-              <img src="/favicon.ico" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
+              <img src="/icons/icon-192.png" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
             </div>
             <div className="min-w-0">
               <p className="truncate text-xs font-bold uppercase tracking-wide text-white/75">
