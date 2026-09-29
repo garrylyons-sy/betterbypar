@@ -5,17 +5,43 @@ import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
-async function assertAdministrator() {
+async function adminAccess() {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated.");
-  const { rowCount } = await dbQuery("select 1 from public.app_operator where person_id = $1 and active = true limit 1", [user.personId]);
-  if (!rowCount) throw new Error("Administrator access is required.");
-  return user;
+  const [operatorResult, clubAdminResult] = await Promise.all([
+    dbQuery("select 1 from public.app_operator where person_id = $1 and active = true limit 1", [user.personId]),
+    dbQuery<{ club_id: string }>(
+      `select club_id
+       from public.club_admin
+       where person_id = $1
+         and active = true
+       union
+       select club_id
+       from public.club_membership
+       where person_id = $1
+         and active = true
+         and is_club_admin = true`,
+      [user.personId]
+    )
+  ]);
+  const platformAdmin = Boolean(operatorResult.rowCount);
+  const clubAdminClubIds = clubAdminResult.rows.map((row) => row.club_id);
+  if (!platformAdmin && !clubAdminClubIds.length) throw new Error("Administrator access is required.");
+  return { user, platformAdmin, clubAdminClubIds };
+}
+
+function assertPlatformAdmin(access: Awaited<ReturnType<typeof adminAccess>>) {
+  if (!access.platformAdmin) throw new Error("Platform administrator access is required.");
+}
+
+function assertClubScope(access: Awaited<ReturnType<typeof adminAccess>>, clubId: string) {
+  if (access.platformAdmin) return;
+  if (!access.clubAdminClubIds.includes(clubId)) throw new Error("Club administrator access is required for this club.");
 }
 
 export async function POST(request: NextRequest) {
   try {
-    await assertAdministrator();
+    const access = await adminAccess();
     const body = await request.json();
     const firstName = String(body.firstName ?? "").trim();
     const lastName = String(body.lastName ?? "").trim();
@@ -39,11 +65,18 @@ export async function POST(request: NextRequest) {
     if (clubLevelRole && !clubId) {
       return NextResponse.json({ error: "A club is required for club roles." }, { status: 400 });
     }
+    if (admin) assertPlatformAdmin(access);
     if (handicap !== null && (!Number.isFinite(handicap) || handicap < -200 || handicap > 200)) {
       return NextResponse.json({ error: "Handicap must be between -200 and 200, or left blank." }, { status: 400 });
     }
 
     const person = await withTransaction(async (client) => {
+      const scopedClubId = clubLevelRole
+        ? clubId
+        : (await client.query<{ club_id: string }>("select club_id from public.team where id = $1 limit 1", [teamId])).rows[0]?.club_id;
+      if (!scopedClubId) throw new Error("Club was not found.");
+      assertClubScope(access, scopedClubId);
+
       let personResult = email
         ? await client.query(
             `select id
@@ -147,7 +180,8 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await assertAdministrator();
+    const access = await adminAccess();
+    const user = access.user;
     const body = await request.json();
     const action = String(body.action ?? "login").trim();
     const personId = String(body.personId ?? "").trim();
@@ -172,6 +206,20 @@ export async function PATCH(request: NextRequest) {
       }
 
       const updated = await withTransaction(async (client) => {
+        const scopeResult = await client.query<{ club_id: string }>(
+          `select club_id
+           from public.club_membership
+           where person_id = $1
+             and active = true`,
+          [personId]
+        );
+        const editableClubIds = access.platformAdmin
+          ? scopeResult.rows.map((row) => row.club_id)
+          : scopeResult.rows.map((row) => row.club_id).filter((clubId) => access.clubAdminClubIds.includes(clubId));
+        if (!access.platformAdmin && !editableClubIds.length) {
+          throw new Error("Club administrator access is required for this person.");
+        }
+
         if (emailInput) {
           const duplicateResult = await client.query<{ id: string }>(
             `select id
@@ -207,8 +255,9 @@ export async function PATCH(request: NextRequest) {
           `update public.club_membership
            set handicap = $2
            where person_id = $1
-             and active = true`,
-          [personId, handicap]
+             and active = true
+             and ($3::boolean = true or club_id = any($4::uuid[]))`,
+          [personId, handicap, access.platformAdmin, editableClubIds]
         );
 
         return personResult.rows[0];
@@ -217,6 +266,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true, person: updated });
     }
 
+    assertPlatformAdmin(access);
     const loginActive = Boolean(body.loginActive);
     if (personId === user.personId && !loginActive) {
       return NextResponse.json({ error: "You cannot disable your own login." }, { status: 400 });
@@ -257,7 +307,9 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await assertAdministrator();
+    const access = await adminAccess();
+    assertPlatformAdmin(access);
+    const user = access.user;
     const body = await request.json().catch(() => ({}));
     const personId = String(body.personId ?? "").trim();
 

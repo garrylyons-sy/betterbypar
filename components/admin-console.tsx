@@ -12,6 +12,7 @@ import type { AppearanceConfig, AppearancePanelId, Role as AppRole } from "@/lib
 import { cn } from "@/lib/utils";
 
 type AdminTab = "desktop" | "competitions" | "matches" | "people" | "invites" | "permissions" | "appearance" | "logs";
+type AdminMode = "platform" | "club";
 type TeamRole = "Player" | "Manager";
 type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin";
 type TeamOption = {
@@ -174,6 +175,17 @@ const roles: TeamRole[] = ["Player", "Manager"];
 const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Admin"];
 const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin"];
 const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin"];
+const clubAdminTabs: AdminTab[] = ["people", "invites", "competitions", "matches"];
+const adminNavItems = [
+  { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
+  { id: "competitions" as const, label: "Competitions", icon: Trophy },
+  { id: "matches" as const, label: "Matches", icon: CalendarDays },
+  { id: "people" as const, label: "People", icon: UserPlus },
+  { id: "invites" as const, label: "Invites", icon: KeyRound },
+  { id: "permissions" as const, label: "Permissions", icon: Users },
+  { id: "appearance" as const, label: "Appearance", icon: LayoutPanelTop },
+  { id: "logs" as const, label: "Logs", icon: Activity }
+];
 const demoTeams: TeamOption[] = clubTeamStructure.flatMap((club) =>
   club.teams.map((team) => ({
     teamId: team,
@@ -293,6 +305,7 @@ export function AdminConsole() {
   const [loading, setLoading] = useState(false);
   const [adminDataLoaded, setAdminDataLoaded] = useState(false);
   const [administrator, setAdministrator] = useState(false);
+  const [adminMode, setAdminMode] = useState<AdminMode>("platform");
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [message, setMessage] = useState("");
   const [teams, setTeams] = useState<TeamOption[]>(demoTeams);
@@ -314,12 +327,17 @@ export function AdminConsole() {
       const data = await response.json().catch(() => ({}));
       setAuthenticated(Boolean(data.authenticated));
       setAdministrator(Boolean(data.administrator));
+      const nextAdminMode: AdminMode = data.adminMode === "club" ? "club" : "platform";
+      setAdminMode(nextAdminMode);
       setAdminUser(data.user ? {
         email: data.user.email ?? "",
         name: data.user.name ?? data.user.email ?? "Signed in"
       } : null);
 
       if (response.ok) {
+        if (nextAdminMode === "club" && !clubAdminTabs.includes(tab)) {
+          setTab("people");
+        }
         setAdminDataLoaded(true);
         setTeams((data.teams ?? []).map((team: { club_id: string; team_id: string; team_name: string; club_name: string; league_name: string }) => ({
           teamId: team.team_id,
@@ -373,6 +391,7 @@ export function AdminConsole() {
     } finally {
       setAuthenticated(false);
       setAdministrator(false);
+      setAdminMode("platform");
       setAdminUser(null);
       setAdminDataLoaded(false);
       setMessage("Signed out.");
@@ -393,8 +412,8 @@ export function AdminConsole() {
   }
 
   return (
-    <AdminLayout tab={tab} setTab={setTab} message={message} adminUser={adminUser} onLogout={logout}>
-      <AdminTabPanel tab={tab} teams={teams} people={people} logs={logs} requests={requests} invites={invites} competitions={competitions} competitionsLoading={!adminDataLoaded} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
+    <AdminLayout tab={tab} setTab={setTab} message={message} adminUser={adminUser} adminMode={adminMode} onLogout={logout}>
+      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logs={logs} requests={requests} invites={invites} competitions={competitions} competitionsLoading={!adminDataLoaded} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
     </AdminLayout>
   );
 }
@@ -413,6 +432,7 @@ function AdminLayout({
   setTab,
   message,
   adminUser,
+  adminMode,
   onLogout,
   children
 }: {
@@ -420,9 +440,11 @@ function AdminLayout({
   setTab: (tab: AdminTab) => void;
   message: string;
   adminUser: AdminUser | null;
+  adminMode: AdminMode;
   onLogout: () => void;
   children: React.ReactNode;
 }) {
+  const navItems = adminNavItems.filter((item) => adminMode === "platform" || clubAdminTabs.includes(item.id));
   return (
     <main className="min-h-screen bg-[#f7f5fa] text-[#25002b]">
       <header className="bg-[#10233f] px-4 py-5 text-white shadow-elevated sm:px-6 lg:px-10">
@@ -433,7 +455,7 @@ function AdminLayout({
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden flex-col items-end gap-1 sm:flex">
-              <Badge variant="cyan">Administrator</Badge>
+              <Badge variant="cyan">{adminMode === "platform" ? "Administrator" : "Club admin"}</Badge>
               {adminUser ? <p className="max-w-[220px] truncate text-sm font-bold text-white/80">{adminUser.name}</p> : null}
             </div>
             <button
@@ -449,16 +471,7 @@ function AdminLayout({
       </header>
       <section className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-10">
         <aside className="flex min-w-0 gap-2 overflow-x-auto rounded-[18px] bg-white p-2 shadow-card lg:sticky lg:top-4 lg:block lg:self-start lg:overflow-visible">
-          {[
-            { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
-            { id: "competitions" as const, label: "Competitions", icon: Trophy },
-            { id: "matches" as const, label: "Matches", icon: CalendarDays },
-            { id: "people" as const, label: "People", icon: UserPlus },
-            { id: "invites" as const, label: "Invites", icon: KeyRound },
-            { id: "permissions" as const, label: "Permissions", icon: Users },
-            { id: "appearance" as const, label: "Appearance", icon: LayoutPanelTop },
-            { id: "logs" as const, label: "Logs", icon: Activity }
-          ].map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             return (
               <button
@@ -483,6 +496,7 @@ function AdminLayout({
 
 function AdminTabPanel(props: {
   tab: AdminTab;
+  adminMode: AdminMode;
   teams: TeamOption[];
   people: PersonOption[];
   logs: ActivityRow[];
@@ -496,6 +510,7 @@ function AdminTabPanel(props: {
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
+  if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
   if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
@@ -1481,12 +1496,14 @@ function AdminMiniMetric({ label, value }: { label: string; value: number }) {
 function PeoplePanel({
   teams,
   people,
+  adminMode,
   demo,
   onMessage,
   onRefresh
 }: {
   teams: TeamOption[];
   people: PersonOption[];
+  adminMode: AdminMode;
   demo?: boolean;
   onMessage: (message: string) => void;
   onRefresh: () => void;
@@ -2054,7 +2071,7 @@ function PeoplePanel({
                           Resend
                         </Button>
                       ) : null}
-                      {person.accountId ? (
+                      {adminMode === "platform" && person.accountId ? (
                         <Button
                           variant="secondary"
                           size="sm"
@@ -2065,16 +2082,18 @@ function PeoplePanel({
                           {person.loginActive ? "Disable" : "Enable"}
                         </Button>
                       ) : null}
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setDeleteTarget(person)}
-                        disabled={busyPersonId === person.personId}
-                        className="min-h-9 shrink-0 px-2 text-xs text-[#b42318]"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Delete
-                      </Button>
+                      {adminMode === "platform" ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setDeleteTarget(person)}
+                          disabled={busyPersonId === person.personId}
+                          className="min-h-9 shrink-0 px-2 text-xs text-[#b42318]"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 );
@@ -2114,7 +2133,9 @@ function PeoplePanel({
               Add
             </Button>
           </div>
-          <AdminCheckbox label="Make administrator" checked={admin} onChange={setAdmin} description="Administrators can access the admin console once they have a login." />
+          {adminMode === "platform" ? (
+            <AdminCheckbox label="Make administrator" checked={admin} onChange={setAdmin} description="Administrators can access the admin console once they have a login." />
+          ) : null}
         </CardContent>
       </Card>
       {editTarget ? (

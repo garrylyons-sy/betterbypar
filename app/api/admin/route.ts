@@ -6,24 +6,41 @@ import { dbQuery } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
-async function requireAdministrator() {
+async function requireAdminAccess() {
   const user = await currentUser();
-  if (!user) return { user: null, administrator: false };
-  const { rowCount } = await dbQuery(
+  if (!user) return { user: null, administrator: false, platformAdmin: false, clubAdminClubIds: [] as string[] };
+  const [operatorResult, clubAdminResult] = await Promise.all([
+    dbQuery(
     "select 1 from public.app_operator where person_id = $1 and active = true limit 1",
     [user.personId]
-  );
-  return { user, administrator: Boolean(rowCount) };
+    ),
+    dbQuery<{ club_id: string }>(
+      `select club_id
+       from public.club_admin
+       where person_id = $1
+         and active = true
+       union
+       select club_id
+       from public.club_membership
+       where person_id = $1
+         and active = true
+         and is_club_admin = true`,
+      [user.personId]
+    )
+  ]);
+  const platformAdmin = Boolean(operatorResult.rowCount);
+  const clubAdminClubIds = clubAdminResult.rows.map((row) => row.club_id);
+  return { user, administrator: platformAdmin || clubAdminClubIds.length > 0, platformAdmin, clubAdminClubIds };
 }
 
 export async function GET() {
   try {
-    const { user, administrator } = await requireAdministrator();
+    const { user, administrator, platformAdmin, clubAdminClubIds } = await requireAdminAccess();
     if (!user) return NextResponse.json({ authenticated: false, administrator: false }, { status: 401 });
     if (!administrator) return NextResponse.json({ authenticated: true, administrator: false, user }, { status: 403 });
 
     const [teams, peopleResult, logsResult, requestsResult, invitesResult, competitionsResult, appearance] = await Promise.all([
-      loadTeamOptions(),
+      loadTeamOptions().then((rows) => platformAdmin ? rows : rows.filter((team) => clubAdminClubIds.includes(team.club_id))),
       dbQuery(
         `select distinct on (p.id)
            p.id as person_id,
@@ -107,7 +124,26 @@ export async function GET() {
            join public.club c on c.id = role_rows.club_id
          ) tr on true
          where p.active = true
+           and (
+             $1::boolean = true
+             or exists (
+               select 1
+               from public.club_membership scope_cm
+               where scope_cm.person_id = p.id
+                 and scope_cm.active = true
+                 and scope_cm.club_id = any($2::uuid[])
+             )
+             or exists (
+               select 1
+               from public.club_admin scope_ca
+               where scope_ca.person_id = p.id
+                 and scope_ca.active = true
+                 and scope_ca.club_id = any($2::uuid[])
+             )
+           )
          order by p.id, p.last_name nulls last, p.first_name`
+        ,
+        [platformAdmin, clubAdminClubIds]
       ),
       dbQuery(
         `select
@@ -122,10 +158,21 @@ export async function GET() {
            p.email
          from public.user_activity_log l
          left join public.person p on p.id = l.person_id
+         where $1::boolean = true
+            or exists (
+              select 1
+              from public.club_membership scope_cm
+              where scope_cm.person_id = p.id
+                and scope_cm.active = true
+                and scope_cm.club_id = any($2::uuid[])
+            )
          order by l.created_at desc
-         limit 50`
+         limit 50`,
+        [platformAdmin, clubAdminClubIds]
       ),
-      dbQuery("select id, requested_person_name, email, status, message, created_at from public.invitation_request order by created_at desc limit 25"),
+      platformAdmin
+        ? dbQuery("select id, requested_person_name, email, status, message, created_at from public.invitation_request order by created_at desc limit 25")
+        : Promise.resolve({ rows: [] }),
       dbQuery(
         `select
            i.id,
@@ -170,8 +217,11 @@ export async function GET() {
              where icm.invitation_id = i.id
            ) role_rows
          ) r on true
+         where $1::boolean = true
+            or i.invited_club_id = any($2::uuid[])
          order by i.created_at desc
-         limit 50`
+         limit 50`,
+        [platformAdmin, clubAdminClubIds]
       ),
       dbQuery(
         `select
@@ -190,9 +240,12 @@ export async function GET() {
          left join public.competition_entry ce on ce.competition_id = c.id
          left join public.competition_round cr on cr.competition_id = c.id
          left join public.competition_match cm on cm.competition_round_id = cr.id
+         where $1::boolean = true
+            or c.club_id = any($2::uuid[])
          group by c.id, cl.name
          order by c.created_at desc
-         limit 50`
+         limit 50`,
+        [platformAdmin, clubAdminClubIds]
       ),
       loadAppearanceConfig()
     ]);
@@ -200,6 +253,7 @@ export async function GET() {
     return NextResponse.json({
       authenticated: true,
       administrator: true,
+      adminMode: platformAdmin ? "platform" : "club",
       user,
       teams,
       people: peopleResult.rows,
