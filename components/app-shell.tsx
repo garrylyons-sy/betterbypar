@@ -1078,11 +1078,12 @@ function ordinal(value: number) {
 type QualificationStatus = "final" | "semi" | "prelim" | "none";
 
 function qualificationStatus(position: number, teamCount: number, league?: TeamContext["league"]): QualificationStatus {
-  if (!position || !teamCount) return "none";
+  if (!position) return "none";
   if (league === "C League") {
     if (position <= 2) return "semi";
     return position <= 6 ? "prelim" : "none";
   }
+  if (!teamCount) return "none";
   if (teamCount >= 7) return position <= 4 ? "semi" : "none";
   if (teamCount >= 5) {
     if (position === 1) return "final";
