@@ -2652,6 +2652,7 @@ function ClubTeamsOverview({ activeTeam }: { activeTeam: TeamContext }) {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge variant="cyan">{team.league}</Badge>
+                    {team.position ? <Badge variant="green">Position {ordinal(team.position)}</Badge> : null}
                     <Badge variant="muted">{team.season}</Badge>
                     <Badge variant="soft">{team.playerCount} players</Badge>
                     {team.managerCount ? <Badge variant="soft">{team.managerCount} manager{team.managerCount === 1 ? "" : "s"}</Badge> : null}
