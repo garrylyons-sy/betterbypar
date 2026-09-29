@@ -3105,7 +3105,7 @@ function MatchPage({
   return (
     <section className="grid gap-4">
       {fixtureId ? (
-        managerView ? (
+        managerView || selectedResult?.status !== "Completed" ? (
           <ManagerLineupCard
             activeTeam={activeTeam}
             preferredFixtureId={fixtureId}
@@ -4574,6 +4574,12 @@ function fixtureHasPublishedLineups(fixture: FixtureWeekFixture) {
   return fixture.homeLineupStatus === "Published" && fixture.awayLineupStatus === "Published";
 }
 
+function fixtureOwnLineupPublished(fixture: FixtureWeekFixture, teamId?: string | null) {
+  if (!teamId || !fixture.isOwnFixture) return false;
+  const ownStatus = fixture.homeTeamId === teamId ? fixture.homeLineupStatus : fixture.awayLineupStatus;
+  return ownStatus === "Published";
+}
+
 function postponedFixtureLabel(fixture: FixtureWeekFixture, weekStartsOn: string) {
   const fixtureDate = fixture.fixtureDate?.slice(0, 10);
   const originalWeekDate = weekStartsOn?.slice(0, 10);
@@ -4720,7 +4726,8 @@ function FixtureWeekCarouselCard({
                 const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
                 const managerOwnFixture = fixture.isOwnFixture && (activeTeam.role === "Manager");
                 const canManage = Boolean(onOpenFixture && managerOwnFixture && activeTeam.season !== "2025/26");
-                const canInspect = fixtureHasStarted(fixture) || fixtureHasPublishedLineups(fixture);
+                const ownLineupPublished = fixtureOwnLineupPublished(fixture, activeTeam.teamId);
+                const canInspect = fixtureHasStarted(fixture) || fixtureHasPublishedLineups(fixture) || ownLineupPublished;
                 const canOpenRow = canManage || canInspect;
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
@@ -4746,6 +4753,11 @@ function FixtureWeekCarouselCard({
                           return;
                         }
                         if (!canInspect) return;
+                        if (ownLineupPublished && onOpenFixture) {
+                          onSelectFixture?.(fixture.id);
+                          onOpenFixture(fixture.id);
+                          return;
+                        }
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                       }}
                     >
