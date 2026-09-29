@@ -2585,11 +2585,13 @@ function ClubTeamsOverview({ activeTeam }: { activeTeam: TeamContext }) {
   const [teams, setTeams] = useState<ClubTeamOverview[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [openTeamIds, setOpenTeamIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setMessage("");
+    setOpenTeamIds(new Set());
     const params = new URLSearchParams({ club: activeTeam.club });
     if (activeTeam.season && activeTeam.season !== "Club") params.set("season", activeTeam.season);
     fetch(withTestUser(`/api/club/teams?${params.toString()}`), { credentials: "same-origin" })
@@ -2613,6 +2615,18 @@ function ClubTeamsOverview({ activeTeam }: { activeTeam: TeamContext }) {
     };
   }, [activeTeam.club, activeTeam.season]);
 
+  function toggleTeam(teamId: string) {
+    setOpenTeamIds((current) => {
+      const next = new Set(current);
+      if (next.has(teamId)) {
+        next.delete(teamId);
+      } else {
+        next.add(teamId);
+      }
+      return next;
+    });
+  }
+
   return (
     <Card className="md:col-span-2">
       <CardHeader>
@@ -2622,28 +2636,45 @@ function ClubTeamsOverview({ activeTeam }: { activeTeam: TeamContext }) {
         </div>
         <Badge variant="muted">{loading ? "Loading" : `${teams.length}`}</Badge>
       </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {teams.map((team) => (
-          <div key={team.teamId} className="overflow-hidden rounded-[18px] bg-white ring-1 ring-[#eeeaf2]">
-            <div className="p-4 text-white" style={clubPanelStyle(team.primaryColor, team.accentColor)}>
-              <div className="flex items-start gap-3">
+      <CardContent className="grid gap-3">
+        {teams.map((team) => {
+          const open = openTeamIds.has(team.teamId);
+          return (
+            <div key={team.teamId} className="overflow-hidden rounded-[18px] bg-white ring-1 ring-[#eeeaf2]">
+              <button
+                type="button"
+                onClick={() => toggleTeam(team.teamId)}
+                className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 text-left text-white focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6] sm:p-4"
+                style={clubPanelStyle(team.primaryColor, team.accentColor)}
+                aria-expanded={open}
+              >
                 <ClubLogoTile club={activeTeam.club} logoPath={team.logoPath} size="compact" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap gap-1.5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <Badge variant="cyan">{team.league}</Badge>
                     <Badge variant="muted">{team.season}</Badge>
+                    <Badge variant="soft">{team.playerCount} players</Badge>
+                    {team.managerCount ? <Badge variant="soft">{team.managerCount} manager{team.managerCount === 1 ? "" : "s"}</Badge> : null}
                   </div>
-                  <h3 className="mt-3 truncate text-2xl font-black leading-none text-white">{team.name}</h3>
+                  <h3 className="mt-2 truncate text-xl font-black leading-tight text-white sm:text-2xl">{team.name}</h3>
+                  {team.nextOpponentName ? (
+                    <p className="mt-1 truncate text-xs font-bold text-white/70">
+                      Next: {team.nextHomeAway} v {team.nextOpponentName}
+                    </p>
+                  ) : null}
                 </div>
-              </div>
+                <ChevronDown className={cn("h-5 w-5 shrink-0 text-white/80 transition-transform", open && "rotate-180")} />
+              </button>
+              {open ? (
+                <div className="grid gap-3 p-3 sm:p-4">
+                  <ClubTeamPeopleList team={team} />
+                </div>
+              ) : null}
             </div>
-            <div className="grid gap-3 p-4">
-              <ClubTeamPeopleList team={team} />
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {!teams.length ? (
-          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73] md:col-span-2 xl:col-span-3">
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
             {loading ? "Loading club teams..." : message || "No active teams are available for this club."}
           </p>
         ) : null}
