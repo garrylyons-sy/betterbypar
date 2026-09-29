@@ -877,7 +877,7 @@ function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = 
   const played = activeTeam.leagueMatchesPlayed ?? 0;
   const won = activeTeam.matchesWon ?? 0;
   const points = activeTeam.leaguePoints ?? activeTeam.pointsFor ?? 0;
-  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
+  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount, activeTeam.league);
   return (
     <section className="min-w-0 overflow-hidden rounded-[18px] text-white shadow-card">
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
@@ -1075,10 +1075,14 @@ function ordinal(value: number) {
   return `${value}th`;
 }
 
-type QualificationStatus = "final" | "semi" | "none";
+type QualificationStatus = "final" | "semi" | "prelim" | "none";
 
-function qualificationStatus(position: number, teamCount: number): QualificationStatus {
+function qualificationStatus(position: number, teamCount: number, league?: TeamContext["league"]): QualificationStatus {
   if (!position || !teamCount) return "none";
+  if (league === "C League" && teamCount >= 9) {
+    if (position <= 2) return "semi";
+    return position <= 6 ? "prelim" : "none";
+  }
   if (teamCount >= 7) return position <= 4 ? "semi" : "none";
   if (teamCount >= 5) {
     if (position === 1) return "final";
@@ -1089,13 +1093,14 @@ function qualificationStatus(position: number, teamCount: number): Qualification
 
 function qualificationBadgeVariant(status: QualificationStatus) {
   if (status === "final") return "gold";
-  if (status === "semi") return "green";
+  if (status === "semi" || status === "prelim") return "green";
   return "muted";
 }
 
 function qualificationLabel(status: QualificationStatus) {
   if (status === "final") return "Final";
   if (status === "semi") return "Semi";
+  if (status === "prelim") return "Prelim";
   return "Outside playoffs";
 }
 
@@ -1341,8 +1346,8 @@ function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[]
     const y = 220 + index * rowHeight;
     const diff = row.pointsFor - row.pointsAgainst;
     const colors = teamColors(row.team);
-    const qualification = qualificationStatus(row.position, tableRows.length);
-    const positionFill = qualification === "final" ? "#ffb000" : qualification === "semi" ? "#00ff85" : "#e8edf3";
+    const qualification = qualificationStatus(row.position, tableRows.length, activeTeam.league);
+    const positionFill = qualification === "final" ? "#ffb000" : qualification === "semi" || qualification === "prelim" ? "#00ff85" : "#e8edf3";
     const positionText = qualification === "none" ? "#10233f" : "#071426";
     const activeFill = row.team === activeTeam.name ? "#eef4ff" : index % 2 ? "#ffffff" : "#f7f9fc";
 
@@ -1471,7 +1476,7 @@ function buildIndividualGamesShareSvg(activeTeam: TeamContext, results: PlayerGa
 function buildTeamStatsShareSvg(activeTeam: TeamContext, leagueTeamCount: number) {
   const width = shareVisualWidth;
   const height = 650;
-  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
+  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount, activeTeam.league);
   const hasLeagueTable = teamHasActivity(activeTeam);
   const stats = [
     ["Played", activeTeam.leagueMatchesPlayed || "-"],
@@ -3647,7 +3652,7 @@ function FriendlyReadOnlyCard({ activeTeam, fixtureId }: { activeTeam: TeamConte
 
 function TeamStatsCard({ activeTeam, onNavigate, leagueTeamCount, userCanShare = false }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; leagueTeamCount: number; userCanShare?: boolean }) {
   const hasLeagueTable = teamHasActivity(activeTeam);
-  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
+  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount, activeTeam.league);
 
   return (
     <Card className="overflow-hidden md:col-span-2 xl:col-span-1">
@@ -3834,7 +3839,7 @@ function HomeLeagueTableCard({ activeTeam, standingsData, onNavigate }: { active
 function SeasonCompleteCard({ activeTeam = teamContexts[0], action, leagueTeamCount = standings.length, onAction }: { activeTeam?: TeamContext; action: string; leagueTeamCount?: number; onAction?: () => void }) {
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
   const seasonStatus = seasonStatusFor(activeTeam.season);
-  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
+  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount, activeTeam.league);
   const qualified = seasonStatus === "complete" && qualification !== "none";
   const statusLabel = seasonStatus === "complete" ? "Complete" : seasonStatus === "not-started" ? "Not started" : "In play";
   const cardTitle = seasonStatus === "complete" ? "Season Complete" : "Season Status";
@@ -6337,13 +6342,15 @@ function ScoreRow({ team, score, winner = false }: { team: string; score: string
 }
 
 function ManagerSeasonSnapshot({ activeTeam = teamContexts[0], leagueTeamCount = standings.length }: { activeTeam?: TeamContext; leagueTeamCount?: number }) {
-  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount);
+  const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount, activeTeam.league);
   const seasonStatus = seasonStatusFor(activeTeam.season);
   const hasLeagueTable = (activeTeam.leagueMatchesPlayed ?? 0) > 0;
   const playoffText = qualification === "final"
     ? `in the ${activeTeam.league} direct final place`
     : qualification === "semi"
       ? `in the ${activeTeam.league} semi-final places`
+      : qualification === "prelim"
+        ? `in the ${activeTeam.league} preliminary playoff places`
       : `outside the ${activeTeam.league} playoff places`;
   const playoffLine = (() => {
     if (!hasLeagueTable) return `${activeTeam.name} has no league table position yet.`;
@@ -6392,6 +6399,7 @@ function LeagueTable({
   const teamCount = tableRows.length;
   const showDirectFinal = teamCount >= 5 && teamCount <= 6;
   const showSemiFinals = teamCount >= 5;
+  const showPrelims = activeTeam.league === "C League" && teamCount >= 9;
   const sectionMode = presentation === "section";
   const managerCanShare = userCanShare;
 
@@ -6435,6 +6443,7 @@ function LeagueTable({
           {sectionMode ? <Badge variant="cyan">{tableRows.length} teams</Badge> : <Badge variant="muted">{activeTeam.league}</Badge>}
           {showDirectFinal ? <Badge variant="gold">Final</Badge> : null}
           {showSemiFinals ? <Badge variant="green">Semi</Badge> : null}
+          {showPrelims ? <Badge variant="green">Prelim</Badge> : null}
         </div>
       </CardHeader>
       <CardContent>
@@ -6468,7 +6477,7 @@ function LeagueTable({
                 const primaryColor = club?.primaryColor ?? "#10233f";
                 const accentColor = club?.accentColor ?? primaryColor;
                 const form = tableForm(row, matchResults);
-                const qualification = qualificationStatus(row.position, teamCount);
+                const qualification = qualificationStatus(row.position, teamCount, activeTeam.league);
 
                 return (
                   <tr
@@ -6485,7 +6494,7 @@ function LeagueTable({
                           "inline-grid h-8 w-8 place-items-center rounded-lg text-xs font-extrabold",
                           qualification === "final"
                             ? "bg-[#ffb000] text-[#25002b]"
-                            : qualification === "semi"
+                            : qualification === "semi" || qualification === "prelim"
                               ? "bg-[#00ff85] text-[#25002b]"
                               : "bg-[#eeeaf2] text-[#25002b]"
                         )}
