@@ -779,7 +779,135 @@ export async function loadSessionPayload(user: AppUser) {
     leagueMatchesPlayed: 0
   } satisfies TeamContext));
 
-  const contexts = [...teamContexts, ...clubContexts, ...clubAdminContexts];
+  const isAppOperator = (await dbQuery<{ is_operator: boolean }>(
+    `select exists (
+       select 1
+       from public.app_operator ao
+       where ao.person_id = $1
+         and ao.active = true
+     ) as is_operator`,
+    [user.personId]
+  )).rows[0]?.is_operator ?? false;
+
+  const operatorTeamContexts = isAppOperator
+    ? (await dbQuery<{
+        team_id: string;
+        role: Role;
+        team_name: string;
+        club_name: string;
+        logo_path: string;
+        primary_color: string;
+        accent_color: string;
+        league_name: TeamContext["league"];
+        season_name: string;
+        league_position: number | null;
+        matches_played: number | null;
+        matches_won: number | null;
+        matches_lost: number | null;
+        points_for: number | null;
+        points_against: number | null;
+        league_points: number | null;
+      }>(
+        `select
+           t.id as team_id,
+           roles.role,
+           t.name as team_name,
+           c.name as club_name,
+           c.logo_path,
+           c.primary_color,
+           coalesce(c.accent_color, '#10233F') as accent_color,
+           l.name as league_name,
+           s.name as season_name,
+           ltv.position as league_position,
+           ltv.matches_played,
+           ltv.matches_won,
+           ltv.matches_lost,
+           ltv.points_for,
+           ltv.points_against,
+           ltv.league_points
+         from public.team t
+         join public.club c on c.id = t.club_id and c.active = true
+         join public.league l on l.id = t.league_id
+         join public.season s on s.id = t.season_id
+         cross join (
+           values
+             ('Player'),
+             ('Manager'),
+             ('Assistant Manager')
+         ) as roles(role)
+         left join public.league_table_view ltv on ltv.team_id = t.id
+         where t.active = true
+           and coalesce(s.active, false) = true
+         order by c.name, l.name, t.name, roles.role`
+      )).rows.map((row) => ({
+        id: `operator:${row.role.toLowerCase().replace(/\s+/g, "-")}:${row.team_id}`,
+        personId: user.personId,
+        teamId: row.team_id,
+        name: row.team_name,
+        club: row.club_name,
+        logoPath: row.logo_path,
+        primaryColor: row.primary_color,
+        accentColor: row.accent_color,
+        league: row.league_name,
+        season: row.season_name,
+        role: row.role,
+        leaguePosition: row.league_position ?? 0,
+        leagueMatchesPlayed: Number(row.matches_played ?? 0),
+        matchesWon: Number(row.matches_won ?? 0),
+        matchesLost: Number(row.matches_lost ?? 0),
+        pointsFor: Number(row.points_for ?? 0),
+        pointsAgainst: Number(row.points_against ?? 0),
+        leaguePoints: Number(row.league_points ?? 0)
+      } satisfies TeamContext))
+    : [];
+
+  const operatorClubContexts = isAppOperator
+    ? (await dbQuery<{
+        club_id: string;
+        role: Role;
+        club_name: string;
+        logo_path: string;
+        primary_color: string;
+        accent_color: string;
+      }>(
+        `select
+           c.id as club_id,
+           roles.role,
+           c.name as club_name,
+           c.logo_path,
+           c.primary_color,
+           coalesce(c.accent_color, '#10233F') as accent_color
+         from public.club c
+         cross join (
+           values
+             ('Club Member'),
+             ('Club Admin')
+         ) as roles(role)
+         where c.active = true
+         order by c.name, roles.role`
+      )).rows.map((row) => ({
+        id: `operator:${row.role.toLowerCase().replace(/\s+/g, "-")}:${row.club_id}`,
+        personId: user.personId,
+        name: row.club_name,
+        club: row.club_name,
+        logoPath: row.logo_path,
+        primaryColor: row.primary_color,
+        accentColor: row.accent_color,
+        league: "A League",
+        season: "Club",
+        role: row.role,
+        leaguePosition: 0,
+        leagueMatchesPlayed: 0
+      } satisfies TeamContext))
+    : [];
+
+  const contexts = [
+    ...teamContexts,
+    ...clubContexts,
+    ...clubAdminContexts,
+    ...operatorTeamContexts,
+    ...operatorClubContexts
+  ];
   const standings = (await dbQuery<{
     position: number;
     team_name: string;

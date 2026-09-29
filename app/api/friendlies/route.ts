@@ -15,7 +15,22 @@ async function requestUser(request: NextRequest, explicitTestUser?: unknown) {
   return await testUserFromEmail(testEmail) ?? await currentUserFromRequest(request);
 }
 
+async function isAppOperator(personId: string) {
+  const { rowCount } = await dbQuery(
+    `select 1
+     from public.app_operator ao
+     where ao.person_id = $1
+       and ao.active = true
+     limit 1`,
+    [personId]
+  );
+  return Boolean(rowCount);
+}
+
 async function teamAccess(personId: string, teamId: string) {
+  if (await isAppOperator(personId)) {
+    return { has_access: true, can_manage: true };
+  }
   const result = await dbQuery<{ has_access: boolean; can_manage: boolean }>(
     `select
        exists (

@@ -64,10 +64,23 @@ async function requestUser(options?: { testUser?: unknown }) {
   return await testUserFromEmail(testEmail) ?? await currentUser();
 }
 
+async function isAppOperator(personId: string) {
+  const { rowCount } = await dbQuery(
+    `select 1
+     from public.app_operator ao
+     where ao.person_id = $1
+       and ao.active = true
+     limit 1`,
+    [personId]
+  );
+  return Boolean(rowCount);
+}
+
 async function requireTeamManager(teamId: string, options?: { testManager?: unknown; testUser?: unknown }) {
   const user = await requestUser({ testUser: options?.testUser });
   if (!user) throw new Error("Not authenticated.");
   if (isTrustedLineupTestManager(user, options?.testManager)) return user;
+  if (await isAppOperator(user.personId)) return user;
   const { rowCount } = await dbQuery(
     `select 1
      from public.team target_team
@@ -100,6 +113,9 @@ async function requireTeamMember(teamId: string, options?: { testManager?: unkno
   const user = await requestUser({ testUser: options?.testUser });
   if (!user) throw new Error("Not authenticated.");
   if (isTrustedLineupTestManager(user, options?.testManager)) {
+    return { user, canManage: true };
+  }
+  if (await isAppOperator(user.personId)) {
     return { user, canManage: true };
   }
   const result = await dbQuery<{ has_membership: boolean; can_manage: boolean }>(
