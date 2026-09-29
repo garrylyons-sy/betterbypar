@@ -577,12 +577,13 @@ export async function PATCH(request: NextRequest) {
         isClubOnlyInvite: !teamRoles.rows.length && memberRoles.rows.length > 0
       });
 
-      await client.query(
-        "update public.invitation set invitation_token_hash = $2 where id = $1",
-        [invitationId, hashSecretToken(inviteToken)]
-      );
-
       const emailResult = await sendAppEmail({ to: invitation.email, subject, html: bodyHtml, text: bodyText });
+      if (emailResult.status !== "Failed") {
+        await client.query(
+          "update public.invitation set invitation_token_hash = $2 where id = $1",
+          [invitationId, hashSecretToken(inviteToken)]
+        );
+      }
       const emailInsert = await client.query(
         `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
          values ($1, $2, $3, $4, $5, 'Queued')

@@ -1648,14 +1648,16 @@ function PeoplePanel({
 
   async function inviteSelectedPeople() {
     const selectedPeople = people.filter((person) => selectedPersonIds.includes(person.personId));
-    const eligiblePeople = selectedPeople.filter((person) => person.email && !person.invitedAt);
+    const eligiblePeople = selectedPeople.filter(canSelectForInviteEmail);
+    const newInvitePeople = eligiblePeople.filter((person) => !person.invitedAt);
+    const pendingInvitePeople = eligiblePeople.filter(isPendingInvite);
     if (!eligiblePeople.length) {
-      onMessage("Select people who have an email address and have not already been invited.");
+      onMessage("Select people who have an email address and either have not been invited or have a pending invite.");
       return;
     }
 
     if (demo) {
-      onMessage(`Invite emails queued for ${eligiblePeople.length} people.`);
+      onMessage(`Invite emails queued/resent for ${eligiblePeople.length} people.`);
       setSelectedPersonIds([]);
       return;
     }
@@ -1663,15 +1665,36 @@ function PeoplePanel({
     setInviteSelectionStatus({ tone: "info", text: `Sending ${eligiblePeople.length} invite email${eligiblePeople.length === 1 ? "" : "s"}...` });
     setBusyPersonId("bulk-invite");
     try {
-      const response = await fetch("/api/admin/invites", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ personIds: eligiblePeople.map((person) => person.personId) })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Could not send invite emails.");
-      const results = Array.isArray(data.results) ? data.results : [];
+      const results: Array<{ status?: string; error?: string }> = [];
+
+      if (newInvitePeople.length) {
+        const response = await fetch("/api/admin/invites", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ personIds: newInvitePeople.map((person) => person.personId) })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Could not send invite emails.");
+        if (Array.isArray(data.results)) results.push(...data.results);
+      }
+
+      for (const person of pendingInvitePeople) {
+        try {
+          const response = await fetch("/api/admin/invites", {
+            method: "PATCH",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ invitationId: person.invitationId })
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "Could not resend invite.");
+          results.push({ status: data.email_status ?? "Queued" });
+        } catch (error) {
+          results.push({ status: "Failed", error: error instanceof Error ? error.message : "Could not resend invite." });
+        }
+      }
+
       const sent = results.filter((item: { status?: string }) => item.status === "Sent" || item.status === "Queued").length;
       const skipped = results.filter((item: { status?: string }) => item.status === "Skipped").length;
       const failed = results.filter((item: { status?: string }) => item.status === "Failed").length;
@@ -1796,10 +1819,18 @@ function PeoplePanel({
       });
   }, [clubFilter, people, roleFilter, searchTerm, sortBy, statusFilter, teamFilter]);
 
+  function isPendingInvite(person: PersonOption) {
+    return Boolean(person.invitationId && person.inviteStatus === "Pending");
+  }
+
+  function canSelectForInviteEmail(person: PersonOption) {
+    return Boolean(person.email && (!person.invitedAt || isPendingInvite(person)));
+  }
+
   const selectedEligibleCount = useMemo(() => {
-    return people.filter((person) => selectedPersonIds.includes(person.personId) && person.email && !person.invitedAt).length;
+    return people.filter((person) => selectedPersonIds.includes(person.personId) && canSelectForInviteEmail(person)).length;
   }, [people, selectedPersonIds]);
-  const visibleSelectablePeople = visiblePeople.filter((person) => person.email && !person.invitedAt);
+  const visibleSelectablePeople = visiblePeople.filter(canSelectForInviteEmail);
   const allVisibleSelectableSelected = visibleSelectablePeople.length > 0 && visibleSelectablePeople.every((person) => selectedPersonIds.includes(person.personId));
 
   function toggleSelectedPerson(personId: string, selected: boolean) {
@@ -1893,7 +1924,7 @@ function PeoplePanel({
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
             <div>
               <p className="text-sm font-extrabold text-[#10233f]">Invite selected people</p>
-              <p className="text-xs font-semibold text-[#6c5a73]">Import people first, then tick the rows you want to email.</p>
+              <p className="text-xs font-semibold text-[#6c5a73]">Tick people to send first invites or resend pending activation emails.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -1902,7 +1933,7 @@ function PeoplePanel({
                 onClick={() => toggleVisibleSelectable(!allVisibleSelectableSelected)}
                 disabled={!visibleSelectablePeople.length}
               >
-                {allVisibleSelectableSelected ? "Clear visible" : "Select visible not invited"}
+                {allVisibleSelectableSelected ? "Clear visible" : "Select visible eligible"}
               </Button>
               <Button
                 size="sm"
@@ -1910,7 +1941,7 @@ function PeoplePanel({
                 disabled={!selectedEligibleCount || busyPersonId === "bulk-invite"}
               >
                 <Mail className="h-4 w-4" />
-                {busyPersonId === "bulk-invite" ? "Sending..." : `Send invites (${selectedEligibleCount})`}
+                {busyPersonId === "bulk-invite" ? "Sending..." : `Send/resend (${selectedEligibleCount})`}
               </Button>
             </div>
           </div>
@@ -1924,7 +1955,7 @@ function PeoplePanel({
                   checked={allVisibleSelectableSelected}
                   disabled={!visibleSelectablePeople.length}
                   onChange={(event) => toggleVisibleSelectable(event.target.checked)}
-                  aria-label="Select visible people who have not been invited"
+                  aria-label="Select visible people who can be sent invite emails"
                 />
               </span>
               <span>Person</span>
@@ -1944,7 +1975,7 @@ function PeoplePanel({
                   ...(person.clubAdmins ?? []).map((item) => item.club_name)
                 ].filter(Boolean)));
                 const roleLabels = visiblePersonRoleLabels(person);
-                const canInvitePerson = Boolean(person.email && !person.invitedAt);
+                const canInvitePerson = canSelectForInviteEmail(person);
                 return (
                   <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.75fr)_minmax(190px,1.1fr)_82px_84px_104px_330px] lg:items-center lg:gap-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6c5a73]">
