@@ -3113,6 +3113,7 @@ function TablesPage({ activeTeam, standingsData, matchResults, userCanShare }: {
               userCanShare={userCanShare}
             />
             {!isClubOnlyRole(activeTeam.role) ? <LeaguePlayerStatsCard activeTeam={contextForLeague} userCanShare={userCanShare} /> : null}
+            <LeagueBreaksCard activeTeam={contextForLeague} />
           </section>
         );
       }) : (
@@ -6042,6 +6043,16 @@ type LeaguePlayerStat = {
   canReachMinimum: boolean;
 };
 
+type LeagueBreakLeaderboardRow = {
+  id: string;
+  breakValue: number;
+  fixtureDate: string | null;
+  playerName: string;
+  teamName: string | null;
+  opponentTeamName: string | null;
+  gameNumber: number | null;
+};
+
 function LeaguePlayerStatsCard({ activeTeam, userCanShare = false }: { activeTeam: TeamContext; userCanShare?: boolean }) {
   const [open, setOpen] = useState(false);
   const [players, setPlayers] = useState<LeaguePlayerStat[]>([]);
@@ -6174,6 +6185,78 @@ function LeaguePlayerStatsRows({ players, emptyLabel }: { players: LeaguePlayerS
         <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">{emptyLabel}</p>
       ) : null}
     </div>
+  );
+}
+
+function LeagueBreaksCard({ activeTeam }: { activeTeam: TeamContext }) {
+  const [breaks, setBreaks] = useState<LeagueBreakLeaderboardRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setMessage("");
+    const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season, limit: "8" });
+    fetch(withTestUser(`/api/league/breaks?${params.toString()}`), { credentials: "same-origin" })
+      .then((response) => response.json().then((data) => ({ response, data })))
+      .then(({ response, data }) => {
+        if (!active) return;
+        if (!response.ok) throw new Error(data.error || "League breaks unavailable.");
+        setBreaks(data.breaks ?? []);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setMessage(error instanceof Error ? error.message : "League breaks unavailable.");
+        setBreaks([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeTeam.league, activeTeam.season]);
+
+  return (
+    <Card className="min-w-0 overflow-hidden">
+      <CardHeader>
+        <CardTitle>{activeTeam.league} High Breaks</CardTitle>
+        <Badge variant="muted">{loading ? "Loading" : `${breaks.length}`}</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-2">
+        {breaks.map((entry, index) => {
+          const colors = teamColors(entry.teamName ?? activeTeam.name);
+          const fixtureLabel = entry.fixtureDate ? formatFixtureDate(entry.fixtureDate) : "Date pending";
+          const opponentLabel = entry.opponentTeamName ? `v ${entry.opponentTeamName}` : "Match break";
+          return (
+            <div key={entry.id} className="grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+              <div
+                className="grid h-12 w-12 place-items-center rounded-xl text-xl font-extrabold text-white"
+                style={{ background: `linear-gradient(135deg, ${colors.primaryColor}, ${colors.accentColor})` }}
+                aria-label={`${entry.breakValue} break`}
+              >
+                {entry.breakValue}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-extrabold leading-tight" style={{ color: colors.primaryColor }}>{entry.playerName}</p>
+                <p className="truncate text-xs font-bold text-[#6c5a73]">{entry.teamName ?? "Team"} · {opponentLabel}</p>
+                <p className="truncate text-[11px] font-semibold text-[#6c5a73]">
+                  {fixtureLabel}{entry.gameNumber ? ` · Game ${entry.gameNumber}` : ""}
+                </p>
+              </div>
+              <Badge variant={index === 0 ? "gold" : "muted"}>#{index + 1}</Badge>
+            </div>
+          );
+        })}
+        {!breaks.length ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+            {loading ? "Loading high breaks..." : message || "No breaks recorded in this league yet."}
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
