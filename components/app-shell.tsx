@@ -1079,7 +1079,7 @@ type QualificationStatus = "final" | "semi" | "prelim" | "none";
 
 function qualificationStatus(position: number, teamCount: number, league?: TeamContext["league"]): QualificationStatus {
   if (!position || !teamCount) return "none";
-  if (league === "C League" && teamCount >= 9) {
+  if (league === "C League") {
     if (position <= 2) return "semi";
     return position <= 6 ? "prelim" : "none";
   }
@@ -6397,9 +6397,9 @@ function LeagueTable({
 }) {
   const tableRows = standingsData ?? standings;
   const teamCount = tableRows.length;
-  const showDirectFinal = teamCount >= 5 && teamCount <= 6;
+  const showDirectFinal = activeTeam.league !== "C League" && teamCount >= 5 && teamCount <= 6;
   const showSemiFinals = teamCount >= 5;
-  const showPrelims = activeTeam.league === "C League" && teamCount >= 9;
+  const showPrelims = activeTeam.league === "C League";
   const sectionMode = presentation === "section";
   const managerCanShare = userCanShare;
 
