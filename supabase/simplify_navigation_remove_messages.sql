@@ -16,12 +16,6 @@ values
     true
   ),
   (
-    'Assistant Manager',
-    '["assistantHub","seasonComplete","managerSnapshot"]'::jsonb,
-    '["Home","Fixtures","Table","Club","Results"]'::jsonb,
-    true
-  ),
-  (
     'Club Member',
     '["openCompetitions"]'::jsonb,
     '["Home","Bookings","Competitions"]'::jsonb,

@@ -242,7 +242,7 @@ export async function POST(request: NextRequest) {
                join public.season s on s.id = t.season_id
                where ptr.person_id = $1
                  and ptr.active = true
-                 and ptr.role in ('Player', 'Manager', 'Assistant Manager')
+                 and ptr.role in ('Player', 'Manager')
                order by ptr.league_id, ptr.team_name, ptr.role, s.starts_on desc nulls last, s.name desc`,
               [person.id]
             );

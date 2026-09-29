@@ -65,14 +65,14 @@ async function teamAccess(personId: string, teamId: string) {
           and cm.active = true
          where target_team.id = $2
            and cm.person_id = $1
-           and ptr.role in ('Manager', 'Assistant Manager')
+           and ptr.role = 'Manager'
            and ptr.active = true
        ) or exists (
          select 1
          from public.team_membership tm
          where tm.person_id = $1
            and tm.team_id = $2
-           and tm.role in ('Manager', 'Assistant Manager')
+           and tm.role = 'Manager'
            and tm.active = true
        ) as can_manage`,
     [personId, teamId]

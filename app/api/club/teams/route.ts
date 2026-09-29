@@ -18,7 +18,6 @@ type ClubTeamRow = {
   league_points: number | null;
   player_count: string;
   manager_count: string;
-  assistant_manager_count: string;
   next_fixture_date: string | null;
   next_opponent_name: string | null;
   next_home_away: "Home" | "Away" | null;
@@ -116,7 +115,6 @@ export async function GET(request: NextRequest) {
          ltv.league_points,
          count(distinct rp.person_id) filter (where rp.role = 'Player')::text as player_count,
          count(distinct rp.person_id) filter (where rp.role = 'Manager')::text as manager_count,
-         count(distinct rp.person_id) filter (where rp.role = 'Assistant Manager')::text as assistant_manager_count,
          coalesce(
            jsonb_agg(
              distinct jsonb_build_object(
@@ -182,7 +180,6 @@ export async function GET(request: NextRequest) {
         points: Number(row.league_points ?? 0),
         playerCount: Number(row.player_count),
         managerCount: Number(row.manager_count),
-        assistantManagerCount: Number(row.assistant_manager_count),
         nextFixtureDate: row.next_fixture_date,
         nextOpponentName: row.next_opponent_name,
         nextHomeAway: row.next_home_away,
@@ -193,7 +190,7 @@ export async function GET(request: NextRequest) {
             role: person.role
           }))
           .sort((a, b) => {
-            const roleOrder = (role: string) => role === "Manager" ? 0 : role === "Assistant Manager" ? 1 : 2;
+            const roleOrder = (role: string) => role === "Manager" ? 0 : 1;
             return roleOrder(a.role) - roleOrder(b.role) || a.name.localeCompare(b.name);
           })
       }))

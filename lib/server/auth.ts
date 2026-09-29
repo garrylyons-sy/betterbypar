@@ -832,8 +832,7 @@ export async function loadSessionPayload(user: AppUser) {
          cross join (
            values
              ('Player'),
-             ('Manager'),
-             ('Assistant Manager')
+             ('Manager')
          ) as roles(role)
          left join public.league_table_view ltv on ltv.team_id = t.id
          where t.active = true

@@ -12,7 +12,7 @@ import type { AppearanceConfig, AppearancePanelId, Role as AppRole } from "@/lib
 import { cn } from "@/lib/utils";
 
 type AdminTab = "desktop" | "competitions" | "matches" | "people" | "invites" | "permissions" | "appearance" | "logs";
-type TeamRole = "Player" | "Manager" | "Assistant Manager";
+type TeamRole = "Player" | "Manager";
 type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin";
 type TeamOption = {
   teamId: string;
@@ -170,9 +170,9 @@ type AdminUser = {
   name: string;
 };
 
-const roles: TeamRole[] = ["Player", "Manager", "Assistant Manager"];
+const roles: TeamRole[] = ["Player", "Manager"];
 const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Admin"];
-const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Assistant Manager", "Club Member", "Club Admin"];
+const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin"];
 const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin"];
 const demoTeams: TeamOption[] = clubTeamStructure.flatMap((club) =>
   club.teams.map((team) => ({
@@ -1856,7 +1856,6 @@ function PeoplePanel({
                 { value: "all", label: "All roles" },
                 { value: "Player", label: "Players" },
                 { value: "Manager", label: "Managers" },
-                { value: "Assistant Manager", label: "Assistant managers" },
                 { value: "club-member", label: "Club members" },
                 { value: "club-admin", label: "Club admins" },
                 { value: "admin", label: "Platform admins" }

@@ -1,15 +1,15 @@
 import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, Role } from "@/lib/types";
 
-export const appearanceRoles: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member", "Club Admin"];
+export const appearanceRoles: Role[] = ["Player", "Manager", "Club Member", "Club Admin"];
 
 export const appearancePanelOptions: Array<{ id: AppearancePanelId; label: string; description: string; roles: Role[] }> = [
-  { id: "teamStats", label: "Team stats", description: "League position, played, won and points.", roles: ["Player", "Manager", "Assistant Manager"] },
+  { id: "teamStats", label: "Team stats", description: "League position, played, won and points.", roles: ["Player", "Manager"] },
   { id: "leagueTableSnapshot", label: "League table", description: "Full league table on the home page.", roles: ["Player"] },
   { id: "myStats", label: "My stats", description: "Personal win rate and played/won/lost.", roles: ["Player"] },
-  { id: "teamRecentForm", label: "Recent team form", description: "Latest team results and form.", roles: ["Player", "Manager", "Assistant Manager"] },
+  { id: "teamRecentForm", label: "Recent team form", description: "Latest team results and form.", roles: ["Player", "Manager"] },
   { id: "personalRecentForm", label: "Recent personal form", description: "Latest individual games.", roles: ["Player"] },
   { id: "individualGames", label: "Individual games", description: "Full personal game list.", roles: ["Player"] },
-  { id: "memberActions", label: "Member actions", description: "Bookings and competition entry.", roles: ["Player", "Manager", "Assistant Manager", "Club Member", "Club Admin"] },
+  { id: "memberActions", label: "Member actions", description: "Bookings and competition entry.", roles: ["Player", "Manager", "Club Member", "Club Admin"] },
   { id: "openCompetitions", label: "Open competitions", description: "Club competitions currently open for entry.", roles: appearanceRoles },
   { id: "myCompetitionMatches", label: "My competition matches", description: "Upcoming or active club competition ties.", roles: appearanceRoles },
   { id: "competitionDraws", label: "Competition draws", description: "Latest club draws and previous rounds.", roles: appearanceRoles },
@@ -18,25 +18,24 @@ export const appearancePanelOptions: Array<{ id: AppearancePanelId; label: strin
   { id: "interclubLeagues", label: "Interclub leagues", description: "Shortcut to league tables and results.", roles: ["Club Admin"] },
   { id: "messages", label: "Messages", description: "Team and club notices.", roles: [] },
   { id: "matchPlanning", label: "Next matches", description: "View matchday status, live scores and manager lineup actions.", roles: ["Player", "Manager"] },
-  { id: "seasonComplete", label: "Season complete", description: "Season status and qualification.", roles: ["Manager", "Assistant Manager"] },
+  { id: "seasonComplete", label: "Season complete", description: "Season status and qualification.", roles: ["Manager"] },
   { id: "squadManagement", label: "Squad management", description: "Manager player performance panel.", roles: ["Manager"] },
-  { id: "managerSnapshot", label: "Manager snapshot", description: "Team won/lost and playoff line.", roles: ["Manager", "Assistant Manager"] },
-  { id: "assistantHub", label: "Assistant hub", description: "Assistant manager quick actions.", roles: ["Assistant Manager"] }
+  { id: "managerSnapshot", label: "Manager snapshot", description: "Team won/lost and playoff line.", roles: ["Manager"] }
 ];
 
 export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string; description: string; roles: Role[] }> = [
   { id: "Home", label: "Home", description: "Role home dashboard.", roles: appearanceRoles },
-  { id: "Fixtures", label: "Fixtures", description: "Fixture and season cards.", roles: ["Player", "Manager", "Assistant Manager"] },
-  { id: "Results", label: "Results", description: "Team and league results.", roles: ["Player", "Manager", "Assistant Manager"] },
-  { id: "Table", label: "Tables", description: "League tables.", roles: ["Player", "Manager", "Assistant Manager", "Club Member"] },
-  { id: "Club", label: "My Club", description: "Bookings and club competitions.", roles: ["Player", "Manager", "Assistant Manager"] },
+  { id: "Fixtures", label: "Fixtures", description: "Fixture and season cards.", roles: ["Player", "Manager"] },
+  { id: "Results", label: "Results", description: "Team and league results.", roles: ["Player", "Manager"] },
+  { id: "Table", label: "Tables", description: "League tables.", roles: ["Player", "Manager", "Club Member"] },
+  { id: "Club", label: "My Club", description: "Bookings and club competitions.", roles: ["Player", "Manager"] },
   { id: "Bookings", label: "Bookings", description: "Club table bookings.", roles: appearanceRoles },
   { id: "Competitions", label: "Competitions", description: "Club competition entries, draws and results.", roles: appearanceRoles },
-  { id: "Friendlies", label: "Friendlies", description: "Private practice matches between two teams.", roles: ["Player", "Manager", "Assistant Manager"] },
-  { id: "Players", label: "Players", description: "Players and squad views.", roles: ["Player", "Manager", "Assistant Manager"] },
-  { id: "Stats", label: "Stats", description: "Stats dashboard.", roles: ["Player", "Manager", "Assistant Manager"] },
+  { id: "Friendlies", label: "Friendlies", description: "Private practice matches between two teams.", roles: ["Player", "Manager"] },
+  { id: "Players", label: "Players", description: "Players and squad views.", roles: ["Player", "Manager"] },
+  { id: "Stats", label: "Stats", description: "Stats dashboard.", roles: ["Player", "Manager"] },
   { id: "Messages", label: "Messages", description: "Messages and account access.", roles: [] },
-  { id: "Interclub Leagues", label: "Leagues", description: "All interclub tables/results.", roles: ["Player", "Manager", "Assistant Manager", "Club Member", "Club Admin"] }
+  { id: "Interclub Leagues", label: "Leagues", description: "All interclub tables/results.", roles: ["Player", "Manager", "Club Member", "Club Admin"] }
 ];
 
 export const defaultAppearanceConfig: AppearanceConfig = {
@@ -48,11 +47,6 @@ export const defaultAppearanceConfig: AppearanceConfig = {
   Manager: {
     role: "Manager",
     panels: ["matchPlanning", "squadManagement", "seasonComplete", "teamRecentForm", "managerSnapshot"],
-    menuItems: ["Home", "Fixtures", "Table", "Friendlies", "Club", "Results"]
-  },
-  "Assistant Manager": {
-    role: "Assistant Manager",
-    panels: ["assistantHub", "seasonComplete", "managerSnapshot"],
     menuItems: ["Home", "Fixtures", "Table", "Friendlies", "Club", "Results"]
   },
   "Club Member": {

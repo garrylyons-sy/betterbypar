@@ -117,7 +117,7 @@ function firstTeamContext(sessionPayload: unknown) {
   return contexts.find((context) => {
     if (!context || typeof context !== "object") return false;
     const role = (context as { role?: unknown }).role;
-    return role === "Player" || role === "Manager" || role === "Assistant Manager";
+    return role === "Player" || role === "Manager";
   }) as { league?: string; season?: string; teamId?: string } | undefined ?? null;
 }
 

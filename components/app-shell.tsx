@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 
 type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
-const roleOptions: Role[] = ["Player", "Manager", "Assistant Manager", "Club Member", "Club Admin"];
+const roleOptions: Role[] = ["Player", "Manager", "Club Member", "Club Admin"];
 const RECENT_FORM_LIMIT = 3;
 const SIMULATION_CONTROLS_ENABLED = false;
 const leagueOrder: TeamContext["league"][] = ["A League", "B League", "C League"];
@@ -420,7 +420,7 @@ function normalizeLookupKey(value: string | null | undefined) {
 function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: string, tableRows: Standing[]): TeamContext {
   const club = clubTeamStructure.find((entry) => entry.club === clubName) ?? clubTeamStructure[0];
   const baseSuffix = baseTeam.name.match(/\b([ABC])$/)?.[1] ?? "A";
-  const suffix = role === "Manager" || role === "Assistant Manager" ? "A" : baseSuffix;
+  const suffix = role === "Manager" ? "A" : baseSuffix;
   const preferredTeam = club.teams.find((team) => team.endsWith(` ${suffix}`)) ?? club.teams[0] ?? club.club;
   const standing = tableRows.find((row) => row.team === preferredTeam && row.league === baseTeam.league && row.season === baseTeam.season)
     ?? tableRows.find((row) => row.team === preferredTeam);
@@ -533,7 +533,6 @@ function PageContent({
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} userCanShare={userCanShare} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} userCanShare={userCanShare} />;
-  if (activeTeam.role === "Assistant Manager") return <AssistantManagerHome activeTeam={activeTeam} matchResults={matchResults} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onNavigate={onNavigate} userCanShare={userCanShare} />;
   if (isClubOnlyRole(activeTeam.role)) return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   return <PlayerHome activeTeam={activeTeam} standingsData={standingsData} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} userCanShare={userCanShare} />;
 }
@@ -871,7 +870,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { active
 }
 
 function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = false, activeMatchCount = 0 }: { activeTeam: TeamContext; userLabel?: string; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number }) {
-  const manager = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
+  const manager = activeTeam.role === "Manager";
   const clubMember = isClubOnlyRole(activeTeam.role);
   const hasTeamActivity = teamHasActivity(activeTeam);
   const played = activeTeam.leagueMatchesPlayed ?? 0;
@@ -1166,7 +1165,7 @@ function tableForm(row: Standing, matchResults: MatchResult[] = []) {
 }
 
 function isManagerRole(role: Role) {
-  return role === "Manager" || role === "Assistant Manager";
+  return role === "Manager";
 }
 
 function svgEscape(value: string | number | null | undefined) {
@@ -2572,7 +2571,6 @@ type ClubTeamOverview = {
   points: number;
   playerCount: number;
   managerCount: number;
-  assistantManagerCount: number;
   nextFixtureDate: string | null;
   nextOpponentName: string | null;
   nextHomeAway: "Home" | "Away" | null;
@@ -2657,7 +2655,6 @@ function ClubTeamsOverview({ activeTeam }: { activeTeam: TeamContext }) {
 function ClubTeamPeopleList({ team }: { team: ClubTeamOverview }) {
   const grouped = [
     { label: "Managers", people: team.people.filter((person) => person.role === "Manager") },
-    { label: "Assistant Managers", people: team.people.filter((person) => person.role === "Assistant Manager") },
     { label: "Players", people: team.people.filter((person) => person.role === "Player") }
   ].filter((group) => group.people.length);
 
@@ -2666,7 +2663,6 @@ function ClubTeamPeopleList({ team }: { team: ClubTeamOverview }) {
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="muted">{team.playerCount} players</Badge>
         {team.managerCount ? <Badge variant="muted">{team.managerCount} manager{team.managerCount === 1 ? "" : "s"}</Badge> : null}
-        {team.assistantManagerCount ? <Badge variant="muted">{team.assistantManagerCount} assistant{team.assistantManagerCount === 1 ? "" : "s"}</Badge> : null}
       </div>
       {grouped.map((group) => (
         <div key={group.label} className="rounded-xl bg-[#f7f5fa] p-3">
@@ -2678,7 +2674,7 @@ function ClubTeamPeopleList({ team }: { team: ClubTeamOverview }) {
             {group.people.map((person) => (
               <div key={`${person.personId}-${person.role}`} className="flex min-h-9 items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-1.5 ring-1 ring-[#eeeaf2]">
                 <span className="min-w-0 truncate text-sm font-extrabold text-[#10233f]">{person.name}</span>
-                {person.role !== "Player" ? <Badge variant="muted">{person.role.replace("Assistant ", "Asst ")}</Badge> : null}
+                {person.role !== "Player" ? <Badge variant="muted">{person.role}</Badge> : null}
               </div>
             ))}
           </div>
@@ -3071,7 +3067,7 @@ function MatchPage({
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
-  const managerView = activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager";
+  const managerView = activeTeam.role === "Manager";
   const selectedResult = matchResults.find((result) => result.id === fixtureId);
 
   return (
@@ -3187,7 +3183,7 @@ function StatsPage({
   leagueTeamCount: number;
   userCanShare: boolean;
 }) {
-  if (activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager") {
+  if (activeTeam.role === "Manager") {
     return (
       <section className="grid gap-4 md:grid-cols-2">
         <TeamStatsCard activeTeam={activeTeam} onNavigate={() => {}} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />
@@ -3436,48 +3432,6 @@ function MatchPlanningCard({
         userCanShare={userCanShare}
       />
     </div>
-  );
-}
-
-function AssistantManagerHome({ activeTeam, matchResults, leagueTeamCount, panels, onNavigate, userCanShare }: { activeTeam: TeamContext; matchResults: MatchResult[]; leagueTeamCount: number; panels: AppearancePanelId[]; onNavigate: (page: AppPage) => void; userCanShare: boolean }) {
-  const renderPanel = (panel: AppearancePanelId) => {
-    if (panel === "assistantHub") {
-      return (
-        <Card key={panel}>
-          <CardHeader>
-            <CardTitle>Assistant Hub</CardTitle>
-            <Badge variant="cyan">Team support</Badge>
-          </CardHeader>
-          <CardContent className="grid gap-2">
-            <Button className="w-full">
-              <Users className="h-4 w-4" />
-              Check squad
-            </Button>
-            <Button variant="secondary" className="w-full">
-              <CalendarPlus className="h-4 w-4" />
-              Book table
-            </Button>
-          </CardContent>
-        </Card>
-      );
-    }
-    if (panel === "seasonComplete") return <SeasonCompleteCard key={panel} activeTeam={activeTeam} action="View fixtures" leagueTeamCount={leagueTeamCount} />;
-    if (panel === "managerSnapshot") return <ManagerSeasonSnapshot key={panel} activeTeam={activeTeam} leagueTeamCount={leagueTeamCount} />;
-    if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
-    if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={() => {}} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
-    if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
-    if (panel === "openCompetitions") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />;
-    if (panel === "myCompetitionMatches") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="mine" onNavigate={onNavigate} />;
-    if (panel === "competitionDraws") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="draws" onNavigate={onNavigate} />;
-    if (panel === "clubCompetitionAdmin") return null;
-    if (panel === "memberActions") return <MemberActionsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} />;
-    return null;
-  };
-
-  return (
-    <section className="grid gap-4 md:grid-cols-2">
-      {panels.map(renderPanel)}
-    </section>
   );
 }
 
@@ -4732,7 +4686,7 @@ function FixtureWeekCarouselCard({
               {week.fixtures.map((fixture) => {
                 const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                 const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
-                const managerOwnFixture = fixture.isOwnFixture && (activeTeam.role === "Manager" || activeTeam.role === "Assistant Manager");
+                const managerOwnFixture = fixture.isOwnFixture && (activeTeam.role === "Manager");
                 const canManage = Boolean(onOpenFixture && managerOwnFixture && activeTeam.season !== "2025/26");
                 const canInspect = fixtureHasStarted(fixture) || fixtureHasPublishedLineups(fixture);
                 const canOpenRow = canManage || canInspect;

@@ -37,7 +37,7 @@ async function canViewLeague(personId: string, leagueName: string, seasonName: s
        join public.club_membership cm on cm.id = ptr.club_membership_id and cm.active = true
        where ptr.person_id = $1
          and ptr.active = true
-         and ptr.role in ('Player', 'Manager', 'Assistant Manager')
+         and ptr.role in ('Player', 'Manager')
        union
        select 1
        from public.person_team_role ptr
@@ -45,7 +45,7 @@ async function canViewLeague(personId: string, leagueName: string, seasonName: s
        join target t on t.league_id = ptr.league_id
        where ptr.person_id = $1
          and ptr.active = true
-         and ptr.role in ('Player', 'Manager', 'Assistant Manager')
+         and ptr.role in ('Player', 'Manager')
        union
        select 1
        from public.team_membership tm
@@ -53,7 +53,7 @@ async function canViewLeague(personId: string, leagueName: string, seasonName: s
        join target t on t.league_id = team.league_id and t.season_id = team.season_id
        where tm.person_id = $1
          and tm.active = true
-         and tm.role in ('Player', 'Manager', 'Assistant Manager')
+         and tm.role in ('Player', 'Manager')
      ) as can_view`,
     [personId, leagueName, seasonName]
   );

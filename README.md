@@ -68,7 +68,7 @@ That invite grants `Player` access to `Castle A` in `A League`.
 
 ## Database
 
-Apply [supabase/schema.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/schema.sql) to a Supabase project SQL editor or migration pipeline. The schema intentionally keeps roles on `team_membership`, not on `person`, so one person can be a player, manager or assistant manager across different teams and leagues.
+Apply [supabase/schema.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/schema.sql) to a Supabase project SQL editor or migration pipeline. The schema intentionally keeps roles on membership tables, not on `person`, so one person can be a player or manager across different teams and leagues.
 
 Then apply [supabase/seed.sql](/Users/garrylyons/Documents/Interclub%20Snooker/supabase/seed.sql) to create the initial 2026/27 season, leagues, clubs and team entries.
 
@@ -87,7 +87,7 @@ The account flow is invitation-only. The Interclub Snooker app owns password and
 
 - `person` for the human record
 - `user_account` for username, password hash and Google ID linkage
-- `team_membership` for Player, Manager and Assistant Manager roles
+- `team_membership` for Player and Manager roles
 - `invitation_membership` for the team roles granted by an invite
 - `invitation_request` for public player-only invite requests
 - `user_activity_log` for login and page-visit audit events
@@ -100,7 +100,7 @@ The public home page supports three paths:
 - Account activation for users with an invitation code
 - Player invite requests where a person enters their name, email, club and team
 
-Invite requests are always for the `Player` role. Manager and assistant manager access is deliberately excluded from the public request form and should be created through backend membership management.
+Invite requests are always for the `Player` role. Manager access is deliberately excluded from the public request form and should be created through backend membership management.
 
 Admin access is separate from player and manager roles. Player and manager control is handled through membership data, especially `team_membership`, `invitation_membership`, `invitation_request` and `membership_management_view`.
 
@@ -111,7 +111,7 @@ insert into public.app_operator (person_id)
 values ('person-uuid-here');
 ```
 
-The admin console can create invitation codes, attach Player/Manager/Assistant Manager permissions to teams, and view `user_activity_log`.
+The admin console can create invitation codes, attach Player/Manager permissions to teams, and view `user_activity_log`.
 
 When the database is configured, the app records login events and dashboard visits in `user_activity_log`. Users can read their own activity rows; backend service access can review the complete audit log.
 

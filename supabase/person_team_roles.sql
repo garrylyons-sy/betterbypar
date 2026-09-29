@@ -12,7 +12,7 @@ create table if not exists public.person_team_role (
   unique (person_id, club_id, league_id, team_name, role)
 );
 
-comment on table public.person_team_role is 'Season-independent team role assignments attached to a club membership. A person belongs to a club first, then has one or more player, manager or assistant manager roles in that club''s teams.';
+comment on table public.person_team_role is 'Season-independent team role assignments attached to a club membership. A person belongs to a club first, then has one or more player or manager roles in that club''s teams.';
 
 insert into public.club_membership (club_id, person_id, role, joined_date, active)
 select
@@ -87,14 +87,14 @@ as $$
      and cm.active = true
     where target_team.id = team_uuid
       and cm.person_id = public.current_person_id()
-      and ptr.role in ('Manager', 'Assistant Manager')
+      and ptr.role in ('Manager')
       and ptr.active = true
   ) or exists (
     select 1
     from public.team_membership tm
     where tm.team_id = team_uuid
       and tm.person_id = public.current_person_id()
-      and tm.role in ('Manager', 'Assistant Manager')
+      and tm.role in ('Manager')
       and tm.active = true
   )
 $$;
@@ -168,4 +168,4 @@ left join public.club c on c.id = cm.club_id
 left join public.league l on l.id = t.league_id
 left join public.season s on s.id = t.season_id;
 
-comment on view public.membership_management_view is 'Backend management view for people and their club-parented Player, Manager and Assistant Manager team roles, projected onto available season teams.';
+comment on view public.membership_management_view is 'Backend management view for people and their club-parented Player and Manager team roles, projected onto available season teams.';

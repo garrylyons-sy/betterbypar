@@ -1,4 +1,4 @@
-export type Role = "Player" | "Manager" | "Assistant Manager" | "Club Member" | "Club Admin";
+export type Role = "Player" | "Manager" | "Club Member" | "Club Admin";
 export type AppearancePanelId =
   | "teamStats"
   | "leagueTableSnapshot"
@@ -18,8 +18,7 @@ export type AppearancePanelId =
   | "managerActions"
   | "seasonComplete"
   | "squadManagement"
-  | "managerSnapshot"
-  | "assistantHub";
+  | "managerSnapshot";
 export type AppearanceMenuId = "Home" | "Fixtures" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Players" | "Stats" | "Messages" | "Interclub Leagues";
 export type RoleAppearance = {
   role: Role;

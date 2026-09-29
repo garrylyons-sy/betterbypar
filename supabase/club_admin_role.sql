@@ -39,7 +39,7 @@ end $$;
 
 alter table public.appearance
 add constraint appearance_role_type_check
-check (role_type in ('Player', 'Manager', 'Assistant Manager', 'Club Member', 'Club Admin'));
+check (role_type in ('Player', 'Manager', 'Club Member', 'Club Admin'));
 
 insert into public.appearance (role_type, panel_config, menu_config)
 values (

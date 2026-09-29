@@ -342,7 +342,6 @@ function normalizeEmbeddedRole(value: string | null): Role | null {
   const role = value?.trim().toLowerCase();
   if (role === "manager") return "Manager";
   if (role === "player") return "Player";
-  if (role === "assistant manager" || role === "assistant") return "Assistant Manager";
   if (role === "club member" || role === "member") return "Club Member";
   if (role === "club admin" || role === "club administrator") return "Club Admin";
   return null;

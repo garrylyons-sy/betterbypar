@@ -2,7 +2,7 @@
 
 create table if not exists public.appearance (
   id uuid primary key default gen_random_uuid(),
-  role_type text not null unique check (role_type in ('Player', 'Manager', 'Assistant Manager', 'Club Member', 'Club Admin')),
+  role_type text not null unique check (role_type in ('Player', 'Manager', 'Club Member', 'Club Admin')),
   panel_config jsonb not null default '[]'::jsonb,
   menu_config jsonb not null default '[]'::jsonb,
   active boolean not null default true,
@@ -29,11 +29,6 @@ values
   (
     'Manager',
     '["matchPlanning","squadManagement","managerActions","seasonComplete","teamRecentForm","managerSnapshot"]'::jsonb,
-    '["Home","Fixtures","Table","Club","Results"]'::jsonb
-  ),
-  (
-    'Assistant Manager',
-    '["assistantHub","seasonComplete","managerSnapshot"]'::jsonb,
     '["Home","Fixtures","Table","Club","Results"]'::jsonb
   ),
   (

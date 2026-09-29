@@ -1,7 +1,7 @@
 create extension if not exists pgcrypto;
 
 create type invitation_status as enum ('Pending', 'Accepted', 'Expired', 'Revoked');
-create type membership_role as enum ('Player', 'Manager', 'Assistant Manager');
+create type membership_role as enum ('Player', 'Manager');
 create type fixture_status as enum ('Scheduled', 'Completed', 'Cancelled');
 create type game_type as enum ('Singles', 'Doubles');
 create type invitation_request_status as enum ('Pending', 'Approved', 'Rejected', 'Cancelled');
@@ -154,7 +154,7 @@ create table public.person_team_role (
   unique (club_membership_id, league_id, team_name, role)
 );
 
-comment on table public.person_team_role is 'Season-independent team role assignments attached to a club membership. A person belongs to a club first, then has one or more player, manager or assistant manager roles in that club''s teams.';
+comment on table public.person_team_role is 'Season-independent team role assignments attached to a club membership. A person belongs to a club first, then has one or more player or manager roles in that club''s teams.';
 
 create table public.invitation (
   id uuid primary key default gen_random_uuid(),
@@ -186,7 +186,7 @@ create table public.invitation_membership (
   unique (invitation_id, team_id, role)
 );
 
-comment on table public.invitation_membership is 'Team-role grants attached to an account invitation. A single person can be invited as a player in one team and manager or assistant manager in another.';
+comment on table public.invitation_membership is 'Team-role grants attached to an account invitation. A single person can be invited as a player in one team and manager in another.';
 
 create table public.invitation_club_membership (
   id uuid primary key default gen_random_uuid(),
@@ -241,7 +241,7 @@ create table public.invitation_request (
   check (position('@' in email) > 1)
 );
 
-comment on table public.invitation_request is 'Public player-only invite requests. Manager and assistant manager invitations are handled through backend invitation membership management.';
+comment on table public.invitation_request is 'Public player-only invite requests. Manager invitations are handled through backend invitation membership management.';
 
 create table public.user_activity_log (
   id uuid primary key default gen_random_uuid(),
@@ -894,7 +894,7 @@ left join public.club c on c.id = cm.club_id
 left join public.league l on l.id = t.league_id
 left join public.season s on s.id = t.season_id;
 
-comment on view public.membership_management_view is 'Backend management view for people and their club-parented Player, Manager and Assistant Manager team roles, projected onto available season teams.';
+comment on view public.membership_management_view is 'Backend management view for people and their club-parented Player and Manager team roles, projected onto available season teams.';
 
 create or replace function public.resolve_login_identifier(login_identifier text)
 returns text
@@ -1376,7 +1376,7 @@ begin
     membership_team_id := (membership_item ->> 'team_id')::uuid;
     membership_role := (membership_item ->> 'role')::membership_role;
 
-    if membership_role not in ('Player', 'Manager', 'Assistant Manager') then
+    if membership_role not in ('Player', 'Manager') then
       raise exception 'Invalid membership role.';
     end if;
 
@@ -1547,13 +1547,13 @@ as $$
      and cm.active = true
     where target_team.id = team_uuid
       and cm.person_id = public.current_person_id()
-      and ptr.role in ('Manager', 'Assistant Manager')
+      and ptr.role in ('Manager')
       and ptr.active = true
   ) or exists (
     select 1 from public.team_membership tm
     where tm.team_id = team_uuid
       and tm.person_id = public.current_person_id()
-      and tm.role in ('Manager', 'Assistant Manager')
+      and tm.role in ('Manager')
       and tm.active = true
   )
 $$;
