@@ -2553,8 +2553,131 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
         </CardContent>
       </Card>
       <AttackSnookerGameCard />
+      <ClubTeamsOverview activeTeam={activeTeam} onNavigate={onNavigate} />
       <CompetitionPanel activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />
     </section>
+  );
+}
+
+type ClubTeamOverview = {
+  teamId: string;
+  name: string;
+  league: TeamContext["league"];
+  season: string;
+  logoPath: string;
+  primaryColor: string;
+  accentColor: string;
+  position: number | null;
+  matchesPlayed: number;
+  points: number;
+  playerCount: number;
+  managerCount: number;
+  assistantManagerCount: number;
+  nextFixtureDate: string | null;
+  nextOpponentName: string | null;
+  nextHomeAway: "Home" | "Away" | null;
+};
+
+function ClubTeamsOverview({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void }) {
+  const [teams, setTeams] = useState<ClubTeamOverview[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setMessage("");
+    const params = new URLSearchParams({ club: activeTeam.club });
+    if (activeTeam.season && activeTeam.season !== "Club") params.set("season", activeTeam.season);
+    fetch(withTestUser(`/api/club/teams?${params.toString()}`), { credentials: "same-origin" })
+      .then((response) => response.json().then((data) => ({ response, data })))
+      .then(({ response, data }) => {
+        if (!active) return;
+        if (!response.ok) throw new Error(data.error || "Club teams unavailable.");
+        setTeams(data.teams ?? []);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setMessage(error instanceof Error ? error.message : "Club teams unavailable.");
+        setTeams([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeTeam.club, activeTeam.season]);
+
+  return (
+    <Card className="md:col-span-2">
+      <CardHeader>
+        <div>
+          <CardTitle>Club Teams</CardTitle>
+          <p className="mt-1 text-sm font-semibold text-[#6c5a73]">See each {activeTeam.club.replace(" Golf Club", "")} team at a glance.</p>
+        </div>
+        <Badge variant="muted">{loading ? "Loading" : `${teams.length}`}</Badge>
+      </CardHeader>
+      <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {teams.map((team) => (
+          <div key={team.teamId} className="overflow-hidden rounded-[18px] bg-white ring-1 ring-[#eeeaf2]">
+            <div className="p-4 text-white" style={clubPanelStyle(team.primaryColor, team.accentColor)}>
+              <div className="flex items-start gap-3">
+                <ClubLogoTile club={activeTeam.club} logoPath={team.logoPath} size="compact" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant="cyan">{team.league}</Badge>
+                    <Badge variant="muted">{team.season}</Badge>
+                  </div>
+                  <h3 className="mt-3 truncate text-2xl font-black leading-none text-white">{team.name}</h3>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-3 p-4">
+              <div className="grid grid-cols-3 gap-2">
+                <MiniStat label="Position" value={team.position ? ordinal(team.position) : "-"} />
+                <MiniStat label="Played" value={String(team.matchesPlayed)} />
+                <MiniStat label="Pts" value={String(team.points)} />
+              </div>
+              <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#f7f5fa] p-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-[#6c5a73]">Players</p>
+                  <p className="text-lg font-extrabold text-[#10233f]">{team.playerCount}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-[#6c5a73]">Managers</p>
+                  <p className="text-lg font-extrabold text-[#10233f]">{team.managerCount}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-[#6c5a73]">Assistants</p>
+                  <p className="text-lg font-extrabold text-[#10233f]">{team.assistantManagerCount}</p>
+                </div>
+              </div>
+              <div className="rounded-xl bg-[#f7f5fa] p-3">
+                <p className="text-[10px] font-bold uppercase text-[#6c5a73]">Next fixture</p>
+                {team.nextFixtureDate && team.nextOpponentName ? (
+                  <p className="mt-1 text-sm font-extrabold text-[#10233f]">
+                    {team.nextHomeAway} v {team.nextOpponentName} · {formatFixtureDate(team.nextFixtureDate)}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm font-semibold text-[#6c5a73]">No scheduled fixture.</p>
+                )}
+              </div>
+              <Button variant="secondary" className="w-full" onClick={() => onNavigate("Table")}>
+                <Trophy className="h-4 w-4" />
+                View tables
+              </Button>
+            </div>
+          </div>
+        ))}
+        {!teams.length ? (
+          <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73] md:col-span-2 xl:col-span-3">
+            {loading ? "Loading club teams..." : message || "No active teams are available for this club."}
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
