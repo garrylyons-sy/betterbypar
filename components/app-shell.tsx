@@ -2551,8 +2551,8 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
           </Button>
         </CardContent>
       </Card>
-      <AttackSnookerGameCard />
       <ClubTeamsOverview activeTeam={activeTeam} />
+      <AttackSnookerGameCard />
       <CompetitionPanel activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />
     </section>
   );
