@@ -3049,7 +3049,9 @@ function InterclubLeaguesPage({
 function FixturesPage({
   activeTeam,
   onOpenFixture,
-  userCanShare
+  userCanShare,
+  onDataRefresh,
+  onTeamSummaryUpdate
 }: {
   activeTeam: TeamContext;
   matchResults: MatchResult[];
@@ -3078,6 +3080,8 @@ function FixturesPage({
             activeTeam={leagueContext}
             onOpenFixture={league === activeTeam.league ? onOpenFixture : undefined}
             userCanShare={userCanShare}
+            onDataRefresh={onDataRefresh}
+            onTeamSummaryUpdate={onTeamSummaryUpdate}
           />
         );
       })}
@@ -3417,6 +3421,8 @@ function MatchPlanningCard({
         activeTeam={activeTeam}
         onOpenFixture={onOpenFixture}
         userCanShare={userCanShare}
+        onDataRefresh={onDataRefresh}
+        onTeamSummaryUpdate={onTeamSummaryUpdate}
       />
     </div>
   );
@@ -4547,13 +4553,17 @@ function FixtureWeekCarouselCard({
   selectedFixtureId,
   onSelectFixture,
   onOpenFixture,
-  userCanShare = false
+  userCanShare = false,
+  onDataRefresh,
+  onTeamSummaryUpdate
 }: {
   activeTeam: TeamContext;
   selectedFixtureId?: string;
   onSelectFixture?: (fixtureId: string) => void;
   onOpenFixture?: (fixtureId: string) => void;
   userCanShare?: boolean;
+  onDataRefresh?: () => void;
+  onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   const [weeks, setWeeks] = useState<FixtureWeek[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -4680,7 +4690,8 @@ function FixtureWeekCarouselCard({
                 const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                 const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
                 const managerOwnFixture = fixture.isOwnFixture && (activeTeam.role === "Manager");
-                const canManage = Boolean(onOpenFixture && managerOwnFixture && activeTeam.season !== "2025/26");
+                const canManage = Boolean(managerOwnFixture && activeTeam.season !== "2025/26");
+                const canEditInline = canManage && fixture.status !== "Completed";
                 const ownLineupPublished = fixtureOwnLineupPublished(fixture, activeTeam.teamId);
                 const canInspect = fixtureHasStarted(fixture) || fixtureHasPublishedLineups(fixture) || ownLineupPublished;
                 const canOpenRow = canManage || canInspect;
@@ -4704,15 +4715,10 @@ function FixtureWeekCarouselCard({
                       onClick={() => {
                         if (canManage) {
                           onSelectFixture?.(fixture.id);
-                          onOpenFixture?.(fixture.id);
+                          setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                           return;
                         }
                         if (!canInspect) return;
-                        if (ownLineupPublished && onOpenFixture) {
-                          onSelectFixture?.(fixture.id);
-                          onOpenFixture(fixture.id);
-                          return;
-                        }
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                       }}
                     >
@@ -4763,9 +4769,19 @@ function FixtureWeekCarouselCard({
                         </span>
                       ) : null}
                     </button>
-                    {expanded && canInspect ? (
+                    {expanded && canOpenRow ? (
                       <div className="border-t border-[#eeeaf2] bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-                        <ReadOnlyFixtureDetails fixture={fixture} />
+                        {canEditInline ? (
+                          <ManagerLineupCard
+                            activeTeam={activeTeam}
+                            preferredFixtureId={fixture.id}
+                            inlineFixtureOnly
+                            onDataRefresh={onDataRefresh}
+                            onTeamSummaryUpdate={onTeamSummaryUpdate}
+                          />
+                        ) : (
+                          <ReadOnlyFixtureDetails fixture={fixture} />
+                        )}
                       </div>
                     ) : null}
                   </article>
@@ -4795,11 +4811,13 @@ function FixtureWeekCarouselCard({
 function ManagerLineupCard({
   activeTeam,
   preferredFixtureId,
+  inlineFixtureOnly = false,
   onDataRefresh,
   onTeamSummaryUpdate
 }: {
   activeTeam: TeamContext;
   preferredFixtureId?: string;
+  inlineFixtureOnly?: boolean;
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
@@ -4995,55 +5013,63 @@ function ManagerLineupCard({
   const directFixtureMode = Boolean(preferredFixtureId && payload?.fixture?.id === preferredFixtureId);
   const fixtureOpen = Boolean(payload?.fixture && (openedFixtureId === payload.fixture.id || directFixtureMode));
   const weekFixtures = payload?.weekFixtures?.length ? payload.weekFixtures : [];
+  const visibleWeekFixtures = inlineFixtureOnly && preferredFixtureId
+    ? weekFixtures.filter((fixture) => fixture.id === preferredFixtureId)
+    : weekFixtures;
+  const fixtureRows = visibleWeekFixtures.length ? visibleWeekFixtures : [{
+    id: payload?.fixture?.id ?? "",
+    fixtureDate: payload?.fixture?.fixtureDate ?? "",
+    homeTeamId: payload?.fixture?.homeTeamId ?? "",
+    awayTeamId: payload?.fixture?.awayTeamId ?? "",
+    homeTeamName: payload?.fixture?.homeTeamName ?? "Home",
+    awayTeamName: payload?.fixture?.awayTeamName ?? "Away",
+    status: (payload?.fixture?.status ?? "Scheduled") as "Scheduled" | "Completed",
+    matchId: null,
+    homeTeamScore: null,
+    awayTeamScore: null,
+    homeLineupStatus: payload?.fixture?.homeTeamId === activeTeam.teamId ? ownStatus : payload?.opponentStatus?.status ?? null,
+    awayLineupStatus: payload?.fixture?.awayTeamId === activeTeam.teamId ? ownStatus : payload?.opponentStatus?.status ?? null,
+    completedGames: 0,
+    totalGames: 0,
+    games: []
+  }];
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className={inlineFixtureOnly ? "border-0 bg-transparent shadow-none" : undefined}>
+      {!inlineFixtureOnly ? (
+        <CardHeader>
           <CardTitle>{payload?.fixture?.fixtureType === "Friendly" ? "Friendly Match" : "Next Matches"}</CardTitle>
-        {matchLocked && fixtureDateHasPassed(payload?.fixture?.fixtureDate) ? null : (
-          <Badge variant={matchLocked ? "green" : matchReady ? "cyan" : ownStatus === "Published" ? "cyan" : payload?.lineup?.id ? "muted" : "muted"}>
-            {matchLocked ? "Completed" : matchReady ? "Score ready" : ownStatus === "Published" ? "Published" : payload?.lineup?.id ? "Picked" : "Plan"}
-          </Badge>
-        )}
-      </CardHeader>
-      <CardContent className="grid gap-3">
+          {matchLocked && fixtureDateHasPassed(payload?.fixture?.fixtureDate) ? null : (
+            <Badge variant={matchLocked ? "green" : matchReady ? "cyan" : ownStatus === "Published" ? "cyan" : payload?.lineup?.id ? "muted" : "muted"}>
+              {matchLocked ? "Completed" : matchReady ? "Score ready" : ownStatus === "Published" ? "Published" : payload?.lineup?.id ? "Picked" : "Plan"}
+            </Badge>
+          )}
+        </CardHeader>
+      ) : null}
+      <CardContent className={cn("grid gap-3", inlineFixtureOnly && "p-0")}>
         {!payload?.fixture ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
             No upcoming match is scheduled for {activeTeam.name}. Completed results are available in Fixtures / Results.
           </p>
         ) : (
           <>
-            <div className="rounded-xl bg-[#f7f5fa] p-2">
-              <div className="mb-2 flex items-center justify-between gap-2 px-1">
+            <div className={cn("rounded-xl bg-[#f7f5fa] p-2", inlineFixtureOnly && "bg-transparent p-0")}>
+              {!inlineFixtureOnly ? (
+                <div className="mb-2 flex items-center justify-between gap-2 px-1">
                 <div>
                   <p className="text-xs font-extrabold uppercase text-[#6c5a73]">This week</p>
                   <p className="text-sm font-bold text-[#10233f]">{formatFixtureDate(payload.fixture.fixtureDate)}</p>
                 </div>
                 <Badge variant="muted">{weekFixtures.length || 1} matches</Badge>
-              </div>
+                </div>
+              ) : null}
               <div className="grid gap-2">
-                {(weekFixtures.length ? weekFixtures : [{
-                  id: payload.fixture.id,
-                  fixtureDate: payload.fixture.fixtureDate,
-                  homeTeamId: payload.fixture.homeTeamId,
-                  awayTeamId: payload.fixture.awayTeamId,
-                  homeTeamName: payload.fixture.homeTeamName,
-                  awayTeamName: payload.fixture.awayTeamName,
-                  status: payload.fixture.status as "Scheduled" | "Completed",
-                  matchId: null,
-                  homeTeamScore: null,
-                  awayTeamScore: null,
-                  homeLineupStatus: payload.fixture.homeTeamId === activeTeam.teamId ? ownStatus : payload.opponentStatus?.status ?? null,
-                  awayLineupStatus: payload.fixture.awayTeamId === activeTeam.teamId ? ownStatus : payload.opponentStatus?.status ?? null,
-                  completedGames: 0,
-                  totalGames: 0,
-                  games: []
-                }]).map((fixture) => {
+                {fixtureRows.map((fixture) => {
                   const isOwnFixture = fixture.homeTeamId === activeTeam.teamId || fixture.awayTeamId === activeTeam.teamId;
                   const bothPublished = fixture.homeLineupStatus === "Published" && fixture.awayLineupStatus === "Published";
                   const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                   const matchStarted = Boolean(fixture.totalGames > 0);
-                  const active = fixture.id === openedFixtureId || (directFixtureMode && fixture.id === payload.fixture?.id);
+                  const active = inlineFixtureOnly || fixture.id === openedFixtureId || (directFixtureMode && fixture.id === payload.fixture?.id);
                   const fixtureLocked = fixture.status === "Completed";
                   const canManageFixture = Boolean(payload.canManage && isOwnFixture && !fixtureLocked);
                   const managerActionSide = activeTeam.teamId === fixture.awayTeamId ? "away" : "home";
@@ -5064,14 +5090,15 @@ function ManagerLineupCard({
                       )}
                       style={active ? { boxShadow: `0 0 0 2px ${activeTeam.primaryColor}22` } : undefined}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setOpenedFixtureId((current) => current === fixture.id ? "" : fixture.id)}
-                        aria-expanded={active}
-                        className={cn(
-                          "grid w-full gap-2 p-3 text-left transition-colors hover:bg-[#f7f5fa]"
-                        )}
-                      >
+                      {!inlineFixtureOnly ? (
+                        <button
+                          type="button"
+                          onClick={() => setOpenedFixtureId((current) => current === fixture.id ? "" : fixture.id)}
+                          aria-expanded={active}
+                          className={cn(
+                            "grid w-full gap-2 p-3 text-left transition-colors hover:bg-[#f7f5fa]"
+                          )}
+                        >
                         <div className="grid gap-2 md:hidden">
                           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
                             <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={showLineupStatus ? fixture.homeLineupStatus : undefined} />
@@ -5127,7 +5154,8 @@ function ManagerLineupCard({
                           ) : null}
                           <ChevronDown className={cn("col-start-2 row-start-1 h-4 w-4 justify-self-center text-[#6c5a73] transition-transform", active && "rotate-180")} />
                         </div>
-                      </button>
+                        </button>
+                      ) : null}
                       {active ? (
                         <div className="grid gap-3 border-t border-[#eeeaf2] bg-white p-3">
                           {isOwnFixture && !matchLocked && payload.opponentStatus ? (
