@@ -5130,7 +5130,7 @@ function ManagerLineupCard({
                       </button>
                       {active ? (
                         <div className="grid gap-3 border-t border-[#eeeaf2] bg-white p-3">
-                          {isOwnFixture && payload.opponentStatus ? (
+                          {isOwnFixture && !matchLocked && payload.opponentStatus ? (
                             <div className="rounded-xl bg-[#f7f5fa] p-3">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div>
@@ -5148,7 +5148,7 @@ function ManagerLineupCard({
                               ) : null}
                             </div>
                           ) : null}
-                          {isOwnFixture && matchReady && payload.canManage ? (
+                          {isOwnFixture && matchReady && payload.canManage && !matchLocked ? (
                             <GeneratedMatchCard
                               payload={payload}
                               onRecord={recordGameWinner}
@@ -5157,7 +5157,7 @@ function ManagerLineupCard({
                               locked={matchLocked || !payload.canManage}
                             />
                           ) : null}
-                          {isOwnFixture && matchReady && !payload.canManage ? <ReadOnlyFixtureDetails fixture={fixture} /> : null}
+                          {isOwnFixture && matchReady && (matchLocked || !payload.canManage) ? <ReadOnlyFixtureDetails fixture={fixture} /> : null}
                           {isOwnFixture && payload.canManage && matchReady && !matchLocked ? (
                             <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3">
                               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -5175,7 +5175,7 @@ function ManagerLineupCard({
                             </div>
                           ) : null}
                           {!isOwnFixture ? <ReadOnlyFixtureDetails fixture={fixture} /> : null}
-                          {isOwnFixture && !managedPublished && payload.canManage ? (
+                          {isOwnFixture && !managedPublished && payload.canManage && !matchLocked ? (
                             <>
                               <div className="grid gap-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3">
@@ -5213,8 +5213,8 @@ function ManagerLineupCard({
                               ) : null}
                             </>
                           ) : null}
-                          {isOwnFixture && managedPublished ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
-                          {isOwnFixture && payload.opponentLineup ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
+                          {isOwnFixture && managedPublished && !matchLocked ? <PublishedLineupSummary title={`${activeTeam.name} published lineup`} slots={payload.lineup?.slots ?? slots} /> : null}
+                          {isOwnFixture && payload.opponentLineup && !matchLocked ? <PublishedLineupSummary title={`${payload.opponentLineup.teamName} lineup`} slots={payload.opponentLineup.slots} /> : null}
                         </div>
                       ) : null}
                     </div>
