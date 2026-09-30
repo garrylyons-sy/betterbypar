@@ -519,7 +519,6 @@ function PageContent({
       <MatchPage
         activeTeam={activeTeam}
         fixtureId={selectedFixtureId}
-        matchResults={matchResults}
         onDataRefresh={onDataRefresh}
         onTeamSummaryUpdate={onTeamSummaryUpdate}
       />
@@ -3089,46 +3088,23 @@ function FixturesPage({
 function MatchPage({
   activeTeam,
   fixtureId,
-  matchResults,
   onDataRefresh,
   onTeamSummaryUpdate
 }: {
   activeTeam: TeamContext;
   fixtureId: string;
-  matchResults: MatchResult[];
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
-  const managerView = activeTeam.role === "Manager";
-  const selectedResult = matchResults.find((result) => result.id === fixtureId);
-
   return (
     <section className="grid gap-4">
       {fixtureId ? (
-        managerView || selectedResult?.status !== "Completed" ? (
-          <ManagerLineupCard
-            activeTeam={activeTeam}
-            preferredFixtureId={fixtureId}
-            onDataRefresh={onDataRefresh}
-            onTeamSummaryUpdate={onTeamSummaryUpdate}
-          />
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>Match</CardTitle>
-              <Badge variant="muted">{activeTeam.league}</Badge>
-            </CardHeader>
-            <CardContent>
-              {selectedResult?.status === "Completed" ? (
-                <CompletedImportedMatchSummary result={selectedResult} />
-              ) : (
-                <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-                  Live scores and frame details will appear here once scoring starts.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )
+        <ManagerLineupCard
+          activeTeam={activeTeam}
+          preferredFixtureId={fixtureId}
+          onDataRefresh={onDataRefresh}
+          onTeamSummaryUpdate={onTeamSummaryUpdate}
+        />
       ) : (
         <Card>
           <CardHeader>
@@ -3143,27 +3119,6 @@ function MatchPage({
         </Card>
       )}
     </section>
-  );
-}
-
-function CompletedImportedMatchSummary({ result }: { result: MatchResult }) {
-  return (
-    <div className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
-        <p className={cn("min-w-0 break-words text-sm font-extrabold leading-tight", (result.homeTeamScore ?? 0) > (result.awayTeamScore ?? 0) ? "text-[#00a85a]" : "text-[#10233f]")}>
-          {result.homeTeamName}
-        </p>
-        <span className="rounded-lg bg-[#10233f] px-2.5 py-1 text-sm font-black text-white">
-          {result.homeTeamScore}-{result.awayTeamScore}
-        </span>
-        <p className={cn("min-w-0 break-words text-right text-sm font-extrabold leading-tight", (result.awayTeamScore ?? 0) > (result.homeTeamScore ?? 0) ? "text-[#00a85a]" : "text-[#10233f]")}>
-          {result.awayTeamName}
-        </p>
-      </div>
-      <p className="mt-2 text-xs font-semibold text-[#6c5a73]">
-        This result is final. Frame-by-frame details were not imported for this historical match.
-      </p>
-    </div>
   );
 }
 
@@ -5193,7 +5148,7 @@ function ManagerLineupCard({
                               ) : null}
                             </div>
                           ) : null}
-                          {isOwnFixture && matchReady ? (
+                          {isOwnFixture && matchReady && payload.canManage ? (
                             <GeneratedMatchCard
                               payload={payload}
                               onRecord={recordGameWinner}
@@ -5202,6 +5157,7 @@ function ManagerLineupCard({
                               locked={matchLocked || !payload.canManage}
                             />
                           ) : null}
+                          {isOwnFixture && matchReady && !payload.canManage ? <ReadOnlyFixtureDetails fixture={fixture} /> : null}
                           {isOwnFixture && payload.canManage && matchReady && !matchLocked ? (
                             <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3">
                               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -5846,7 +5802,7 @@ function ReadOnlyFixtureDetails({
             </p>
           </div>
           <p className="mt-2 text-xs font-semibold text-[#6c5a73]">
-            Frame-by-frame details were not imported for this historical match.
+            Final result recorded.
           </p>
         </div>
       );
