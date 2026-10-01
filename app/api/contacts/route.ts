@@ -12,6 +12,9 @@ type ContactRow = {
   display_name: string;
   phone: string | null;
   club_name: string | null;
+  club_logo_path: string | null;
+  club_primary_color: string | null;
+  club_accent_color: string | null;
   league_name: string | null;
   team_name: string | null;
   sort_order: number;
@@ -64,6 +67,9 @@ export async function GET(request: NextRequest) {
          concat_ws(' ', p.first_name, p.last_name) as display_name,
          coalesce(nullif(cd.phone_override, ''), nullif(p.phone, '')) as phone,
          c.name as club_name,
+         c.logo_path as club_logo_path,
+         c.primary_color as club_primary_color,
+         coalesce(c.accent_color, '#10233F') as club_accent_color,
          l.name as league_name,
          cd.team_name,
          cd.sort_order
@@ -93,6 +99,9 @@ export async function GET(request: NextRequest) {
         displayName: row.display_name,
         phone: row.phone ?? "",
         clubName: row.club_name,
+        clubLogoPath: row.club_logo_path,
+        clubPrimaryColor: row.club_primary_color,
+        clubAccentColor: row.club_accent_color,
         leagueName: row.league_name,
         teamName: row.team_name,
         sortOrder: row.sort_order

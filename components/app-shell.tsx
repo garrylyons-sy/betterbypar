@@ -3281,6 +3281,9 @@ type ContactDirectoryEntry = {
   displayName: string;
   phone: string;
   clubName: string | null;
+  clubLogoPath: string | null;
+  clubPrimaryColor: string | null;
+  clubAccentColor: string | null;
   leagueName: string | null;
   teamName: string | null;
 };
@@ -3303,6 +3306,7 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copiedId, setCopiedId] = useState("");
+  const [openClubNames, setOpenClubNames] = useState<Set<string>>(new Set());
   const canView = activeTeam.role === "Manager" || activeTeam.role === "Club Admin";
 
   useEffect(() => {
@@ -3317,7 +3321,10 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
         return payload.contacts as ContactDirectoryEntry[];
       })
       .then((rows) => {
-        if (!cancelled) setContacts(rows);
+        if (!cancelled) {
+          setContacts(rows);
+          setOpenClubNames(new Set(rows.some((contact) => contact.clubName === activeTeam.club) ? [activeTeam.club] : []));
+        }
       })
       .catch((fetchError) => {
         if (!cancelled) setError(fetchError instanceof Error ? fetchError.message : "Contacts could not be loaded.");
@@ -3344,20 +3351,33 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
     );
   }
 
-  const groupedContacts = contacts.reduce<Record<string, ContactDirectoryEntry[]>>((groups, contact) => {
-    const key = contact.contactType === "League Official" ? "League" : contact.clubName ?? "Club contacts";
-    groups[key] = groups[key] ?? [];
-    groups[key].push(contact);
-    return groups;
-  }, {});
+  const leagueContacts = contacts.filter((contact) => contact.contactType === "League Official");
+  const groupedClubs = contacts
+    .filter((contact) => contact.contactType !== "League Official")
+    .reduce<Record<string, ContactDirectoryEntry[]>>((groups, contact) => {
+      const key = contact.clubName ?? "Club contacts";
+      groups[key] = groups[key] ?? [];
+      groups[key].push(contact);
+      return groups;
+    }, {});
 
-  const groupNames = Object.keys(groupedContacts).sort((a, b) => {
-    if (a === "League") return -1;
-    if (b === "League") return 1;
+  const clubNames = Object.keys(groupedClubs).sort((a, b) => {
     if (a === activeTeam.club) return -1;
     if (b === activeTeam.club) return 1;
     return a.localeCompare(b);
   });
+
+  function toggleClub(clubName: string) {
+    setOpenClubNames((current) => {
+      const next = new Set(current);
+      if (next.has(clubName)) {
+        next.delete(clubName);
+      } else {
+        next.add(clubName);
+      }
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -3377,60 +3397,110 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
           ) : !contacts.length ? (
             <div className="rounded-[var(--radius-md)] bg-[var(--pl-off-white)] p-4 text-sm font-bold text-[var(--pl-muted-text)]">No contacts have been set up yet.</div>
           ) : (
-            groupNames.map((groupName) => (
-              <section key={groupName} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black uppercase text-[var(--pl-text)]">{groupName}</h3>
-                  <Badge variant="soft">{groupedContacts[groupName].length}</Badge>
-                </div>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {groupedContacts[groupName].map((contact) => {
-                    const phoneHref = normalizePhoneForHref(contact.phone);
-                    const whatsappNumber = normalizePhoneForWhatsapp(contact.phone);
-                    return (
-                      <article key={contact.id} className="rounded-[var(--radius-md)] border border-[var(--pl-light-grey)] bg-white p-3 shadow-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-xs font-black uppercase text-[var(--pl-muted-text)]">{contact.contactLabel}</p>
-                            <p className="mt-1 truncate text-base font-black text-[var(--pl-text)]">{contact.displayName}</p>
-                            <p className="text-sm font-bold text-[var(--pl-muted-text)]">{contact.phone || "No phone yet"}</p>
-                          </div>
-                          {contact.leagueName ? <Badge>{contact.leagueName.replace(" League", "")}</Badge> : null}
+            <>
+              {leagueContacts.length ? (
+                <section className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-black uppercase text-[var(--pl-text)]">League</h3>
+                    <Badge variant="soft">{leagueContacts.length}</Badge>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {leagueContacts.map((contact) => (
+                      <ContactCard key={contact.id} contact={contact} copiedId={copiedId} setCopiedId={setCopiedId} />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              {clubNames.map((clubName) => {
+                const clubContacts = groupedClubs[clubName];
+                const primary = clubContacts[0]?.clubPrimaryColor ?? activeTeam.primaryColor;
+                const accent = clubContacts[0]?.clubAccentColor ?? activeTeam.accentColor;
+                const logoPath = clubContacts[0]?.clubLogoPath ?? activeTeam.logoPath;
+                const open = openClubNames.has(clubName);
+                return (
+                  <section key={clubName} className="overflow-hidden rounded-[18px] bg-white ring-1 ring-[#eeeaf2]">
+                    <button
+                      type="button"
+                      onClick={() => toggleClub(clubName)}
+                      className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 text-left text-white focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6] sm:p-4"
+                      style={clubPanelStyle(primary, accent)}
+                      aria-expanded={open}
+                    >
+                      <ClubLogoTile club={clubName} logoPath={logoPath} size="compact" />
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge variant="cyan">{clubContacts.length} contact{clubContacts.length === 1 ? "" : "s"}</Badge>
+                          {clubName === activeTeam.club ? <Badge variant="green">Your club</Badge> : null}
                         </div>
-                        {contact.phone ? (
-                          <div className="mt-3 grid grid-cols-3 gap-2">
-                            <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--pl-deep-purple)] px-2 text-sm font-black text-white" href={`tel:${phoneHref}`}>
-                              <Phone className="h-4 w-4" />
-                              Call
-                            </a>
-                            <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[#0f8f61] px-2 text-sm font-black text-white" href={whatsappNumber ? `https://wa.me/${whatsappNumber}` : undefined} target="_blank" rel="noreferrer">
-                              <MessageCircle className="h-4 w-4" />
-                              WhatsApp
-                            </a>
-                            <button
-                              type="button"
-                              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--pl-light-grey)] px-2 text-sm font-black text-[var(--pl-text)]"
-                              onClick={async () => {
-                                await navigator.clipboard?.writeText(contact.phone);
-                                setCopiedId(contact.id);
-                                window.setTimeout(() => setCopiedId(""), 1500);
-                              }}
-                            >
-                              <Copy className="h-4 w-4" />
-                              {copiedId === contact.id ? "Copied" : "Copy"}
-                            </button>
-                          </div>
-                        ) : null}
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            ))
+                        <h3 className="mt-2 truncate text-xl font-black leading-tight text-white sm:text-2xl">{clubName.replace(" Golf Club", "")}</h3>
+                      </div>
+                      <ChevronDown className={cn("h-5 w-5 shrink-0 text-white/80 transition-transform", open && "rotate-180")} />
+                    </button>
+                    {open ? (
+                      <div className="grid gap-2 p-3 sm:grid-cols-2 sm:p-4">
+                        {clubContacts.map((contact) => (
+                          <ContactCard key={contact.id} contact={contact} copiedId={copiedId} setCopiedId={setCopiedId} />
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                );
+              })}
+            </>
           )}
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function ContactCard({
+  contact,
+  copiedId,
+  setCopiedId
+}: {
+  contact: ContactDirectoryEntry;
+  copiedId: string;
+  setCopiedId: (id: string) => void;
+}) {
+  const phoneHref = normalizePhoneForHref(contact.phone);
+  const whatsappNumber = normalizePhoneForWhatsapp(contact.phone);
+
+  return (
+    <article className="rounded-[var(--radius-md)] border border-[var(--pl-light-grey)] bg-white p-3 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase text-[var(--pl-muted-text)]">{contact.contactLabel}</p>
+          <p className="mt-1 truncate text-base font-black text-[var(--pl-text)]">{contact.displayName}</p>
+          <p className="text-sm font-bold text-[var(--pl-muted-text)]">{contact.phone || "No phone yet"}</p>
+        </div>
+        {contact.leagueName ? <Badge>{contact.leagueName.replace(" League", "")}</Badge> : null}
+      </div>
+      {contact.phone ? (
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--pl-deep-purple)] px-2 text-sm font-black text-white" href={`tel:${phoneHref}`}>
+            <Phone className="h-4 w-4" />
+            Call
+          </a>
+          <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[#0f8f61] px-2 text-sm font-black text-white" href={whatsappNumber ? `https://wa.me/${whatsappNumber}` : undefined} target="_blank" rel="noreferrer">
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp
+          </a>
+          <button
+            type="button"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--pl-light-grey)] px-2 text-sm font-black text-[var(--pl-text)]"
+            onClick={async () => {
+              await navigator.clipboard?.writeText(contact.phone);
+              setCopiedId(contact.id);
+              window.setTimeout(() => setCopiedId(""), 1500);
+            }}
+          >
+            <Copy className="h-4 w-4" />
+            {copiedId === contact.id ? "Copied" : "Copy"}
+          </button>
+        </div>
+      ) : null}
+    </article>
   );
 }
 
