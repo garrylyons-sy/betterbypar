@@ -660,6 +660,7 @@ with team_stats as (
   from public.team t
   left join public.match_points_view mp on mp.home_team_id = t.id or mp.away_team_id = t.id
   left join public.fixture completed_fixture on completed_fixture.id = mp.fixture_id
+  where t.active = true
   group by t.id, t.name, t.league_id, t.season_id
 ),
 head_to_head as (
