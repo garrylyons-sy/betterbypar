@@ -664,20 +664,21 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
   const [leagues, setLeagues] = useState<AdminMatchLeague[]>([]);
   const [season, setSeason] = useState("2026/27");
   const [league, setLeague] = useState("all");
-  const [status, setStatus] = useState("all");
+  const [status, setStatus] = useState("Scheduled");
   const [fixtureType, setFixtureType] = useState("League");
+  const [month, setMonth] = useState(currentAdminMonth());
   const [loading, setLoading] = useState(false);
   const [savingFixtureId, setSavingFixtureId] = useState("");
   const [drafts, setDrafts] = useState<Record<string, AdminMatchDraft>>({});
 
   useEffect(() => {
     loadMatches();
-  }, [season, league, status, fixtureType]);
+  }, [season, league, status, fixtureType, month]);
 
   async function loadMatches() {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ season, league, status, type: fixtureType });
+      const params = new URLSearchParams({ season, league, status, type: fixtureType, month: month || "all" });
       const response = await fetch(`/api/admin/matches?${params.toString()}`, { credentials: "same-origin" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not load matches.");
@@ -752,7 +753,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
         <Badge variant="cyan">{matches.length}</Badge>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="grid gap-3 rounded-2xl bg-[#f7f5fa] p-3 md:grid-cols-4">
+        <div className="grid gap-3 rounded-2xl bg-[#f7f5fa] p-3 md:grid-cols-5">
           <AdminSelect
             label="Season"
             value={season}
@@ -767,6 +768,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
           />
           <AdminSelect label="Status" value={status} onChange={setStatus} options={statusOptions} />
           <AdminSelect label="Type" value={fixtureType} onChange={setFixtureType} options={typeOptions} />
+          <AdminInput label="Month" value={month} onChange={setMonth} type="month" />
         </div>
 
         {loading ? <p className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-bold text-[#6c5a73]">Loading matches...</p> : null}
@@ -923,6 +925,17 @@ function isTodayAdminDate(value: string) {
     year: "numeric"
   });
   return formatter.format(fixtureDate) === formatter.format(new Date());
+}
+
+function currentAdminMonth() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    month: "2-digit",
+    timeZone: "Europe/Dublin",
+    year: "numeric"
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? String(new Date().getFullYear());
+  const month = parts.find((part) => part.type === "month")?.value ?? String(new Date().getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
 }
 
 function matchDraft(match: AdminMatchRow) {

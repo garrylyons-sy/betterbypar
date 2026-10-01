@@ -27,6 +27,8 @@ export async function GET(request: NextRequest) {
     const league = request.nextUrl.searchParams.get("league")?.trim() || "all";
     const status = request.nextUrl.searchParams.get("status")?.trim() || "all";
     const type = request.nextUrl.searchParams.get("type")?.trim() || "League";
+    const month = request.nextUrl.searchParams.get("month")?.trim() || "all";
+    const monthStart = /^\d{4}-\d{2}$/.test(month) ? `${month}-01` : null;
 
     const [matches, teams, seasons, leagues] = await Promise.all([
       dbQuery(
@@ -70,8 +72,10 @@ export async function GET(request: NextRequest) {
            and ($2 = 'all' or l.name = $2)
            and ($3 = 'all' or f.status::text = $3)
            and ($4 = 'all' or coalesce(f.fixture_type, 'League') = $4)
+           and ($5::date is null or (f.fixture_date at time zone 'Europe/Dublin')::date >= $5::date)
+           and ($5::date is null or (f.fixture_date at time zone 'Europe/Dublin')::date < ($5::date + interval '1 month')::date)
          order by f.fixture_date, l.name, ht.name`,
-        [season, league, status, type]
+        [season, league, status, type, monthStart]
       ),
       dbQuery(
         `select
