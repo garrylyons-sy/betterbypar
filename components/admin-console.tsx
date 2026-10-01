@@ -778,7 +778,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
             const showLineupStatuses = isTodayAdminDate(match.fixture_date);
 
             return (
-              <div key={match.fixture_id} className="grid gap-3 rounded-2xl border border-[#eeeaf2] bg-white p-3 shadow-sm xl:grid-cols-[minmax(360px,1.4fr)_110px_110px_minmax(280px,.9fr)_110px] xl:items-end">
+              <div key={match.fixture_id} className="grid gap-2 rounded-2xl border border-[#eeeaf2] bg-white p-3 shadow-sm xl:grid-cols-[minmax(340px,1.25fr)_96px_96px_minmax(390px,1fr)_96px] xl:items-end">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={completeStatus as "green" | "muted" | "cyan"}>{match.status}</Badge>
@@ -807,27 +807,27 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                   </p>
                 </div>
 
-                <AdminInput
+                <CompactAdminInput
                   label={`${match.home_team_name} score`}
                   value={draft.homeTeamScore}
                   onChange={(value) => updateDraft(match.fixture_id, { homeTeamScore: value })}
                   type="number"
                 />
-                <AdminInput
+                <CompactAdminInput
                   label={`${match.away_team_name} score`}
                   value={draft.awayTeamScore}
                   onChange={(value) => updateDraft(match.fixture_id, { awayTeamScore: value })}
                   type="number"
                 />
 
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px] xl:grid-cols-[minmax(0,1fr)_130px]">
-                  <AdminInput
+                <div className="grid gap-2 sm:grid-cols-[minmax(200px,1fr)_145px]">
+                  <CompactAdminInput
                     label="Fixture date / postponed until"
                     value={draft.fixtureDate}
                     onChange={(value) => updateDraft(match.fixture_id, { fixtureDate: value })}
                     type="date"
                   />
-                  <AdminSelect
+                  <CompactAdminSelect
                     label="Status"
                     value={draft.status}
                     onChange={(value) => updateDraft(match.fixture_id, { status: value })}
@@ -835,7 +835,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                   />
                 </div>
 
-                <Button onClick={() => saveMatch(match)} disabled={savingFixtureId === match.fixture_id} className="xl:self-end">
+                <Button onClick={() => saveMatch(match)} disabled={savingFixtureId === match.fixture_id} size="sm" className="xl:self-end">
                   {savingFixtureId === match.fixture_id ? "Saving..." : "Save"}
                 </Button>
               </div>
@@ -864,7 +864,7 @@ function AdminMatchTeamStatus({
 }) {
   return (
     <div className={cn("rounded-lg bg-[#f7f5fa] px-3 py-2", align === "right" ? "sm:text-right" : "")}>
-      <p className="truncate text-sm font-extrabold text-[#10233f]" title={teamName}>{teamName}</p>
+      <p className="truncate text-[13px] font-extrabold text-[#10233f]" title={teamName}>{teamName}</p>
       {showStatus ? (
         <span className={cn("mt-1 inline-flex rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em]", adminLineupStatusClass(status))}>
           {adminLineupStatusLabel(status)}
@@ -3591,6 +3591,15 @@ function AdminInput({ label, value, onChange, type = "text", placeholder = "" }:
   );
 }
 
+function CompactAdminInput({ label, value, onChange, type = "text", placeholder = "" }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string }) {
+  return (
+    <label className="grid min-w-0 gap-1">
+      <span className="text-[11px] font-bold uppercase leading-tight text-[#6c5a73]">{label}</span>
+      <input className="min-h-9 w-full min-w-0 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)} type={type} placeholder={placeholder} />
+    </label>
+  );
+}
+
 function formatHandicap(value: number | string | null) {
   const numeric = Number(value ?? 0);
   if (!Number.isFinite(numeric)) return String(value ?? "");
@@ -3603,6 +3612,19 @@ function AdminSelect({ label, value, onChange, options }: { label: string; value
     <label className="grid min-w-0 gap-1.5">
       <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
       <select className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 text-base font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CompactAdminSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
+  return (
+    <label className="grid min-w-0 gap-1">
+      <span className="text-[11px] font-bold uppercase leading-tight text-[#6c5a73]">{label}</span>
+      <select className="min-h-9 w-full min-w-0 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
