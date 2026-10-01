@@ -51,37 +51,6 @@ create policy "managers can read contact directory" on public.contact_directory
     )
   );
 
-with elm_park as (
-  select id
-  from public.club
-  where name ilike 'Elm Park%'
-  order by length(name)
-  limit 1
-),
-existing_person as (
-  select p.id
-  from public.person p
-  where regexp_replace(lower(concat_ws(' ', p.first_name, p.last_name)), '[^a-z0-9]+', '', 'g') = 'brianmacmahon'
-  limit 1
-),
-inserted_person as (
-  insert into public.person (first_name, last_name, phone, active)
-  select 'Brian', 'MacMahon', '0876890890', true
-  where not exists (select 1 from existing_person)
-  returning id
-),
-brian as (
-  select id from existing_person
-  union all
-  select id from inserted_person
-  limit 1
-)
-insert into public.club_membership (club_id, person_id, role, active)
-select elm_park.id, brian.id, 'Club Member', true
-from elm_park, brian
-on conflict (club_id, person_id, role)
-do update set active = true;
-
 with seed(contact_type, contact_label, person_name, club_key, league_name, team_name, phone, sort_order) as (
   values
     ('League Official', 'Chairman', 'Mark Byrne', null, null, null, '0862632213', 10),
@@ -95,7 +64,7 @@ with seed(contact_type, contact_label, person_name, club_key, league_name, team_
     ('Team Contact', 'Grange D', 'Noel O''Kelly', 'Grange', 'C League', 'Grange D', '087 1233200', 240),
     ('Team Contact', 'Dun Laoghaire A', 'Ryan Berkeley', 'Dun Laoghaire', 'A League', 'Dun Laoghaire A', '0872182942', 310),
     ('Team Contact', 'Elm Park A', 'Conor O''Boyle', 'Elm Park', 'A League', 'Elm Park A', '0879008258', 410),
-    ('Team Contact', 'Elm Park B', 'Brian MacMahon', 'Elm Park', 'B League', 'Elm Park B', '0876890890', 420),
+    ('Team Contact', 'Elm Park B', 'Bryan Kilty', 'Elm Park', 'B League', 'Elm Park B', '0876890890', 420),
     ('Team Contact', 'Elm Park C', 'Rory Butler', 'Elm Park', 'C League', 'Elm Park C', '0868381749', 430),
     ('Team Contact', 'Milltown A', 'Alan Donnelly', 'Milltown', 'A League', 'Milltown A', '0879908990', 510),
     ('Team Contact', 'Milltown B & C', 'Colin Byrne', 'Milltown', null, 'Milltown B & C', '0872330065', 520),
