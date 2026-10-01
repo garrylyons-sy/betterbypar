@@ -5313,7 +5313,7 @@ function ManagerLineupCard({
     </Card>
   );
 
-  async function recordGameWinner(gameId: string, winnerTeamId: string) {
+  async function recordGameWinner(gameId: string, winnerTeamId: string | null) {
     if (!activeTeam.teamId || !payload?.fixture) return;
     if (payload.fixture.status === "Completed") return;
     if (pendingGameIds.has(gameId)) return;
@@ -5351,7 +5351,7 @@ function ManagerLineupCard({
       if (!response.ok) throw new Error(data.error || "Could not update result.");
       setPayload(data);
       setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
-      setMessage("Game result updated.");
+      setMessage(winnerTeamId ? "Game result updated." : "Game result reset.");
       onDataRefresh?.();
     } catch (error) {
       setPayload(previousPayload);
@@ -5490,7 +5490,7 @@ function managerLineupSnapshot(payload: Partial<ManagerLineupPayload>) {
   });
 }
 
-function applyOptimisticGameWinner(payload: ManagerLineupPayload, gameId: string, winnerTeamId: string): ManagerLineupPayload {
+function applyOptimisticGameWinner(payload: ManagerLineupPayload, gameId: string, winnerTeamId: string | null): ManagerLineupPayload {
   const fixture = payload.fixture;
   if (!fixture) return payload;
 
@@ -5966,7 +5966,7 @@ function GeneratedMatchCard({
   locked = false
 }: {
   payload: ManagerLineupPayload;
-  onRecord: (gameId: string, winnerTeamId: string) => void;
+  onRecord: (gameId: string, winnerTeamId: string | null) => void;
   onBreak: (game: ManagerLineupGame) => void;
   pendingGameIds: Set<string>;
   locked?: boolean;
@@ -5984,20 +5984,25 @@ function GeneratedMatchCard({
       <div className="mt-2 grid gap-2">
         {games.map((game) => {
           const breaks = game.breaks ?? [];
+          const homePlayers = gameSidePlayersLabel(game, "home");
+          const awayPlayers = gameSidePlayersLabel(game, "away");
+          const homeSelected = game.winner_team_id === fixture.homeTeamId;
+          const awaySelected = game.winner_team_id === fixture.awayTeamId;
+          const pending = pendingGameIds.has(game.id);
           return (
             <div key={game.id} className="grid gap-2 rounded-lg bg-white/10 p-2 text-sm font-bold">
               <div className="min-w-0">
                 <p className="text-xs font-extrabold uppercase text-white/55">Game {game.game_number} - {game.points_awarded} pts</p>
                 <p className="mt-1 break-words leading-tight">
-                  {gameSidePlayersLabel(game, "home")} {game.home_player_1_is_guest || game.home_player_2_is_guest ? <span className="text-[#7bc7d6]">(Guest Player)</span> : null} <span className="text-white/55">v</span> {gameSidePlayersLabel(game, "away")} {game.away_player_1_is_guest || game.away_player_2_is_guest ? <span className="text-[#7bc7d6]">(Guest Player)</span> : null}
+                  {homePlayers} {game.home_player_1_is_guest || game.home_player_2_is_guest ? <span className="text-[#7bc7d6]">(Guest Player)</span> : null} <span className="text-white/55">v</span> {awayPlayers} {game.away_player_1_is_guest || game.away_player_2_is_guest ? <span className="text-[#7bc7d6]">(Guest Player)</span> : null}
                 </p>
               </div>
               <div className="grid gap-1.5 sm:grid-cols-2">
-                <Button className="min-h-10 whitespace-normal px-2 py-1 text-xs leading-tight" size="sm" disabled={locked || pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.homeTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.homeTeamId)}>
-                  {pendingGameIds.has(game.id) && game.winner_team_id === fixture.homeTeamId ? "..." : fixture.homeTeamName.replace(/ Golf Club/g, "")}
+                <Button className="min-h-10 whitespace-normal px-2 py-1 text-xs leading-tight" size="sm" disabled={locked || pending} variant={homeSelected ? "default" : "secondary"} onClick={() => onRecord(game.id, homeSelected ? null : fixture.homeTeamId)}>
+                  {pending && homeSelected ? "..." : homePlayers}
                 </Button>
-                <Button className="min-h-10 whitespace-normal px-2 py-1 text-xs leading-tight" size="sm" disabled={locked || pendingGameIds.has(game.id)} variant={game.winner_team_id === fixture.awayTeamId ? "default" : "secondary"} onClick={() => onRecord(game.id, fixture.awayTeamId)}>
-                  {pendingGameIds.has(game.id) && game.winner_team_id === fixture.awayTeamId ? "..." : fixture.awayTeamName.replace(/ Golf Club/g, "")}
+                <Button className="min-h-10 whitespace-normal px-2 py-1 text-xs leading-tight" size="sm" disabled={locked || pending} variant={awaySelected ? "default" : "secondary"} onClick={() => onRecord(game.id, awaySelected ? null : fixture.awayTeamId)}>
+                  {pending && awaySelected ? "..." : awayPlayers}
                 </Button>
               </div>
               <div className="rounded-lg bg-[#071426]/35 px-2.5 py-2 ring-1 ring-white/10">

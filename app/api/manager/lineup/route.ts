@@ -206,9 +206,9 @@ export async function POST(request: NextRequest) {
 
     if (action === "recordResult") {
       const gameId = String(body.gameId ?? "").trim();
-      const winnerTeamId = String(body.winnerTeamId ?? "").trim();
-      if (!gameId || !winnerTeamId) {
-        return NextResponse.json({ error: "gameId and winnerTeamId are required." }, { status: 400 });
+      const winnerTeamId = body.winnerTeamId === null ? null : String(body.winnerTeamId ?? "").trim();
+      if (!gameId || winnerTeamId === "") {
+        return NextResponse.json({ error: "gameId is required." }, { status: 400 });
       }
 
       await withTransaction(async (client) => {
@@ -1053,24 +1053,28 @@ async function generateGamesIfBothPublished(client: PoolClient, fixtureId: strin
   }
 }
 
-async function recordGameWinner(client: PoolClient, fixtureId: string, gameId: string, winnerTeamId: string) {
-  const result = await client.query<{ match_id: string }>(
-    `select m.id as match_id
+async function recordGameWinner(client: PoolClient, fixtureId: string, gameId: string, winnerTeamId: string | null) {
+  const result = await client.query<{ match_id: string; home_team_id: string; away_team_id: string }>(
+    `select m.id as match_id,
+            f.home_team_id,
+            f.away_team_id
      from public.match m
      join public.fixture f on f.id = m.fixture_id
      join public.game g on g.match_id = m.id
      where f.id = $1
        and g.id = $2
-       and (f.home_team_id = $3 or f.away_team_id = $3)
        and f.status <> 'Completed'
      limit 1`,
-    [fixtureId, gameId, winnerTeamId]
+    [fixtureId, gameId]
   );
-  const matchId = result.rows[0]?.match_id;
-  if (!matchId) throw new Error("Game not found for this fixture.");
+  const game = result.rows[0];
+  if (!game) throw new Error("Game not found for this fixture.");
+  if (winnerTeamId && winnerTeamId !== game.home_team_id && winnerTeamId !== game.away_team_id) {
+    throw new Error("Winner must be one of the teams in this fixture.");
+  }
 
   await client.query("update public.game set winner_team_id = $1 where id = $2", [winnerTeamId, gameId]);
-  await client.query("select public.refresh_match_team_points($1)", [matchId]);
+  await client.query("select public.refresh_match_team_points($1)", [game.match_id]);
 }
 
 async function completeMatch(client: PoolClient, fixtureId: string) {
