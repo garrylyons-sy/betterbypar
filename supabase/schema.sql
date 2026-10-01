@@ -156,6 +156,24 @@ create table public.person_team_role (
 
 comment on table public.person_team_role is 'Season-independent team role assignments attached to a club membership. A person belongs to a club first, then has one or more player or manager roles in that club''s teams.';
 
+create table public.contact_directory (
+  id uuid primary key default gen_random_uuid(),
+  person_id uuid not null references public.person(id) on delete cascade,
+  contact_type text not null check (contact_type in ('League Official', 'Team Contact', 'Club Contact')),
+  contact_label text not null,
+  club_id uuid references public.club(id) on delete cascade,
+  league_id uuid references public.league(id) on delete restrict,
+  team_name text,
+  phone_override text,
+  sort_order integer not null default 1000,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (person_id, contact_type, contact_label)
+);
+
+comment on table public.contact_directory is 'Manager-facing phone directory for league officials and team contacts. The person row remains the source of truth; this table controls match-night directory visibility and labels.';
+
 create table public.invitation (
   id uuid primary key default gen_random_uuid(),
   email text not null,
@@ -1508,6 +1526,7 @@ alter table public.team enable row level security;
 alter table public.team_membership enable row level security;
 alter table public.person_team_role enable row level security;
 alter table public.club_membership enable row level security;
+alter table public.contact_directory enable row level security;
 alter table public.invitation enable row level security;
 alter table public.invitation_membership enable row level security;
 alter table public.invitation_club_membership enable row level security;
@@ -1608,6 +1627,15 @@ create policy "members can read person team roles" on public.person_team_role fo
 create policy "operators can read all person team roles" on public.person_team_role for select to authenticated using (public.is_app_operator());
 create policy "members can read club memberships" on public.club_membership for select to authenticated using (active = true);
 create policy "operators can read all club memberships" on public.club_membership for select to authenticated using (public.is_app_operator());
+create policy "managers can read contact directory" on public.contact_directory for select to authenticated using (
+  active = true
+  and (
+    public.is_app_operator()
+    or exists (select 1 from public.club_admin ca where ca.person_id = public.current_person_id() and ca.active = true)
+    or exists (select 1 from public.club_membership cm where cm.person_id = public.current_person_id() and cm.active = true and cm.is_club_admin = true)
+    or exists (select 1 from public.person_team_role ptr where ptr.person_id = public.current_person_id() and ptr.active = true and ptr.role = 'Manager')
+  )
+);
 create policy "operators can read invitations" on public.invitation for select to authenticated using (public.is_app_operator());
 create policy "operators can read invitation memberships" on public.invitation_membership for select to authenticated using (public.is_app_operator());
 create policy "operators can read invitation club memberships" on public.invitation_club_membership for select to authenticated using (public.is_app_operator());

@@ -11,10 +11,13 @@ import {
   ChevronRight,
   ClipboardCheck,
   Clock3,
+  Copy,
   Home,
   LogOut,
   Mail,
   Menu as MenuIcon,
+  MessageCircle,
+  Phone,
   PlusCircle,
   Share2,
   Swords,
@@ -31,7 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
+type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 const roleOptions: Role[] = ["Player", "Manager", "Club Member", "Club Admin"];
 const RECENT_FORM_LIMIT = 3;
@@ -105,6 +108,7 @@ const menuIconMap: Record<AppearanceMenuId | "Menu", typeof Home> = {
   Bookings: CalendarPlus,
   Competitions: Trophy,
   Friendlies: Swords,
+  Contacts: Phone,
   Players: Users,
   Stats: BarChart3,
   Messages: Mail,
@@ -131,12 +135,16 @@ function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): App
     return ["Home", "Bookings", "Competitions", "Interclub Leagues"];
   }
   if (role === "Club Admin") {
-    return ["Home", "Competitions", "Bookings", "Interclub Leagues"];
+    return ["Home", "Competitions", "Bookings", "Contacts", "Interclub Leagues"];
   }
 
-  const base: AppearanceMenuId[] = ["Home", "Fixtures", "Table", "Results", "Friendlies", "Club"];
+  const base: AppearanceMenuId[] = role === "Manager"
+    ? ["Home", "Fixtures", "Table", "Results", "Contacts", "Friendlies", "Club"]
+    : ["Home", "Fixtures", "Table", "Results", "Friendlies", "Club"];
   if (enteredCompetitionCount > 0) {
-    return withMyClubLast(["Home", "Fixtures", "Table", "Results", "Friendlies", "Competitions", "Club"]);
+    return withMyClubLast(role === "Manager"
+      ? ["Home", "Fixtures", "Table", "Results", "Contacts", "Friendlies", "Competitions", "Club"]
+      : ["Home", "Fixtures", "Table", "Results", "Friendlies", "Competitions", "Club"]);
   }
   return withMyClubLast(base);
 }
@@ -492,6 +500,7 @@ function PageContent({
   if (activePage === "Club") return <ClubHubPage activeTeam={activeTeam} onNavigate={onNavigate} />;
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Competitions") return <CompetitionsPage activeTeam={activeTeam} />;
+  if (activePage === "Contacts") return <ContactsPage activeTeam={activeTeam} />;
   if (activePage === "Friendlies") {
     return (
       <FriendliesPage
@@ -3262,6 +3271,166 @@ function TablesPage({ activeTeam, standingsData, matchResults, userCanShare }: {
         </CardContent>
       </Card>
     </section>
+  );
+}
+
+type ContactDirectoryEntry = {
+  id: string;
+  contactType: "League Official" | "Team Contact" | "Club Contact";
+  contactLabel: string;
+  displayName: string;
+  phone: string;
+  clubName: string | null;
+  leagueName: string | null;
+  teamName: string | null;
+};
+
+function normalizePhoneForHref(phone: string) {
+  const compact = phone.replace(/[^\d+]/g, "");
+  return compact || phone;
+}
+
+function normalizePhoneForWhatsapp(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("00")) return digits.slice(2);
+  if (digits.startsWith("0")) return `353${digits.slice(1)}`;
+  return digits;
+}
+
+function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
+  const [contacts, setContacts] = useState<ContactDirectoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [copiedId, setCopiedId] = useState("");
+  const canView = activeTeam.role === "Manager" || activeTeam.role === "Club Admin";
+
+  useEffect(() => {
+    if (!canView) return;
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    fetch(withTestUser("/api/contacts"), { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "Contacts could not be loaded.");
+        return payload.contacts as ContactDirectoryEntry[];
+      })
+      .then((rows) => {
+        if (!cancelled) setContacts(rows);
+      })
+      .catch((fetchError) => {
+        if (!cancelled) setError(fetchError instanceof Error ? fetchError.message : "Contacts could not be loaded.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canView]);
+
+  if (!canView) {
+    return (
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle>Contacts</CardTitle>
+          <Badge>Managers</Badge>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm font-bold text-[var(--pl-muted-text)]">Manager contacts are available to team managers and club admins.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const groupedContacts = contacts.reduce<Record<string, ContactDirectoryEntry[]>>((groups, contact) => {
+    const key = contact.contactType === "League Official" ? "League" : contact.clubName ?? "Club contacts";
+    groups[key] = groups[key] ?? [];
+    groups[key].push(contact);
+    return groups;
+  }, {});
+
+  const groupNames = Object.keys(groupedContacts).sort((a, b) => {
+    if (a === "League") return -1;
+    if (b === "League") return 1;
+    if (a === activeTeam.club) return -1;
+    if (b === activeTeam.club) return 1;
+    return a.localeCompare(b);
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex-row items-center justify-between gap-3">
+          <div>
+            <CardTitle>Contacts</CardTitle>
+            <p className="mt-1 text-sm font-bold text-[var(--pl-muted-text)]">Manager and league phone directory.</p>
+          </div>
+          <Badge>{contacts.length || "..."}</Badge>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {loading ? (
+            <div className="rounded-[var(--radius-md)] bg-[var(--pl-off-white)] p-4 text-sm font-bold text-[var(--pl-muted-text)]">Loading contacts...</div>
+          ) : error ? (
+            <div className="rounded-[var(--radius-md)] bg-red-50 p-4 text-sm font-black text-red-700">{error}</div>
+          ) : !contacts.length ? (
+            <div className="rounded-[var(--radius-md)] bg-[var(--pl-off-white)] p-4 text-sm font-bold text-[var(--pl-muted-text)]">No contacts have been set up yet.</div>
+          ) : (
+            groupNames.map((groupName) => (
+              <section key={groupName} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-black uppercase text-[var(--pl-text)]">{groupName}</h3>
+                  <Badge variant="soft">{groupedContacts[groupName].length}</Badge>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {groupedContacts[groupName].map((contact) => {
+                    const phoneHref = normalizePhoneForHref(contact.phone);
+                    const whatsappNumber = normalizePhoneForWhatsapp(contact.phone);
+                    return (
+                      <article key={contact.id} className="rounded-[var(--radius-md)] border border-[var(--pl-light-grey)] bg-white p-3 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-black uppercase text-[var(--pl-muted-text)]">{contact.contactLabel}</p>
+                            <p className="mt-1 truncate text-base font-black text-[var(--pl-text)]">{contact.displayName}</p>
+                            <p className="text-sm font-bold text-[var(--pl-muted-text)]">{contact.phone || "No phone yet"}</p>
+                          </div>
+                          {contact.leagueName ? <Badge>{contact.leagueName.replace(" League", "")}</Badge> : null}
+                        </div>
+                        {contact.phone ? (
+                          <div className="mt-3 grid grid-cols-3 gap-2">
+                            <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--pl-deep-purple)] px-2 text-sm font-black text-white" href={`tel:${phoneHref}`}>
+                              <Phone className="h-4 w-4" />
+                              Call
+                            </a>
+                            <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[#0f8f61] px-2 text-sm font-black text-white" href={whatsappNumber ? `https://wa.me/${whatsappNumber}` : undefined} target="_blank" rel="noreferrer">
+                              <MessageCircle className="h-4 w-4" />
+                              WhatsApp
+                            </a>
+                            <button
+                              type="button"
+                              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--pl-light-grey)] px-2 text-sm font-black text-[var(--pl-text)]"
+                              onClick={async () => {
+                                await navigator.clipboard?.writeText(contact.phone);
+                                setCopiedId(contact.id);
+                                window.setTimeout(() => setCopiedId(""), 1500);
+                              }}
+                            >
+                              <Copy className="h-4 w-4" />
+                              {copiedId === contact.id ? "Copied" : "Copy"}
+                            </button>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
