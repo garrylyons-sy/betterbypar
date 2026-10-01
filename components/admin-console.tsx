@@ -1611,6 +1611,50 @@ function PeoplePanel({
     }
   }
 
+  async function disableSelectedLogins() {
+    const selectedPeople = people.filter((person) => selectedPersonIds.includes(person.personId));
+    const loginPeople = selectedPeople.filter((person) => person.accountId && person.loginActive);
+    if (!loginPeople.length) {
+      onMessage("Select people with active logins to disable.");
+      return;
+    }
+
+    if (demo) {
+      onMessage(`${loginPeople.length} login${loginPeople.length === 1 ? "" : "s"} disabled.`);
+      setSelectedPersonIds([]);
+      return;
+    }
+
+    setBusyPersonId("bulk-disable");
+    try {
+      const results = await Promise.all(loginPeople.map(async (person) => {
+        const response = await fetch("/api/admin/people", {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ personId: person.personId, loginActive: false })
+        });
+        const data = await response.json().catch(() => ({}));
+        return {
+          ok: response.ok,
+          error: data.error || `Could not disable ${person.name}.`
+        };
+      }));
+      const disabled = results.filter((result) => result.ok).length;
+      const failed = results.length - disabled;
+      onMessage([
+        disabled ? `${disabled} login${disabled === 1 ? "" : "s"} disabled` : "",
+        failed ? `${failed} failed` : ""
+      ].filter(Boolean).join(", ") || "No logins were disabled.");
+      setSelectedPersonIds([]);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not disable selected logins.");
+    } finally {
+      setBusyPersonId("");
+    }
+  }
+
   async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }> }) {
     if (demo) {
       onMessage("Person details updated.");
@@ -1849,8 +1893,10 @@ function PeoplePanel({
   const selectedEligibleCount = useMemo(() => {
     return people.filter((person) => selectedPersonIds.includes(person.personId) && canSelectForInviteEmail(person)).length;
   }, [people, selectedPersonIds]);
-  const visibleSelectablePeople = visiblePeople.filter(canSelectForInviteEmail);
-  const allVisibleSelectableSelected = visibleSelectablePeople.length > 0 && visibleSelectablePeople.every((person) => selectedPersonIds.includes(person.personId));
+  const selectedLoginOnCount = useMemo(() => {
+    return people.filter((person) => selectedPersonIds.includes(person.personId) && person.accountId && person.loginActive).length;
+  }, [people, selectedPersonIds]);
+  const allVisibleSelected = visiblePeople.length > 0 && visiblePeople.every((person) => selectedPersonIds.includes(person.personId));
 
   function toggleSelectedPerson(personId: string, selected: boolean) {
     setSelectedPersonIds((current) => {
@@ -1859,8 +1905,8 @@ function PeoplePanel({
     });
   }
 
-  function toggleVisibleSelectable(selected: boolean) {
-    const visibleIds = visibleSelectablePeople.map((person) => person.personId);
+  function toggleVisiblePeople(selected: boolean) {
+    const visibleIds = visiblePeople.map((person) => person.personId);
     setSelectedPersonIds((current) => {
       if (!selected) return current.filter((id) => !visibleIds.includes(id));
       return Array.from(new Set([...current, ...visibleIds]));
@@ -1942,17 +1988,17 @@ function PeoplePanel({
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
             <div>
-              <p className="text-sm font-extrabold text-[#10233f]">Invite selected people</p>
-              <p className="text-xs font-semibold text-[#6c5a73]">Tick people to send first invites or resend pending activation emails.</p>
+              <p className="text-sm font-extrabold text-[#10233f]">Selected people</p>
+              <p className="text-xs font-semibold text-[#6c5a73]">Tick people to send invites or disable active logins in bulk.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => toggleVisibleSelectable(!allVisibleSelectableSelected)}
-                disabled={!visibleSelectablePeople.length}
+                onClick={() => toggleVisiblePeople(!allVisibleSelected)}
+                disabled={!visiblePeople.length}
               >
-                {allVisibleSelectableSelected ? "Clear visible" : "Select visible eligible"}
+                {allVisibleSelected ? "Clear visible" : "Select visible"}
               </Button>
               <Button
                 size="sm"
@@ -1962,6 +2008,17 @@ function PeoplePanel({
                 <Mail className="h-4 w-4" />
                 {busyPersonId === "bulk-invite" ? "Sending..." : `Send/resend (${selectedEligibleCount})`}
               </Button>
+              {adminMode === "platform" ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={disableSelectedLogins}
+                  disabled={!selectedLoginOnCount || busyPersonId === "bulk-disable"}
+                  className="text-[#b42318]"
+                >
+                  {busyPersonId === "bulk-disable" ? "Disabling..." : `Disable selected (${selectedLoginOnCount})`}
+                </Button>
+              ) : null}
             </div>
             <label className="flex w-full items-center gap-2 text-xs font-bold text-[#6c5a73] sm:w-auto">
               <input
@@ -1975,15 +2032,15 @@ function PeoplePanel({
           </div>
           {inviteSelectionStatus ? <InviteSendStatus tone={inviteSelectionStatus.tone} text={inviteSelectionStatus.text} /> : null}
           <div className="min-w-0 overflow-x-auto rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden min-w-[1380px] grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.75fr)_minmax(190px,1.1fr)_82px_84px_104px_330px] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden min-w-[1180px] grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.75fr)_minmax(190px,1.1fr)_82px_84px_104px_210px] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
               <span>
                 <input
                   className="h-4 w-4 accent-[#10233f]"
                   type="checkbox"
-                  checked={allVisibleSelectableSelected}
-                  disabled={!visibleSelectablePeople.length}
-                  onChange={(event) => toggleVisibleSelectable(event.target.checked)}
-                  aria-label="Select visible people who can be sent invite emails"
+                  checked={allVisibleSelected}
+                  disabled={!visiblePeople.length}
+                  onChange={(event) => toggleVisiblePeople(event.target.checked)}
+                  aria-label="Select visible people"
                 />
               </span>
               <span>Person</span>
@@ -1995,7 +2052,7 @@ function PeoplePanel({
               <span>Invite status</span>
               <span className="text-right">Actions</span>
             </div>
-            <div className="max-h-[680px] min-w-[1380px] overflow-y-auto">
+            <div className="max-h-[680px] min-w-[1180px] overflow-y-auto">
               {visiblePeople.map((person) => {
                 const handicaps = (person.clubHandicaps ?? []).filter((item) => item.handicap !== null && item.handicap !== undefined);
                 const clubsForPerson = Array.from(new Set([
@@ -2003,19 +2060,17 @@ function PeoplePanel({
                   ...(person.clubAdmins ?? []).map((item) => item.club_name)
                 ].filter(Boolean)));
                 const roleLabels = visiblePersonRoleLabels(person);
-                const canInvitePerson = canSelectForInviteEmail(person);
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.75fr)_minmax(190px,1.1fr)_82px_84px_104px_330px] lg:items-center lg:gap-2">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.75fr)_minmax(190px,1.1fr)_82px_84px_104px_210px] lg:items-center lg:gap-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6c5a73]">
                       <input
                         className="h-4 w-4 accent-[#10233f]"
                         type="checkbox"
                         checked={selectedPersonIds.includes(person.personId)}
-                        disabled={!canInvitePerson}
                         onChange={(event) => toggleSelectedPerson(person.personId, event.target.checked)}
-                        aria-label={`Select ${person.name} for invite`}
+                        aria-label={`Select ${person.name}`}
                       />
-                      <span className="lg:hidden">Invite</span>
+                      <span className="lg:hidden">Select</span>
                     </label>
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 truncate font-extrabold">{person.name}</span>
@@ -2023,16 +2078,6 @@ function PeoplePanel({
                     </div>
                     <div className="flex min-w-0 items-center gap-2">
                       <p className="min-w-0 truncate text-[#6c5a73]">{person.email || "No email yet"}</p>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setEditTarget(person)}
-                        disabled={busyPersonId === person.personId}
-                        className="min-h-8 shrink-0 px-2 text-[11px]"
-                      >
-                        <Pencil className="h-3 w-3" />
-                        Edit
-                      </Button>
                     </div>
                     <p className="min-w-0 truncate text-xs text-[#6c5a73]" title={clubsForPerson.join(" / ")}>
                       {clubsForPerson.length ? clubsForPerson.map((club) => club.replace(" Golf Club", "")).join(" / ") : "-"}
@@ -2080,17 +2125,6 @@ function PeoplePanel({
                         >
                           <Mail className="h-3.5 w-3.5" />
                           Resend
-                        </Button>
-                      ) : null}
-                      {adminMode === "platform" && person.accountId ? (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setLoginAccess(person, !person.loginActive)}
-                          disabled={busyPersonId === person.personId}
-                          className="min-h-9 shrink-0 px-2 text-xs"
-                        >
-                          {person.loginActive ? "Disable" : "Enable"}
                         </Button>
                       ) : null}
                       {adminMode === "platform" ? (
@@ -2153,9 +2187,11 @@ function PeoplePanel({
         <EditPersonModal
           person={editTarget}
           teams={teams}
+          canManageLogin={adminMode === "platform"}
           busy={busyPersonId === editTarget.personId}
           onCancel={() => setEditTarget(null)}
           onConfirm={updatePersonDetails}
+          onSetLoginAccess={(loginActive) => setLoginAccess(editTarget, loginActive)}
         />
       ) : null}
       {deleteTarget ? (
@@ -2205,15 +2241,19 @@ function shortClubName(name: string) {
 function EditPersonModal({
   person,
   teams,
+  canManageLogin,
   busy,
   onCancel,
-  onConfirm
+  onConfirm,
+  onSetLoginAccess
 }: {
   person: PersonOption;
   teams: TeamOption[];
+  canManageLogin: boolean;
   busy: boolean;
   onCancel: () => void;
   onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }> }) => void;
+  onSetLoginAccess: (loginActive: boolean) => void;
 }) {
   const firstHandicap = person.clubHandicaps?.find((item) => item.handicap !== null && item.handicap !== undefined)?.handicap;
   const initialRoles = useMemo<EditRoleRow[]>(() => {
@@ -2283,6 +2323,25 @@ function EditPersonModal({
             <Badge variant="muted">No login</Badge>
           )}
         </div>
+        {canManageLogin && person.accountId ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+            <div>
+              <p className="text-xs font-black uppercase text-[#6c5a73]">Login access</p>
+              <p className="text-sm font-bold text-[#10233f]">
+                {person.loginActive ? "This person can currently log in." : "This person's login is currently disabled."}
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onSetLoginAccess(!person.loginActive)}
+              disabled={busy}
+              className={person.loginActive ? "text-[#b42318]" : ""}
+            >
+              {person.loginActive ? "Disable login" : "Enable login"}
+            </Button>
+          </div>
+        ) : null}
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <AdminInput label="First name" value={firstName} onChange={setFirstName} />
           <AdminInput label="Last name" value={lastName} onChange={setLastName} />
