@@ -778,56 +778,49 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
             const showLineupStatuses = isTodayAdminDate(match.fixture_date);
 
             return (
-              <div key={match.fixture_id} className="grid gap-3 rounded-2xl border border-[#eeeaf2] bg-white p-4 shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={completeStatus as "green" | "muted" | "cyan"}>{match.status}</Badge>
-                      <Badge variant="muted">{match.league_name}</Badge>
-                      <Badge variant="muted">{match.fixture_type}</Badge>
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-                      <AdminMatchTeamStatus
-                        align="left"
-                        showStatus={showLineupStatuses}
-                        status={match.home_lineup_status}
-                        teamName={match.home_team_name}
-                      />
-                      <span className="hidden text-xs font-black uppercase text-[#6c5a73] sm:block">v</span>
-                      <AdminMatchTeamStatus
-                        align="right"
-                        showStatus={showLineupStatuses}
-                        status={match.away_lineup_status}
-                        teamName={match.away_team_name}
-                      />
-                    </div>
-                    <p className="text-sm font-bold text-[#6c5a73]">
-                      {formatAdminDate(match.fixture_date)}
-                      {match.game_count ? ` - ${match.completed_game_count}/${match.game_count} frames scored` : ""}
-                      {match.lineup_count ? ` - ${match.lineup_count} lineup${match.lineup_count === 1 ? "" : "s"}` : ""}
-                    </p>
+              <div key={match.fixture_id} className="grid gap-3 rounded-2xl border border-[#eeeaf2] bg-white p-3 shadow-sm xl:grid-cols-[minmax(360px,1.4fr)_110px_110px_minmax(280px,.9fr)_110px] xl:items-end">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={completeStatus as "green" | "muted" | "cyan"}>{match.status}</Badge>
+                    <Badge variant="muted">{match.league_name}</Badge>
+                    <Badge variant="muted">{match.fixture_type}</Badge>
                   </div>
-                  <Button onClick={() => saveMatch(match)} disabled={savingFixtureId === match.fixture_id}>
-                    {savingFixtureId === match.fixture_id ? "Saving..." : "Save"}
-                  </Button>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                    <AdminMatchTeamStatus
+                      align="left"
+                      showStatus={showLineupStatuses}
+                      status={match.home_lineup_status}
+                      teamName={match.home_team_name}
+                    />
+                    <span className="hidden text-xs font-black uppercase text-[#6c5a73] sm:block">v</span>
+                    <AdminMatchTeamStatus
+                      align="right"
+                      showStatus={showLineupStatuses}
+                      status={match.away_lineup_status}
+                      teamName={match.away_team_name}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs font-bold text-[#6c5a73]">
+                    {formatAdminDate(match.fixture_date)}
+                    {match.game_count ? ` - ${match.completed_game_count}/${match.game_count} frames scored` : ""}
+                    {match.lineup_count ? ` - ${match.lineup_count} lineup${match.lineup_count === 1 ? "" : "s"}` : ""}
+                  </p>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-[140px_140px]">
-                  <AdminInput
-                    label={`${match.home_team_name} score`}
-                    value={draft.homeTeamScore}
-                    onChange={(value) => updateDraft(match.fixture_id, { homeTeamScore: value })}
-                    type="number"
-                  />
-                  <AdminInput
-                    label={`${match.away_team_name} score`}
-                    value={draft.awayTeamScore}
-                    onChange={(value) => updateDraft(match.fixture_id, { awayTeamScore: value })}
-                    type="number"
-                  />
-                </div>
+                <AdminInput
+                  label={`${match.home_team_name} score`}
+                  value={draft.homeTeamScore}
+                  onChange={(value) => updateDraft(match.fixture_id, { homeTeamScore: value })}
+                  type="number"
+                />
+                <AdminInput
+                  label={`${match.away_team_name} score`}
+                  value={draft.awayTeamScore}
+                  onChange={(value) => updateDraft(match.fixture_id, { awayTeamScore: value })}
+                  type="number"
+                />
 
-                <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px] xl:grid-cols-[minmax(0,1fr)_130px]">
                   <AdminInput
                     label="Fixture date / postponed until"
                     value={draft.fixtureDate}
@@ -841,6 +834,10 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                     options={statusOptions.filter((option) => option.value !== "all")}
                   />
                 </div>
+
+                <Button onClick={() => saveMatch(match)} disabled={savingFixtureId === match.fixture_id} className="xl:self-end">
+                  {savingFixtureId === match.fixture_id ? "Saving..." : "Save"}
+                </Button>
               </div>
             );
           })}
@@ -866,10 +863,10 @@ function AdminMatchTeamStatus({
   teamName: string;
 }) {
   return (
-    <div className={cn("rounded-xl bg-[#f7f5fa] p-3", align === "right" ? "sm:text-right" : "")}>
-      <p className="text-base font-extrabold text-[#10233f]">{teamName}</p>
+    <div className={cn("rounded-lg bg-[#f7f5fa] px-3 py-2", align === "right" ? "sm:text-right" : "")}>
+      <p className="truncate text-sm font-extrabold text-[#10233f]" title={teamName}>{teamName}</p>
       {showStatus ? (
-        <span className={cn("mt-2 inline-flex rounded-md px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em]", adminLineupStatusClass(status))}>
+        <span className={cn("mt-1 inline-flex rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em]", adminLineupStatusClass(status))}>
           {adminLineupStatusLabel(status)}
         </span>
       ) : null}
