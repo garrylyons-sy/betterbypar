@@ -10,6 +10,12 @@ type SubmittedTeamRole = {
   teamId: string;
 };
 
+type ExistingRoleMatch = {
+  id: string;
+  first_name: string;
+  last_name: string;
+};
+
 async function adminAccess() {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated.");
@@ -82,7 +88,46 @@ export async function POST(request: NextRequest) {
       if (!scopedClubId) throw new Error("Club was not found.");
       assertClubScope(access, scopedClubId);
 
-      let personResult = email
+      if (clubLevelRole) {
+        const existingRole = await client.query<ExistingRoleMatch>(
+          `select p.id, p.first_name, p.last_name
+           from public.person p
+           join public.club_membership cm
+             on cm.person_id = p.id
+            and cm.club_id = $3
+            and cm.role = 'Club Member'
+            and cm.active = true
+           where p.active = true
+             and lower(trim(p.first_name)) = lower(trim($1::text))
+             and lower(trim(p.last_name)) = lower(trim($2::text))
+           limit 1`,
+          [firstName, lastName, scopedClubId]
+        );
+        if (existingRole.rows[0]) {
+          throw new Error(`${firstName} ${lastName} already has club access for this club. Open their existing person record to edit roles or details.`);
+        }
+      } else {
+        const existingRole = await client.query<ExistingRoleMatch & { team_name: string }>(
+          `select p.id, p.first_name, p.last_name, t.name as team_name
+           from public.person p
+           join public.team_membership tm
+             on tm.person_id = p.id
+            and tm.team_id = $3
+            and tm.role = $4::public.membership_role
+            and tm.active = true
+           join public.team t on t.id = tm.team_id
+           where p.active = true
+             and lower(trim(p.first_name)) = lower(trim($1::text))
+             and lower(trim(p.last_name)) = lower(trim($2::text))
+           limit 1`,
+          [firstName, lastName, teamId, role]
+        );
+        if (existingRole.rows[0]) {
+          throw new Error(`${firstName} ${lastName} is already a ${role.toLowerCase()} for ${existingRole.rows[0].team_name}. Open their existing person record to edit roles or details.`);
+        }
+      }
+
+      let personResult: { rows: Array<{ id: string }> } = email
         ? await client.query(
             `select id
              from public.person
@@ -91,6 +136,28 @@ export async function POST(request: NextRequest) {
             [email]
           )
         : { rows: [] };
+
+      if (!personResult.rows[0]) {
+        const nameMatches = await client.query<{ id: string }>(
+          `select distinct p.id
+           from public.person p
+           join public.club_membership cm
+             on cm.person_id = p.id
+            and cm.club_id = $3
+            and cm.active = true
+           where p.active = true
+             and lower(trim(p.first_name)) = lower(trim($1::text))
+             and lower(trim(p.last_name)) = lower(trim($2::text))
+           limit 2`,
+          [firstName, lastName, scopedClubId]
+        );
+        if (nameMatches.rows.length > 1) {
+          throw new Error(`${firstName} ${lastName} already exists more than once for this club. Add or edit them using an email address so the right person is updated.`);
+        }
+        if (nameMatches.rows[0]) {
+          personResult = { rows: [{ id: nameMatches.rows[0].id }] };
+        }
+      }
 
       if (!personResult.rows[0]) {
         personResult = await client.query(
