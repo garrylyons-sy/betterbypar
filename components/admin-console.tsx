@@ -131,16 +131,6 @@ type AdminCompetitionDetail = {
   rounds: Array<{ id: string; name: string; roundNumber: number; playByDate: string; framesToPlay: number }>;
   matches: Array<{ id: string; roundName: string; matchNumber: number; player1Name: string; player2Name: string; status: string; isPlaceholder?: boolean }>;
 };
-type AdminMatchTeamOption = {
-  id: string;
-  name: string;
-  season_id: string;
-  season_name: string;
-  league_id: string;
-  league_name: string;
-  club_id: string;
-  club_name: string;
-};
 type AdminMatchRow = {
   fixture_id: string;
   fixture_date: string;
@@ -157,6 +147,8 @@ type AdminMatchRow = {
   match_id: string | null;
   home_team_score: number | null;
   away_team_score: number | null;
+  home_lineup_status: string | null;
+  away_lineup_status: string | null;
   lineup_count: number;
   game_count: number;
   completed_game_count: number;
@@ -668,7 +660,6 @@ function DesktopAdminPanel({
 
 function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void }) {
   const [matches, setMatches] = useState<AdminMatchRow[]>([]);
-  const [teams, setTeams] = useState<AdminMatchTeamOption[]>([]);
   const [seasons, setSeasons] = useState<AdminMatchSeason[]>([]);
   const [leagues, setLeagues] = useState<AdminMatchLeague[]>([]);
   const [season, setSeason] = useState("2026/27");
@@ -692,7 +683,6 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
       if (!response.ok) throw new Error(data.error || "Could not load matches.");
       const nextMatches = (data.matches ?? []) as AdminMatchRow[];
       setMatches(nextMatches);
-      setTeams((data.teams ?? []) as AdminMatchTeamOption[]);
       setSeasons((data.seasons ?? []) as AdminMatchSeason[]);
       setLeagues((data.leagues ?? []) as AdminMatchLeague[]);
       setDrafts(Object.fromEntries(nextMatches.map((match) => [match.fixture_id, matchDraft(match)])));
@@ -784,11 +774,8 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
         <div className="grid gap-3">
           {matches.map((match) => {
             const draft = drafts[match.fixture_id] ?? matchDraft(match);
-            const teamOptions = teams
-              .filter((team) => team.season_id === match.season_id && team.league_id === match.league_id)
-              .map((team) => ({ value: team.id, label: `${team.name} - ${team.club_name}` }));
-            const teamsLocked = match.lineup_count > 0 || match.game_count > 0;
             const completeStatus = match.status === "Completed" ? "green" : match.status === "Cancelled" ? "muted" : "cyan";
+            const showLineupStatuses = isTodayAdminDate(match.fixture_date);
 
             return (
               <div key={match.fixture_id} className="grid gap-3 rounded-2xl border border-[#eeeaf2] bg-white p-4 shadow-sm">
@@ -799,9 +786,21 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                       <Badge variant="muted">{match.league_name}</Badge>
                       <Badge variant="muted">{match.fixture_type}</Badge>
                     </div>
-                    <h3 className="mt-2 text-lg font-extrabold text-[#10233f]">
-                      {match.home_team_name} v {match.away_team_name}
-                    </h3>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                      <AdminMatchTeamStatus
+                        align="left"
+                        showStatus={showLineupStatuses}
+                        status={match.home_lineup_status}
+                        teamName={match.home_team_name}
+                      />
+                      <span className="hidden text-xs font-black uppercase text-[#6c5a73] sm:block">v</span>
+                      <AdminMatchTeamStatus
+                        align="right"
+                        showStatus={showLineupStatuses}
+                        status={match.away_lineup_status}
+                        teamName={match.away_team_name}
+                      />
+                    </div>
                     <p className="text-sm font-bold text-[#6c5a73]">
                       {formatAdminDate(match.fixture_date)}
                       {match.game_count ? ` - ${match.completed_game_count}/${match.game_count} frames scored` : ""}
@@ -813,27 +812,15 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                   </Button>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-[1fr_1fr_110px_110px]">
-                  <AdminSelect
-                    label="Home team"
-                    value={draft.homeTeamId}
-                    onChange={(value) => updateDraft(match.fixture_id, { homeTeamId: value })}
-                    options={teamOptions}
-                  />
-                  <AdminSelect
-                    label="Away team"
-                    value={draft.awayTeamId}
-                    onChange={(value) => updateDraft(match.fixture_id, { awayTeamId: value })}
-                    options={teamOptions}
-                  />
+                <div className="grid gap-3 md:grid-cols-[140px_140px]">
                   <AdminInput
-                    label="Home score"
+                    label={`${match.home_team_name} score`}
                     value={draft.homeTeamScore}
                     onChange={(value) => updateDraft(match.fixture_id, { homeTeamScore: value })}
                     type="number"
                   />
                   <AdminInput
-                    label="Away score"
+                    label={`${match.away_team_name} score`}
                     value={draft.awayTeamScore}
                     onChange={(value) => updateDraft(match.fixture_id, { awayTeamScore: value })}
                     type="number"
@@ -854,12 +841,6 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                     options={statusOptions.filter((option) => option.value !== "all")}
                   />
                 </div>
-
-                {teamsLocked ? (
-                  <p className="rounded-xl bg-[#f7f5fa] p-3 text-xs font-bold text-[#6c5a73]">
-                    Teams are locked because lineups or frame details already exist. You can still change the date, status and score.
-                  </p>
-                ) : null}
               </div>
             );
           })}
@@ -871,6 +852,53 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
       </CardContent>
     </Card>
   );
+}
+
+function AdminMatchTeamStatus({
+  align,
+  showStatus,
+  status,
+  teamName
+}: {
+  align: "left" | "right";
+  showStatus: boolean;
+  status: string | null;
+  teamName: string;
+}) {
+  return (
+    <div className={cn("rounded-xl bg-[#f7f5fa] p-3", align === "right" ? "sm:text-right" : "")}>
+      <p className="text-base font-extrabold text-[#10233f]">{teamName}</p>
+      {showStatus ? (
+        <span className={cn("mt-2 inline-flex rounded-md px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em]", adminLineupStatusClass(status))}>
+          {adminLineupStatusLabel(status)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function adminLineupStatusLabel(status: string | null) {
+  if (status === "Published") return "PUBLISHED";
+  if (status === "Draft") return "DRAFT SAVED";
+  return "TO BE PICKED";
+}
+
+function adminLineupStatusClass(status: string | null) {
+  if (status === "Published") return "bg-[#00ff85] text-[#041a12]";
+  if (status === "Draft") return "bg-[#04f5ff] text-[#10233f]";
+  return "bg-[#eeeaf2] text-[#6c5a73]";
+}
+
+function isTodayAdminDate(value: string) {
+  const fixtureDate = new Date(value);
+  if (Number.isNaN(fixtureDate.getTime())) return false;
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Dublin",
+    year: "numeric"
+  });
+  return formatter.format(fixtureDate) === formatter.format(new Date());
 }
 
 function matchDraft(match: AdminMatchRow) {

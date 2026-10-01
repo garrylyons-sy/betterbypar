@@ -46,22 +46,30 @@ export async function GET(request: NextRequest) {
            m.id as match_id,
            m.home_team_score,
            m.away_team_score,
-           count(distinct fl.id)::int as lineup_count,
-           count(distinct g.id)::int as game_count,
-           count(distinct g.id) filter (where g.winner_team_id is not null)::int as completed_game_count
+           hfl.status::text as home_lineup_status,
+           afl.status::text as away_lineup_status,
+           ((case when hfl.id is null then 0 else 1 end) + (case when afl.id is null then 0 else 1 end))::int as lineup_count,
+           coalesce(game_counts.game_count, 0)::int as game_count,
+           coalesce(game_counts.completed_game_count, 0)::int as completed_game_count
          from public.fixture f
          join public.season s on s.id = f.season_id
          join public.league l on l.id = f.league_id
          join public.team ht on ht.id = f.home_team_id
          join public.team at on at.id = f.away_team_id
          left join public.match m on m.fixture_id = f.id
-         left join public.fixture_lineup fl on fl.fixture_id = f.id
-         left join public.game g on g.match_id = m.id
+         left join public.fixture_lineup hfl on hfl.fixture_id = f.id and hfl.team_id = f.home_team_id
+         left join public.fixture_lineup afl on afl.fixture_id = f.id and afl.team_id = f.away_team_id
+         left join lateral (
+           select
+             count(*)::int as game_count,
+             count(*) filter (where g.winner_team_id is not null)::int as completed_game_count
+           from public.game g
+           where g.match_id = m.id
+         ) game_counts on true
          where s.name = $1
            and ($2 = 'all' or l.name = $2)
            and ($3 = 'all' or f.status::text = $3)
            and ($4 = 'all' or coalesce(f.fixture_type, 'League') = $4)
-         group by f.id, s.name, l.name, ht.name, at.name, m.id
          order by f.fixture_date, l.name, ht.name`,
         [season, league, status, type]
       ),
