@@ -3301,6 +3301,25 @@ function normalizePhoneForWhatsapp(phone: string) {
   return digits;
 }
 
+function useCanUsePhoneCalls() {
+  const [canCall, setCanCall] = useState(false);
+
+  useEffect(() => {
+    function update() {
+      const userAgent = window.navigator.userAgent;
+      const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+      const smallViewport = window.matchMedia("(max-width: 820px)").matches;
+      setCanCall(/Android|iPhone|iPad|iPod|Mobile/i.test(userAgent) || (coarsePointer && smallViewport));
+    }
+
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  return canCall;
+}
+
 function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [contacts, setContacts] = useState<ContactDirectoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3308,6 +3327,7 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [copiedId, setCopiedId] = useState("");
   const [openClubNames, setOpenClubNames] = useState<Set<string>>(new Set());
   const canView = activeTeam.role === "Manager" || activeTeam.role === "Club Admin";
+  const canUsePhoneCalls = useCanUsePhoneCalls();
 
   useEffect(() => {
     if (!canView) return;
@@ -3406,7 +3426,7 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
                   </div>
                   <div className="grid gap-2 md:grid-cols-2">
                     {leagueContacts.map((contact) => (
-                      <ContactCard key={contact.id} contact={contact} copiedId={copiedId} setCopiedId={setCopiedId} />
+                      <ContactCard key={contact.id} contact={contact} copiedId={copiedId} setCopiedId={setCopiedId} canUsePhoneCalls={canUsePhoneCalls} />
                     ))}
                   </div>
                 </section>
@@ -3439,7 +3459,7 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
                     {open ? (
                       <div className="grid gap-2 p-3 sm:grid-cols-2 sm:p-4">
                         {clubContacts.map((contact) => (
-                          <ContactCard key={contact.id} contact={contact} copiedId={copiedId} setCopiedId={setCopiedId} />
+                          <ContactCard key={contact.id} contact={contact} copiedId={copiedId} setCopiedId={setCopiedId} canUsePhoneCalls={canUsePhoneCalls} />
                         ))}
                       </div>
                     ) : null}
@@ -3457,14 +3477,19 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
 function ContactCard({
   contact,
   copiedId,
-  setCopiedId
+  setCopiedId,
+  canUsePhoneCalls
 }: {
   contact: ContactDirectoryEntry;
   copiedId: string;
   setCopiedId: (id: string) => void;
+  canUsePhoneCalls: boolean;
 }) {
   const phoneHref = normalizePhoneForHref(contact.phone);
   const whatsappNumber = normalizePhoneForWhatsapp(contact.phone);
+  const hasPhone = Boolean(phoneHref);
+  const contactActionClass = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 text-sm font-black";
+  const disabledActionClass = `${contactActionClass} cursor-not-allowed bg-[var(--pl-light-grey)] text-[var(--pl-muted-text)] opacity-70`;
 
   return (
     <article className="rounded-[var(--radius-md)] border border-[var(--pl-light-grey)] bg-white p-3 shadow-sm">
@@ -3476,30 +3501,47 @@ function ContactCard({
         </div>
         {contact.leagueName ? <Badge>{contact.leagueName.replace(" League", "")}</Badge> : null}
       </div>
-      {contact.phone ? (
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[var(--pl-deep-purple)] px-2 text-sm font-black text-white" href={`tel:${phoneHref}`}>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {hasPhone && canUsePhoneCalls ? (
+          <a className={`${contactActionClass} bg-[var(--pl-deep-purple)] text-white`} href={`tel:${phoneHref}`}>
             <Phone className="h-4 w-4" />
             Call
           </a>
-          <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#0f8f61] px-2 text-sm font-black text-white" href={whatsappNumber ? `https://wa.me/${whatsappNumber}` : undefined} target="_blank" rel="noreferrer">
+        ) : (
+          <span className={disabledActionClass} aria-disabled="true" title={hasPhone ? "Calls are available on phone devices." : "No phone number available."}>
+            <Phone className="h-4 w-4" />
+            Call
+          </span>
+        )}
+        {whatsappNumber ? (
+          <a className={`${contactActionClass} bg-[#0f8f61] text-white`} href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noreferrer">
             <MessageCircle className="h-4 w-4" />
             WhatsApp
           </a>
-          <button
-            type="button"
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[var(--pl-light-grey)] px-2 text-sm font-black text-[var(--pl-text)]"
-            onClick={async () => {
-              await navigator.clipboard?.writeText(contact.phone);
-              setCopiedId(contact.id);
-              window.setTimeout(() => setCopiedId(""), 1500);
-            }}
-          >
-            <Copy className="h-4 w-4" />
-            {copiedId === contact.id ? "Copied" : "Copy"}
-          </button>
-        </div>
-      ) : null}
+        ) : (
+          <span className={disabledActionClass} aria-disabled="true" title="No phone number available.">
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp
+          </span>
+        )}
+        <button
+          type="button"
+          className={cn(
+            contactActionClass,
+            hasPhone ? "bg-[var(--pl-light-grey)] text-[var(--pl-text)]" : "cursor-not-allowed bg-[var(--pl-light-grey)] text-[var(--pl-muted-text)] opacity-70"
+          )}
+          disabled={!hasPhone}
+          onClick={async () => {
+            if (!hasPhone) return;
+            await navigator.clipboard?.writeText(contact.phone);
+            setCopiedId(contact.id);
+            window.setTimeout(() => setCopiedId(""), 1500);
+          }}
+        >
+          <Copy className="h-4 w-4" />
+          {copiedId === contact.id ? "Copied" : "Copy"}
+        </button>
+      </div>
     </article>
   );
 }
