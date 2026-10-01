@@ -3478,17 +3478,17 @@ function ContactCard({
       </div>
       {contact.phone ? (
         <div className="mt-3 grid grid-cols-3 gap-2">
-          <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--pl-deep-purple)] px-2 text-sm font-black text-white" href={`tel:${phoneHref}`}>
+          <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[var(--pl-deep-purple)] px-2 text-sm font-black text-white" href={`tel:${phoneHref}`}>
             <Phone className="h-4 w-4" />
             Call
           </a>
-          <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[#0f8f61] px-2 text-sm font-black text-white" href={whatsappNumber ? `https://wa.me/${whatsappNumber}` : undefined} target="_blank" rel="noreferrer">
+          <a className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#0f8f61] px-2 text-sm font-black text-white" href={whatsappNumber ? `https://wa.me/${whatsappNumber}` : undefined} target="_blank" rel="noreferrer">
             <MessageCircle className="h-4 w-4" />
             WhatsApp
           </a>
           <button
             type="button"
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--pl-light-grey)] px-2 text-sm font-black text-[var(--pl-text)]"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[var(--pl-light-grey)] px-2 text-sm font-black text-[var(--pl-text)]"
             onClick={async () => {
               await navigator.clipboard?.writeText(contact.phone);
               setCopiedId(contact.id);
