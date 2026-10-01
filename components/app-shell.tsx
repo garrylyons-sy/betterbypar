@@ -1198,7 +1198,7 @@ function truncateForShare(value: string, maxLength: number) {
 const shareVisualWidth = 720;
 const shareVisualPadding = 32;
 const shareVisualContentWidth = shareVisualWidth - shareVisualPadding * 2;
-const shareVisualHeaderRadius = 24;
+const shareVisualHeaderRadius = 10;
 
 function imageBlobFromCanvas(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
@@ -1316,6 +1316,7 @@ function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
     const score = postponed ? "POSTPONED" : hasScore ? `${fixture.homeTeamScore}-${fixture.awayTeamScore}` : "v";
     const scoreBoxWidth = postponed ? 128 : 98;
     const scoreBoxX = 656 - scoreBoxWidth;
+    const scoreTextX = scoreBoxX + scoreBoxWidth / 2;
     const scoreFontSize = postponed ? 17 : 27;
     const scoreFill = postponed ? "#eef2f6" : "#10233f";
     const scoreTextFill = postponed ? "#10233f" : "#ffffff";
@@ -1330,7 +1331,7 @@ function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
       <circle cx="62" cy="${y + 78}" r="7" fill="${away.primaryColor}" />
       <text x="80" y="${y + 86}" font-size="24" font-weight="800" fill="${awayWon ? "#007a3d" : away.primaryColor}">${svgEscape(truncateForShare(fixture.awayTeamName, 28))}</text>
       <rect x="${scoreBoxX}" y="${y + 30}" width="${scoreBoxWidth}" height="48" rx="14" fill="${scoreFill}" stroke="${postponed ? "#dfe7ee" : scoreFill}" />
-      <text x="607" y="${y + 63}" text-anchor="middle" font-size="${scoreFontSize}" font-weight="850" fill="${scoreTextFill}">${svgEscape(score)}</text>
+      <text x="${scoreTextX}" y="${y + 63}" text-anchor="middle" font-size="${scoreFontSize}" font-weight="850" fill="${scoreTextFill}">${svgEscape(score)}</text>
     `;
   }).join("");
 
