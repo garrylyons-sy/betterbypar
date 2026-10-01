@@ -1096,6 +1096,13 @@ function qualificationBadgeVariant(status: QualificationStatus) {
   return "muted";
 }
 
+function qualificationPositionColors(status: QualificationStatus) {
+  if (status === "final") return { background: "#ffb000", color: "#25002b" };
+  if (status === "semi") return { background: "#00ff85", color: "#071426" };
+  if (status === "prelim") return { background: "#04f5ff", color: "#071426" };
+  return { background: "#eeeaf2", color: "#25002b" };
+}
+
 function qualificationLabel(status: QualificationStatus) {
   if (status === "final") return "Final";
   if (status === "semi") return "Semi";
@@ -1346,15 +1353,14 @@ function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[]
     const diff = row.pointsFor - row.pointsAgainst;
     const colors = teamColors(row.team);
     const qualification = qualificationStatus(row.position, tableRows.length, activeTeam.league);
-    const positionFill = qualification === "final" ? "#ffb000" : qualification === "semi" || qualification === "prelim" ? "#00ff85" : "#e8edf3";
-    const positionText = qualification === "none" ? "#10233f" : "#071426";
+    const positionColors = qualificationPositionColors(qualification);
     const activeFill = row.team === activeTeam.name ? "#eef4ff" : index % 2 ? "#ffffff" : "#f7f9fc";
 
     return `
       <rect x="${shareVisualPadding}" y="${y}" width="${shareVisualContentWidth}" height="72" rx="16" fill="${activeFill}" stroke="#dfe7ee" />
       <rect x="${shareVisualPadding}" y="${y}" width="7" height="72" rx="4" fill="${colors.primaryColor}" />
-      <rect x="56" y="${y + 16}" width="40" height="40" rx="12" fill="${positionFill}" />
-      <text x="76" y="${y + 43}" text-anchor="middle" font-size="19" font-weight="850" fill="${positionText}">${row.position}</text>
+      <rect x="56" y="${y + 16}" width="40" height="40" rx="12" fill="${positionColors.background}" />
+      <text x="76" y="${y + 43}" text-anchor="middle" font-size="19" font-weight="850" fill="${positionColors.color}">${row.position}</text>
       <text x="116" y="${y + 35}" font-size="23" font-weight="850" fill="${colors.primaryColor}">${svgEscape(truncateForShare(row.team, 22))}</text>
       <text x="116" y="${y + 58}" font-size="15" font-weight="750" fill="#6c7788">${svgEscape(tableForm(row, matchResults))}</text>
       <text x="444" y="${y + 32}" text-anchor="end" font-size="16" font-weight="800" fill="#6c7788">P</text>
@@ -6618,8 +6624,8 @@ function LeagueTable({
           ) : null}
           {sectionMode ? <Badge variant="soft">{tableRows.length} teams</Badge> : <Badge variant="muted">{activeTeam.league}</Badge>}
           {showDirectFinal ? <Badge variant={sectionMode ? "soft" : "gold"}>Final</Badge> : null}
-          {showSemiFinals ? <Badge variant={sectionMode ? "soft" : "green"}>Semi</Badge> : null}
-          {showPrelims ? <Badge variant={sectionMode ? "soft" : "green"}>Prelim</Badge> : null}
+          {showSemiFinals ? <Badge variant="green">Semi</Badge> : null}
+          {showPrelims ? <Badge variant="cyan">Prelim</Badge> : null}
         </div>
       </CardHeader>
       <CardContent>
@@ -6654,6 +6660,7 @@ function LeagueTable({
                 const accentColor = club?.accentColor ?? primaryColor;
                 const form = tableForm(row, matchResults);
                 const qualification = qualificationStatus(row.position, teamCount, activeTeam.league);
+                const positionColors = qualificationPositionColors(qualification);
 
                 return (
                   <tr
@@ -6666,14 +6673,8 @@ function LeagueTable({
                   >
                     <td className="border-t border-[#eeeaf2] py-3 pr-1">
                       <span
-                        className={cn(
-                          "inline-grid h-8 w-8 place-items-center rounded-lg text-xs font-extrabold",
-                          qualification === "final"
-                            ? "bg-[#ffb000] text-[#25002b]"
-                            : qualification === "semi" || qualification === "prelim"
-                              ? "bg-[#00ff85] text-[#25002b]"
-                              : "bg-[#eeeaf2] text-[#25002b]"
-                        )}
+                        className="inline-grid h-8 w-8 place-items-center rounded-lg text-xs font-extrabold"
+                        style={{ backgroundColor: positionColors.background, color: positionColors.color }}
                       >
                         {row.position}
                       </span>
