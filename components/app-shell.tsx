@@ -3245,6 +3245,16 @@ function TablesPage({ activeTeam, standingsData, matchResults, userCanShare }: {
       }) : (
         <LeagueTable activeTeam={activeTeam} standingsData={[]} matchResults={[]} presentation="section" userCanShare={userCanShare} />
       )}
+      <Card>
+        <CardContent className="grid gap-2 p-4 text-xs font-semibold leading-relaxed text-[#6c5a73]">
+          <p>
+            <span className="font-extrabold uppercase text-[#25002b]">League table order:</span> league points, head-to-head points between tied teams, points difference, matches won, then team name.
+          </p>
+          <p>
+            <span className="font-extrabold uppercase text-[#25002b]">Player stats order:</span> players who can still reach 12 matches first, then win percentage, games won, games played, highest break, then player name.
+          </p>
+        </CardContent>
+      </Card>
     </section>
   );
 }
@@ -6228,7 +6238,7 @@ function LeaguePlayerStatsCard({ activeTeam, userCanShare = false }: { activeTea
           aria-expanded={open}
         >
           <span className="block text-lg font-extrabold text-[#25002b]">{activeTeam.league} Player Stats</span>
-          <span className="mt-1 block text-sm font-semibold text-[#6c5a73]">Ranked by win percentage</span>
+          <span className="mt-1 block text-sm font-semibold text-[#6c5a73]">Eligible players first, then win percentage</span>
         </button>
         <div className="flex shrink-0 items-center gap-2">
           {userCanShare && players.length ? (

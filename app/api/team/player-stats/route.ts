@@ -154,8 +154,9 @@ export async function GET(request: NextRequest) {
            when played::numeric > 0 then won::numeric / played::numeric
            else -1
          end desc,
-         played::numeric desc,
          won::numeric desc,
+         played::numeric desc,
+         highest_break desc nulls last,
          player_name`,
       [team.club_id, team.league_id, team.team_name, team.team_id, team.season_id]
     );
