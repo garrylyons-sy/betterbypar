@@ -14,6 +14,7 @@ type LeagueBreakRow = {
   player_email: string | null;
   team_name: string | null;
   opponent_team_name: string | null;
+  venue_side: "H" | "A" | null;
   game_number: number | null;
 };
 
@@ -57,6 +58,11 @@ export async function GET(request: NextRequest) {
            when b.player_id in (g.away_player_1_id, g.away_player_2_id) then home_team.name
            else null
          end as opponent_team_name,
+         case
+           when b.player_id in (g.home_player_1_id, g.home_player_2_id) then 'H'
+           when b.player_id in (g.away_player_1_id, g.away_player_2_id) then 'A'
+           else null
+         end as venue_side,
          g.game_number
        from public.break b
        join public.person p on p.id = b.player_id and p.active = true
@@ -84,6 +90,7 @@ export async function GET(request: NextRequest) {
         playerEmail: row.player_email,
         teamName: row.team_name,
         opponentTeamName: row.opponent_team_name,
+        venueSide: row.venue_side,
         gameNumber: row.game_number === null ? null : Number(row.game_number)
       }))
     });
