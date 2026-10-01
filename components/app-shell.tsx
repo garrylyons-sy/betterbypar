@@ -6684,10 +6684,9 @@ function LeagueBreaksCard({ activeTeam }: { activeTeam: TeamContext }) {
               <div className="min-w-0">
                 <p className="truncate text-sm font-extrabold leading-tight" style={{ color: colors.primaryColor }}>{entry.playerName}</p>
                 <p className="truncate text-xs font-bold text-[#6c5a73]">{entry.teamName ?? "Team"} · {opponentLabel}</p>
-                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-semibold text-[#6c5a73]">
-                  {entry.venueSide ? <Badge variant="soft">{entry.venueSide}</Badge> : null}
-                  <span className="min-w-0 truncate">{fixtureLabel}{entry.gameNumber ? ` · Game ${entry.gameNumber}` : ""}</span>
-                </div>
+                <p className="truncate text-[11px] font-semibold text-[#6c5a73]">
+                  {fixtureLabel}{entry.gameNumber ? ` · Game ${entry.gameNumber}` : ""}{entry.venueSide ? ` (${entry.venueSide})` : ""}
+                </p>
               </div>
               <Badge variant={rank === 1 ? "gold" : "muted"}>#{rank}</Badge>
             </div>
