@@ -52,6 +52,11 @@ type InviteRoleRow = {
   role: InviteRole;
   teamId: string;
 };
+type EditRoleRow = {
+  id: string;
+  role: TeamRole;
+  teamId: string;
+};
 type ParsedInviteRow = {
   name: string;
   email: string;
@@ -1617,7 +1622,7 @@ function PeoplePanel({
     }
   }
 
-  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string }) {
+  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }> }) {
     if (demo) {
       onMessage("Person details updated.");
       setEditTarget(null);
@@ -2158,6 +2163,7 @@ function PeoplePanel({
       {editTarget ? (
         <EditPersonModal
           person={editTarget}
+          teams={teams}
           busy={busyPersonId === editTarget.personId}
           onCancel={() => setEditTarget(null)}
           onConfirm={updatePersonDetails}
@@ -2209,31 +2215,69 @@ function shortClubName(name: string) {
 
 function EditPersonModal({
   person,
+  teams,
   busy,
   onCancel,
   onConfirm
 }: {
   person: PersonOption;
+  teams: TeamOption[];
   busy: boolean;
   onCancel: () => void;
-  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string }) => void;
+  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }> }) => void;
 }) {
   const firstHandicap = person.clubHandicaps?.find((item) => item.handicap !== null && item.handicap !== undefined)?.handicap;
+  const initialRoles = useMemo<EditRoleRow[]>(() => {
+    const rows = (person.teamRoles ?? []).map((teamRole, index) => {
+      const matchingTeam = teams.find((team) =>
+        team.teamName === teamRole.team_name
+        && team.leagueName === teamRole.league_name
+        && team.clubName === teamRole.club_name
+      );
+      if (!matchingTeam || (teamRole.role !== "Player" && teamRole.role !== "Manager")) return null;
+      return {
+        id: `${matchingTeam.teamId}-${teamRole.role}-${index}`,
+        role: teamRole.role as TeamRole,
+        teamId: matchingTeam.teamId
+      };
+    }).filter((row): row is EditRoleRow => Boolean(row));
+
+    return rows.length ? rows : [];
+  }, [person.teamRoles, teams]);
   const [firstName, setFirstName] = useState(person.firstName);
   const [lastName, setLastName] = useState(person.lastName);
   const [email, setEmail] = useState(person.email ?? "");
   const [phone, setPhone] = useState(person.phone ?? "");
   const [handicap, setHandicap] = useState(firstHandicap === null || firstHandicap === undefined ? "" : String(firstHandicap));
+  const [roleRows, setRoleRows] = useState<EditRoleRow[]>(initialRoles);
   const canSave = Boolean(firstName.trim() && lastName.trim());
+  const sortedTeams = useMemo(() => {
+    return [...teams].sort((a, b) => a.clubName.localeCompare(b.clubName) || a.teamName.localeCompare(b.teamName) || a.leagueName.localeCompare(b.leagueName));
+  }, [teams]);
+
+  function addRoleRow() {
+    setRoleRows((rows) => [
+      ...rows,
+      { id: `role-${Date.now()}-${rows.length}`, role: "Player", teamId: sortedTeams[0]?.teamId ?? "" }
+    ]);
+  }
+
+  function updateRoleRow(id: string, patch: Partial<EditRoleRow>) {
+    setRoleRows((rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row));
+  }
+
+  function removeRoleRow(id: string) {
+    setRoleRows((rows) => rows.filter((row) => row.id !== id));
+  }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Edit person">
-      <div className="w-full max-w-2xl rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Edit person</p>
             <h2 className="mt-1 text-xl font-extrabold leading-tight text-[#10233f]">{person.name}</h2>
-            <p className="mt-1 text-sm font-bold text-[#6c5a73]">This changes contact details only. Team roles are kept as they are.</p>
+            <p className="mt-1 text-sm font-bold text-[#6c5a73]">Update contact details, handicap and active team roles.</p>
           </div>
           {person.accountId ? (
             <Badge variant={person.loginActive ? "green" : "muted"}>{person.loginActive ? "Login on" : "Login off"}</Badge>
@@ -2248,6 +2292,45 @@ function EditPersonModal({
           <AdminInput label="Phone" value={phone} onChange={setPhone} type="tel" placeholder="Blank" />
           <AdminInput label="Club handicap" value={handicap} onChange={setHandicap} type="number" placeholder="Blank" />
         </div>
+        <div className="mt-4 rounded-2xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase text-[#6c5a73]">Team roles</p>
+              <p className="text-xs font-semibold text-[#6c5a73]">Add or remove Player and Manager roles for this person.</p>
+            </div>
+            <Button size="sm" variant="secondary" onClick={addRoleRow} disabled={!sortedTeams.length}>
+              <PlusCircle className="h-4 w-4" />
+              Add role
+            </Button>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {roleRows.map((row, index) => (
+              <div key={row.id} className="grid gap-2 rounded-xl bg-white p-2 ring-1 ring-[#eeeaf2] sm:grid-cols-[140px_minmax(0,1fr)_auto] sm:items-end">
+                <AdminSelect
+                  label={`Role ${index + 1}`}
+                  value={row.role}
+                  onChange={(value) => updateRoleRow(row.id, { role: value as TeamRole })}
+                  options={roles.map((roleOption) => ({ value: roleOption, label: roleOption }))}
+                />
+                <AdminSelect
+                  label="Team"
+                  value={row.teamId}
+                  onChange={(value) => updateRoleRow(row.id, { teamId: value })}
+                  options={sortedTeams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.leagueName} - ${shortClubName(team.clubName)}` }))}
+                />
+                <Button variant="secondary" size="sm" onClick={() => removeRoleRow(row.id)} className="text-[#b42318]">
+                  <Trash2 className="h-4 w-4" />
+                  Remove
+                </Button>
+              </div>
+            ))}
+            {!roleRows.length ? (
+              <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[#6c5a73] ring-1 ring-[#eeeaf2]">
+                No active team roles. Add a role if this person should appear as a player or manager.
+              </p>
+            ) : null}
+          </div>
+        </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>
             Cancel
@@ -2259,7 +2342,10 @@ function EditPersonModal({
               lastName: lastName.trim(),
               email: email.trim(),
               phone: phone.trim(),
-              handicap: handicap.trim()
+              handicap: handicap.trim(),
+              roles: roleRows
+                .filter((row) => row.teamId && (row.role === "Player" || row.role === "Manager"))
+                .map((row) => ({ role: row.role, teamId: row.teamId }))
             })}
             disabled={busy || !canSave}
           >

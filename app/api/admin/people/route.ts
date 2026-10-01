@@ -5,6 +5,11 @@ import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
+type SubmittedTeamRole = {
+  role: "Player" | "Manager";
+  teamId: string;
+};
+
 async function adminAccess() {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated.");
@@ -197,6 +202,17 @@ export async function PATCH(request: NextRequest) {
       const phoneInput = String(body.phone ?? "").trim();
       const handicapInput = String(body.handicap ?? "").trim();
       const handicap = handicapInput === "" ? null : Number(handicapInput);
+      const submittedRoles: SubmittedTeamRole[] | null = Array.isArray(body.roles)
+        ? (body.roles as unknown[])
+            .map((row: unknown): SubmittedTeamRole | null => {
+              if (!row || typeof row !== "object") return null;
+              const role = String((row as { role?: unknown }).role ?? "").trim();
+              const teamId = String((row as { teamId?: unknown }).teamId ?? "").trim();
+              if ((role !== "Player" && role !== "Manager") || !teamId) return null;
+              return { role, teamId };
+            })
+            .filter((row: SubmittedTeamRole | null): row is SubmittedTeamRole => Boolean(row))
+        : null;
 
       if (!firstName || !lastName) {
         return NextResponse.json({ error: "First name and last name are required." }, { status: 400 });
@@ -259,6 +275,79 @@ export async function PATCH(request: NextRequest) {
              and ($3::boolean = true or club_id = any($4::uuid[]))`,
           [personId, handicap, access.platformAdmin, editableClubIds]
         );
+
+        if (submittedRoles) {
+          const desiredRoles: SubmittedTeamRole[] = Array.from(
+            new Map(submittedRoles.map((row) => [`${row.teamId}:${row.role}`, row])).values()
+          );
+          const teamResult = desiredRoles.length
+            ? await client.query<{ id: string; club_id: string; league_id: string; name: string }>(
+                `select id, club_id, league_id, name
+                 from public.team
+                 where id = any($1::uuid[])`,
+                [desiredRoles.map((row) => row.teamId)]
+              )
+            : { rows: [] as Array<{ id: string; club_id: string; league_id: string; name: string }> };
+          const teamsById = new Map(teamResult.rows.map((team) => [team.id, team]));
+
+          for (const desiredRole of desiredRoles) {
+            const team = teamsById.get(desiredRole.teamId);
+            if (!team) throw new Error("One of the selected teams was not found.");
+            assertClubScope(access, team.club_id);
+          }
+
+          const clubsToReplace = Array.from(new Set([
+            ...editableClubIds,
+            ...teamResult.rows.map((team) => team.club_id)
+          ]));
+
+          if (clubsToReplace.length) {
+            await client.query(
+              `update public.person_team_role
+               set active = false
+               where person_id = $1
+                 and club_id = any($2::uuid[])`,
+              [personId, clubsToReplace]
+            );
+            await client.query(
+              `update public.team_membership tm
+               set active = false
+               from public.team t
+               where tm.team_id = t.id
+                 and tm.person_id = $1
+                 and t.club_id = any($2::uuid[])`,
+              [personId, clubsToReplace]
+            );
+          }
+
+          for (const desiredRole of desiredRoles) {
+            const team = teamsById.get(desiredRole.teamId);
+            if (!team) continue;
+            await client.query(
+              `with club_member as (
+                 insert into public.club_membership (club_id, person_id, role, handicap, active)
+                 values ($1, $2, 'Club Member', $6, true)
+                 on conflict (club_id, person_id, role) do update
+                 set active = true,
+                     handicap = coalesce(excluded.handicap, public.club_membership.handicap)
+                 returning id
+               )
+               insert into public.person_team_role (club_membership_id, person_id, club_id, league_id, team_name, role, active)
+               select id, $2, $1, $3, $4, $5::public.membership_role, true
+               from club_member
+               on conflict (person_id, club_id, league_id, team_name, role) do update
+               set active = true,
+                   club_membership_id = excluded.club_membership_id`,
+              [team.club_id, personId, team.league_id, team.name, desiredRole.role, handicap]
+            );
+            await client.query(
+              `insert into public.team_membership (team_id, person_id, role, active)
+               values ($1, $2, $3, true)
+               on conflict (team_id, person_id, role) do update set active = true`,
+              [desiredRole.teamId, personId, desiredRole.role]
+            );
+          }
+        }
 
         return personResult.rows[0];
       });
