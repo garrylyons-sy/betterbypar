@@ -771,7 +771,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
 
         {loading ? <p className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-bold text-[#6c5a73]">Loading matches...</p> : null}
 
-        <div className="grid gap-3">
+        <div className="grid gap-2">
           {matches.map((match) => {
             const draft = drafts[match.fixture_id] ?? matchDraft(match);
             const completeStatus = match.status === "Completed" ? "green" : match.status === "Cancelled" ? "muted" : "cyan";
@@ -779,21 +779,21 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
             const draftChanged = adminMatchDraftChanged(match, draft);
 
             return (
-              <div key={match.fixture_id} className="grid gap-3 rounded-2xl border border-[#eeeaf2] bg-white p-3 shadow-sm xl:grid-cols-[170px_minmax(390px,1fr)_minmax(390px,.9fr)_92px] xl:items-end">
+              <div key={match.fixture_id} className="grid gap-2 rounded-xl border border-[#eeeaf2] bg-white p-2.5 shadow-sm xl:grid-cols-[160px_minmax(360px,1fr)_minmax(360px,.9fr)_86px] xl:items-center">
                 <div className="min-w-0 xl:self-center">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={completeStatus as "green" | "muted" | "cyan"}>{match.status}</Badge>
                     <Badge variant="muted">{match.league_name}</Badge>
                     <Badge variant="muted">{match.fixture_type}</Badge>
                   </div>
-                  <p className="mt-2 text-xs font-bold leading-snug text-[#6c5a73]">
+                  <p className="mt-1 text-[11px] font-bold leading-snug text-[#6c5a73]">
                     {formatAdminDate(match.fixture_date)}
                     {match.game_count ? <span className="block">{match.completed_game_count}/{match.game_count} frames scored</span> : null}
                     {match.lineup_count ? <span className="block">{match.lineup_count} lineup{match.lineup_count === 1 ? "" : "s"}</span> : null}
                   </p>
                 </div>
 
-                <div className="grid gap-2">
+                <div className="grid gap-1.5">
                   <AdminMatchTeamScoreRow
                     align="left"
                     score={draft.homeTeamScore}
@@ -814,7 +814,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                   />
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-[minmax(200px,1fr)_145px]">
+                <div className="grid gap-2 sm:grid-cols-[minmax(200px,1fr)_132px]">
                   <CompactAdminInput
                     label="Fixture date / postponed until"
                     value={draft.fixtureDate}
@@ -829,7 +829,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                   />
                 </div>
 
-                <Button onClick={() => saveMatch(match)} disabled={!draftChanged || savingFixtureId === match.fixture_id} size="sm" className="xl:self-end">
+                <Button onClick={() => saveMatch(match)} disabled={!draftChanged || savingFixtureId === match.fixture_id} size="sm">
                   {savingFixtureId === match.fixture_id ? "Saving..." : "Save"}
                 </Button>
               </div>
@@ -863,7 +863,7 @@ function AdminMatchTeamScoreRow({
   onScoreChange: (value: string) => void;
 }) {
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_72px] gap-2">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_58px] items-center gap-1.5">
       <AdminMatchTeamStatus align={align} showStatus={showStatus} status={status} teamName={teamName} />
       <CompactScoreInput ariaLabel={scoreLabel} value={score} onChange={onScoreChange} />
     </div>
@@ -882,10 +882,10 @@ function AdminMatchTeamStatus({
   teamName: string;
 }) {
   return (
-    <div className={cn("rounded-lg bg-[#f7f5fa] px-3 py-2", align === "right" ? "sm:text-right" : "")}>
+    <div className={cn("rounded-lg bg-[#f7f5fa] px-2.5 py-1.5", align === "right" ? "sm:text-right" : "")}>
       <p className="truncate text-[13px] font-extrabold text-[#10233f]" title={teamName}>{teamName}</p>
       {showStatus ? (
-        <span className={cn("mt-1 inline-flex rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em]", adminLineupStatusClass(status))}>
+        <span className={cn("mt-1 inline-flex rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em]", adminLineupStatusClass(status))}>
           {adminLineupStatusLabel(status)}
         </span>
       ) : null}
@@ -3621,8 +3621,8 @@ function AdminInput({ label, value, onChange, type = "text", placeholder = "" }:
 function CompactAdminInput({ label, value, onChange, type = "text", placeholder = "" }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string }) {
   return (
     <label className="grid min-w-0 gap-1">
-      <span className="text-[11px] font-bold uppercase leading-tight text-[#6c5a73]">{label}</span>
-      <input className="min-h-9 w-full min-w-0 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)} type={type} placeholder={placeholder} />
+      <span className="text-[10px] font-bold uppercase leading-tight text-[#6c5a73]">{label}</span>
+      <input className="min-h-8 w-full min-w-0 rounded-lg border border-[#eeeaf2] bg-white px-2.5 text-[13px] font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)} type={type} placeholder={placeholder} />
     </label>
   );
 }
@@ -3633,7 +3633,7 @@ function CompactScoreInput({ ariaLabel, value, onChange }: { ariaLabel: string; 
       <span className="sr-only">{ariaLabel}</span>
       <input
         aria-label={ariaLabel}
-        className="min-h-10 w-full min-w-0 rounded-xl border border-[#eeeaf2] bg-white px-2 text-center text-sm font-extrabold outline-none focus-visible:outline-[#7bc7d6]"
+        className="min-h-8 w-full min-w-0 rounded-lg border border-[#eeeaf2] bg-white px-2 text-center text-[13px] font-extrabold outline-none focus-visible:outline-[#7bc7d6]"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         type="number"
@@ -3665,8 +3665,8 @@ function AdminSelect({ label, value, onChange, options }: { label: string; value
 function CompactAdminSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ value: string; label: string }> }) {
   return (
     <label className="grid min-w-0 gap-1">
-      <span className="text-[11px] font-bold uppercase leading-tight text-[#6c5a73]">{label}</span>
-      <select className="min-h-9 w-full min-w-0 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)}>
+      <span className="text-[10px] font-bold uppercase leading-tight text-[#6c5a73]">{label}</span>
+      <select className="min-h-8 w-full min-w-0 rounded-lg border border-[#eeeaf2] bg-white px-2.5 text-[13px] font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
