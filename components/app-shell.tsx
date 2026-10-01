@@ -4598,11 +4598,13 @@ type ManagerLineupSlot = {
   player1GuestName?: string;
   player1IsGuest?: boolean;
   player1CountsForStats?: boolean;
+  player1GuestTeamName?: string | null;
   player2Id: string;
   player2Name?: string;
   player2GuestName?: string;
   player2IsGuest?: boolean;
   player2CountsForStats?: boolean;
+  player2GuestTeamName?: string | null;
 };
 
 type LineupPlayerOption = { id: string; name: string; teamName?: string };
@@ -4617,18 +4619,22 @@ type ManagerLineupGame = {
   home_player_1_name: string;
   home_player_1_is_guest?: boolean;
   home_player_1_counts_for_stats?: boolean;
+  home_player_1_guest_team_name?: string | null;
   home_player_2_id: string | null;
   home_player_2_name: string | null;
   home_player_2_is_guest?: boolean;
   home_player_2_counts_for_stats?: boolean;
+  home_player_2_guest_team_name?: string | null;
   away_player_1_id: string | null;
   away_player_1_name: string;
   away_player_1_is_guest?: boolean;
   away_player_1_counts_for_stats?: boolean;
+  away_player_1_guest_team_name?: string | null;
   away_player_2_id: string | null;
   away_player_2_name: string | null;
   away_player_2_is_guest?: boolean;
   away_player_2_counts_for_stats?: boolean;
+  away_player_2_guest_team_name?: string | null;
   breaks?: Array<{
     id: string;
     playerId: string;
@@ -4753,6 +4759,8 @@ type FixtureWeekFixture = {
       player2Name: string | null;
       player1IsGuest: boolean;
       player2IsGuest: boolean;
+      player1GuestTeamName?: string | null;
+      player2GuestTeamName?: string | null;
     }>;
   }>;
   games: ManagerLineupGame[];
@@ -6056,11 +6064,36 @@ function gameSidePlayersLabel(game: ManagerLineupGame, side: "home" | "away") {
   return `${first}${second ? ` / ${second}` : ""}`;
 }
 
-function GamePlayerLabel({ label, isGuest, className }: { label: string; isGuest?: boolean; className?: string }) {
+function guestBadgeLabel(isGuest?: boolean, guestTeamName?: string | null) {
+  if (!isGuest) return "";
+  return (guestTeamName || "Guest").trim();
+}
+
+function gameSideGuestLabel(game: ManagerLineupGame, side: "home" | "away") {
+  const labels = side === "home"
+    ? [
+        guestBadgeLabel(game.home_player_1_is_guest, game.home_player_1_guest_team_name),
+        guestBadgeLabel(game.home_player_2_is_guest, game.home_player_2_guest_team_name)
+      ]
+    : [
+        guestBadgeLabel(game.away_player_1_is_guest, game.away_player_1_guest_team_name),
+        guestBadgeLabel(game.away_player_2_is_guest, game.away_player_2_guest_team_name)
+      ];
+  return Array.from(new Set(labels.filter(Boolean))).join(" / ");
+}
+
+function slotGuestLabel(slot: { player1IsGuest?: boolean; player2IsGuest?: boolean; player1GuestTeamName?: string | null; player2GuestTeamName?: string | null }) {
+  return Array.from(new Set([
+    guestBadgeLabel(slot.player1IsGuest, slot.player1GuestTeamName),
+    guestBadgeLabel(slot.player2IsGuest, slot.player2GuestTeamName)
+  ].filter(Boolean))).join(" / ");
+}
+
+function GamePlayerLabel({ label, guestLabel, className }: { label: string; guestLabel?: string; className?: string }) {
   return (
     <p className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-md px-2 py-1.5 leading-tight", className)}>
       <span className="min-w-0 whitespace-normal break-words">{label}</span>
-      {isGuest ? <span className="shrink-0 rounded bg-[#eefbff] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#10233f] ring-1 ring-[#04f5ff55]">Guest</span> : null}
+      {guestLabel ? <span className="shrink-0 rounded bg-[#eefbff] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#10233f] ring-1 ring-[#04f5ff55]">{guestLabel}</span> : null}
     </p>
   );
 }
@@ -6136,6 +6169,8 @@ function ReadOnlyFixtureDetails({
           const awayWon = game.winner_team_id === fixture.awayTeamId;
           const homePlayers = gameSidePlayersLabel(game, "home");
           const awayPlayers = gameSidePlayersLabel(game, "away");
+          const homeGuestLabel = gameSideGuestLabel(game, "home");
+          const awayGuestLabel = gameSideGuestLabel(game, "away");
           return (
             <div key={game.id} className="grid gap-1.5 px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">
@@ -6145,9 +6180,9 @@ function ReadOnlyFixtureDetails({
                 {!game.winner_team_id ? <Badge variant="muted">Awaiting</Badge> : null}
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-stretch gap-1.5 text-xs font-extrabold sm:grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] sm:gap-2 sm:text-sm">
-                <GamePlayerLabel className={cn(homeWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} label={homePlayers} isGuest={game.home_player_1_is_guest || game.home_player_2_is_guest} />
+                <GamePlayerLabel className={cn(homeWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} label={homePlayers} guestLabel={homeGuestLabel} />
                 <span className="grid place-items-center text-center text-xs font-black uppercase text-[#6c5a73]">v</span>
-                <GamePlayerLabel className={cn("justify-end text-right", awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} label={awayPlayers} isGuest={game.away_player_1_is_guest || game.away_player_2_is_guest} />
+                <GamePlayerLabel className={cn("justify-end text-right", awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} label={awayPlayers} guestLabel={awayGuestLabel} />
               </div>
               {game.breaks?.length ? (
                 <div className="flex flex-wrap gap-1">
@@ -6185,7 +6220,7 @@ function ReadOnlyPublishedLineups({ lineups }: { lineups: NonNullable<FixtureWee
                   <GamePlayerLabel
                     className="px-0 py-0"
                     label={slot.gameType === "Doubles" && slot.player2Name ? `${slot.player1Name} / ${slot.player2Name}` : slot.player1Name}
-                    isGuest={slot.player1IsGuest || slot.player2IsGuest}
+                    guestLabel={slotGuestLabel(slot)}
                   />
                 </div>
               </div>
@@ -6225,6 +6260,8 @@ function GeneratedMatchCard({
           const breaks = game.breaks ?? [];
           const homePlayers = gameSidePlayersLabel(game, "home");
           const awayPlayers = gameSidePlayersLabel(game, "away");
+          const homeGuestLabel = gameSideGuestLabel(game, "home");
+          const awayGuestLabel = gameSideGuestLabel(game, "away");
           const homeSelected = game.winner_team_id === fixture.homeTeamId;
           const awaySelected = game.winner_team_id === fixture.awayTeamId;
           const pending = pendingGameIds.has(game.id);
@@ -6233,7 +6270,7 @@ function GeneratedMatchCard({
               <div className="min-w-0">
                 <p className="text-xs font-extrabold uppercase text-white/55">Game {game.game_number} - {game.points_awarded} pts</p>
                 <p className="mt-1 break-words leading-tight">
-                  {homePlayers} {game.home_player_1_is_guest || game.home_player_2_is_guest ? <span className="text-[#7bc7d6]">(Guest Player)</span> : null} <span className="text-white/55">v</span> {awayPlayers} {game.away_player_1_is_guest || game.away_player_2_is_guest ? <span className="text-[#7bc7d6]">(Guest Player)</span> : null}
+                  {homePlayers} {homeGuestLabel ? <span className="text-[#7bc7d6]">({homeGuestLabel})</span> : null} <span className="text-white/55">v</span> {awayPlayers} {awayGuestLabel ? <span className="text-[#7bc7d6]">({awayGuestLabel})</span> : null}
                 </p>
               </div>
               <div className="grid gap-1.5 sm:grid-cols-2">

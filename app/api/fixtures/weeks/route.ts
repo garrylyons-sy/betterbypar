@@ -106,6 +106,10 @@ export async function GET(request: NextRequest) {
       home_player_2_is_guest: boolean;
       away_player_1_is_guest: boolean;
       away_player_2_is_guest: boolean;
+      home_player_1_guest_team_name: string | null;
+      home_player_2_guest_team_name: string | null;
+      away_player_1_guest_team_name: string | null;
+      away_player_2_guest_team_name: string | null;
     }>(
       `select
          f.id as fixture_id,
@@ -125,14 +129,112 @@ export async function GET(request: NextRequest) {
          g.home_player_1_is_guest,
          g.home_player_2_is_guest,
          g.away_player_1_is_guest,
-         g.away_player_2_is_guest
+         g.away_player_2_is_guest,
+         hp1_guest_team.team_name as home_player_1_guest_team_name,
+         hp2_guest_team.team_name as home_player_2_guest_team_name,
+         ap1_guest_team.team_name as away_player_1_guest_team_name,
+         ap2_guest_team.team_name as away_player_2_guest_team_name
        from public.fixture f
+       join public.team ht on ht.id = f.home_team_id
+       join public.team at on at.id = f.away_team_id
        join public.match m on m.fixture_id = f.id
        join public.game g on g.match_id = m.id
        left join public.person hp1 on hp1.id = g.home_player_1_id
        left join public.person hp2 on hp2.id = g.home_player_2_id
        left join public.person ap1 on ap1.id = g.away_player_1_id
        left join public.person ap2 on ap2.id = g.away_player_2_id
+       left join lateral (
+         select team_name
+         from (
+           select ptr.team_name
+           from public.person_team_role ptr
+           where ptr.person_id = hp1.id
+             and ptr.club_id = ht.club_id
+             and ptr.role = 'Player'
+             and ptr.active = true
+             and ptr.team_name <> ht.name
+           union
+           select gt.name as team_name
+           from public.team_membership tm
+           join public.team gt on gt.id = tm.team_id
+           where tm.person_id = hp1.id
+             and gt.club_id = ht.club_id
+             and tm.role = 'Player'
+             and tm.active = true
+             and gt.name <> ht.name
+         ) guest_team
+         order by team_name
+         limit 1
+       ) hp1_guest_team on true
+       left join lateral (
+         select team_name
+         from (
+           select ptr.team_name
+           from public.person_team_role ptr
+           where ptr.person_id = hp2.id
+             and ptr.club_id = ht.club_id
+             and ptr.role = 'Player'
+             and ptr.active = true
+             and ptr.team_name <> ht.name
+           union
+           select gt.name as team_name
+           from public.team_membership tm
+           join public.team gt on gt.id = tm.team_id
+           where tm.person_id = hp2.id
+             and gt.club_id = ht.club_id
+             and tm.role = 'Player'
+             and tm.active = true
+             and gt.name <> ht.name
+         ) guest_team
+         order by team_name
+         limit 1
+       ) hp2_guest_team on true
+       left join lateral (
+         select team_name
+         from (
+           select ptr.team_name
+           from public.person_team_role ptr
+           where ptr.person_id = ap1.id
+             and ptr.club_id = at.club_id
+             and ptr.role = 'Player'
+             and ptr.active = true
+             and ptr.team_name <> at.name
+           union
+           select gt.name as team_name
+           from public.team_membership tm
+           join public.team gt on gt.id = tm.team_id
+           where tm.person_id = ap1.id
+             and gt.club_id = at.club_id
+             and tm.role = 'Player'
+             and tm.active = true
+             and gt.name <> at.name
+         ) guest_team
+         order by team_name
+         limit 1
+       ) ap1_guest_team on true
+       left join lateral (
+         select team_name
+         from (
+           select ptr.team_name
+           from public.person_team_role ptr
+           where ptr.person_id = ap2.id
+             and ptr.club_id = at.club_id
+             and ptr.role = 'Player'
+             and ptr.active = true
+             and ptr.team_name <> at.name
+           union
+           select gt.name as team_name
+           from public.team_membership tm
+           join public.team gt on gt.id = tm.team_id
+           where tm.person_id = ap2.id
+             and gt.club_id = at.club_id
+             and tm.role = 'Player'
+             and tm.active = true
+             and gt.name <> at.name
+         ) guest_team
+         order by team_name
+         limit 1
+       ) ap2_guest_team on true
        where f.id = any($1::uuid[])
        order by f.fixture_date, g.game_number`,
       [fixtureIds]
@@ -178,6 +280,8 @@ export async function GET(request: NextRequest) {
       player_2_name: string | null;
       player_1_is_guest: boolean;
       player_2_is_guest: boolean;
+      player_1_guest_team_name: string | null;
+      player_2_guest_team_name: string | null;
     }>(
       `select
          fl.fixture_id,
@@ -188,12 +292,60 @@ export async function GET(request: NextRequest) {
          coalesce(nullif(fls.player_1_guest_name, ''), concat_ws(' ', p1.first_name, p1.last_name)) as player_1_name,
          coalesce(nullif(fls.player_2_guest_name, ''), concat_ws(' ', p2.first_name, p2.last_name)) as player_2_name,
          coalesce(fls.player_1_is_guest, false) as player_1_is_guest,
-         coalesce(fls.player_2_is_guest, false) as player_2_is_guest
+         coalesce(fls.player_2_is_guest, false) as player_2_is_guest,
+         p1_guest_team.team_name as player_1_guest_team_name,
+         p2_guest_team.team_name as player_2_guest_team_name
        from public.fixture_lineup fl
        join public.team t on t.id = fl.team_id
        join public.fixture_lineup_slot fls on fls.lineup_id = fl.id
        left join public.person p1 on p1.id = fls.player_1_id
        left join public.person p2 on p2.id = fls.player_2_id
+       left join lateral (
+         select team_name
+         from (
+           select ptr.team_name
+           from public.person_team_role ptr
+           where ptr.person_id = p1.id
+             and ptr.club_id = t.club_id
+             and ptr.role = 'Player'
+             and ptr.active = true
+             and ptr.team_name <> t.name
+           union
+           select gt.name as team_name
+           from public.team_membership tm
+           join public.team gt on gt.id = tm.team_id
+           where tm.person_id = p1.id
+             and gt.club_id = t.club_id
+             and tm.role = 'Player'
+             and tm.active = true
+             and gt.name <> t.name
+         ) guest_team
+         order by team_name
+         limit 1
+       ) p1_guest_team on true
+       left join lateral (
+         select team_name
+         from (
+           select ptr.team_name
+           from public.person_team_role ptr
+           where ptr.person_id = p2.id
+             and ptr.club_id = t.club_id
+             and ptr.role = 'Player'
+             and ptr.active = true
+             and ptr.team_name <> t.name
+           union
+           select gt.name as team_name
+           from public.team_membership tm
+           join public.team gt on gt.id = tm.team_id
+           where tm.person_id = p2.id
+             and gt.club_id = t.club_id
+             and tm.role = 'Player'
+             and tm.active = true
+             and gt.name <> t.name
+         ) guest_team
+         order by team_name
+         limit 1
+       ) p2_guest_team on true
        where fl.fixture_id = any($1::uuid[])
          and fl.status = 'Published'
        order by fl.fixture_id, t.name, fls.slot_number`,
@@ -212,6 +364,8 @@ export async function GET(request: NextRequest) {
           player2Name: string | null;
           player1IsGuest: boolean;
           player2IsGuest: boolean;
+          player1GuestTeamName: string | null;
+          player2GuestTeamName: string | null;
         }>;
       }>();
       for (const row of fixtureRows) {
@@ -222,7 +376,9 @@ export async function GET(request: NextRequest) {
           player1Name: row.player_1_name,
           player2Name: row.player_2_name,
           player1IsGuest: row.player_1_is_guest,
-          player2IsGuest: row.player_2_is_guest
+          player2IsGuest: row.player_2_is_guest,
+          player1GuestTeamName: row.player_1_guest_team_name,
+          player2GuestTeamName: row.player_2_guest_team_name
         });
         lineups.set(row.team_id, lineup);
       }
@@ -338,6 +494,10 @@ export async function GET(request: NextRequest) {
             home_player_2_is_guest: game.home_player_2_is_guest,
             away_player_1_is_guest: game.away_player_1_is_guest,
             away_player_2_is_guest: game.away_player_2_is_guest,
+            home_player_1_guest_team_name: game.home_player_1_guest_team_name,
+            home_player_2_guest_team_name: game.home_player_2_guest_team_name,
+            away_player_1_guest_team_name: game.away_player_1_guest_team_name,
+            away_player_2_guest_team_name: game.away_player_2_guest_team_name,
             breaks: breaksForGame(game.id)
           }))
       });
