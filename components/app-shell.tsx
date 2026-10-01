@@ -6650,6 +6650,16 @@ function LeagueBreaksCard({ activeTeam }: { activeTeam: TeamContext }) {
     };
   }, [activeTeam.league, activeTeam.season]);
 
+  let displayedRank = 0;
+  let previousBreakValue: number | null = null;
+  const rankedBreaks = breaks.map((entry, index) => {
+    if (entry.breakValue !== previousBreakValue) {
+      displayedRank = index + 1;
+      previousBreakValue = entry.breakValue;
+    }
+    return { entry, rank: displayedRank };
+  });
+
   return (
     <Card className="min-w-0 overflow-hidden">
       <CardHeader>
@@ -6657,7 +6667,7 @@ function LeagueBreaksCard({ activeTeam }: { activeTeam: TeamContext }) {
         <Badge variant="muted">{loading ? "Loading" : `${breaks.length}`}</Badge>
       </CardHeader>
       <CardContent className="grid gap-2">
-        {breaks.map((entry, index) => {
+        {rankedBreaks.map(({ entry, rank }) => {
           const colors = teamColors(entry.teamName ?? activeTeam.name);
           const fixtureLabel = entry.fixtureDate ? formatFixtureDate(entry.fixtureDate) : "Date pending";
           const opponentLabel = entry.opponentTeamName ? `v ${entry.opponentTeamName}` : "Match break";
@@ -6673,11 +6683,11 @@ function LeagueBreaksCard({ activeTeam }: { activeTeam: TeamContext }) {
               <div className="min-w-0">
                 <p className="truncate text-sm font-extrabold leading-tight" style={{ color: colors.primaryColor }}>{entry.playerName}</p>
                 <p className="truncate text-xs font-bold text-[#6c5a73]">{entry.teamName ?? "Team"} · {opponentLabel}</p>
-                <p className="truncate text-[11px] font-semibold text-[#6c5a73]">
+              <p className="truncate text-[11px] font-semibold text-[#6c5a73]">
                   {fixtureLabel}{entry.gameNumber ? ` · Game ${entry.gameNumber}` : ""}
                 </p>
               </div>
-              <Badge variant={index === 0 ? "gold" : "muted"}>#{index + 1}</Badge>
+              <Badge variant={rank === 1 ? "gold" : "muted"}>#{rank}</Badge>
             </div>
           );
         })}
