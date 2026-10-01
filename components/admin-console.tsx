@@ -776,49 +776,43 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
             const draft = drafts[match.fixture_id] ?? matchDraft(match);
             const completeStatus = match.status === "Completed" ? "green" : match.status === "Cancelled" ? "muted" : "cyan";
             const showLineupStatuses = isTodayAdminDate(match.fixture_date);
+            const draftChanged = adminMatchDraftChanged(match, draft);
 
             return (
-              <div key={match.fixture_id} className="grid gap-2 rounded-2xl border border-[#eeeaf2] bg-white p-3 shadow-sm xl:grid-cols-[minmax(340px,1.25fr)_96px_96px_minmax(390px,1fr)_96px] xl:items-end">
-                <div className="min-w-0">
+              <div key={match.fixture_id} className="grid gap-3 rounded-2xl border border-[#eeeaf2] bg-white p-3 shadow-sm xl:grid-cols-[170px_minmax(390px,1fr)_minmax(390px,.9fr)_92px] xl:items-end">
+                <div className="min-w-0 xl:self-center">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={completeStatus as "green" | "muted" | "cyan"}>{match.status}</Badge>
                     <Badge variant="muted">{match.league_name}</Badge>
                     <Badge variant="muted">{match.fixture_type}</Badge>
                   </div>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-                    <AdminMatchTeamStatus
-                      align="left"
-                      showStatus={showLineupStatuses}
-                      status={match.home_lineup_status}
-                      teamName={match.home_team_name}
-                    />
-                    <span className="hidden text-xs font-black uppercase text-[#6c5a73] sm:block">v</span>
-                    <AdminMatchTeamStatus
-                      align="right"
-                      showStatus={showLineupStatuses}
-                      status={match.away_lineup_status}
-                      teamName={match.away_team_name}
-                    />
-                  </div>
-                  <p className="mt-1 text-xs font-bold text-[#6c5a73]">
+                  <p className="mt-2 text-xs font-bold leading-snug text-[#6c5a73]">
                     {formatAdminDate(match.fixture_date)}
-                    {match.game_count ? ` - ${match.completed_game_count}/${match.game_count} frames scored` : ""}
-                    {match.lineup_count ? ` - ${match.lineup_count} lineup${match.lineup_count === 1 ? "" : "s"}` : ""}
+                    {match.game_count ? <span className="block">{match.completed_game_count}/{match.game_count} frames scored</span> : null}
+                    {match.lineup_count ? <span className="block">{match.lineup_count} lineup{match.lineup_count === 1 ? "" : "s"}</span> : null}
                   </p>
                 </div>
 
-                <CompactAdminInput
-                  label={`${match.home_team_name} score`}
-                  value={draft.homeTeamScore}
-                  onChange={(value) => updateDraft(match.fixture_id, { homeTeamScore: value })}
-                  type="number"
-                />
-                <CompactAdminInput
-                  label={`${match.away_team_name} score`}
-                  value={draft.awayTeamScore}
-                  onChange={(value) => updateDraft(match.fixture_id, { awayTeamScore: value })}
-                  type="number"
-                />
+                <div className="grid gap-2">
+                  <AdminMatchTeamScoreRow
+                    align="left"
+                    score={draft.homeTeamScore}
+                    scoreLabel={`${match.home_team_name} score`}
+                    showStatus={showLineupStatuses}
+                    status={match.home_lineup_status}
+                    teamName={match.home_team_name}
+                    onScoreChange={(value) => updateDraft(match.fixture_id, { homeTeamScore: value })}
+                  />
+                  <AdminMatchTeamScoreRow
+                    align="left"
+                    score={draft.awayTeamScore}
+                    scoreLabel={`${match.away_team_name} score`}
+                    showStatus={showLineupStatuses}
+                    status={match.away_lineup_status}
+                    teamName={match.away_team_name}
+                    onScoreChange={(value) => updateDraft(match.fixture_id, { awayTeamScore: value })}
+                  />
+                </div>
 
                 <div className="grid gap-2 sm:grid-cols-[minmax(200px,1fr)_145px]">
                   <CompactAdminInput
@@ -835,7 +829,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                   />
                 </div>
 
-                <Button onClick={() => saveMatch(match)} disabled={savingFixtureId === match.fixture_id} size="sm" className="xl:self-end">
+                <Button onClick={() => saveMatch(match)} disabled={!draftChanged || savingFixtureId === match.fixture_id} size="sm" className="xl:self-end">
                   {savingFixtureId === match.fixture_id ? "Saving..." : "Save"}
                 </Button>
               </div>
@@ -848,6 +842,31 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function AdminMatchTeamScoreRow({
+  align,
+  score,
+  scoreLabel,
+  showStatus,
+  status,
+  teamName,
+  onScoreChange
+}: {
+  align: "left" | "right";
+  score: string;
+  scoreLabel: string;
+  showStatus: boolean;
+  status: string | null;
+  teamName: string;
+  onScoreChange: (value: string) => void;
+}) {
+  return (
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_72px] gap-2">
+      <AdminMatchTeamStatus align={align} showStatus={showStatus} status={status} teamName={teamName} />
+      <CompactScoreInput ariaLabel={scoreLabel} value={score} onChange={onScoreChange} />
+    </div>
   );
 }
 
@@ -872,6 +891,14 @@ function AdminMatchTeamStatus({
       ) : null}
     </div>
   );
+}
+
+function adminMatchDraftChanged(match: AdminMatchRow, draft: AdminMatchDraft) {
+  const original = matchDraft(match);
+  return original.fixtureDate !== draft.fixtureDate
+    || original.homeTeamScore !== draft.homeTeamScore
+    || original.awayTeamScore !== draft.awayTeamScore
+    || original.status !== draft.status;
 }
 
 function adminLineupStatusLabel(status: string | null) {
@@ -3596,6 +3623,21 @@ function CompactAdminInput({ label, value, onChange, type = "text", placeholder 
     <label className="grid min-w-0 gap-1">
       <span className="text-[11px] font-bold uppercase leading-tight text-[#6c5a73]">{label}</span>
       <input className="min-h-9 w-full min-w-0 rounded-xl border border-[#eeeaf2] bg-white px-3 text-sm font-bold outline-none focus-visible:outline-[#7bc7d6]" value={value} onChange={(event) => onChange(event.target.value)} type={type} placeholder={placeholder} />
+    </label>
+  );
+}
+
+function CompactScoreInput({ ariaLabel, value, onChange }: { ariaLabel: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="grid min-w-0">
+      <span className="sr-only">{ariaLabel}</span>
+      <input
+        aria-label={ariaLabel}
+        className="min-h-10 w-full min-w-0 rounded-xl border border-[#eeeaf2] bg-white px-2 text-center text-sm font-extrabold outline-none focus-visible:outline-[#7bc7d6]"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        type="number"
+      />
     </label>
   );
 }
