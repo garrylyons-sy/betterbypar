@@ -168,6 +168,66 @@ export async function GET(request: NextRequest) {
         breakValue: Number(row.break_value),
         recordedAt: row.recorded_at
       }));
+    const lineupRows = fixtureIds.length ? (await dbQuery<{
+      fixture_id: string;
+      team_id: string;
+      team_name: string;
+      slot_number: number;
+      game_type: "Singles" | "Doubles";
+      player_1_name: string;
+      player_2_name: string | null;
+      player_1_is_guest: boolean;
+      player_2_is_guest: boolean;
+    }>(
+      `select
+         fl.fixture_id,
+         fl.team_id,
+         t.name as team_name,
+         fls.slot_number,
+         fls.game_type::text as game_type,
+         coalesce(nullif(fls.player_1_guest_name, ''), concat_ws(' ', p1.first_name, p1.last_name)) as player_1_name,
+         coalesce(nullif(fls.player_2_guest_name, ''), concat_ws(' ', p2.first_name, p2.last_name)) as player_2_name,
+         coalesce(fls.player_1_is_guest, false) as player_1_is_guest,
+         coalesce(fls.player_2_is_guest, false) as player_2_is_guest
+       from public.fixture_lineup fl
+       join public.team t on t.id = fl.team_id
+       join public.fixture_lineup_slot fls on fls.lineup_id = fl.id
+       left join public.person p1 on p1.id = fls.player_1_id
+       left join public.person p2 on p2.id = fls.player_2_id
+       where fl.fixture_id = any($1::uuid[])
+         and fl.status = 'Published'
+       order by fl.fixture_id, t.name, fls.slot_number`,
+      [fixtureIds]
+    )).rows : [];
+    const lineupsForFixture = (fixtureId: string, visibleTeamIds: string[]) => {
+      const visible = new Set(visibleTeamIds);
+      const fixtureRows = lineupRows.filter((row) => row.fixture_id === fixtureId && visible.has(row.team_id));
+      const lineups = new Map<string, {
+        teamId: string;
+        teamName: string;
+        slots: Array<{
+          slotNumber: number;
+          gameType: "Singles" | "Doubles";
+          player1Name: string;
+          player2Name: string | null;
+          player1IsGuest: boolean;
+          player2IsGuest: boolean;
+        }>;
+      }>();
+      for (const row of fixtureRows) {
+        const lineup = lineups.get(row.team_id) ?? { teamId: row.team_id, teamName: row.team_name, slots: [] };
+        lineup.slots.push({
+          slotNumber: row.slot_number,
+          gameType: row.game_type,
+          player1Name: row.player_1_name,
+          player2Name: row.player_2_name,
+          player1IsGuest: row.player_1_is_guest,
+          player2IsGuest: row.player_2_is_guest
+        });
+        lineups.set(row.team_id, lineup);
+      }
+      return Array.from(lineups.values());
+    };
 
     const weeks = new Map<string, {
       id: string;
@@ -190,6 +250,18 @@ export async function GET(request: NextRequest) {
         completedGames: number;
         totalGames: number;
         isOwnFixture: boolean;
+        lineups: Array<{
+          teamId: string;
+          teamName: string;
+          slots: Array<{
+            slotNumber: number;
+            gameType: "Singles" | "Doubles";
+            player1Name: string;
+            player2Name: string | null;
+            player1IsGuest: boolean;
+            player2IsGuest: boolean;
+          }>;
+        }>;
         games: Array<{
           id: string;
           game_number: number;
@@ -210,6 +282,18 @@ export async function GET(request: NextRequest) {
     }>();
 
     for (const row of rows.rows) {
+      const isOwnFixture = Boolean(teamId && (row.home_team_id === teamId || row.away_team_id === teamId));
+      const bothPublished = row.home_lineup_status === "Published" && row.away_lineup_status === "Published";
+      const ownPublished = isOwnFixture && (
+        row.home_team_id === teamId
+          ? row.home_lineup_status === "Published"
+          : row.away_lineup_status === "Published"
+      );
+      const visibleLineupTeamIds = bothPublished
+        ? [row.home_team_id, row.away_team_id]
+        : ownPublished && teamId
+          ? [teamId]
+          : [];
       const week = weeks.get(row.week_id) ?? {
         id: row.week_id,
         weekNumber: row.week_number,
@@ -232,7 +316,8 @@ export async function GET(request: NextRequest) {
         awayLineupStatus: row.away_lineup_status,
         completedGames: Number(row.completed_games ?? 0),
         totalGames: Number(row.total_games ?? 0),
-        isOwnFixture: Boolean(teamId && (row.home_team_id === teamId || row.away_team_id === teamId)),
+        isOwnFixture,
+        lineups: lineupsForFixture(row.fixture_id, visibleLineupTeamIds),
         games: gameRows
           .filter((game) => game.fixture_id === row.fixture_id)
           .map((game) => ({

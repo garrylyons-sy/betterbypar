@@ -4498,6 +4498,18 @@ type FixtureWeekFixture = {
   completedGames: number;
   totalGames: number;
   isOwnFixture: boolean;
+  lineups?: Array<{
+    teamId: string;
+    teamName: string;
+    slots: Array<{
+      slotNumber: number;
+      gameType: "Singles" | "Doubles";
+      player1Name: string;
+      player2Name: string | null;
+      player1IsGuest: boolean;
+      player2IsGuest: boolean;
+    }>;
+  }>;
   games: ManagerLineupGame[];
 };
 
@@ -5041,6 +5053,7 @@ function ManagerLineupCard({
     awayLineupStatus: payload?.fixture?.awayTeamId === activeTeam.teamId ? ownStatus : payload?.opponentStatus?.status ?? null,
     completedGames: 0,
     totalGames: 0,
+    lineups: [],
     games: []
   }];
 
@@ -5812,6 +5825,7 @@ function ReadOnlyFixtureDetails({
 }: {
   fixture: {
     games?: ManagerLineupGame[];
+    lineups?: FixtureWeekFixture["lineups"];
     status: string;
     homeTeamId: string;
     awayTeamId: string;
@@ -5822,8 +5836,13 @@ function ReadOnlyFixtureDetails({
   };
 }) {
   const games = fixture.games ?? [];
+  const lineups = fixture.lineups ?? [];
 
   if (!games.length) {
+    if (lineups.length) {
+      return <ReadOnlyPublishedLineups lineups={lineups} />;
+    }
+
     if (fixture.status === "Completed" && fixture.homeTeamScore !== null && fixture.homeTeamScore !== undefined && fixture.awayTeamScore !== null && fixture.awayTeamScore !== undefined) {
       return (
         <div className="rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
@@ -5898,6 +5917,37 @@ function ReadOnlyFixtureDetails({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function ReadOnlyPublishedLineups({ lineups }: { lineups: NonNullable<FixtureWeekFixture["lineups"]> }) {
+  return (
+    <div className="grid gap-2">
+      {lineups.map((lineup) => (
+        <section key={lineup.teamId} className="overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]">
+          <div className="flex items-center justify-between gap-2 border-b border-[#eeeaf2] bg-[#f7f5fa] px-3 py-2">
+            <p className="min-w-0 truncate text-xs font-extrabold uppercase text-[#6c5a73]">{lineup.teamName} lineup</p>
+            <Badge variant="green">Published</Badge>
+          </div>
+          <div className="divide-y divide-[#eeeaf2]">
+            {lineup.slots.map((slot) => (
+              <div key={`${lineup.teamId}-${slot.slotNumber}`} className="grid gap-1 px-3 py-2.5">
+                <p className="text-[11px] font-extrabold uppercase text-[#6c5a73]">
+                  Game {slot.slotNumber} · {slot.gameType}
+                </p>
+                <div className="rounded-md bg-[#f7f5fa] px-2 py-1.5 text-sm font-extrabold leading-tight text-[#10233f]">
+                  <GamePlayerLabel
+                    className="px-0 py-0"
+                    label={slot.gameType === "Doubles" && slot.player2Name ? `${slot.player1Name} / ${slot.player2Name}` : slot.player1Name}
+                    isGuest={slot.player1IsGuest || slot.player2IsGuest}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
