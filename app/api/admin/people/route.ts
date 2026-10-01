@@ -299,6 +299,7 @@ export async function PATCH(request: NextRequest) {
         const editableClubIds = access.platformAdmin
           ? scopeResult.rows.map((row) => row.club_id)
           : scopeResult.rows.map((row) => row.club_id).filter((clubId) => access.clubAdminClubIds.includes(clubId));
+        const existingClubIds = Array.from(new Set(scopeResult.rows.map((row) => row.club_id)));
         if (!access.platformAdmin && !editableClubIds.length) {
           throw new Error("Club administrator access is required for this person.");
         }
@@ -361,6 +362,9 @@ export async function PATCH(request: NextRequest) {
             const team = teamsById.get(desiredRole.teamId);
             if (!team) throw new Error("One of the selected teams was not found.");
             assertClubScope(access, team.club_id);
+            if (!existingClubIds.includes(team.club_id)) {
+              throw new Error("Roles can only be added within this person's existing club.");
+            }
           }
 
           const clubsToReplace = Array.from(new Set([

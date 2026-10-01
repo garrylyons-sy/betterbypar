@@ -2212,9 +2212,18 @@ function EditPersonModal({
   const [handicap, setHandicap] = useState(firstHandicap === null || firstHandicap === undefined ? "" : String(firstHandicap));
   const [roleRows, setRoleRows] = useState<EditRoleRow[]>(initialRoles);
   const canSave = Boolean(firstName.trim() && lastName.trim());
+  const allowedClubNames = useMemo(() => {
+    return new Set([
+      ...(person.teamRoles ?? []).map((role) => role.club_name),
+      ...(person.clubHandicaps ?? []).map((club) => club.club_name),
+      ...(person.clubAdmins ?? []).map((club) => club.club_name)
+    ].filter(Boolean));
+  }, [person.clubAdmins, person.clubHandicaps, person.teamRoles]);
   const sortedTeams = useMemo(() => {
-    return [...teams].sort((a, b) => a.clubName.localeCompare(b.clubName) || a.teamName.localeCompare(b.teamName) || a.leagueName.localeCompare(b.leagueName));
-  }, [teams]);
+    return teams
+      .filter((team) => allowedClubNames.has(team.clubName))
+      .sort((a, b) => a.clubName.localeCompare(b.clubName) || a.teamName.localeCompare(b.teamName) || a.leagueName.localeCompare(b.leagueName));
+  }, [allowedClubNames, teams]);
 
   function addRoleRow() {
     setRoleRows((rows) => [
@@ -2257,7 +2266,7 @@ function EditPersonModal({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase text-[#6c5a73]">Team roles</p>
-              <p className="text-xs font-semibold text-[#6c5a73]">Add or remove Player and Manager roles for this person.</p>
+              <p className="text-xs font-semibold text-[#6c5a73]">Add or remove Player and Manager roles within {Array.from(allowedClubNames).map(shortClubName).join(" / ") || "this person's club"}.</p>
             </div>
             <Button size="sm" variant="secondary" onClick={addRoleRow} disabled={!sortedTeams.length}>
               <PlusCircle className="h-4 w-4" />
@@ -2277,7 +2286,7 @@ function EditPersonModal({
                   label="Team"
                   value={row.teamId}
                   onChange={(value) => updateRoleRow(row.id, { teamId: value })}
-                  options={sortedTeams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.leagueName} - ${shortClubName(team.clubName)}` }))}
+                  options={sortedTeams.map((team) => ({ value: team.teamId, label: allowedClubNames.size > 1 ? `${team.teamName} - ${team.leagueName} - ${shortClubName(team.clubName)}` : `${team.teamName} - ${team.leagueName}` }))}
                 />
                 <Button variant="secondary" size="sm" onClick={() => removeRoleRow(row.id)} className="text-[#b42318]">
                   <Trash2 className="h-4 w-4" />
