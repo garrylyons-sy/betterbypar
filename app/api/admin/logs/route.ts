@@ -30,6 +30,12 @@ function pageSizeNumber(value: string | null) {
   return Math.min(100, Math.max(10, parsed));
 }
 
+function hoursNumber(value: string | null) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) return 0;
+  return Math.min(168, Math.max(1, parsed));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { user, administrator } = await requireAdministrator();
@@ -39,6 +45,7 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
     const from = validDate(params.get("from"));
     const to = validDate(params.get("to"));
+    const sinceHours = hoursNumber(params.get("sinceHours"));
     const personId = params.get("personId")?.trim() ?? "";
     const area = params.get("area")?.trim() ?? "";
     const page = pageNumber(params.get("page"));
@@ -47,11 +54,14 @@ export async function GET(request: NextRequest) {
     const where: string[] = [];
     const values: unknown[] = [];
 
-    if (from) {
+    if (sinceHours) {
+      values.push(sinceHours);
+      where.push(`l.created_at >= now() - ($${values.length}::int * interval '1 hour')`);
+    } else if (from) {
       values.push(from);
       where.push(`l.created_at >= $${values.length}::date`);
     }
-    if (to) {
+    if (!sinceHours && to) {
       values.push(to);
       where.push(`l.created_at < ($${values.length}::date + interval '1 day')`);
     }

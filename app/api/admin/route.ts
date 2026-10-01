@@ -39,7 +39,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ authenticated: false, administrator: false }, { status: 401 });
     if (!administrator) return NextResponse.json({ authenticated: true, administrator: false, user }, { status: 403 });
 
-    const [teams, peopleResult, logsResult, requestsResult, invitesResult, competitionsResult, appearance] = await Promise.all([
+    const [teams, peopleResult, requestsResult, invitesResult, competitionsResult, appearance] = await Promise.all([
       loadTeamOptions().then((rows) => platformAdmin ? rows : rows.filter((team) => clubAdminClubIds.includes(team.club_id))),
       dbQuery(
         `select distinct on (p.id)
@@ -145,31 +145,6 @@ export async function GET() {
         ,
         [platformAdmin, clubAdminClubIds]
       ),
-      dbQuery(
-        `select
-           l.id,
-           l.activity_type,
-           l.page_label,
-           l.page_path,
-           l.created_at,
-           l.metadata,
-           p.first_name,
-           p.last_name,
-           p.email
-         from public.user_activity_log l
-         left join public.person p on p.id = l.person_id
-         where $1::boolean = true
-            or exists (
-              select 1
-              from public.club_membership scope_cm
-              where scope_cm.person_id = p.id
-                and scope_cm.active = true
-                and scope_cm.club_id = any($2::uuid[])
-            )
-         order by l.created_at desc
-         limit 50`,
-        [platformAdmin, clubAdminClubIds]
-      ),
       platformAdmin
         ? dbQuery("select id, requested_person_name, email, status, message, created_at from public.invitation_request order by created_at desc limit 25")
         : Promise.resolve({ rows: [] }),
@@ -257,19 +232,6 @@ export async function GET() {
       user,
       teams,
       people: peopleResult.rows,
-      logs: logsResult.rows.map((row) => ({
-        id: row.id,
-        activity_type: row.activity_type,
-        page_label: row.page_label,
-        page_path: row.page_path,
-        created_at: row.created_at,
-        metadata: row.metadata,
-        person: row.first_name || row.last_name || row.email ? {
-          first_name: row.first_name,
-          last_name: row.last_name,
-          email: row.email
-        } : null
-      })),
       requests: requestsResult.rows,
       invites: invitesResult.rows,
       competitions: competitionsResult.rows,

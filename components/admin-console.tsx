@@ -205,26 +205,6 @@ const demoPeople: PersonOption[] = [
   { personId: "person-andrew", name: "Andrew Foley", firstName: "Andrew", lastName: "Foley", email: "andrew@example.com" },
   { personId: "person-conor", name: "Conor O'Boyle", firstName: "Conor", lastName: "O'Boyle", email: "conor@example.com" }
 ];
-const demoLogs: ActivityRow[] = [
-  {
-    id: "log-1",
-    activity_type: "Login",
-    page_label: null,
-    page_path: null,
-    created_at: new Date().toISOString(),
-    metadata: { provider: "password" },
-    person: { first_name: "Garry", last_name: "Lyons", email: "garry@example.com" }
-  },
-  {
-    id: "log-2",
-    activity_type: "Page Visit",
-    page_label: "Home",
-    page_path: "/",
-    created_at: new Date().toISOString(),
-    metadata: { team_name: "Castle A", role: "Player" },
-    person: { first_name: "Andrew", last_name: "Foley", email: "andrew@example.com" }
-  }
-];
 
 function logPersonName(log: ActivityRow) {
   if (!log.person) return "Unknown user";
@@ -298,14 +278,9 @@ function logPersonOptionName(person: LogPersonOption) {
   return name || person.email || "Unknown user";
 }
 
-function isoDateDaysAgo(daysAgo: number) {
-  const date = new Date();
-  date.setDate(date.getDate() - daysAgo);
-  return date.toISOString().slice(0, 10);
-}
-
 export function AdminConsole() {
   const [tab, setTab] = useState<AdminTab>("desktop");
+  const [logsRefreshKey, setLogsRefreshKey] = useState(0);
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [adminDataLoaded, setAdminDataLoaded] = useState(false);
@@ -315,7 +290,6 @@ export function AdminConsole() {
   const [message, setMessage] = useState("");
   const [teams, setTeams] = useState<TeamOption[]>(demoTeams);
   const [people, setPeople] = useState<PersonOption[]>(demoPeople);
-  const [logs, setLogs] = useState<ActivityRow[]>(demoLogs);
   const [requests, setRequests] = useState<InviteRequestRow[]>([]);
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [competitions, setCompetitions] = useState<AdminCompetitionRow[]>([]);
@@ -377,7 +351,6 @@ export function AdminConsole() {
           });
         }
         setPeople(Array.from(seen.values()));
-        setLogs(data.logs ?? []);
         setRequests(data.requests ?? []);
         setInvites(data.invites ?? []);
         setCompetitions(data.competitions ?? []);
@@ -417,8 +390,18 @@ export function AdminConsole() {
   }
 
   return (
-    <AdminLayout tab={tab} setTab={setTab} message={message} adminUser={adminUser} adminMode={adminMode} onLogout={logout}>
-      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logs={logs} requests={requests} invites={invites} competitions={competitions} competitionsLoading={!adminDataLoaded} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
+    <AdminLayout
+      tab={tab}
+      setTab={(nextTab) => {
+        if (nextTab === "logs") setLogsRefreshKey((current) => current + 1);
+        setTab(nextTab);
+      }}
+      message={message}
+      adminUser={adminUser}
+      adminMode={adminMode}
+      onLogout={logout}
+    >
+      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logsRefreshKey={logsRefreshKey} requests={requests} invites={invites} competitions={competitions} competitionsLoading={!adminDataLoaded} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
     </AdminLayout>
   );
 }
@@ -511,7 +494,7 @@ function AdminTabPanel(props: {
   adminMode: AdminMode;
   teams: TeamOption[];
   people: PersonOption[];
-  logs: ActivityRow[];
+  logsRefreshKey: number;
   requests: InviteRequestRow[];
   invites: InviteRow[];
   competitions: AdminCompetitionRow[];
@@ -523,13 +506,13 @@ function AdminTabPanel(props: {
   onRefresh: () => void;
 }) {
   if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
-  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} logs={props.logs} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
   if (props.tab === "permissions") return <PermissionsPanel {...props} />;
   if (props.tab === "appearance") return <AppearancePanel {...props} />;
-  if (props.tab === "logs") return <LogsPanel logs={props.logs} />;
+  if (props.tab === "logs") return <LogsPanel refreshKey={props.logsRefreshKey} />;
   return <InvitesPanel {...props} />;
 }
 
@@ -537,14 +520,12 @@ function DesktopAdminPanel({
   teams,
   people,
   requests,
-  logs,
   onMessage,
   onRefresh
 }: {
   teams: TeamOption[];
   people: PersonOption[];
   requests: InviteRequestRow[];
-  logs: ActivityRow[];
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
@@ -648,26 +629,6 @@ function DesktopAdminPanel({
                 <Trash2 className="h-4 w-4" />
                 Clear 2026/27 test results
               </Button>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent logs</CardTitle>
-              <Badge variant="muted">{logs.length}</Badge>
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              {logs.slice(0, 5).map((log) => (
-                <div key={log.id} className="rounded-xl bg-[#f7f5fa] p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-bold text-[#10233f]">{activitySummary(log)}</p>
-                      <p className="truncate text-xs font-semibold text-[#6c5a73]">{logPersonName(log)} - {activityContext(log)}</p>
-                    </div>
-                    <Badge variant={activityBadgeVariant(log)}>{activityLabel(log.activity_type)}</Badge>
-                  </div>
-                  <p className="mt-1 text-xs font-semibold text-[#6c5a73]">{formatAdminLogTime(log.created_at)}</p>
-                </div>
-              ))}
             </CardContent>
           </Card>
         </div>
@@ -3291,17 +3252,18 @@ function AdminCheckbox({
   );
 }
 
-function LogsPanel({ logs }: { logs: ActivityRow[] }) {
-  const [activityLogs, setActivityLogs] = useState<ActivityRow[]>(logs);
+function LogsPanel({ refreshKey }: { refreshKey: number }) {
+  const [activityLogs, setActivityLogs] = useState<ActivityRow[]>([]);
   const [personOptions, setPersonOptions] = useState<LogPersonOption[]>([]);
   const [areaOptions, setAreaOptions] = useState<string[]>([]);
   const [personFilter, setPersonFilter] = useState("all");
   const [areaFilter, setAreaFilter] = useState("all");
-  const [fromDate, setFromDate] = useState(() => isoDateDaysAgo(7));
-  const [toDate, setToDate] = useState(() => isoDateDaysAgo(0));
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [useLast24Hours, setUseLast24Hours] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
-  const [total, setTotal] = useState(logs.length);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -3318,8 +3280,12 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
     });
     if (personFilter !== "all") params.set("personId", personFilter);
     if (areaFilter !== "all") params.set("area", areaFilter);
-    if (fromDate) params.set("from", fromDate);
-    if (toDate) params.set("to", toDate);
+    if (useLast24Hours) {
+      params.set("sinceHours", "24");
+    } else {
+      if (fromDate) params.set("from", fromDate);
+      if (toDate) params.set("to", toDate);
+    }
     setLoading(true);
     setLoadError("");
     fetch(`/api/admin/logs?${params.toString()}`, { credentials: "same-origin" })
@@ -3347,7 +3313,7 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
     return () => {
       active = false;
     };
-  }, [areaFilter, fromDate, page, pageSize, personFilter, toDate]);
+  }, [areaFilter, fromDate, page, pageSize, personFilter, refreshKey, toDate, useLast24Hours]);
 
   return (
     <Card className="min-w-0">
@@ -3389,7 +3355,10 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
               className="min-h-10 w-full min-w-0 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
               type="date"
               value={fromDate}
-              onChange={(event) => setFromDate(event.target.value)}
+              onChange={(event) => {
+                setUseLast24Hours(false);
+                setFromDate(event.target.value);
+              }}
             />
           </label>
           <label className="grid min-w-0 gap-1 text-xs font-bold uppercase text-[#6c5a73]">
@@ -3398,7 +3367,10 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
               className="min-h-10 w-full min-w-0 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]"
               type="date"
               value={toDate}
-              onChange={(event) => setToDate(event.target.value)}
+              onChange={(event) => {
+                setUseLast24Hours(false);
+                setToDate(event.target.value);
+              }}
             />
           </label>
           <label className="grid min-w-0 gap-1 text-xs font-bold uppercase text-[#6c5a73]">
@@ -3416,17 +3388,20 @@ function LogsPanel({ logs }: { logs: ActivityRow[] }) {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-bold uppercase text-[#6c5a73]">
-            Showing {fromDate || "start"} to {toDate || "today"}
+            {useLast24Hours ? "Showing last 24 hours" : `Showing ${fromDate || "start"} to ${toDate || "today"}`}
           </p>
           <Button
             size="sm"
             variant="secondary"
             onClick={() => {
-              setFromDate(isoDateDaysAgo(7));
-              setToDate(isoDateDaysAgo(0));
+              setUseLast24Hours(true);
+              setFromDate("");
+              setToDate("");
+              setPersonFilter("all");
+              setAreaFilter("all");
             }}
           >
-            Last 7 days
+            Last 24 hours
           </Button>
         </div>
         {loadError ? (
