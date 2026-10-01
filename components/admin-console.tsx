@@ -1537,6 +1537,7 @@ function PeoplePanel({
   const [sortBy, setSortBy] = useState("name");
   const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
   const [inviteSelectionStatus, setInviteSelectionStatus] = useState<{ tone: "info" | "success" | "error"; text: string } | null>(null);
+  const [bccGarry, setBccGarry] = useState(false);
 
   useEffect(() => {
     const nextTeams = teams.filter((team) => team.clubId === clubId);
@@ -1656,7 +1657,7 @@ function PeoplePanel({
         method: "PATCH",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ invitationId: person.invitationId })
+        body: JSON.stringify({ invitationId: person.invitationId, bccGarry })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not resend invite.");
@@ -1696,7 +1697,7 @@ function PeoplePanel({
           method: "POST",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ personIds: newInvitePeople.map((person) => person.personId) })
+          body: JSON.stringify({ personIds: newInvitePeople.map((person) => person.personId), bccGarry })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Could not send invite emails.");
@@ -1709,7 +1710,7 @@ function PeoplePanel({
             method: "PATCH",
             credentials: "same-origin",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ invitationId: person.invitationId })
+            body: JSON.stringify({ invitationId: person.invitationId, bccGarry })
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(data.error || "Could not resend invite.");
@@ -1968,6 +1969,15 @@ function PeoplePanel({
                 {busyPersonId === "bulk-invite" ? "Sending..." : `Send/resend (${selectedEligibleCount})`}
               </Button>
             </div>
+            <label className="flex w-full items-center gap-2 text-xs font-bold text-[#6c5a73] sm:w-auto">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-[#10233f]"
+                checked={bccGarry}
+                onChange={(event) => setBccGarry(event.target.checked)}
+              />
+              BCC Garry
+            </label>
           </div>
           {inviteSelectionStatus ? <InviteSendStatus tone={inviteSelectionStatus.tone} text={inviteSelectionStatus.text} /> : null}
           <div className="min-w-0 overflow-x-auto rounded-xl ring-1 ring-[#eeeaf2]">
@@ -2329,6 +2339,7 @@ function InvitesPanel({
   const [emailPreview, setEmailPreview] = useState<{ to: string; subject: string; body: string; activationUrl: string } | null>(null);
   const [inviteSending, setInviteSending] = useState(false);
   const [inviteStatus, setInviteStatus] = useState<{ tone: "info" | "success" | "error"; text: string } | null>(null);
+  const [bccGarry, setBccGarry] = useState(false);
 
   useEffect(() => {
     setRoleRows((rows) => rows.map((row) => {
@@ -2379,7 +2390,8 @@ function InvitesPanel({
           clubId,
           roles: roleRows.map((row) => ({ role: row.role, teamId: row.teamId, clubId })),
           administrator,
-          expiresAt
+          expiresAt,
+          bccGarry
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -2459,6 +2471,7 @@ function InvitesPanel({
               ))}
             </div>
             <AdminCheckbox label="Make administrator" checked={administrator} onChange={setAdministrator} description="After activation, this person can access admin and manage the platform." />
+            <AdminCheckbox label="BCC Garry" checked={bccGarry} onChange={setBccGarry} description="Quietly copy garlyons@gmail.com on this invite email." />
             <AdminInput label="Expires" value={expiresAt} onChange={setExpiresAt} type="datetime-local" />
             {inviteStatus ? <InviteSendStatus tone={inviteStatus.tone} text={inviteStatus.text} /> : null}
             <Button onClick={createInvite} disabled={inviteSending || !inviteFirstName.trim() || !inviteLastName.trim() || !email || !clubId || (!administrator && !roleRows.length)}>

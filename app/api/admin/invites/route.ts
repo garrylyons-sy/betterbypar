@@ -28,6 +28,12 @@ type ExistingPersonInviteResult = {
   error?: string;
 };
 
+const garryInviteBcc = "garlyons@gmail.com";
+
+function inviteBcc(enabled: unknown) {
+  return enabled === true ? garryInviteBcc : undefined;
+}
+
 async function assertAdministrator() {
   const user = await currentUser();
   if (!user) throw new Error("Not authenticated.");
@@ -146,6 +152,7 @@ export async function POST(request: NextRequest) {
   try {
     const administrator = await assertAdministrator();
     const body = await request.json();
+    const bcc = inviteBcc(body.bccGarry);
     const personIds: string[] = Array.isArray(body.personIds)
       ? Array.from(new Set(body.personIds.map((value: unknown) => String(value ?? "").trim()).filter(Boolean)))
       : [];
@@ -331,7 +338,7 @@ export async function POST(request: NextRequest) {
               expiresAt,
               isClubOnlyInvite: !teamRoles.rowCount && (clubRoles.rowCount ?? 0) > 0
             });
-            const emailResult = await sendAppEmail({ to: person.email, subject, html: bodyHtml, text: bodyText });
+            const emailResult = await sendAppEmail({ to: person.email, bcc, subject, html: bodyHtml, text: bodyText });
             const emailInsert = await client.query(
               `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
                values ($1, $2, $3, $4, $5, 'Queued')
@@ -451,7 +458,7 @@ export async function POST(request: NextRequest) {
         isClubOnlyInvite
       });
 
-      const emailResult = await sendAppEmail({ to: email, subject, html: bodyHtml, text: bodyText });
+      const emailResult = await sendAppEmail({ to: email, bcc, subject, html: bodyHtml, text: bodyText });
 
       const emailInsert = await client.query(
         `insert into public.invitation_email (invitation_id, to_email, subject, body_html, body_text, status)
@@ -495,6 +502,7 @@ export async function PATCH(request: NextRequest) {
   try {
     await assertAdministrator();
     const body = await request.json();
+    const bcc = inviteBcc(body.bccGarry);
     const invitationId = String(body.invitationId ?? "").trim();
 
     if (!invitationId) {
@@ -577,7 +585,7 @@ export async function PATCH(request: NextRequest) {
         isClubOnlyInvite: !teamRoles.rows.length && memberRoles.rows.length > 0
       });
 
-      const emailResult = await sendAppEmail({ to: invitation.email, subject, html: bodyHtml, text: bodyText });
+      const emailResult = await sendAppEmail({ to: invitation.email, bcc, subject, html: bodyHtml, text: bodyText });
       if (emailResult.status !== "Failed") {
         await client.query(
           "update public.invitation set invitation_token_hash = $2 where id = $1",
