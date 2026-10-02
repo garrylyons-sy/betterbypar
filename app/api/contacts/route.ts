@@ -40,6 +40,12 @@ async function canViewContacts(personId: string) {
          and cm.is_club_admin = true
        union
        select 1
+       from public.club_membership cm
+       where cm.person_id = $1
+         and cm.active = true
+         and cm.role = 'League Chair'
+       union
+       select 1
        from public.person_team_role ptr
        where ptr.person_id = $1
          and ptr.active = true

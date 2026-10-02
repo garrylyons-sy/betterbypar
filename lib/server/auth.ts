@@ -779,7 +779,7 @@ export async function loadSessionPayload(user: AppUser) {
     leagueMatchesPlayed: 0
   } satisfies TeamContext));
 
-  const leagueChairContexts = (await dbQuery<{
+  const leagueChairMemberships = (await dbQuery<{
     membership_id: string;
     club_name: string;
     logo_path: string;
@@ -797,9 +797,11 @@ export async function loadSessionPayload(user: AppUser) {
      where cm.person_id = $1
        and cm.active = true
        and cm.role = 'League Chair'
-     order by c.name`,
+    order by c.name`,
     [user.personId]
-  )).rows.map((row) => ({
+  )).rows;
+
+  const leagueChairFallbackContexts = leagueChairMemberships.map((row) => ({
     id: `${row.membership_id}:league-chair`,
     personId: user.personId,
     name: row.club_name,
@@ -811,7 +813,8 @@ export async function loadSessionPayload(user: AppUser) {
     season: "Club",
     role: "League Chair",
     leaguePosition: 0,
-    leagueMatchesPlayed: 0
+    leagueMatchesPlayed: 0,
+    hasLeagueChairAccess: true
   } satisfies TeamContext));
 
   const isAppOperator = (await dbQuery<{ is_operator: boolean }>(
@@ -935,14 +938,19 @@ export async function loadSessionPayload(user: AppUser) {
       } satisfies TeamContext))
     : [];
 
-  const contexts = [
+  const baseContexts = [
     ...teamContexts,
     ...clubContexts,
     ...clubAdminContexts,
-    ...leagueChairContexts,
     ...operatorTeamContexts,
     ...operatorClubContexts
   ];
+  const contexts = leagueChairMemberships.length && baseContexts.length
+    ? baseContexts.map((context) => ({
+      ...context,
+      hasLeagueChairAccess: true
+    }))
+    : [...baseContexts, ...leagueChairFallbackContexts];
   const standings = (await dbQuery<{
     position: number;
     team_name: string;

@@ -46,6 +46,7 @@ export type TeamContext = {
   pointsFor?: number;
   pointsAgainst?: number;
   leaguePoints?: number;
+  hasLeagueChairAccess?: boolean;
 };
 
 export type PlayerGameResult = {

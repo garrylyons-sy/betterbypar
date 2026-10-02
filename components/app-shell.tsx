@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 
 type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
-const roleOptions: Role[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
+const roleOptions: Role[] = ["Player", "Manager", "Club Member", "Club Admin"];
 const RECENT_FORM_LIMIT = 3;
 const SIMULATION_CONTROLS_ENABLED = false;
 const leagueOrder: TeamContext["league"][] = ["A League", "B League", "C League"];
@@ -150,6 +150,12 @@ function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): App
       : ["Home", "Fixtures", "Table", "Results", "Friendlies", "Competitions", "Club"]);
   }
   return withMyClubLast(base);
+}
+
+function applyLeagueChairAccess(menuItems: AppearanceMenuId[], activeTeam: TeamContext) {
+  if (!activeTeam.hasLeagueChairAccess) return menuItems;
+  const extras: AppearanceMenuId[] = ["Contacts", "Interclub Leagues"];
+  return Array.from(new Set([...menuItems, ...extras]));
 }
 
 export function AppShell({
@@ -312,8 +318,8 @@ export function AppShell({
     };
   }, [activeTeam.club, activeTeam.role]);
   const activeMenuItems = useMemo(() => {
-    return fixedMenuItemsForRole(activeTeam.role, enteredCompetitionCount);
-  }, [activeTeam.role, enteredCompetitionCount]);
+    return applyLeagueChairAccess(fixedMenuItemsForRole(activeTeam.role, enteredCompetitionCount), activeTeam);
+  }, [activeTeam, activeTeam.role, enteredCompetitionCount]);
   const activeStandings = useMemo(() => {
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
     return filtered.length ? filtered : standingsData === standings ? standings : [];
@@ -3367,7 +3373,7 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [error, setError] = useState("");
   const [copiedId, setCopiedId] = useState("");
   const [openClubNames, setOpenClubNames] = useState<Set<string>>(new Set());
-  const canView = activeTeam.role === "Manager" || activeTeam.role === "Club Admin" || activeTeam.role === "League Chair";
+  const canView = activeTeam.role === "Manager" || activeTeam.role === "Club Admin" || activeTeam.role === "League Chair" || Boolean(activeTeam.hasLeagueChairAccess);
   const canUsePhoneCalls = useCanUsePhoneCalls();
 
   useEffect(() => {
