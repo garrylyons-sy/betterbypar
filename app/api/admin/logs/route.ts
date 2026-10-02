@@ -36,6 +36,13 @@ function hoursNumber(value: string | null) {
   return Math.min(168, Math.max(1, parsed));
 }
 
+function garryLyonsExcludedSql(personAlias = "p") {
+  return `not (
+    lower(coalesce(${personAlias}.first_name, '')) = 'garry'
+    and lower(coalesce(${personAlias}.last_name, '')) = 'lyons'
+  )`;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { user, administrator } = await requireAdministrator();
@@ -53,6 +60,8 @@ export async function GET(request: NextRequest) {
     const offset = (page - 1) * pageSize;
     const where: string[] = [];
     const values: unknown[] = [];
+
+    where.push(garryLyonsExcludedSql("p"));
 
     if (sinceHours) {
       values.push(sinceHours);
@@ -116,20 +125,23 @@ export async function GET(request: NextRequest) {
     );
     const [people, areas] = await Promise.all([
       dbQuery<{ person_id: string; first_name: string | null; last_name: string | null; email: string | null }>(
-        `select distinct
+         `select distinct
            p.id as person_id,
            p.first_name,
            p.last_name,
            p.email
          from public.user_activity_log l
          join public.person p on p.id = l.person_id
+         where ${garryLyonsExcludedSql("p")}
          order by p.first_name nulls last, p.last_name nulls last, p.email nulls last`
       ),
       dbQuery<{ area: string }>(
         `select area
          from (
            select coalesce(case when activity_type = 'Login' then 'Login' else nullif(page_label, '') end, nullif(page_path, ''), activity_type::text) as area
-           from public.user_activity_log
+           from public.user_activity_log l
+           left join public.person p on p.id = l.person_id
+           where ${garryLyonsExcludedSql("p")}
          ) areas
          where area is not null
          group by area
