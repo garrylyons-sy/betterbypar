@@ -5,7 +5,7 @@ import { PoolClient } from "pg";
 import { loadAppearanceConfig } from "@/lib/server/appearance";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import { hashSecretToken } from "@/lib/server/tokens";
-import type { PlayerBreakStat, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
+import type { PlayerBreakStat, PlayerGameResult, Role, SponsorAd, Standing, TeamContext } from "@/lib/types";
 
 export const sessionCookieName = "is_session";
 const knownDeviceCookieName = "is_known_device";
@@ -1185,6 +1185,33 @@ export async function loadSessionPayload(user: AppUser) {
   )).rows[0]?.count ?? 0);
 
   const appearance = await loadAppearanceConfig();
+  const sponsorAds = (await dbQuery<{
+    id: string;
+    name: string;
+    placement: SponsorAd["placement"];
+    audience: SponsorAd["audience"];
+    image_path: string;
+    link_url: string;
+    alt_text: string;
+  }>(
+    `select id::text, name, placement, audience, image_path, link_url, alt_text
+     from public.ads
+     where active = true
+       and audience = 'League Chair'
+       and placement = 'league-chair-banner'
+       and (starts_at is null or starts_at <= now())
+       and (ends_at is null or ends_at > now())
+     order by sort_order, name
+     limit 1`
+  )).rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    placement: row.placement,
+    audience: row.audience,
+    imagePath: row.image_path,
+    linkUrl: row.link_url,
+    altText: row.alt_text
+  }));
 
   return {
     authenticated: true,
@@ -1194,6 +1221,7 @@ export async function loadSessionPayload(user: AppUser) {
     playerGameResults,
     playerBreakStats,
     matchResults,
+    sponsorAds,
     activeMatchCount,
     appearance
   };

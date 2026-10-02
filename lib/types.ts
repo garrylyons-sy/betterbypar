@@ -49,6 +49,16 @@ export type TeamContext = {
   hasLeagueChairAccess?: boolean;
 };
 
+export type SponsorAd = {
+  id: string;
+  name: string;
+  placement: "league-chair-banner";
+  audience: "League Chair";
+  imagePath: string;
+  linkUrl: string;
+  altText: string;
+};
+
 export type PlayerGameResult = {
   gameId: string;
   season: string;

@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { appearanceMenuOptions, defaultAppearanceConfig, normalizeAppearanceConfig } from "@/lib/appearance";
 import { clubTeamStructure, playerGameResults as demoPlayerGameResults, recentResults, standings, teamContexts, upcomingFixture } from "@/lib/demo-data";
-import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, MatchResult, PlayerBreakStat, PlayerGameResult, Role, RoleAppearance, Standing, TeamContext } from "@/lib/types";
+import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, MatchResult, PlayerBreakStat, PlayerGameResult, Role, RoleAppearance, SponsorAd, Standing, TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -164,6 +164,7 @@ export function AppShell({
   playerBreakStats = [],
   playerGameResults = demoPlayerGameResults,
   matchResults,
+  sponsorAds = [],
   activeMatchCount = 0,
   appearance,
   userLabel,
@@ -176,6 +177,7 @@ export function AppShell({
   playerBreakStats?: PlayerBreakStat[];
   playerGameResults?: PlayerGameResult[];
   matchResults?: MatchResult[];
+  sponsorAds?: SponsorAd[];
   activeMatchCount?: number;
   appearance?: AppearanceConfig;
   userLabel?: string;
@@ -341,6 +343,9 @@ export function AppShell({
     () => playerBreakStats.find((stat) => stat.league === activeTeam.league && stat.season === activeTeam.season) ?? null,
     [activeTeam.league, activeTeam.season, playerBreakStats]
   );
+  const activeSponsorAd = activeTeam.hasLeagueChairAccess
+    ? sponsorAds.find((ad) => ad.placement === "league-chair-banner" && ad.audience === "League Chair")
+    : undefined;
   const allMatchResults = matchResults ?? [];
   const clubOnlyView = isClubOnlyRole(activeTeam.role);
   const showLeaguePanels = !clubOnlyView && activePage === "Home" && pagesWithLeagueAside.includes(activePage);
@@ -418,7 +423,7 @@ export function AppShell({
             onDataRefresh={onDataRefresh}
             onTeamSummaryUpdate={updateTeamSummary}
           />
-          {activeTeam.hasLeagueChairAccess ? <SponsorBanner /> : null}
+          {activeSponsorAd ? <SponsorBanner ad={activeSponsorAd} /> : null}
         </div>
         {showLeaguePanels ? (
           <aside className="grid gap-4 lg:content-start">
@@ -463,18 +468,18 @@ function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: stri
   };
 }
 
-function SponsorBanner() {
+function SponsorBanner({ ad }: { ad: SponsorAd }) {
   return (
     <a
-      href="https://www.thebilliardcompany.ie/"
+      href={ad.linkUrl}
       target="_blank"
       rel="noopener noreferrer sponsored"
-      aria-label="Visit The Billiard Company"
+      aria-label={`Visit ${ad.name}`}
       className="block overflow-hidden rounded-lg bg-[#071426] shadow-card ring-1 ring-[#eeeaf2] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
     >
       <img
-        src="/sponsors/the-billiard-company-animated-banner.gif"
-        alt="The Billiard Company - world class table sports"
+        src={ad.imagePath}
+        alt={ad.altText}
         className="h-auto w-full object-cover"
         loading="lazy"
       />
