@@ -280,9 +280,7 @@ export async function PATCH(request: NextRequest) {
             })
             .filter((row: SubmittedTeamRole | null): row is SubmittedTeamRole => Boolean(row))
         : null;
-      const submittedLeagueChairClubIds: string[] | null = Array.isArray(body.leagueChairClubIds)
-        ? Array.from(new Set((body.leagueChairClubIds as unknown[]).map((clubId) => String(clubId ?? "").trim()).filter(Boolean)))
-        : null;
+      const submittedLeagueChair: boolean | null = typeof body.leagueChair === "boolean" ? Boolean(body.leagueChair) : null;
 
       if (!firstName || !lastName) {
         return NextResponse.json({ error: "First name and last name are required." }, { status: 400 });
@@ -306,9 +304,7 @@ export async function PATCH(request: NextRequest) {
         if (!access.platformAdmin && !editableClubIds.length) {
           throw new Error("Club administrator access is required for this person.");
         }
-        if (submittedLeagueChairClubIds?.some((clubId) => !editableClubIds.includes(clubId) || !existingClubIds.includes(clubId))) {
-          throw new Error("League Chair can only be assigned within this person's existing club.");
-        }
+        if (submittedLeagueChair !== null) assertPlatformAdmin(access);
 
         if (emailInput) {
           const duplicateResult = await client.query<{ id: string }>(
@@ -426,24 +422,25 @@ export async function PATCH(request: NextRequest) {
           }
         }
 
-        if (submittedLeagueChairClubIds) {
+        if (submittedLeagueChair !== null) {
           await client.query(
             `update public.club_membership
              set active = false
              where person_id = $1
-               and role = 'League Chair'
-               and club_id = any($2::uuid[])`,
-            [personId, editableClubIds]
+               and role = 'League Chair'`,
+            [personId]
           );
 
-          for (const chairClubId of submittedLeagueChairClubIds) {
+          if (submittedLeagueChair) {
+            const anchorClubId = existingClubIds[0] ?? editableClubIds[0];
+            if (!anchorClubId) throw new Error("Add this person to a club or team before assigning Interclub League Chair.");
             await client.query(
               `insert into public.club_membership (club_id, person_id, role, handicap, active)
                values ($1, $2, 'League Chair', $3, true)
                on conflict (club_id, person_id, role) do update
                set active = true,
                    handicap = coalesce(excluded.handicap, public.club_membership.handicap)`,
-              [chairClubId, personId, handicap]
+              [anchorClubId, personId, handicap]
             );
           }
         }

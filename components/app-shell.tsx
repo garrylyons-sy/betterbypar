@@ -685,7 +685,7 @@ function AccountMenu({
 function contextLabel(context: TeamContext) {
   if (context.role === "Club Member") return `${context.club.replace(" Golf Club", "")} - Member`;
   if (context.role === "Club Admin") return `${context.club.replace(" Golf Club", "")} - Club Admin`;
-  if (context.role === "League Chair") return `${context.club.replace(" Golf Club", "")} - League Chair`;
+  if (context.role === "League Chair") return "Interclub League Chair";
   return `${context.name} - ${context.role}`;
 }
 

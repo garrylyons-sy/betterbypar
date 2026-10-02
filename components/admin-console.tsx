@@ -1692,7 +1692,7 @@ function PeoplePanel({
     }
   }
 
-  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChairClubIds: string[] }) {
+  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean }) {
     if (demo) {
       onMessage("Person details updated.");
       setEditTarget(null);
@@ -2227,6 +2227,7 @@ function PeoplePanel({
           person={editTarget}
           teams={teams}
           canManageLogin={adminMode === "platform"}
+          canManageLeagueChair={adminMode === "platform"}
           busy={busyPersonId === editTarget.personId}
           onCancel={() => setEditTarget(null)}
           onConfirm={updatePersonDetails}
@@ -2265,9 +2266,9 @@ function InviteStatusBadge({ person }: { person: PersonOption }) {
 function visiblePersonRoleLabels(person: PersonOption) {
   const teamLabels = (person.teamRoles ?? []).map((role) => `${role.role} - ${role.team_name}`);
   const clubAdminLabels = (person.clubAdmins ?? []).map((club) => `Club Admin - ${shortClubName(club.club_name)}`);
-  const leagueChairLabels = (person.clubHandicaps ?? [])
-    .filter((club) => club.role === "League Chair")
-    .map((club) => `League Chair - ${shortClubName(club.club_name)}`);
+  const leagueChairLabels = (person.clubHandicaps ?? []).some((club) => club.role === "League Chair")
+    ? ["Interclub League Chair"]
+    : [];
   const clubMemberLabels = teamLabels.length || clubAdminLabels.length
     ? []
     : (person.clubHandicaps ?? [])
@@ -2286,6 +2287,7 @@ function EditPersonModal({
   person,
   teams,
   canManageLogin,
+  canManageLeagueChair,
   busy,
   onCancel,
   onConfirm,
@@ -2294,9 +2296,10 @@ function EditPersonModal({
   person: PersonOption;
   teams: TeamOption[];
   canManageLogin: boolean;
+  canManageLeagueChair: boolean;
   busy: boolean;
   onCancel: () => void;
-  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChairClubIds: string[] }) => void;
+  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean }) => void;
   onSetLoginAccess: (loginActive: boolean) => void;
 }) {
   const firstHandicap = person.clubHandicaps?.find((item) => item.handicap !== null && item.handicap !== undefined)?.handicap;
@@ -2323,11 +2326,7 @@ function EditPersonModal({
   const [phone, setPhone] = useState(person.phone ?? "");
   const [handicap, setHandicap] = useState(firstHandicap === null || firstHandicap === undefined ? "" : String(firstHandicap));
   const [roleRows, setRoleRows] = useState<EditRoleRow[]>(initialRoles);
-  const [leagueChairClubIds, setLeagueChairClubIds] = useState<string[]>(() =>
-    (person.clubHandicaps ?? [])
-      .filter((club) => club.role === "League Chair")
-      .map((club) => club.club_id)
-  );
+  const [leagueChair, setLeagueChair] = useState(() => (person.clubHandicaps ?? []).some((club) => club.role === "League Chair"));
   const canSave = Boolean(firstName.trim() && lastName.trim());
   const allowedClubs = useMemo(() => {
     const byName = new Map<string, { clubId: string; clubName: string }>();
@@ -2346,10 +2345,6 @@ function EditPersonModal({
   const allowedClubNames = useMemo(() => {
     return new Set(allowedClubs.map((club) => club.clubName));
   }, [allowedClubs]);
-  const allowedClubIds = useMemo(() => new Set(allowedClubs.map((club) => club.clubId)), [allowedClubs]);
-  useEffect(() => {
-    setLeagueChairClubIds((current) => current.filter((clubId) => allowedClubIds.has(clubId)));
-  }, [allowedClubIds]);
   const sortedTeams = useMemo(() => {
     return teams
       .filter((team) => allowedClubNames.has(team.clubName))
@@ -2451,31 +2446,20 @@ function EditPersonModal({
             ) : null}
           </div>
         </div>
-        <div className="mt-4 rounded-2xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
-          <p className="text-xs font-black uppercase text-[#6c5a73]">League access</p>
-          <p className="mt-1 text-xs font-semibold text-[#6c5a73]">
-            League Chair gives this person Contacts access without adding a selectable role in the app.
-          </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {allowedClubs.map((club) => (
-              <AdminCheckbox
-                key={club.clubId}
-                label={`League Chair - ${shortClubName(club.clubName)}`}
-                checked={leagueChairClubIds.includes(club.clubId)}
-                onChange={(checked) => {
-                  setLeagueChairClubIds((current) => checked
-                    ? Array.from(new Set([...current, club.clubId]))
-                    : current.filter((clubId) => clubId !== club.clubId));
-                }}
-              />
-            ))}
-            {!allowedClubs.length ? (
-              <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[#6c5a73] ring-1 ring-[#eeeaf2]">
-                Add this person to a club or team before assigning League Chair.
-              </p>
-            ) : null}
+        {canManageLeagueChair ? (
+          <div className="mt-4 rounded-2xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+            <p className="text-xs font-black uppercase text-[#6c5a73]">League access</p>
+            <p className="mt-1 text-xs font-semibold text-[#6c5a73]">
+              Interclub League Chair gives this person Contacts access without adding a selectable role in the app.
+            </p>
+            <AdminCheckbox
+              label="Interclub League Chair"
+              checked={leagueChair}
+              onChange={setLeagueChair}
+              description="Global interclub access. It is not tied to one club and will not appear in the role switcher."
+            />
           </div>
-        </div>
+        ) : null}
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>
             Cancel
@@ -2488,7 +2472,7 @@ function EditPersonModal({
               email: email.trim(),
               phone: phone.trim(),
               handicap: handicap.trim(),
-              leagueChairClubIds,
+              leagueChair,
               roles: roleRows
                 .filter((row) => row.teamId && (row.role === "Player" || row.role === "Manager"))
                 .map((row) => ({ role: row.role, teamId: row.teamId }))
@@ -3139,13 +3123,13 @@ function normalizeInviteRole(value: string): InviteRole {
 
 function clubRoleHeading(role: InviteRole) {
   if (role === "Club Admin") return "Club administration access";
-  if (role === "League Chair") return "League chair access";
+  if (role === "League Chair") return "Interclub league chair access";
   return "Club-wide member access";
 }
 
 function clubRoleDescription(role: InviteRole) {
   if (role === "Club Admin") return "Can manage club members, invites, competitions and bookings.";
-  if (role === "League Chair") return "Can view league contacts and interclub league information.";
+  if (role === "League Chair") return "Can view league contacts across the interclub competition.";
   return "Can book club tables and receive messages.";
 }
 
