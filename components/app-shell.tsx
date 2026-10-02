@@ -1863,7 +1863,7 @@ type CompetitionSummary = {
   clubName: string;
   name: string;
   competitionType: "Handicap" | "Scratch";
-  entryClosesAt: string;
+  entryClosesAt: string | null;
   rules: string;
   status: string;
   entrantCount: number;
@@ -1933,12 +1933,22 @@ function competitionStatusText(competition: CompetitionSummary) {
 
 function competitionDateText(competition: CompetitionSummary) {
   if (competition.nextMatch) return `Play by ${formatFixtureDate(competition.nextMatch.playByDate)}`;
-  if (competition.status === "Open") return `Entries close ${formatFixtureDate(competition.entryClosesAt)}`;
+  if (competition.status === "Open") return `Entries close ${competitionCloseDateText(competition)}`;
   return competition.status;
 }
 
+function competitionCloseDate(competition: CompetitionSummary | CompetitionDetail) {
+  return typeof competition.entryClosesAt === "string" ? competition.entryClosesAt.slice(0, 10) : "";
+}
+
+function competitionCloseDateText(competition: CompetitionSummary | CompetitionDetail) {
+  const closeDate = competitionCloseDate(competition);
+  return closeDate ? formatFixtureDate(closeDate) : "date to be confirmed";
+}
+
 function competitionEntryClosed(competition: CompetitionSummary | CompetitionDetail) {
-  return competition.entryClosesAt.slice(0, 10) < localIsoDate();
+  const closeDate = competitionCloseDate(competition);
+  return Boolean(closeDate) && closeDate < localIsoDate();
 }
 
 function CompetitionListItem({ competition, onNavigate }: { competition: CompetitionSummary; onNavigate: (page: AppPage) => void }) {
@@ -2137,7 +2147,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
       return;
     }
     if (competitionEntryClosed(competition)) {
-      setMessage(`Entries for ${competition.name} closed on ${formatFixtureDate(competition.entryClosesAt)}.`);
+      setMessage(`Entries for ${competition.name} closed on ${competitionCloseDateText(competition)}.`);
       return;
     }
     setEnteringId(competition.id);
@@ -2195,7 +2205,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
                     >
                       <p className="font-black">{competition.name}</p>
                       <p className={cn("text-xs font-bold", selected ? "text-white/70" : "text-[#6c5a73]")}>
-                        {competition.clubName} - {competition.competitionType} - closes {formatFixtureDate(competition.entryClosesAt)}
+                        {competition.clubName} - {competition.competitionType} - closes {competitionCloseDateText(competition)}
                       </p>
                       {competition.nextMatch ? (
                         <p className={cn("mt-1 text-sm font-semibold", selected ? "text-white/80" : "text-[#10233f]")}>
@@ -2280,7 +2290,7 @@ function CompetitionDetailCard({
       <CardContent className="grid gap-4">
         <div className="rounded-xl bg-[#f7f5fa] p-3">
           <p className="text-sm font-bold text-[#10233f]">{competition.clubName}</p>
-          <p className="text-xs font-semibold text-[#6c5a73]">Entries close {formatFixtureDate(competition.entryClosesAt)} - {competition.entrantCount} entrants</p>
+          <p className="text-xs font-semibold text-[#6c5a73]">Entries close {competitionCloseDateText(competition)} - {competition.entrantCount} entrants</p>
           {drawHasRun && roundFormatSummary ? (
             <p className="mt-2 rounded-lg bg-white px-3 py-2 text-xs font-bold text-[#10233f] ring-1 ring-[#eeeaf2]">
               {roundFormatSummary}

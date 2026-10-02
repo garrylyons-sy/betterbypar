@@ -28,7 +28,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!canManage && competition.status !== "Open") {
       return NextResponse.json({ error: "Entries are closed." }, { status: 400 });
     }
-    if (!canManage && competition.entryClosesAt.slice(0, 10) < localIsoDate()) {
+    const entryClosesAt = typeof competition.entryClosesAt === "string" ? competition.entryClosesAt.slice(0, 10) : "";
+    if (!canManage && entryClosesAt && entryClosesAt < localIsoDate()) {
       return NextResponse.json({ error: "The closing date for entries has passed." }, { status: 400 });
     }
 
