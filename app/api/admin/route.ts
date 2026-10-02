@@ -225,7 +225,7 @@ export async function GET() {
       ),
       platformAdmin
         ? dbQuery(
-            `select id::text, name, placement, audience, image_path, link_url, alt_text, active, sort_order, starts_at::text, ends_at::text
+            `select id::text, name, placement, audience, image_path, link_url, affiliate_code, alt_text, active, sort_order, starts_at::text, ends_at::text
              from public.ads
              order by sort_order, name`
           )

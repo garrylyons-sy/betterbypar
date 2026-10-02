@@ -1193,9 +1193,10 @@ export async function loadSessionPayload(user: AppUser) {
     audience: SponsorAd["audience"];
     image_path: string;
     link_url: string;
+    affiliate_code: string | null;
     alt_text: string;
   }>(
-    `select id::text, name, placement, audience, image_path, link_url, alt_text
+    `select id::text, name, placement, audience, image_path, link_url, affiliate_code, alt_text
      from public.ads
      where active = true
        and placement = 'league-chair-banner'
@@ -1211,6 +1212,7 @@ export async function loadSessionPayload(user: AppUser) {
     audience: row.audience,
     imagePath: row.image_path,
     linkUrl: row.link_url,
+    affiliateCode: row.affiliate_code,
     altText: row.alt_text
   }));
 

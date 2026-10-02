@@ -361,6 +361,7 @@ export function AdminConsole() {
           audience: SponsorAd["audience"];
           image_path: string;
           link_url: string;
+          affiliate_code?: string | null;
           alt_text: string;
           active: boolean;
           sort_order: number;
@@ -373,6 +374,7 @@ export function AdminConsole() {
           audience: ad.audience,
           imagePath: ad.image_path,
           linkUrl: ad.link_url,
+          affiliateCode: ad.affiliate_code ?? "",
           altText: ad.alt_text,
           active: Boolean(ad.active),
           sortOrder: Number(ad.sort_order ?? 100),
@@ -3233,6 +3235,7 @@ function AdvertsPanel({
     audience: "Everyone" as SponsorAd["audience"],
     imagePath: "",
     linkUrl: "",
+    affiliateCode: "",
     altText: "",
     sortOrder: "100",
     active: true
@@ -3254,7 +3257,7 @@ function AdvertsPanel({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not create advert.");
-      setDraft({ name: "", audience: "Everyone", imagePath: "", linkUrl: "", altText: "", sortOrder: "100", active: true });
+      setDraft({ name: "", audience: "Everyone", imagePath: "", linkUrl: "", affiliateCode: "", altText: "", sortOrder: "100", active: true });
       onMessage("Advert created.");
       onRefresh();
     } catch (error) {
@@ -3279,6 +3282,7 @@ function AdvertsPanel({
           audience: ad.audience,
           imagePath: ad.imagePath,
           linkUrl: ad.linkUrl,
+          affiliateCode: ad.affiliateCode ?? "",
           altText: ad.altText,
           sortOrder: ad.sortOrder,
           active: ad.active
@@ -3345,8 +3349,9 @@ function AdvertsPanel({
           <div className="grid gap-3 md:grid-cols-2">
             <AdminInput label="Name" value={draft.name} onChange={(value) => setDraft((current) => ({ ...current, name: value }))} />
             <AdminSelect label="Audience" value={draft.audience} onChange={(value) => setDraft((current) => ({ ...current, audience: value as SponsorAd["audience"] }))} options={[{ value: "Everyone", label: "Everyone" }, { value: "League Chair", label: "League Chair(s)" }]} />
-            <AdminInput label="Image path" value={draft.imagePath} onChange={(value) => setDraft((current) => ({ ...current, imagePath: value }))} placeholder="/sponsors/banner.gif" />
+            <AdvertImageInput label="Advert image" value={draft.imagePath} onChange={(value) => setDraft((current) => ({ ...current, imagePath: value }))} onError={onMessage} />
             <AdminInput label="Link URL" value={draft.linkUrl} onChange={(value) => setDraft((current) => ({ ...current, linkUrl: value }))} placeholder="https://example.com/" />
+            <AdminInput label="Amazon affiliate code" value={draft.affiliateCode} onChange={(value) => setDraft((current) => ({ ...current, affiliateCode: value }))} placeholder="yourtag-21" />
             <AdminInput label="Alt text" value={draft.altText} onChange={(value) => setDraft((current) => ({ ...current, altText: value }))} />
             <AdminInput label="Sort order" value={draft.sortOrder} onChange={(value) => setDraft((current) => ({ ...current, sortOrder: value }))} type="number" />
           </div>
@@ -3375,8 +3380,9 @@ function AdvertsPanel({
                 <div className="grid gap-2 md:grid-cols-2">
                   <AdminInput label="Name" value={ad.name} onChange={(value) => updateEditing(ad.id, { name: value })} />
                   <AdminSelect label="Audience" value={ad.audience} onChange={(value) => updateEditing(ad.id, { audience: value as SponsorAd["audience"] })} options={[{ value: "Everyone", label: "Everyone" }, { value: "League Chair", label: "League Chair(s)" }]} />
-                  <AdminInput label="Image path" value={ad.imagePath} onChange={(value) => updateEditing(ad.id, { imagePath: value })} />
                   <AdminInput label="Link URL" value={ad.linkUrl} onChange={(value) => updateEditing(ad.id, { linkUrl: value })} />
+                  <AdminInput label="Amazon affiliate code" value={ad.affiliateCode ?? ""} onChange={(value) => updateEditing(ad.id, { affiliateCode: value })} />
+                  <AdvertImageInput label="Advert image" value={ad.imagePath} onChange={(value) => updateEditing(ad.id, { imagePath: value })} onError={onMessage} />
                   <AdminInput label="Alt text" value={ad.altText} onChange={(value) => updateEditing(ad.id, { altText: value })} />
                   <AdminInput label="Sort order" value={String(ad.sortOrder)} onChange={(value) => updateEditing(ad.id, { sortOrder: Number(value) || 100 })} type="number" />
                 </div>
@@ -3402,6 +3408,53 @@ function AdvertsPanel({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function AdvertImageInput({
+  label,
+  value,
+  onChange,
+  onError
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  onError: (message: string) => void;
+}) {
+  function handleFile(file: File | undefined) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      onError("Advert image must be an image file.");
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      onError("Advert image must be 1 MB or smaller.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => onChange(String(reader.result ?? ""));
+    reader.onerror = () => onError("Could not read advert image.");
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <label className="grid min-w-0 gap-1.5">
+      <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
+      <input
+        className="min-h-11 w-full min-w-0 rounded-2xl border border-[#eeeaf2] bg-white px-4 py-2 text-sm font-bold text-[#10233f] outline-none file:mr-3 file:rounded-xl file:border-0 file:bg-[#00e5f0] file:px-3 file:py-1.5 file:text-sm file:font-extrabold file:text-[#10233f] focus-visible:outline-[#7bc7d6]"
+        type="file"
+        accept="image/*"
+        onChange={(event) => handleFile(event.target.files?.[0])}
+      />
+      {value ? (
+        <div className="overflow-hidden rounded-lg bg-[#071426] ring-1 ring-[#eeeaf2]">
+          <img src={value} alt="" className="h-auto w-full" />
+        </div>
+      ) : (
+        <span className="text-xs font-semibold normal-case text-[#6c5a73]">Choose an image to store with this advert.</span>
+      )}
+    </label>
   );
 }
 

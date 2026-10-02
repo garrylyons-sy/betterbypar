@@ -56,6 +56,7 @@ export type SponsorAd = {
   audience: "Everyone" | "League Chair";
   imagePath: string;
   linkUrl: string;
+  affiliateCode?: string | null;
   altText: string;
 };
 

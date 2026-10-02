@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { applyAffiliateCodeToAdvertUrl } from "@/lib/ads";
 import { currentUser } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
 
@@ -22,7 +23,8 @@ function normalizeAudience(value: unknown): AdAudience {
 function normalizeAdBody(body: Record<string, unknown>) {
   const name = String(body.name ?? "").trim();
   const imagePath = String(body.imagePath ?? body.image_path ?? "").trim();
-  const linkUrl = String(body.linkUrl ?? body.link_url ?? "").trim();
+  const rawLinkUrl = String(body.linkUrl ?? body.link_url ?? "").trim();
+  const affiliateCode = String(body.affiliateCode ?? body.affiliate_code ?? "").trim();
   const altText = String(body.altText ?? body.alt_text ?? "").trim();
   const audience = normalizeAudience(body.audience);
   const active = body.active === undefined ? true : Boolean(body.active);
@@ -32,11 +34,13 @@ function normalizeAdBody(body: Record<string, unknown>) {
   const endsAt = String(body.endsAt ?? body.ends_at ?? "").trim() || null;
 
   if (!name) throw new Error("Advert name is required.");
-  if (!imagePath) throw new Error("Advert image path is required.");
-  if (!linkUrl) throw new Error("Advert link URL is required.");
-  if (!/^https?:\/\//i.test(linkUrl)) throw new Error("Advert link URL must start with http:// or https://.");
+  if (!imagePath) throw new Error("Advert image is required.");
+  if (!rawLinkUrl) throw new Error("Advert link URL is required.");
+  if (!/^https?:\/\//i.test(rawLinkUrl)) throw new Error("Advert link URL must start with http:// or https://.");
 
-  return { name, imagePath, linkUrl, altText, audience, active, sortOrder, startsAt, endsAt };
+  const linkUrl = applyAffiliateCodeToAdvertUrl(rawLinkUrl, affiliateCode);
+
+  return { name, imagePath, linkUrl, affiliateCode, altText, audience, active, sortOrder, startsAt, endsAt };
 }
 
 function adResponse(row: {
@@ -46,6 +50,7 @@ function adResponse(row: {
   audience: string;
   image_path: string;
   link_url: string;
+  affiliate_code: string | null;
   alt_text: string;
   active: boolean;
   sort_order: number;
@@ -59,6 +64,7 @@ function adResponse(row: {
     audience: row.audience,
     image_path: row.image_path,
     link_url: row.link_url,
+    affiliate_code: row.affiliate_code,
     alt_text: row.alt_text,
     active: row.active,
     sort_order: row.sort_order,
@@ -72,10 +78,10 @@ export async function POST(request: NextRequest) {
     await requirePlatformAdmin();
     const input = normalizeAdBody(await request.json());
     const result = await dbQuery<ReturnType<typeof adResponse>>(
-      `insert into public.ads (name, placement, audience, image_path, link_url, alt_text, active, sort_order, starts_at, ends_at)
-       values ($1, 'league-chair-banner', $2, $3, $4, $5, $6, $7, $8::timestamptz, $9::timestamptz)
-       returning id::text, name, placement, audience, image_path, link_url, alt_text, active, sort_order, starts_at::text, ends_at::text`,
-      [input.name, input.audience, input.imagePath, input.linkUrl, input.altText, input.active, input.sortOrder, input.startsAt, input.endsAt]
+      `insert into public.ads (name, placement, audience, image_path, link_url, affiliate_code, alt_text, active, sort_order, starts_at, ends_at)
+       values ($1, 'league-chair-banner', $2, $3, $4, nullif($5, ''), $6, $7, $8, $9::timestamptz, $10::timestamptz)
+       returning id::text, name, placement, audience, image_path, link_url, affiliate_code, alt_text, active, sort_order, starts_at::text, ends_at::text`,
+      [input.name, input.audience, input.imagePath, input.linkUrl, input.affiliateCode, input.altText, input.active, input.sortOrder, input.startsAt, input.endsAt]
     );
     return NextResponse.json({ advert: adResponse(result.rows[0]) });
   } catch (error) {
@@ -102,15 +108,16 @@ export async function PATCH(request: NextRequest) {
            audience = $3,
            image_path = $4,
            link_url = $5,
-           alt_text = $6,
-           active = $7,
-           sort_order = $8,
-           starts_at = $9::timestamptz,
-           ends_at = $10::timestamptz,
+           affiliate_code = nullif($6, ''),
+           alt_text = $7,
+           active = $8,
+           sort_order = $9,
+           starts_at = $10::timestamptz,
+           ends_at = $11::timestamptz,
            updated_at = now()
        where id = $1
-       returning id::text, name, placement, audience, image_path, link_url, alt_text, active, sort_order, starts_at::text, ends_at::text`,
-      [id, input.name, input.audience, input.imagePath, input.linkUrl, input.altText, input.active, input.sortOrder, input.startsAt, input.endsAt]
+       returning id::text, name, placement, audience, image_path, link_url, affiliate_code, alt_text, active, sort_order, starts_at::text, ends_at::text`,
+      [id, input.name, input.audience, input.imagePath, input.linkUrl, input.affiliateCode, input.altText, input.active, input.sortOrder, input.startsAt, input.endsAt]
     );
     if (!result.rowCount) throw new Error("Advert was not found.");
     return NextResponse.json({ advert: adResponse(result.rows[0]) });
