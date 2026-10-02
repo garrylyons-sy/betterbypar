@@ -3146,7 +3146,7 @@ function ExistingInvites({ invites }: { invites: InviteRow[] }) {
           const visibleStatus = displayStatus === "Pending" && invite.sent_at ? "Email sent" : displayStatus;
           const statusVariant = visibleStatus === "Accepted" || visibleStatus === "Email sent" ? "green" : visibleStatus === "Pending" ? "cyan" : visibleStatus === "Expired" ? "muted" : "muted";
           const roles = [
-            ...invite.roles.map((role) => `${role.role}${role.team_name ? ` - ${role.team_name}` : ""}`),
+            ...invite.roles.map(formatInviteRoleLabel),
             invite.invite_administrator ? "Administrator" : ""
           ].filter(Boolean);
           return (
@@ -3402,6 +3402,11 @@ function newInviteRoleRow(role: InviteRole, teamId: string): InviteRoleRow {
     role,
     teamId: clubLevelInviteRoles.includes(role) ? "" : teamId
   };
+}
+
+function formatInviteRoleLabel(role: InviteRow["roles"][number]) {
+  if (role.role === "League Chair") return "Interclub League Chair";
+  return `${role.role}${role.team_name ? ` - ${role.team_name}` : ""}`;
 }
 
 function formatAdminDate(value: string) {
