@@ -1,6 +1,6 @@
 import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, Role } from "@/lib/types";
 
-export const appearanceRoles: Role[] = ["Player", "Manager", "Club Member", "Club Admin"];
+export const appearanceRoles: Role[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
 
 export const appearancePanelOptions: Array<{ id: AppearancePanelId; label: string; description: string; roles: Role[] }> = [
   { id: "teamStats", label: "Team stats", description: "League position, played, won and points.", roles: ["Player", "Manager"] },
@@ -14,8 +14,8 @@ export const appearancePanelOptions: Array<{ id: AppearancePanelId; label: strin
   { id: "myCompetitionMatches", label: "My competition matches", description: "Upcoming or active club competition ties.", roles: appearanceRoles },
   { id: "competitionDraws", label: "Competition draws", description: "Latest club draws and previous rounds.", roles: appearanceRoles },
   { id: "clubCompetitionAdmin", label: "Club competition admin", description: "Club admin competition setup and results.", roles: ["Club Admin"] },
-  { id: "clubAccess", label: "Club access", description: "Club-level member summary.", roles: ["Club Member", "Club Admin"] },
-  { id: "interclubLeagues", label: "Interclub leagues", description: "Shortcut to league tables and results.", roles: ["Club Admin"] },
+  { id: "clubAccess", label: "Club access", description: "Club-level member summary.", roles: ["Club Member", "Club Admin", "League Chair"] },
+  { id: "interclubLeagues", label: "Interclub leagues", description: "Shortcut to league tables and results.", roles: ["Club Admin", "League Chair"] },
   { id: "messages", label: "Messages", description: "Team and club notices.", roles: [] },
   { id: "matchPlanning", label: "Next matches", description: "View matchday status, live scores and manager lineup actions.", roles: ["Player", "Manager"] },
   { id: "seasonComplete", label: "Season complete", description: "Season status and qualification.", roles: ["Manager"] },
@@ -32,11 +32,11 @@ export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string;
   { id: "Bookings", label: "Bookings", description: "Club table bookings.", roles: appearanceRoles },
   { id: "Competitions", label: "Competitions", description: "Club competition entries, draws and results.", roles: appearanceRoles },
   { id: "Friendlies", label: "Friendlies", description: "Private practice matches between two teams.", roles: ["Player", "Manager"] },
-  { id: "Contacts", label: "Contacts", description: "League and manager phone directory.", roles: ["Manager", "Club Admin"] },
+  { id: "Contacts", label: "Contacts", description: "League and manager phone directory.", roles: ["Manager", "Club Admin", "League Chair"] },
   { id: "Players", label: "Players", description: "Players and squad views.", roles: ["Player", "Manager"] },
   { id: "Stats", label: "Stats", description: "Stats dashboard.", roles: ["Player", "Manager"] },
   { id: "Messages", label: "Messages", description: "Messages and account access.", roles: [] },
-  { id: "Interclub Leagues", label: "Leagues", description: "All interclub tables/results.", roles: ["Player", "Manager", "Club Member", "Club Admin"] }
+  { id: "Interclub Leagues", label: "Leagues", description: "All interclub tables/results.", roles: ["Player", "Manager", "Club Member", "Club Admin", "League Chair"] }
 ];
 
 export const defaultAppearanceConfig: AppearanceConfig = {
@@ -59,6 +59,11 @@ export const defaultAppearanceConfig: AppearanceConfig = {
     role: "Club Admin",
     panels: ["clubCompetitionAdmin", "openCompetitions", "interclubLeagues"],
     menuItems: ["Home", "Competitions", "Bookings", "Contacts", "Interclub Leagues"]
+  },
+  "League Chair": {
+    role: "League Chair",
+    panels: ["interclubLeagues"],
+    menuItems: ["Home", "Contacts", "Interclub Leagues"]
   }
 };
 

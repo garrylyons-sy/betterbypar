@@ -292,14 +292,14 @@ function embeddedTestContexts(contexts: TeamContext[], teamOptions: TeamOption[]
 
   const existing = contexts.find((context) => {
     if (context.role !== requestedRole) return false;
-    if (requestedRole === "Club Member" || requestedRole === "Club Admin") {
+    if (requestedRole === "Club Member" || requestedRole === "Club Admin" || requestedRole === "League Chair") {
       return requestedClub ? normalizeLookupKey(context.club) === requestedClub : normalizeLookupKey(context.club) === "castle golf club";
     }
     return Boolean(requestedTeam) && normalizeLookupKey(context.name) === requestedTeam && context.season === activeSeason;
   });
   if (existing) return params.get("isolate") === "1" ? [existing] : contexts;
 
-  if (requestedRole === "Club Member" || requestedRole === "Club Admin") {
+  if (requestedRole === "Club Member" || requestedRole === "Club Admin" || requestedRole === "League Chair") {
     const clubName = requestedClub || "castle golf club";
     const club = clubTeamStructure.find((entry) => normalizeLookupKey(entry.club) === clubName);
     if (!club) return contexts;
@@ -367,6 +367,7 @@ function normalizeEmbeddedRole(value: string | null): Role | null {
   if (role === "player") return "Player";
   if (role === "club member" || role === "member") return "Club Member";
   if (role === "club admin" || role === "club administrator") return "Club Admin";
+  if (role === "league chair" || role === "chair" || role === "chairman") return "League Chair";
   return null;
 }
 

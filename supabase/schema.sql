@@ -125,7 +125,7 @@ create table public.club_membership (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null references public.club(id) on delete cascade,
   person_id uuid not null references public.person(id) on delete cascade,
-  role text not null default 'Club Member' check (role = 'Club Member'),
+  role text not null default 'Club Member' check (role in ('Club Member', 'Club Admin', 'League Chair')),
   joined_date date not null default current_date,
   handicap numeric(6,2),
   is_club_admin boolean not null default false,
@@ -210,7 +210,7 @@ create table public.invitation_club_membership (
   id uuid primary key default gen_random_uuid(),
   invitation_id uuid not null references public.invitation(id) on delete cascade,
   club_id uuid not null references public.club(id) on delete cascade,
-  role text not null default 'Club Member' check (role in ('Club Member', 'Club Admin')),
+  role text not null default 'Club Member' check (role in ('Club Member', 'Club Admin', 'League Chair')),
   unique (invitation_id, club_id, role)
 );
 

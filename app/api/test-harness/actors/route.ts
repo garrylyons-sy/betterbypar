@@ -80,6 +80,12 @@ export async function GET(request: NextRequest) {
          join public.club c on c.id = cm.club_id and c.active = true
          where ua.active = true
          union
+         select distinct ua.id as account_id, 'League Chair' as role, concat(c.name, ' - League Chair') as label
+         from public.user_account ua
+         join public.club_membership cm on cm.person_id = ua.person_id and cm.active = true and cm.role = 'League Chair'
+         join public.club c on c.id = cm.club_id and c.active = true
+         where ua.active = true
+         union
          select distinct ua.id as account_id, 'Club Admin' as role, concat(c.name, ' - Club Admin') as label
          from public.user_account ua
          join public.club_membership cm on cm.person_id = ua.person_id and cm.active = true

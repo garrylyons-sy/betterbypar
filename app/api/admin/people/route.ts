@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     if (!firstName || !lastName) {
       return NextResponse.json({ error: "First name and last name are required." }, { status: 400 });
     }
-    const clubLevelRole = role === "Club Member" || role === "Club Admin";
+    const clubLevelRole = role === "Club Member" || role === "Club Admin" || role === "League Chair";
 
     if (!clubLevelRole && !teamId) {
       return NextResponse.json({ error: "A team is required for player and manager roles." }, { status: 400 });
@@ -95,13 +95,13 @@ export async function POST(request: NextRequest) {
            join public.club_membership cm
              on cm.person_id = p.id
             and cm.club_id = $3
-            and cm.role = 'Club Member'
+            and cm.role = $4
             and cm.active = true
            where p.active = true
              and lower(trim(p.first_name)) = lower(trim($1::text))
              and lower(trim(p.last_name)) = lower(trim($2::text))
            limit 1`,
-          [firstName, lastName, scopedClubId]
+          [firstName, lastName, scopedClubId, role === "League Chair" ? "League Chair" : "Club Member"]
         );
         if (existingRole.rows[0]) {
           throw new Error(`${firstName} ${lastName} already has club access for this club. Open their existing person record to edit roles or details.`);
@@ -182,12 +182,12 @@ export async function POST(request: NextRequest) {
       if (clubLevelRole) {
         await client.query(
           `insert into public.club_membership (club_id, person_id, role, handicap, is_club_admin, active)
-           values ($1, $2, 'Club Member', $3, $4, true)
+           values ($1, $2, $3, $4, $5, true)
            on conflict (club_id, person_id, role) do update
            set active = true,
                handicap = excluded.handicap,
                is_club_admin = public.club_membership.is_club_admin or excluded.is_club_admin`,
-          [clubId, personId, handicap, role === "Club Admin"]
+          [clubId, personId, role === "League Chair" ? "League Chair" : "Club Member", handicap, role === "Club Admin"]
         );
         if (role === "Club Admin") {
           await client.query(

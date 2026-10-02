@@ -466,11 +466,11 @@ export async function claimInvitationForAccount({
     for (const membership of clubMembershipResult.rows) {
       await client.query(
         `insert into public.club_membership (club_id, person_id, role, is_club_admin, active)
-         values ($1, $2, 'Club Member', $3, true)
+         values ($1, $2, $3, $4, true)
          on conflict (club_id, person_id, role) do update
          set active = true,
              is_club_admin = public.club_membership.is_club_admin or excluded.is_club_admin`,
-        [membership.club_id, person.id, membership.role === "Club Admin"]
+        [membership.club_id, person.id, membership.role === "League Chair" ? "League Chair" : "Club Member", membership.role === "Club Admin"]
       );
       if (membership.role === "Club Admin") {
         await client.query(
@@ -779,6 +779,41 @@ export async function loadSessionPayload(user: AppUser) {
     leagueMatchesPlayed: 0
   } satisfies TeamContext));
 
+  const leagueChairContexts = (await dbQuery<{
+    membership_id: string;
+    club_name: string;
+    logo_path: string;
+    primary_color: string;
+    accent_color: string;
+  }>(
+    `select
+       cm.id as membership_id,
+       c.name as club_name,
+       c.logo_path,
+       c.primary_color,
+       coalesce(c.accent_color, '#10233F') as accent_color
+     from public.club_membership cm
+     join public.club c on c.id = cm.club_id and c.active = true
+     where cm.person_id = $1
+       and cm.active = true
+       and cm.role = 'League Chair'
+     order by c.name`,
+    [user.personId]
+  )).rows.map((row) => ({
+    id: `${row.membership_id}:league-chair`,
+    personId: user.personId,
+    name: row.club_name,
+    club: row.club_name,
+    logoPath: row.logo_path,
+    primaryColor: row.primary_color,
+    accentColor: row.accent_color,
+    league: "A League",
+    season: "Club",
+    role: "League Chair",
+    leaguePosition: 0,
+    leagueMatchesPlayed: 0
+  } satisfies TeamContext));
+
   const isAppOperator = (await dbQuery<{ is_operator: boolean }>(
     `select exists (
        select 1
@@ -904,6 +939,7 @@ export async function loadSessionPayload(user: AppUser) {
     ...teamContexts,
     ...clubContexts,
     ...clubAdminContexts,
+    ...leagueChairContexts,
     ...operatorTeamContexts,
     ...operatorClubContexts
   ];

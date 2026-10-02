@@ -20,7 +20,7 @@ end $$;
 
 alter table public.invitation_club_membership
 add constraint invitation_club_membership_role_check
-check (role in ('Club Member', 'Club Admin'));
+check (role in ('Club Member', 'Club Admin', 'League Chair'));
 
 do $$
 declare
@@ -39,7 +39,7 @@ end $$;
 
 alter table public.appearance
 add constraint appearance_role_type_check
-check (role_type in ('Player', 'Manager', 'Club Member', 'Club Admin'));
+check (role_type in ('Player', 'Manager', 'Club Member', 'Club Admin', 'League Chair'));
 
 insert into public.appearance (role_type, panel_config, menu_config)
 values (

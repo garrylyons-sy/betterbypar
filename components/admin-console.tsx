@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 type AdminTab = "desktop" | "competitions" | "matches" | "people" | "invites" | "permissions" | "appearance" | "logs";
 type AdminMode = "platform" | "club";
 type TeamRole = "Player" | "Manager";
-type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin";
+type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair";
 type TeamOption = {
   teamId: string;
   clubId: string;
@@ -43,7 +43,7 @@ type PersonOption = {
   inviteSentAt?: string | null;
   inviteAcceptedAt?: string | null;
   admin?: boolean;
-  clubHandicaps?: Array<{ club_id: string; club_name: string; handicap: number | string | null }>;
+  clubHandicaps?: Array<{ club_id: string; club_name: string; role?: string; handicap: number | string | null }>;
   clubAdmins?: Array<{ club_id: string; club_name: string }>;
   teamRoles?: Array<{ role: string; team_name: string; league_name: string; club_name: string }>;
 };
@@ -169,9 +169,9 @@ type AdminUser = {
 };
 
 const roles: TeamRole[] = ["Player", "Manager"];
-const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Admin"];
-const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin"];
-const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin"];
+const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
+const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
+const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin", "League Chair"];
 const clubAdminTabs: AdminTab[] = ["people", "invites", "competitions", "matches"];
 const adminNavItems = [
   { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
@@ -1871,7 +1871,8 @@ function PeoplePanel({
       if (roleFilter === "all") return true;
       if (roleFilter === "admin") return Boolean(person.admin);
       if (roleFilter === "club-admin") return Boolean(person.clubAdmins?.length);
-      if (roleFilter === "club-member") return Boolean(person.clubHandicaps?.length);
+      if (roleFilter === "league-chair") return Boolean(person.clubHandicaps?.some((club) => club.role === "League Chair"));
+      if (roleFilter === "club-member") return Boolean(person.clubHandicaps?.some((club) => club.role !== "League Chair"));
       return Boolean(person.teamRoles?.some((role) => role.role === roleFilter));
     }
 
@@ -1886,7 +1887,7 @@ function PeoplePanel({
         const roleLabels = [
           ...(person.teamRoles ?? []).map((role) => `${role.role} ${role.team_name} ${role.league_name} ${role.club_name}`),
           ...(person.clubAdmins ?? []).map((club) => `Club Admin ${club.club_name}`),
-          ...(person.clubHandicaps?.length ? ["Club Member"] : []),
+          ...(person.clubHandicaps ?? []).map((club) => `${club.role ?? "Club Member"} ${club.club_name}`),
           person.admin ? "Administrator" : ""
         ];
         const searchHaystack = [
@@ -1991,6 +1992,7 @@ function PeoplePanel({
                 { value: "Manager", label: "Managers" },
                 { value: "club-member", label: "Club members" },
                 { value: "club-admin", label: "Club admins" },
+                { value: "league-chair", label: "League chairs" },
                 { value: "admin", label: "Platform admins" }
               ]}
             />
@@ -2263,12 +2265,17 @@ function InviteStatusBadge({ person }: { person: PersonOption }) {
 function visiblePersonRoleLabels(person: PersonOption) {
   const teamLabels = (person.teamRoles ?? []).map((role) => `${role.role} - ${role.team_name}`);
   const clubAdminLabels = (person.clubAdmins ?? []).map((club) => `Club Admin - ${shortClubName(club.club_name)}`);
+  const leagueChairLabels = (person.clubHandicaps ?? [])
+    .filter((club) => club.role === "League Chair")
+    .map((club) => `League Chair - ${shortClubName(club.club_name)}`);
   const clubMemberLabels = teamLabels.length || clubAdminLabels.length
     ? []
-    : (person.clubHandicaps ?? []).map((club) => `Club Member - ${shortClubName(club.club_name)}`);
+    : (person.clubHandicaps ?? [])
+      .filter((club) => club.role !== "League Chair")
+      .map((club) => `Club Member - ${shortClubName(club.club_name)}`);
   const platformLabels = person.admin ? ["Administrator"] : [];
 
-  return Array.from(new Set([...platformLabels, ...teamLabels, ...clubAdminLabels, ...clubMemberLabels]));
+  return Array.from(new Set([...platformLabels, ...teamLabels, ...clubAdminLabels, ...leagueChairLabels, ...clubMemberLabels]));
 }
 
 function shortClubName(name: string) {
@@ -2635,9 +2642,9 @@ function InvitesPanel({
                   <AdminSelect label={`Role ${index + 1}`} value={row.role} onChange={(value) => updateRoleRow(row.id, { role: value as InviteRole })} options={inviteRoles.map((item) => ({ value: item, label: item }))} />
                   {clubLevelInviteRoles.includes(row.role) ? (
                     <div className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-[#10233f] ring-1 ring-[#eeeaf2]">
-                      {row.role === "Club Admin" ? "Club administration access" : "Club-wide member access"}
+                      {clubRoleHeading(row.role)}
                       <span className="block text-xs font-semibold text-[#6c5a73]">
-                        {row.role === "Club Admin" ? "Can manage club members, invites, competitions and bookings." : "Can book club tables and receive messages."}
+                        {clubRoleDescription(row.role)}
                       </span>
                     </div>
                   ) : (
@@ -3081,7 +3088,20 @@ function normalizeInviteRole(value: string): InviteRole {
   if (normalized === "manager") return "Manager";
   if (normalized === "club member" || normalized === "member") return "Club Member";
   if (normalized === "club admin" || normalized === "club administrator") return "Club Admin";
+  if (normalized === "league chair" || normalized === "chair" || normalized === "chairman") return "League Chair";
   return "Player";
+}
+
+function clubRoleHeading(role: InviteRole) {
+  if (role === "Club Admin") return "Club administration access";
+  if (role === "League Chair") return "League chair access";
+  return "Club-wide member access";
+}
+
+function clubRoleDescription(role: InviteRole) {
+  if (role === "Club Admin") return "Can manage club members, invites, competitions and bookings.";
+  if (role === "League Chair") return "Can view league contacts and interclub league information.";
+  return "Can book club tables and receive messages.";
 }
 
 function ExistingInvites({ invites }: { invites: InviteRow[] }) {

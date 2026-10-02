@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 
 type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
-const roleOptions: Role[] = ["Player", "Manager", "Club Member", "Club Admin"];
+const roleOptions: Role[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
 const RECENT_FORM_LIMIT = 3;
 const SIMULATION_CONTROLS_ENABLED = false;
 const leagueOrder: TeamContext["league"][] = ["A League", "B League", "C League"];
@@ -54,7 +54,7 @@ const attackSnookerRules = [
 ];
 
 function isClubOnlyRole(role: Role) {
-  return role === "Club Member" || role === "Club Admin";
+  return role === "Club Member" || role === "Club Admin" || role === "League Chair";
 }
 
 function seasonSortValue(season: string) {
@@ -136,6 +136,9 @@ function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): App
   }
   if (role === "Club Admin") {
     return ["Home", "Competitions", "Bookings", "Contacts", "Interclub Leagues"];
+  }
+  if (role === "League Chair") {
+    return ["Home", "Contacts", "Interclub Leagues"];
   }
 
   const base: AppearanceMenuId[] = role === "Manager"
@@ -676,11 +679,16 @@ function AccountMenu({
 function contextLabel(context: TeamContext) {
   if (context.role === "Club Member") return `${context.club.replace(" Golf Club", "")} - Member`;
   if (context.role === "Club Admin") return `${context.club.replace(" Golf Club", "")} - Club Admin`;
+  if (context.role === "League Chair") return `${context.club.replace(" Golf Club", "")} - League Chair`;
   return `${context.name} - ${context.role}`;
 }
 
 function contextDescription(context: TeamContext) {
-  if (isClubOnlyRole(context.role)) return context.role === "Club Admin" ? "Club administration" : "Club access";
+  if (isClubOnlyRole(context.role)) {
+    if (context.role === "Club Admin") return "Club administration";
+    if (context.role === "League Chair") return "League chair access";
+    return "Club access";
+  }
   return `${context.league} - ${context.club.replace(" Golf Club", "")}`;
 }
 
@@ -3359,7 +3367,7 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [error, setError] = useState("");
   const [copiedId, setCopiedId] = useState("");
   const [openClubNames, setOpenClubNames] = useState<Set<string>>(new Set());
-  const canView = activeTeam.role === "Manager" || activeTeam.role === "Club Admin";
+  const canView = activeTeam.role === "Manager" || activeTeam.role === "Club Admin" || activeTeam.role === "League Chair";
   const canUsePhoneCalls = useCanUsePhoneCalls();
 
   useEffect(() => {

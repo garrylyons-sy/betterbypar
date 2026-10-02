@@ -1,4 +1,4 @@
-export type Role = "Player" | "Manager" | "Club Member" | "Club Admin";
+export type Role = "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair";
 export type AppearancePanelId =
   | "teamStats"
   | "leagueTableSnapshot"

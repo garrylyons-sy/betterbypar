@@ -82,6 +82,7 @@ export async function GET() {
              jsonb_build_object(
                'club_id', c.id,
                'club_name', c.name,
+               'role', cm.role,
                'handicap', cm.handicap
              )
              order by c.name
@@ -181,7 +182,7 @@ export async function GET() {
              union all
              select
                'Club' as sort_key,
-               'Club Member' as role_label,
+               icm.role as role_label,
                jsonb_build_object(
                  'role', icm.role,
                  'team_name', c2.name,

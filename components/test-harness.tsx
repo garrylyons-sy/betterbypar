@@ -64,7 +64,7 @@ const scenarioOptions: Array<{ id: ScenarioId; label: string; description: strin
 ];
 
 const defaultScenarios: ScenarioId[] = ["session", "fixtures", "bookings", "competitions"];
-const roleFilters = ["All", "Player", "Manager", "Club Member", "Club Admin", "Platform Admin"];
+const roleFilters = ["All", "Player", "Manager", "Club Member", "Club Admin", "League Chair", "Platform Admin"];
 
 export function TestHarness() {
   const [actors, setActors] = useState<Actor[]>([]);

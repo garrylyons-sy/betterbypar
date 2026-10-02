@@ -254,10 +254,11 @@ export async function POST(request: NextRequest) {
               [person.id]
             );
             const clubRoles = await client.query<{ club_id: string; role: string }>(
-              `select cm.club_id, 'Club Member' as role
+              `select cm.club_id, cm.role
                from public.club_membership cm
                where cm.person_id = $1
                  and cm.active = true
+                 and cm.role in ('Club Member', 'League Chair')
                  and not exists (
                    select 1
                    from public.person_team_role ptr
@@ -397,7 +398,7 @@ export async function POST(request: NextRequest) {
         teamId: String(item.teamId ?? "").trim(),
         clubId: String(item.clubId ?? clubId).trim()
       }))
-      .filter((item) => ["Player", "Manager", "Club Member", "Club Admin"].includes(item.role));
+      .filter((item) => ["Player", "Manager", "Club Member", "Club Admin", "League Chair"].includes(item.role));
 
     if (!normalizedRoles.length && !administratorInvite) {
       return NextResponse.json({ error: "Add at least one role or administrator access." }, { status: 400 });
@@ -412,7 +413,7 @@ export async function POST(request: NextRequest) {
       if (!club) throw new Error("Club not found.");
 
       const teamRoles = normalizedRoles.filter((item) => item.role === "Player" || item.role === "Manager");
-      const memberRoles = normalizedRoles.filter((item) => item.role === "Club Member" || item.role === "Club Admin");
+      const memberRoles = normalizedRoles.filter((item) => item.role === "Club Member" || item.role === "Club Admin" || item.role === "League Chair");
       const invitedRole = teamRoles[0]?.role ?? "Player";
 
       const invitationResult = await client.query(

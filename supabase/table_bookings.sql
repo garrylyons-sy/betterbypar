@@ -15,7 +15,7 @@ create table if not exists public.club_membership (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null references public.club(id) on delete cascade,
   person_id uuid not null references public.person(id) on delete cascade,
-  role text not null default 'Club Member' check (role = 'Club Member'),
+  role text not null default 'Club Member' check (role in ('Club Member', 'Club Admin', 'League Chair')),
   joined_date date not null default current_date,
   is_club_admin boolean not null default false,
   active boolean not null default true,
