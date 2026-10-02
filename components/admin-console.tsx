@@ -1692,7 +1692,7 @@ function PeoplePanel({
     }
   }
 
-  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }> }) {
+  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChairClubIds: string[] }) {
     if (demo) {
       onMessage("Person details updated.");
       setEditTarget(null);
@@ -2296,7 +2296,7 @@ function EditPersonModal({
   canManageLogin: boolean;
   busy: boolean;
   onCancel: () => void;
-  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }> }) => void;
+  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChairClubIds: string[] }) => void;
   onSetLoginAccess: (loginActive: boolean) => void;
 }) {
   const firstHandicap = person.clubHandicaps?.find((item) => item.handicap !== null && item.handicap !== undefined)?.handicap;
@@ -2323,14 +2323,33 @@ function EditPersonModal({
   const [phone, setPhone] = useState(person.phone ?? "");
   const [handicap, setHandicap] = useState(firstHandicap === null || firstHandicap === undefined ? "" : String(firstHandicap));
   const [roleRows, setRoleRows] = useState<EditRoleRow[]>(initialRoles);
+  const [leagueChairClubIds, setLeagueChairClubIds] = useState<string[]>(() =>
+    (person.clubHandicaps ?? [])
+      .filter((club) => club.role === "League Chair")
+      .map((club) => club.club_id)
+  );
   const canSave = Boolean(firstName.trim() && lastName.trim());
+  const allowedClubs = useMemo(() => {
+    const byName = new Map<string, { clubId: string; clubName: string }>();
+    for (const teamRole of person.teamRoles ?? []) {
+      const team = teams.find((option) => option.teamName === teamRole.team_name && option.leagueName === teamRole.league_name && option.clubName === teamRole.club_name);
+      if (team) byName.set(team.clubName, { clubId: team.clubId, clubName: team.clubName });
+    }
+    for (const club of person.clubHandicaps ?? []) {
+      byName.set(club.club_name, { clubId: club.club_id, clubName: club.club_name });
+    }
+    for (const club of person.clubAdmins ?? []) {
+      byName.set(club.club_name, { clubId: club.club_id, clubName: club.club_name });
+    }
+    return Array.from(byName.values()).sort((a, b) => a.clubName.localeCompare(b.clubName));
+  }, [person.clubAdmins, person.clubHandicaps, person.teamRoles, teams]);
   const allowedClubNames = useMemo(() => {
-    return new Set([
-      ...(person.teamRoles ?? []).map((role) => role.club_name),
-      ...(person.clubHandicaps ?? []).map((club) => club.club_name),
-      ...(person.clubAdmins ?? []).map((club) => club.club_name)
-    ].filter(Boolean));
-  }, [person.clubAdmins, person.clubHandicaps, person.teamRoles]);
+    return new Set(allowedClubs.map((club) => club.clubName));
+  }, [allowedClubs]);
+  const allowedClubIds = useMemo(() => new Set(allowedClubs.map((club) => club.clubId)), [allowedClubs]);
+  useEffect(() => {
+    setLeagueChairClubIds((current) => current.filter((clubId) => allowedClubIds.has(clubId)));
+  }, [allowedClubIds]);
   const sortedTeams = useMemo(() => {
     return teams
       .filter((team) => allowedClubNames.has(team.clubName))
@@ -2432,6 +2451,31 @@ function EditPersonModal({
             ) : null}
           </div>
         </div>
+        <div className="mt-4 rounded-2xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+          <p className="text-xs font-black uppercase text-[#6c5a73]">League access</p>
+          <p className="mt-1 text-xs font-semibold text-[#6c5a73]">
+            League Chair gives this person Contacts access without adding a selectable role in the app.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {allowedClubs.map((club) => (
+              <AdminCheckbox
+                key={club.clubId}
+                label={`League Chair - ${shortClubName(club.clubName)}`}
+                checked={leagueChairClubIds.includes(club.clubId)}
+                onChange={(checked) => {
+                  setLeagueChairClubIds((current) => checked
+                    ? Array.from(new Set([...current, club.clubId]))
+                    : current.filter((clubId) => clubId !== club.clubId));
+                }}
+              />
+            ))}
+            {!allowedClubs.length ? (
+              <p className="rounded-xl bg-white p-3 text-sm font-semibold text-[#6c5a73] ring-1 ring-[#eeeaf2]">
+                Add this person to a club or team before assigning League Chair.
+              </p>
+            ) : null}
+          </div>
+        </div>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>
             Cancel
@@ -2444,6 +2488,7 @@ function EditPersonModal({
               email: email.trim(),
               phone: phone.trim(),
               handicap: handicap.trim(),
+              leagueChairClubIds,
               roles: roleRows
                 .filter((row) => row.teamId && (row.role === "Player" || row.role === "Manager"))
                 .map((row) => ({ role: row.role, teamId: row.teamId }))

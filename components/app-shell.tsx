@@ -154,7 +154,7 @@ function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): App
 
 function applyLeagueChairAccess(menuItems: AppearanceMenuId[], activeTeam: TeamContext) {
   if (!activeTeam.hasLeagueChairAccess) return menuItems;
-  const extras: AppearanceMenuId[] = ["Contacts", "Interclub Leagues"];
+  const extras: AppearanceMenuId[] = ["Contacts"];
   return Array.from(new Set([...menuItems, ...extras]));
 }
 
