@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Mail, Send, UserPlus } from "lucide-react";
 
 import { AppShell, currentAppSeason } from "@/components/app-shell";
@@ -71,6 +71,7 @@ export function AuthGateway() {
   const [activationInvite, setActivationInvite] = useState<ActivationInvite | null>(null);
   const [activationProblem, setActivationProblem] = useState<ActivationProblem | null>(null);
   const [knownDevice, setKnownDevice] = useState(false);
+  const lastPageVisitRef = useRef<{ key: string; at: number } | null>(null);
 
   const refreshSession = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
@@ -191,6 +192,28 @@ export function AuthGateway() {
   }, [refreshSession, session?.authenticated]);
 
   const recordPageVisit = useCallback((pageLabel: string, activeTeam: TeamContext) => {
+    const now = Date.now();
+    const pagePath = window.location.pathname;
+    const visitKey = [
+      pagePath,
+      pageLabel,
+      activeTeam.id,
+      activeTeam.name,
+      activeTeam.role
+    ].join("|");
+    const lastVisit = lastPageVisitRef.current;
+    if (lastVisit?.key === visitKey && now - lastVisit.at < 5 * 60 * 1000) return;
+
+    const storageKey = `interclub:page-visit:${visitKey}`;
+    const lastStoredVisit = Number(window.sessionStorage.getItem(storageKey) ?? "0");
+    if (lastStoredVisit && now - lastStoredVisit < 5 * 60 * 1000) {
+      lastPageVisitRef.current = { key: visitKey, at: lastStoredVisit };
+      return;
+    }
+
+    lastPageVisitRef.current = { key: visitKey, at: now };
+    window.sessionStorage.setItem(storageKey, String(now));
+
     const testUser = new URLSearchParams(window.location.search).get("testUser")?.trim() ?? "";
     const pageVisitUrl = testUser ? `/api/page-visit?testUser=${encodeURIComponent(testUser)}` : "/api/page-visit";
     fetch(pageVisitUrl, {
@@ -198,7 +221,7 @@ export function AuthGateway() {
       credentials: "same-origin",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        pagePath: window.location.pathname,
+        pagePath,
         pageLabel,
         userAgent: window.navigator.userAgent,
         metadata: {

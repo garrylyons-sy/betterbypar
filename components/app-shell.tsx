@@ -355,7 +355,7 @@ export function AppShell({
 
   useEffect(() => {
     onPageVisit?.(activePage, activeTeam);
-  }, [activePage, activeTeam, onPageVisit]);
+  }, [activePage, activeTeam.id, activeTeam.name, activeTeam.role, onPageVisit]);
 
   return (
     <main className="min-h-screen overflow-x-hidden app-bg pb-24 text-[#10233f]">
