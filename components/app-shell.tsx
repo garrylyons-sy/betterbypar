@@ -418,6 +418,7 @@ export function AppShell({
             onDataRefresh={onDataRefresh}
             onTeamSummaryUpdate={updateTeamSummary}
           />
+          {activeTeam.hasLeagueChairAccess ? <SponsorBanner /> : null}
         </div>
         {showLeaguePanels ? (
           <aside className="grid gap-4 lg:content-start">
@@ -460,6 +461,25 @@ function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: stri
     pointsAgainst: standing?.pointsAgainst ?? 0,
     leaguePoints: standing?.leaguePoints ?? 0
   };
+}
+
+function SponsorBanner() {
+  return (
+    <a
+      href="https://www.thebilliardcompany.ie/"
+      target="_blank"
+      rel="noopener noreferrer sponsored"
+      aria-label="Visit The Billiard Company"
+      className="block overflow-hidden rounded-lg bg-[#071426] shadow-card ring-1 ring-[#eeeaf2] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+    >
+      <img
+        src="/sponsors/the-billiard-company-animated-banner.gif"
+        alt="The Billiard Company - world class table sports"
+        className="h-auto w-full object-cover"
+        loading="lazy"
+      />
+    </a>
+  );
 }
 
 function PageContent({
