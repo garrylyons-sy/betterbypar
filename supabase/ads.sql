@@ -2,7 +2,7 @@ create table if not exists public.ads (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   placement text not null check (placement in ('league-chair-banner')),
-  audience text not null check (audience in ('League Chair')),
+  audience text not null check (audience in ('Everyone', 'League Chair')),
   image_path text not null,
   link_url text not null,
   alt_text text not null default '',

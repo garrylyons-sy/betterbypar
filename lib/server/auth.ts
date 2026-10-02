@@ -938,14 +938,14 @@ export async function loadSessionPayload(user: AppUser) {
       } satisfies TeamContext))
     : [];
 
-  const baseContexts = [
+  const baseContexts: TeamContext[] = [
     ...teamContexts,
     ...clubContexts,
     ...clubAdminContexts,
     ...operatorTeamContexts,
     ...operatorClubContexts
   ];
-  const contexts = leagueChairMemberships.length && baseContexts.length
+  const contexts: TeamContext[] = leagueChairMemberships.length && baseContexts.length
     ? baseContexts.map((context) => ({
       ...context,
       hasLeagueChairAccess: true
@@ -1185,6 +1185,7 @@ export async function loadSessionPayload(user: AppUser) {
   )).rows[0]?.count ?? 0);
 
   const appearance = await loadAppearanceConfig();
+  const hasLeagueChairAccess = contexts.some((context) => context.hasLeagueChairAccess || context.role === "League Chair");
   const sponsorAds = (await dbQuery<{
     id: string;
     name: string;
@@ -1197,13 +1198,13 @@ export async function loadSessionPayload(user: AppUser) {
     `select id::text, name, placement, audience, image_path, link_url, alt_text
      from public.ads
      where active = true
-       and audience = 'League Chair'
        and placement = 'league-chair-banner'
+       and (audience = 'Everyone' or ($1::boolean = true and audience = 'League Chair'))
        and (starts_at is null or starts_at <= now())
        and (ends_at is null or ends_at > now())
      order by sort_order, name
      limit 1`
-  )).rows.map((row) => ({
+  , [hasLeagueChairAccess])).rows.map((row) => ({
     id: row.id,
     name: row.name,
     placement: row.placement,

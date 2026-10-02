@@ -343,9 +343,10 @@ export function AppShell({
     () => playerBreakStats.find((stat) => stat.league === activeTeam.league && stat.season === activeTeam.season) ?? null,
     [activeTeam.league, activeTeam.season, playerBreakStats]
   );
-  const activeSponsorAd = activeTeam.hasLeagueChairAccess
-    ? sponsorAds.find((ad) => ad.placement === "league-chair-banner" && ad.audience === "League Chair")
-    : undefined;
+  const activeSponsorAd = sponsorAds.find((ad) =>
+    ad.placement === "league-chair-banner" &&
+    (ad.audience === "Everyone" || (ad.audience === "League Chair" && activeTeam.hasLeagueChairAccess))
+  );
   const allMatchResults = matchResults ?? [];
   const clubOnlyView = isClubOnlyRole(activeTeam.role);
   const showLeaguePanels = !clubOnlyView && activePage === "Home" && pagesWithLeagueAside.includes(activePage);

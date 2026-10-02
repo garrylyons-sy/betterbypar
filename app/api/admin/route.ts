@@ -39,7 +39,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ authenticated: false, administrator: false }, { status: 401 });
     if (!administrator) return NextResponse.json({ authenticated: true, administrator: false, user }, { status: 403 });
 
-    const [teams, peopleResult, requestsResult, invitesResult, competitionsResult, appearance] = await Promise.all([
+    const [teams, peopleResult, requestsResult, invitesResult, competitionsResult, adsResult, appearance] = await Promise.all([
       loadTeamOptions().then((rows) => platformAdmin ? rows : rows.filter((team) => clubAdminClubIds.includes(team.club_id))),
       dbQuery(
         `select distinct on (p.id)
@@ -223,6 +223,13 @@ export async function GET() {
          limit 50`,
         [platformAdmin, clubAdminClubIds]
       ),
+      platformAdmin
+        ? dbQuery(
+            `select id::text, name, placement, audience, image_path, link_url, alt_text, active, sort_order, starts_at::text, ends_at::text
+             from public.ads
+             order by sort_order, name`
+          )
+        : Promise.resolve({ rows: [] }),
       loadAppearanceConfig()
     ]);
 
@@ -236,6 +243,7 @@ export async function GET() {
       requests: requestsResult.rows,
       invites: invitesResult.rows,
       competitions: competitionsResult.rows,
+      ads: adsResult.rows,
       appearance
     });
   } catch (error) {

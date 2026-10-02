@@ -53,7 +53,7 @@ export type SponsorAd = {
   id: string;
   name: string;
   placement: "league-chair-banner";
-  audience: "League Chair";
+  audience: "Everyone" | "League Chair";
   imagePath: string;
   linkUrl: string;
   altText: string;

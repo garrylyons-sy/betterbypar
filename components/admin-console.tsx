@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, CalendarDays, Eye, FileSpreadsheet, KeyRound, LayoutPanelTop, LogOut, Mail, Pencil, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, CalendarDays, Eye, FileSpreadsheet, KeyRound, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { appearancePanelOptions, defaultAppearanceConfig, normalizeAppearanceConfig } from "@/lib/appearance";
 import { clubTeamStructure } from "@/lib/demo-data";
-import type { AppearanceConfig, AppearancePanelId, Role as AppRole } from "@/lib/types";
+import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "desktop" | "competitions" | "matches" | "people" | "invites" | "permissions" | "appearance" | "logs";
+type AdminTab = "desktop" | "competitions" | "matches" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type TeamRole = "Player" | "Manager";
 type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair";
@@ -163,6 +163,12 @@ type AdminMatchDraft = {
   awayTeamScore: string;
   status: string;
 };
+type AdminAdRow = SponsorAd & {
+  active: boolean;
+  sortOrder: number;
+  startsAt?: string | null;
+  endsAt?: string | null;
+};
 type AdminUser = {
   email: string;
   name: string;
@@ -181,6 +187,7 @@ const adminNavItems = [
   { id: "invites" as const, label: "Invites", icon: KeyRound },
   { id: "permissions" as const, label: "Permissions", icon: Users },
   { id: "appearance" as const, label: "Appearance", icon: LayoutPanelTop },
+  { id: "adverts" as const, label: "Adverts", icon: Megaphone },
   { id: "logs" as const, label: "Logs", icon: Activity }
 ];
 const demoTeams: TeamOption[] = clubTeamStructure.flatMap((club) =>
@@ -285,6 +292,7 @@ export function AdminConsole() {
   const [requests, setRequests] = useState<InviteRequestRow[]>([]);
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [competitions, setCompetitions] = useState<AdminCompetitionRow[]>([]);
+  const [ads, setAds] = useState<AdminAdRow[]>([]);
   const [appearance, setAppearance] = useState<AppearanceConfig>(defaultAppearanceConfig);
 
   useEffect(() => {
@@ -346,6 +354,31 @@ export function AdminConsole() {
         setRequests(data.requests ?? []);
         setInvites(data.invites ?? []);
         setCompetitions(data.competitions ?? []);
+        setAds((data.ads ?? []).map((ad: {
+          id: string;
+          name: string;
+          placement: SponsorAd["placement"];
+          audience: SponsorAd["audience"];
+          image_path: string;
+          link_url: string;
+          alt_text: string;
+          active: boolean;
+          sort_order: number;
+          starts_at?: string | null;
+          ends_at?: string | null;
+        }) => ({
+          id: ad.id,
+          name: ad.name,
+          placement: ad.placement,
+          audience: ad.audience,
+          imagePath: ad.image_path,
+          linkUrl: ad.link_url,
+          altText: ad.alt_text,
+          active: Boolean(ad.active),
+          sortOrder: Number(ad.sort_order ?? 100),
+          startsAt: ad.starts_at ?? null,
+          endsAt: ad.ends_at ?? null
+        })));
         setAppearance(normalizeAppearanceConfig(data.appearance ?? defaultAppearanceConfig));
       }
     } catch (error) {
@@ -393,7 +426,7 @@ export function AdminConsole() {
       adminMode={adminMode}
       onLogout={logout}
     >
-      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logsRefreshKey={logsRefreshKey} requests={requests} invites={invites} competitions={competitions} competitionsLoading={!adminDataLoaded} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
+      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logsRefreshKey={logsRefreshKey} requests={requests} invites={invites} competitions={competitions} ads={ads} competitionsLoading={!adminDataLoaded} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
     </AdminLayout>
   );
 }
@@ -490,6 +523,7 @@ function AdminTabPanel(props: {
   requests: InviteRequestRow[];
   invites: InviteRow[];
   competitions: AdminCompetitionRow[];
+  ads: AdminAdRow[];
   competitionsLoading: boolean;
   appearance: AppearanceConfig;
   demo?: boolean;
@@ -504,6 +538,7 @@ function AdminTabPanel(props: {
   if (props.tab === "people") return <PeoplePanel {...props} />;
   if (props.tab === "permissions") return <PermissionsPanel {...props} />;
   if (props.tab === "appearance") return <AppearancePanel {...props} />;
+  if (props.tab === "adverts") return <AdvertsPanel {...props} />;
   if (props.tab === "logs") return <LogsPanel refreshKey={props.logsRefreshKey} />;
   return <InvitesPanel {...props} />;
 }
@@ -3179,6 +3214,194 @@ function ExistingInvites({ invites }: { invites: InviteRow[] }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function AdvertsPanel({
+  ads,
+  demo,
+  onMessage,
+  onRefresh
+}: {
+  ads: AdminAdRow[];
+  demo?: boolean;
+  onMessage: (message: string) => void;
+  onRefresh: () => void;
+}) {
+  const [draft, setDraft] = useState({
+    name: "",
+    audience: "Everyone" as SponsorAd["audience"],
+    imagePath: "",
+    linkUrl: "",
+    altText: "",
+    sortOrder: "100",
+    active: true
+  });
+  const [editing, setEditing] = useState<Record<string, AdminAdRow>>({});
+  const [busyId, setBusyId] = useState("");
+
+  async function createAdvert() {
+    if (demo) {
+      onMessage("Advert created.");
+      return;
+    }
+    try {
+      const response = await fetch("/api/admin/adverts", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(draft)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not create advert.");
+      setDraft({ name: "", audience: "Everyone", imagePath: "", linkUrl: "", altText: "", sortOrder: "100", active: true });
+      onMessage("Advert created.");
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not create advert.");
+    }
+  }
+
+  async function saveAdvert(ad: AdminAdRow) {
+    if (demo) {
+      onMessage("Advert saved.");
+      return;
+    }
+    setBusyId(ad.id);
+    try {
+      const response = await fetch("/api/admin/adverts", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: ad.id,
+          name: ad.name,
+          audience: ad.audience,
+          imagePath: ad.imagePath,
+          linkUrl: ad.linkUrl,
+          altText: ad.altText,
+          sortOrder: ad.sortOrder,
+          active: ad.active
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not save advert.");
+      setEditing((current) => {
+        const next = { ...current };
+        delete next[ad.id];
+        return next;
+      });
+      onMessage("Advert saved.");
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not save advert.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function deleteAdvert(ad: AdminAdRow) {
+    if (demo) {
+      onMessage("Advert deleted.");
+      return;
+    }
+    setBusyId(ad.id);
+    try {
+      const response = await fetch("/api/admin/adverts", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: ad.id, action: "delete" })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not delete advert.");
+      onMessage("Advert deleted.");
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not delete advert.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  function updateEditing(id: string, patch: Partial<AdminAdRow>) {
+    setEditing((current) => ({
+      ...current,
+      [id]: {
+        ...(current[id] ?? ads.find((ad) => ad.id === id)!),
+        ...patch
+      }
+    }));
+  }
+
+  return (
+    <div className="grid gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Adverts</CardTitle>
+          <Badge variant="cyan">Sponsor banners</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <div className="grid gap-3 md:grid-cols-2">
+            <AdminInput label="Name" value={draft.name} onChange={(value) => setDraft((current) => ({ ...current, name: value }))} />
+            <AdminSelect label="Audience" value={draft.audience} onChange={(value) => setDraft((current) => ({ ...current, audience: value as SponsorAd["audience"] }))} options={[{ value: "Everyone", label: "Everyone" }, { value: "League Chair", label: "League Chair(s)" }]} />
+            <AdminInput label="Image path" value={draft.imagePath} onChange={(value) => setDraft((current) => ({ ...current, imagePath: value }))} placeholder="/sponsors/banner.gif" />
+            <AdminInput label="Link URL" value={draft.linkUrl} onChange={(value) => setDraft((current) => ({ ...current, linkUrl: value }))} placeholder="https://example.com/" />
+            <AdminInput label="Alt text" value={draft.altText} onChange={(value) => setDraft((current) => ({ ...current, altText: value }))} />
+            <AdminInput label="Sort order" value={draft.sortOrder} onChange={(value) => setDraft((current) => ({ ...current, sortOrder: value }))} type="number" />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <AdminCheckbox label="Active" checked={draft.active} onChange={(checked) => setDraft((current) => ({ ...current, active: checked }))} />
+            <Button onClick={createAdvert} disabled={!draft.name || !draft.imagePath || !draft.linkUrl}>
+              <PlusCircle className="h-4 w-4" />
+              Create advert
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Current adverts</CardTitle>
+          <Badge variant="muted">{ads.length}</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {ads.map((sourceAd) => {
+            const ad = editing[sourceAd.id] ?? sourceAd;
+            return (
+              <div key={ad.id} className="grid gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] xl:grid-cols-[220px_minmax(0,1fr)_220px] xl:items-start">
+                <a href={ad.linkUrl} target="_blank" rel="noopener noreferrer sponsored" className="overflow-hidden rounded-lg bg-[#071426] ring-1 ring-[#eeeaf2]">
+                  <img src={ad.imagePath} alt={ad.altText || ad.name} className="h-auto w-full" />
+                </a>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <AdminInput label="Name" value={ad.name} onChange={(value) => updateEditing(ad.id, { name: value })} />
+                  <AdminSelect label="Audience" value={ad.audience} onChange={(value) => updateEditing(ad.id, { audience: value as SponsorAd["audience"] })} options={[{ value: "Everyone", label: "Everyone" }, { value: "League Chair", label: "League Chair(s)" }]} />
+                  <AdminInput label="Image path" value={ad.imagePath} onChange={(value) => updateEditing(ad.id, { imagePath: value })} />
+                  <AdminInput label="Link URL" value={ad.linkUrl} onChange={(value) => updateEditing(ad.id, { linkUrl: value })} />
+                  <AdminInput label="Alt text" value={ad.altText} onChange={(value) => updateEditing(ad.id, { altText: value })} />
+                  <AdminInput label="Sort order" value={String(ad.sortOrder)} onChange={(value) => updateEditing(ad.id, { sortOrder: Number(value) || 100 })} type="number" />
+                </div>
+                <div className="grid gap-2">
+                  <AdminCheckbox label="Active" checked={ad.active} onChange={(checked) => updateEditing(ad.id, { active: checked })} />
+                  <Button onClick={() => saveAdvert(ad)} disabled={busyId === ad.id || !ad.name || !ad.imagePath || !ad.linkUrl}>
+                    <Pencil className="h-4 w-4" />
+                    Save
+                  </Button>
+                  <Button variant="secondary" onClick={() => deleteAdvert(ad)} disabled={busyId === ad.id} className="text-[#b42318]">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+          {!ads.length ? (
+            <p className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-bold text-[#6c5a73] ring-1 ring-[#eeeaf2]">
+              No adverts yet.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
