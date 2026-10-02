@@ -4824,14 +4824,28 @@ type FixtureWeek = {
   fixtures: FixtureWeekFixture[];
 };
 
-function weekDistanceFromToday(week: FixtureWeek) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const starts = new Date(`${week.startsOn}T00:00:00`);
-  const ends = new Date(starts);
-  ends.setDate(starts.getDate() + 6);
-  if (today >= starts && today <= ends) return 0;
-  return Math.abs(today.getTime() - starts.getTime());
+function fixtureWeekVisibleFromDate(week: FixtureWeek, league: TeamContext["league"]) {
+  const matchDate = week.startsOn.slice(0, 10);
+  if (league === "C League") return isoDateFromOffset(matchDate, -2);
+
+  const date = new Date(`${matchDate}T12:00:00`);
+  const day = date.getDay();
+  const daysSinceMonday = (day + 6) % 7;
+  date.setDate(date.getDate() - daysSinceMonday);
+  return localIsoDate(date);
+}
+
+function defaultFixtureWeekIndex(weeks: FixtureWeek[], league: TeamContext["league"]) {
+  if (!weeks.length) return 0;
+  const today = localIsoDate();
+  const visibleWeeks = weeks
+    .map((week, index) => ({ index, visibleFrom: fixtureWeekVisibleFromDate(week, league) }))
+    .filter((week) => week.visibleFrom <= today);
+
+  if (!visibleWeeks.length) return 0;
+  return visibleWeeks.reduce((latest, week) => (
+    week.visibleFrom >= latest.visibleFrom ? week : latest
+  )).index;
 }
 
 function fixtureWeekShouldPoll(week?: FixtureWeek) {
@@ -4922,9 +4936,7 @@ function FixtureWeekCarouselCard({
       if (nextWeeks.length) {
         setActiveIndex((current) => {
           if (current >= 0 && current < nextWeeks.length && !showLoading) return current;
-          return nextWeeks.reduce((bestIndex, item, index) =>
-            weekDistanceFromToday(item) < weekDistanceFromToday(nextWeeks[bestIndex]) ? index : bestIndex,
-          0);
+          return defaultFixtureWeekIndex(nextWeeks, activeTeam.league);
         });
       }
       setMessage("");
