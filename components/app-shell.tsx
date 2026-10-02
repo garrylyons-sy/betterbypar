@@ -1951,6 +1951,12 @@ function competitionEntryClosed(competition: CompetitionSummary | CompetitionDet
   return Boolean(closeDate) && closeDate < localIsoDate();
 }
 
+function shortClubDisplayName(clubName: string) {
+  return clubName
+    .replace(" Golf Club", "")
+    .replace(" Lawn Tennis Club", "");
+}
+
 function CompetitionListItem({ competition, onNavigate }: { competition: CompetitionSummary; onNavigate: (page: AppPage) => void }) {
   const roundCode = competition.nextMatch?.roundName ? shortRoundName(competition.nextMatch.roundName) : "";
   return (
@@ -3465,21 +3471,23 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
                 const logoPath = clubContacts[0]?.clubLogoPath ?? activeTeam.logoPath;
                 const open = openClubNames.has(clubName);
                 return (
-                  <section key={clubName} className="overflow-hidden rounded-[18px] bg-white ring-1 ring-[#eeeaf2]">
+                  <section key={clubName} className="max-w-full overflow-hidden rounded-[18px] bg-white ring-1 ring-[#eeeaf2]">
                     <button
                       type="button"
                       onClick={() => toggleClub(clubName)}
-                      className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 text-left text-white focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6] sm:p-4"
+                      className="grid w-full max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 overflow-hidden p-3 text-left text-white focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6] sm:p-4"
                       style={clubPanelStyle(primary, accent)}
                       aria-expanded={open}
                     >
-                      <ClubLogoTile club={clubName} logoPath={logoPath} size="compact" />
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white p-1.5 ring-1 ring-[#eeeaf2] sm:h-14 sm:w-14">
+                        <img src={logoPath} alt={`${clubName} logo`} className="max-h-full max-w-full object-contain" />
+                      </span>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <Badge variant="cyan">{clubContacts.length} contact{clubContacts.length === 1 ? "" : "s"}</Badge>
                           {clubName === activeTeam.club ? <Badge variant="green">Your club</Badge> : null}
                         </div>
-                        <h3 className="mt-2 truncate text-xl font-black leading-tight text-white sm:text-2xl">{clubName.replace(" Golf Club", "")}</h3>
+                        <h3 className="mt-2 break-words text-lg font-black leading-tight text-white sm:text-2xl">{shortClubDisplayName(clubName)}</h3>
                       </div>
                       <ChevronDown className={cn("h-5 w-5 shrink-0 text-white/80 transition-transform", open && "rotate-180")} />
                     </button>
