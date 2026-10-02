@@ -6723,12 +6723,14 @@ function LeagueBreaksCard({ activeTeam }: { activeTeam: TeamContext }) {
   const [breaks, setBreaks] = useState<LeagueBreakLeaderboardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [showRest, setShowRest] = useState(false);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setMessage("");
-    const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season, limit: "8" });
+    setShowRest(false);
+    const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season, limit: "50" });
     fetch(withTestUser(`/api/league/breaks?${params.toString()}`), { credentials: "same-origin" })
       .then((response) => response.json().then((data) => ({ response, data })))
       .then(({ response, data }) => {
@@ -6759,6 +6761,8 @@ function LeagueBreaksCard({ activeTeam }: { activeTeam: TeamContext }) {
     }
     return { entry, rank: displayedRank };
   });
+  const topBreaks = rankedBreaks.slice(0, 5);
+  const remainingBreaks = rankedBreaks.slice(5);
 
   return (
     <Card className="min-w-0 overflow-hidden">
@@ -6767,7 +6771,7 @@ function LeagueBreaksCard({ activeTeam }: { activeTeam: TeamContext }) {
         <Badge variant="muted">{loading ? "Loading" : `${breaks.length}`}</Badge>
       </CardHeader>
       <CardContent className="grid gap-2">
-        {rankedBreaks.map(({ entry, rank }) => {
+        {topBreaks.map(({ entry, rank }) => {
           const colors = teamColors(entry.teamName ?? activeTeam.name);
           const fixtureLabel = entry.fixtureDate ? formatFixtureDate(entry.fixtureDate) : "Date pending";
           const opponentLabel = entry.opponentTeamName ? `v ${entry.opponentTeamName}` : "Match break";
@@ -6791,9 +6795,53 @@ function LeagueBreaksCard({ activeTeam }: { activeTeam: TeamContext }) {
             </div>
           );
         })}
+        {remainingBreaks.length ? (
+          <div className="mt-2 overflow-hidden rounded-xl border border-[#eeeaf2]">
+            <button
+              type="button"
+              className="flex min-h-12 w-full items-center justify-between gap-3 bg-[#f7f5fa] px-3 py-2 text-left text-sm font-extrabold text-[#10233f]"
+              onClick={() => setShowRest((current) => !current)}
+              aria-expanded={showRest}
+            >
+              <span>Remaining breaks 30+</span>
+              <span className="flex items-center gap-2 text-xs font-black uppercase text-[#6c5a73]">
+                {remainingBreaks.length}
+                <ChevronDown className={cn("h-4 w-4 transition-transform", showRest && "rotate-180")} />
+              </span>
+            </button>
+            {showRest ? (
+              <div className="grid divide-y divide-[#eeeaf2] bg-white">
+                <div className="grid grid-cols-[44px_minmax(0,1fr)_52px_52px] gap-2 px-3 py-2 text-[11px] font-black uppercase text-[#6c5a73]">
+                  <span>Rank</span>
+                  <span>Player</span>
+                  <span className="text-right">Break</span>
+                  <span className="text-right">Game</span>
+                </div>
+                {remainingBreaks.map(({ entry, rank }) => {
+                  const colors = teamColors(entry.teamName ?? activeTeam.name);
+                  const fixtureLabel = entry.fixtureDate ? formatFixtureDate(entry.fixtureDate) : "Date pending";
+                  const opponentLabel = entry.opponentTeamName ? `v ${entry.opponentTeamName}` : "Match break";
+                  return (
+                    <div key={entry.id} className="grid grid-cols-[44px_minmax(0,1fr)_52px_52px] items-center gap-2 px-3 py-2 text-sm font-bold text-[#10233f]">
+                      <span className="text-[#6c5a73]">#{rank}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-extrabold" style={{ color: colors.primaryColor }}>{entry.playerName}</span>
+                        <span className="block truncate text-[11px] font-semibold text-[#6c5a73]">
+                          {entry.teamName ?? "Team"} · {opponentLabel} · {fixtureLabel}{entry.venueSide ? ` (${entry.venueSide})` : ""}
+                        </span>
+                      </span>
+                      <span className="text-right font-black">{entry.breakValue}</span>
+                      <span className="text-right text-xs text-[#6c5a73]">{entry.gameNumber ? `G${entry.gameNumber}` : "-"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {!breaks.length ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-            {loading ? "Loading high breaks..." : message || "No breaks recorded in this league yet."}
+            {loading ? "Loading high breaks..." : message || "No breaks of 30 or more recorded in this league yet."}
           </p>
         ) : null}
       </CardContent>

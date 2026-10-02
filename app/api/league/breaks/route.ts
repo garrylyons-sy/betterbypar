@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
        join public.team away_team on away_team.id = f.away_team_id
        join target t on t.season_id = f.season_id and t.league_id = f.league_id
        where coalesce(f.fixture_type, 'League') = 'League'
+         and b.break_value >= 30
        order by b.break_value desc, coalesce(f.fixture_date, b.recorded_at) desc, p.last_name, p.first_name
        limit $3`,
       [league, season, limit]
