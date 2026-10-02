@@ -226,6 +226,7 @@ function metadataText(value: unknown) {
 
 function activityLabel(activityType: string) {
   if (activityType === "Page Visit") return "Page visit";
+  if (activityType === "Advert Click") return "Advert click";
   if (activityType === "Login") return "Login";
   return activityType.replace(/_/g, " ");
 }
@@ -238,13 +239,22 @@ function activitySummary(log: ActivityRow) {
     const provider = metadataText(log.metadata?.provider);
     return `Signed in${provider ? ` with ${provider === "google" ? "Google" : provider}` : ""}`;
   }
+  if (log.activity_type === "Advert Click") {
+    const adName = metadataText(log.metadata?.ad_name);
+    return `Clicked ${adName || "an advert"}`;
+  }
   return activityLabel(log.activity_type);
 }
 
 function activityContext(log: ActivityRow) {
   const teamName = metadataText(log.metadata?.team_name);
   const role = metadataText(log.metadata?.role);
+  const adName = metadataText(log.metadata?.ad_name);
   const pagePath = log.page_path && log.page_path !== "/" ? log.page_path : "";
+  if (log.activity_type === "Advert Click") {
+    const pieces = [adName, pagePath].filter(Boolean);
+    return pieces.length ? pieces.join(" - ") : "Advert click";
+  }
   const pieces = [
     teamName && role ? `${teamName} - ${role}` : teamName || role,
     pagePath
@@ -255,11 +265,13 @@ function activityContext(log: ActivityRow) {
 function activityBadgeVariant(log: ActivityRow): "cyan" | "green" | "muted" {
   if (log.activity_type === "Page Visit") return "cyan";
   if (log.activity_type === "Login") return "green";
+  if (log.activity_type === "Advert Click") return "green";
   return "muted";
 }
 
 function activityArea(log: ActivityRow) {
   if (log.activity_type === "Login") return "Login";
+  if (log.activity_type === "Advert Click") return "Advert";
   return log.page_label || log.page_path || activityLabel(log.activity_type);
 }
 
@@ -268,6 +280,9 @@ function compactActivityLine(log: ActivityRow) {
   const context = activityContext(log);
   if (log.activity_type === "Page Visit") {
     return context === "Session activity" ? area : `${area} - ${context}`;
+  }
+  if (log.activity_type === "Advert Click") {
+    return context;
   }
   return activitySummary(log);
 }

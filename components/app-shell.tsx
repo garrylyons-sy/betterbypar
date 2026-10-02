@@ -470,12 +470,32 @@ function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: stri
 }
 
 function SponsorBanner({ ad }: { ad: SponsorAd }) {
+  function recordAdvertClick() {
+    const testUser = new URLSearchParams(window.location.search).get("testUser")?.trim() ?? "";
+    const clickUrl = testUser ? `/api/ad-click?testUser=${encodeURIComponent(testUser)}` : "/api/ad-click";
+    fetch(clickUrl, {
+      method: "POST",
+      credentials: "same-origin",
+      keepalive: true,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        adId: ad.id,
+        adName: ad.name,
+        linkUrl: ad.linkUrl,
+        placement: ad.placement,
+        audience: ad.audience,
+        userAgent: window.navigator.userAgent
+      })
+    }).catch(() => {});
+  }
+
   return (
     <a
       href={ad.linkUrl}
       target="_blank"
       rel="noopener noreferrer sponsored"
       aria-label={`Visit ${ad.name}`}
+      onClick={recordAdvertClick}
       className="block overflow-hidden rounded-lg bg-[#071426] shadow-card ring-1 ring-[#eeeaf2] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
     >
       <img

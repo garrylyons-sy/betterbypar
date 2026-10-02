@@ -5,7 +5,7 @@ create type membership_role as enum ('Player', 'Manager');
 create type fixture_status as enum ('Scheduled', 'Completed', 'Cancelled');
 create type game_type as enum ('Singles', 'Doubles');
 create type invitation_request_status as enum ('Pending', 'Approved', 'Rejected', 'Cancelled');
-create type user_activity_type as enum ('Login', 'Page Visit');
+create type user_activity_type as enum ('Login', 'Page Visit', 'Advert Click');
 
 create table public.person (
   id uuid primary key default gen_random_uuid(),
