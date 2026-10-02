@@ -1937,6 +1937,10 @@ function competitionDateText(competition: CompetitionSummary) {
   return competition.status;
 }
 
+function competitionEntryClosed(competition: CompetitionSummary | CompetitionDetail) {
+  return competition.entryClosesAt.slice(0, 10) < localIsoDate();
+}
+
 function CompetitionListItem({ competition, onNavigate }: { competition: CompetitionSummary; onNavigate: (page: AppPage) => void }) {
   const roundCode = competition.nextMatch?.roundName ? shortRoundName(competition.nextMatch.roundName) : "";
   return (
@@ -2132,6 +2136,10 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
       setMessage(`You need to be a member of ${competition.clubName} to enter this competition.`);
       return;
     }
+    if (competitionEntryClosed(competition)) {
+      setMessage(`Entries for ${competition.name} closed on ${formatFixtureDate(competition.entryClosesAt)}.`);
+      return;
+    }
     setEnteringId(competition.id);
     try {
       const entered = await competitionAction("/entries", { clubMembershipId: membership.club_membership_id }, competition.id);
@@ -2146,7 +2154,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
 
   const orderedCompetitions = [...competitions].sort((left, right) => Number(right.isEntered) - Number(left.isEntered));
   const enteredCompetitions = orderedCompetitions.filter((competition) => competition.isEntered);
-  const enterableCompetitions = orderedCompetitions.filter((competition) => competition.status === "Open" && !competition.isEntered && Boolean(membershipForCompetition(competition)));
+  const enterableCompetitions = orderedCompetitions.filter((competition) => competition.status === "Open" && !competition.isEntered && !competitionEntryClosed(competition) && Boolean(membershipForCompetition(competition)));
   const otherCompetitions = orderedCompetitions.filter((competition) => !competition.isEntered && !enterableCompetitions.some((enterable) => enterable.id === competition.id));
 
   return (
@@ -2168,7 +2176,8 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
                 {(sectionCompetitions as CompetitionSummary[]).map((competition) => {
               const selected = selectedId === competition.id;
               const membership = membershipForCompetition(competition);
-              const canEnter = competition.status === "Open" && !competition.isEntered && Boolean(membership);
+              const entryClosed = competitionEntryClosed(competition);
+              const canEnter = competition.status === "Open" && !competition.isEntered && !entryClosed && Boolean(membership);
               const confirming = confirmingEntryId === competition.id;
               return (
                 <article
@@ -2200,7 +2209,7 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
                     </button>
                     <div className="flex shrink-0 flex-col items-end gap-2">
                       {competition.isEntered && competition.nextMatch?.roundName ? <Badge variant="cyan">{shortRoundName(competition.nextMatch.roundName)}</Badge> : null}
-                      <Badge variant={competition.isEntered ? "green" : "muted"}>{competition.isEntered ? "Entered" : competition.status}</Badge>
+                      <Badge variant={competition.isEntered ? "green" : "muted"}>{competition.isEntered ? "Entered" : entryClosed && competition.status === "Open" ? "Closed" : competition.status}</Badge>
                       {canEnter ? (
                         <Button size="sm" onClick={() => setConfirmingEntryId(competition.id)} disabled={enteringId === competition.id}>
                           <PlusCircle className="h-4 w-4" />

@@ -6,6 +6,13 @@ import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
+function localIsoDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await currentUserFromRequest(request);
@@ -20,6 +27,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!competition) return NextResponse.json({ error: "Competition not found." }, { status: 404 });
     if (!canManage && competition.status !== "Open") {
       return NextResponse.json({ error: "Entries are closed." }, { status: 400 });
+    }
+    if (!canManage && competition.entryClosesAt.slice(0, 10) < localIsoDate()) {
+      return NextResponse.json({ error: "The closing date for entries has passed." }, { status: 400 });
     }
 
     const membershipResult = await dbQuery<{ id: string }>(
