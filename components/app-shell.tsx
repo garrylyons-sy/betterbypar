@@ -6275,23 +6275,23 @@ function PlayerGuestBadge({ isGuest, guestTeamName }: { isGuest?: boolean; guest
   return <span className="shrink-0 rounded bg-[#eefbff] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#10233f] ring-1 ring-[#04f5ff55]">{label}</span>;
 }
 
-function PlayerNameWithGuest({ player }: { player: GuestTaggedPlayer }) {
+function PlayerNameWithGuest({ align, player }: { align?: "left" | "right"; player: GuestTaggedPlayer }) {
   return (
-    <span className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1">
+    <span className={cn("inline-flex min-w-0 max-w-full flex-wrap items-center gap-1", align === "right" ? "justify-end text-right" : "")}>
       <span className="min-w-0 whitespace-normal break-words">{player.name || "TBC"}</span>
       <PlayerGuestBadge isGuest={player.isGuest} guestTeamName={player.guestTeamName} />
     </span>
   );
 }
 
-function GamePlayerLabel({ players, className }: { players: GuestTaggedPlayer[]; className?: string }) {
+function GamePlayerLabel({ align = "left", players, className }: { align?: "left" | "right"; players: GuestTaggedPlayer[]; className?: string }) {
   const visiblePlayers = players.filter((player) => player.name);
   return (
-    <p className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-md px-2 py-1.5 leading-tight", className)}>
+    <p className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-md px-2 py-1.5 leading-tight", align === "right" ? "justify-end text-right" : "", className)}>
       {(visiblePlayers.length ? visiblePlayers : [{ name: "TBC" }]).map((player, index) => (
         <Fragment key={`${player.name || "TBC"}-${index}`}>
           {index ? <span className="shrink-0 text-[#6c5a73]">/</span> : null}
-          <PlayerNameWithGuest player={player} />
+          <PlayerNameWithGuest align={align} player={player} />
         </Fragment>
       ))}
     </p>
@@ -6380,7 +6380,7 @@ function ReadOnlyFixtureDetails({
               <div className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-stretch gap-1.5 text-xs font-extrabold sm:grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] sm:gap-2 sm:text-sm">
                 <GamePlayerLabel className={cn(homeWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} players={homePlayers} />
                 <span className="grid place-items-center text-center text-xs font-black uppercase text-[#6c5a73]">v</span>
-                <GamePlayerLabel className={cn("justify-end text-right", awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} players={awayPlayers} />
+                <GamePlayerLabel align="right" className={cn(awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} players={awayPlayers} />
               </div>
               {game.breaks?.length ? (
                 <div className="flex flex-wrap gap-1">
@@ -6469,7 +6469,7 @@ function GeneratedMatchCard({
                 <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 leading-tight">
                   <GamePlayerLabel className="bg-transparent px-0 py-0 text-white" players={homePlayers} />
                   <span className="text-white/55">v</span>
-                  <GamePlayerLabel className="justify-end bg-transparent px-0 py-0 text-right text-white" players={awayPlayers} />
+                  <GamePlayerLabel align="right" className="bg-transparent px-0 py-0 text-white" players={awayPlayers} />
                 </div>
               </div>
               <div className="grid gap-1.5 sm:grid-cols-2">
