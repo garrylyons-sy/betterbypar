@@ -78,9 +78,10 @@ with seed(contact_type, contact_label, person_name, club_key, league_name, team_
     ('Team Contact', 'Stackstown C', 'Carl Keenan', 'Stackstown', 'C League', 'Stackstown C', '0862311066', 730),
     ('Team Contact', 'Woodbrook A', 'John Darcy', 'Woodbrook', 'A League', 'Woodbrook A', '0872257195', 810),
     ('Team Contact', 'Woodbrook B', 'Robert Argue', 'Woodbrook', 'B League', 'Woodbrook B', '0872598032', 820),
-    ('Team Contact', 'Fitzwilliam B', 'Igor Fleming', 'Fitzwilliam', 'B League', 'Fitzwilliam B', '0868613007', 910),
+    ('Team Contact', 'Fitzwilliam B', 'Harry Brophy', 'Fitzwilliam', 'B League', 'Fitzwilliam B', '0868222220', 910),
     ('Team Contact', 'Fitzwilliam B', 'Gareth Colgan', 'Fitzwilliam', 'B League', 'Fitzwilliam B', '0872336300', 911),
-    ('Team Contact', 'Fitzwilliam C', 'Richard Flinn', 'Fitzwilliam', 'C League', 'Fitzwilliam C', '00447884265539', 920)
+    ('Team Contact', 'Fitzwilliam C', 'Richard Flinn', 'Fitzwilliam', 'C League', 'Fitzwilliam C', '00447884265539', 920),
+    ('Team Contact', 'Fitzwilliam C', 'Eddie McCarron', 'Fitzwilliam', 'C League', 'Fitzwilliam C', '0869571199', 921)
 ),
 resolved as (
   select
