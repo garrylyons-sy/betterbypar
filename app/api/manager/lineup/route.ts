@@ -1056,6 +1056,7 @@ const eligibleGuestPlayersSql = `
       join target on target.season_id = f.season_id
       where fls.player_1_id is not null
         and fls.player_1_is_guest = true
+        and fl.team_id = target.id
         and ($2::uuid is null or f.id <> $2::uuid)
       union all
       select fls.player_2_id as person_id, picked_team.name as played_for_team
@@ -1066,6 +1067,7 @@ const eligibleGuestPlayersSql = `
       join target on target.season_id = f.season_id
       where fls.player_2_id is not null
         and fls.player_2_is_guest = true
+        and fl.team_id = target.id
         and ($2::uuid is null or f.id <> $2::uuid)
     ) used
     group by person_id
