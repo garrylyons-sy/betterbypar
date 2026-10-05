@@ -61,6 +61,7 @@ with seed(contact_type, contact_label, person_name, club_key, league_name, team_
     ('Team Contact', 'Grange A', 'Mick Meade', 'Grange', 'A League', 'Grange A', '0872476350', 210),
     ('Team Contact', 'Grange B', 'Mick Collins', 'Grange', 'B League', 'Grange B', '0872055302', 220),
     ('Team Contact', 'Grange C', 'Morgan Pierse', 'Grange', 'C League', 'Grange C', '0872229537', 230),
+    ('Team Contact', 'Grange C', 'Mick Collins', 'Grange', 'C League', 'Grange C', '0872055302', 231),
     ('Team Contact', 'Grange D', 'Noel O''Kelly', 'Grange', 'C League', 'Grange D', '087 1233200', 240),
     ('Team Contact', 'Dun Laoghaire A', 'Ryan Berkeley', 'Dun Laoghaire', 'A League', 'Dun Laoghaire A', '0872182942', 310),
     ('Team Contact', 'Elm Park A', 'Conor O''Boyle', 'Elm Park', 'A League', 'Elm Park A', '0879008258', 410),
