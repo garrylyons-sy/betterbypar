@@ -821,7 +821,6 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
   const [loading, setLoading] = useState(false);
   const [savingFixtureId, setSavingFixtureId] = useState("");
   const [drafts, setDrafts] = useState<Record<string, AdminMatchDraft>>({});
-  const [lineupTarget, setLineupTarget] = useState<AdminLineupEditorTarget>(null);
 
   useEffect(() => {
     loadMatches();
@@ -957,22 +956,6 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                     teamName={match.home_team_name}
                     onScoreChange={(value) => updateDraft(match.fixture_id, { homeTeamScore: value })}
                   />
-                  <div className="flex justify-start">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="min-h-8 px-2 text-[11px]"
-                      onClick={() => setLineupTarget((current) => current?.fixtureId === match.fixture_id && current.teamId === match.home_team_id ? null : {
-                        fixtureId: match.fixture_id,
-                        teamId: match.home_team_id,
-                        teamName: match.home_team_name,
-                        leagueName: match.league_name
-                      })}
-                    >
-                      Home lineup
-                    </Button>
-                  </div>
                   <AdminMatchTeamScoreRow
                     align="left"
                     score={draft.awayTeamScore}
@@ -982,22 +965,6 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                     teamName={match.away_team_name}
                     onScoreChange={(value) => updateDraft(match.fixture_id, { awayTeamScore: value })}
                   />
-                  <div className="flex justify-start">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="min-h-8 px-2 text-[11px]"
-                      onClick={() => setLineupTarget((current) => current?.fixtureId === match.fixture_id && current.teamId === match.away_team_id ? null : {
-                        fixtureId: match.fixture_id,
-                        teamId: match.away_team_id,
-                        teamName: match.away_team_name,
-                        leagueName: match.league_name
-                      })}
-                    >
-                      Away lineup
-                    </Button>
-                  </div>
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-[minmax(200px,1fr)_132px]">
@@ -1018,16 +985,28 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                 <Button onClick={() => saveMatch(match)} disabled={!draftChanged || savingFixtureId === match.fixture_id} size="sm">
                   {savingFixtureId === match.fixture_id ? "Saving..." : "Save"}
                 </Button>
-                {lineupTarget?.fixtureId === match.fixture_id ? (
-                  <div className="xl:col-span-4">
-                    <AdminLineupEditor
-                      target={lineupTarget}
-                      onClose={() => setLineupTarget(null)}
-                      onMessage={onMessage}
-                      onSaved={loadMatches}
-                    />
-                  </div>
-                ) : null}
+                <div className="grid gap-2 xl:col-span-4 xl:grid-cols-2">
+                  <AdminLineupEditor
+                    target={{
+                      fixtureId: match.fixture_id,
+                      teamId: match.home_team_id,
+                      teamName: match.home_team_name,
+                      leagueName: match.league_name
+                    }}
+                    onMessage={onMessage}
+                    onSaved={loadMatches}
+                  />
+                  <AdminLineupEditor
+                    target={{
+                      fixtureId: match.fixture_id,
+                      teamId: match.away_team_id,
+                      teamName: match.away_team_name,
+                      leagueName: match.league_name
+                    }}
+                    onMessage={onMessage}
+                    onSaved={loadMatches}
+                  />
+                </div>
               </div>
             );
           })}
@@ -1043,12 +1022,10 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
 
 function AdminLineupEditor({
   target,
-  onClose,
   onMessage,
   onSaved
 }: {
   target: NonNullable<AdminLineupEditorTarget>;
-  onClose: () => void;
   onMessage: (message: string) => void;
   onSaved: () => void;
 }) {
@@ -1154,28 +1131,23 @@ function AdminLineupEditor({
   }
 
   return (
-    <div className="mt-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase text-[#6c5a73]">Admin team selection</p>
-          <h3 className="text-base font-extrabold text-[#10233f]">{target.teamName}</h3>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="rounded-lg bg-[#f7f5fa] p-2 ring-1 ring-[#eeeaf2]">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="min-w-0 truncate text-sm font-extrabold text-[#10233f]" title={target.teamName}>{target.teamName}</h3>
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           <Badge variant={lineupStatus === "Published" ? "green" : "cyan"}>{lineupStatus}</Badge>
           <Badge variant="muted">{selectedPlayerSlots}/{requiredPlayerSlots} picked</Badge>
-          <Button type="button" variant="secondary" size="sm" onClick={onClose}>Close</Button>
         </div>
       </div>
       {loading ? (
-        <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-[#6c5a73]">Loading team selection...</p>
+        <p className="mt-2 rounded-lg bg-white p-2 text-xs font-bold text-[#6c5a73]">Loading team selection...</p>
       ) : (
-        <div className="mt-3 grid gap-2">
+        <div className="mt-2 grid gap-1.5">
           {slots.map((slot) => (
-            <div key={slot.slotNumber} className="grid gap-2 rounded-lg bg-white p-2 ring-1 ring-[#eeeaf2] lg:grid-cols-[120px_minmax(0,1fr)] lg:items-start">
-              <div>
-                <p className="text-[11px] font-black uppercase text-[#6c5a73]">Game {slot.slotNumber}</p>
-                <p className="text-sm font-extrabold text-[#10233f]">{slot.label}</p>
-                <Badge variant={slot.gameType === "Doubles" ? "cyan" : "muted"}>{slot.gameType}</Badge>
+            <div key={slot.slotNumber} className="grid gap-2 rounded-lg bg-white p-2 ring-1 ring-[#eeeaf2] md:grid-cols-[82px_minmax(0,1fr)] md:items-start">
+              <div className="flex items-center gap-1.5 md:grid md:gap-1">
+                <p className="text-[10px] font-black uppercase text-[#6c5a73]">G{slot.slotNumber}</p>
+                <Badge variant={slot.gameType === "Doubles" ? "cyan" : "muted"}>{slot.gameType === "Doubles" ? "Dbl" : "Sgl"}</Badge>
               </div>
               <div className={cn("grid gap-2", slot.gameType === "Doubles" ? "md:grid-cols-2" : "")}>
                 <AdminLineupPlayerField
@@ -1204,10 +1176,10 @@ function AdminLineupEditor({
             </div>
           ))}
           <div className="grid gap-2 sm:grid-cols-2">
-            <Button type="button" variant="secondary" onClick={() => saveLineup("save")} disabled={Boolean(busy)}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => saveLineup("save")} disabled={Boolean(busy)}>
               {busy === "save" ? "Saving..." : "Save draft"}
             </Button>
-            <Button type="button" onClick={() => saveLineup("publish")} disabled={Boolean(busy) || selectedPlayerSlots < requiredPlayerSlots}>
+            <Button type="button" size="sm" onClick={() => saveLineup("publish")} disabled={Boolean(busy) || selectedPlayerSlots < requiredPlayerSlots}>
               {busy === "publish" ? "Publishing..." : lineupStatus === "Published" ? "Override published lineup" : "Publish lineup"}
             </Button>
           </div>
@@ -1244,11 +1216,11 @@ function AdminLineupPlayerField({
   const typedGuest = slot[guestNameKey] ?? "";
 
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-1">
       <label className="grid gap-1">
         <span className="text-[10px] font-black uppercase text-[#6c5a73]">{label}</span>
         <select
-          className="min-h-9 rounded-lg border border-[#eeeaf2] bg-white px-2 text-[13px] font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
+          className="min-h-8 rounded-lg border border-[#eeeaf2] bg-white px-2 text-xs font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
           value={selectedValue}
           onChange={(event) => onSelect(event.target.value)}
         >
@@ -1277,10 +1249,10 @@ function AdminLineupPlayerField({
           ) : null}
         </select>
       </label>
-      <label className="grid gap-1">
-        <span className="text-[10px] font-black uppercase text-[#6c5a73]">Typed Guest Player fallback</span>
+      <label className="grid gap-0.5">
+        <span className="text-[9px] font-black uppercase text-[#6c5a73]">Typed guest fallback</span>
         <input
-          className="min-h-9 rounded-lg border border-[#eeeaf2] bg-white px-2 text-[13px] font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
+          className="min-h-8 rounded-lg border border-[#eeeaf2] bg-white px-2 text-xs font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
           value={typedGuest}
           onChange={(event) => onTypedGuest(event.target.value)}
           placeholder="Only if not in system"
