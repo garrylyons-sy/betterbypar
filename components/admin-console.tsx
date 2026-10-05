@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, CalendarDays, Eye, FileSpreadsheet, KeyRound, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -178,13 +178,12 @@ const roles: TeamRole[] = ["Player", "Manager"];
 const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
 const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
 const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin", "League Chair"];
-const clubAdminTabs: AdminTab[] = ["people", "invites", "competitions", "matches"];
+const clubAdminTabs: AdminTab[] = ["people", "competitions", "matches"];
 const adminNavItems = [
   { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
   { id: "competitions" as const, label: "Competitions", icon: Trophy },
   { id: "matches" as const, label: "Matches", icon: CalendarDays },
   { id: "people" as const, label: "People", icon: UserPlus },
-  { id: "invites" as const, label: "Invites", icon: KeyRound },
   { id: "permissions" as const, label: "Permissions", icon: Users },
   { id: "appearance" as const, label: "Appearance", icon: LayoutPanelTop },
   { id: "adverts" as const, label: "Adverts", icon: Megaphone },
@@ -329,6 +328,9 @@ export function AdminConsole() {
       } : null);
 
       if (response.ok) {
+        if (tab === "invites") {
+          setTab("people");
+        }
         if (nextAdminMode === "club" && !clubAdminTabs.includes(tab)) {
           setTab("people");
         }
@@ -553,6 +555,7 @@ function AdminTabPanel(props: {
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
+  if (props.tab === "invites") return <PeoplePanel {...props} />;
   if (props.tab === "permissions") return <PermissionsPanel {...props} />;
   if (props.tab === "appearance") return <AppearancePanel {...props} />;
   if (props.tab === "adverts") return <AdvertsPanel {...props} />;
@@ -2199,7 +2202,7 @@ function PeoplePanel({
           </div>
           {inviteSelectionStatus ? <InviteSendStatus tone={inviteSelectionStatus.tone} text={inviteSelectionStatus.text} /> : null}
           <div className="min-w-0 overflow-x-auto rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden min-w-[1180px] grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.75fr)_minmax(190px,1.1fr)_82px_84px_104px_210px] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden min-w-[1080px] grid-cols-[30px_minmax(125px,1fr)_minmax(160px,1.15fr)_minmax(125px,.8fr)_minmax(180px,1fr)_72px_78px_96px_190px] gap-2 bg-[#f7f5fa] px-3 py-2 text-[11px] font-black uppercase text-[#6c5a73] lg:grid">
               <span>
                 <input
                   className="h-4 w-4 accent-[#10233f]"
@@ -2212,23 +2215,23 @@ function PeoplePanel({
               </span>
               <span>Person</span>
               <span>Email</span>
-              <span>Club</span>
+              <span>Club / Hcp</span>
               <span>Roles</span>
               <span>Login</span>
               <span>Invited</span>
               <span>Invite status</span>
               <span className="text-right">Actions</span>
             </div>
-            <div className="max-h-[680px] min-w-[1180px] overflow-y-auto">
+            <div className="max-h-[680px] min-w-[1080px] overflow-y-auto">
               {visiblePeople.map((person) => {
-                const handicaps = (person.clubHandicaps ?? []).filter((item) => item.handicap !== null && item.handicap !== undefined);
+                const clubHandicapLabels = visiblePersonClubHandicapLabels(person);
                 const clubsForPerson = Array.from(new Set([
                   ...(person.clubHandicaps ?? []).map((item) => item.club_name),
                   ...(person.clubAdmins ?? []).map((item) => item.club_name)
                 ].filter(Boolean)));
                 const roleLabels = visiblePersonRoleLabels(person);
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-sm font-bold text-[#10233f] lg:grid-cols-[34px_minmax(130px,1fr)_minmax(170px,1.2fr)_minmax(110px,.75fr)_minmax(190px,1.1fr)_82px_84px_104px_210px] lg:items-center lg:gap-2">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-[13px] font-bold text-[#10233f] lg:grid-cols-[30px_minmax(125px,1fr)_minmax(160px,1.15fr)_minmax(125px,.8fr)_minmax(180px,1fr)_72px_78px_96px_190px] lg:items-center lg:gap-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6c5a73]">
                       <input
                         className="h-4 w-4 accent-[#10233f]"
@@ -2246,10 +2249,16 @@ function PeoplePanel({
                     <div className="flex min-w-0 items-center gap-2">
                       <p className="min-w-0 truncate text-[#6c5a73]">{person.email || "No email yet"}</p>
                     </div>
-                    <p className="min-w-0 truncate text-xs text-[#6c5a73]" title={clubsForPerson.join(" / ")}>
-                      {clubsForPerson.length ? clubsForPerson.map((club) => club.replace(" Golf Club", "")).join(" / ") : "-"}
-                      {handicaps.length ? ` (${handicaps.map((item) => formatHandicap(item.handicap)).join("/")})` : ""}
-                    </p>
+                    <div className="flex min-w-0 flex-wrap gap-1" title={clubsForPerson.join(" / ")}>
+                      {clubHandicapLabels.length ? clubHandicapLabels.slice(0, 2).map((label) => (
+                        <span key={label} className="max-w-full truncate rounded-md bg-[#f7f5fa] px-1.5 py-0.5 text-[11px] font-black uppercase leading-tight text-[#6c5a73] ring-1 ring-[#eeeaf2]">
+                          {label}
+                        </span>
+                      )) : (
+                        <span className="text-xs font-bold text-[#6c5a73]">-</span>
+                      )}
+                      {clubHandicapLabels.length > 2 ? <Badge variant="cyan">+{clubHandicapLabels.length - 2}</Badge> : null}
+                    </div>
                     <div className="flex min-w-0 flex-wrap gap-1" title={roleLabels.join(" / ")}>
                       {roleLabels.length ? roleLabels.slice(0, 3).map((label) => (
                         <Badge key={label} variant="muted" className="max-w-full truncate">
@@ -2350,6 +2359,7 @@ function PeoplePanel({
           ) : null}
         </CardContent>
       </Card>
+      <BulkInviteImportPanel teams={teams} demo={demo} onMessage={onMessage} onRefresh={onRefresh} />
       {editTarget ? (
         <EditPersonModal
           person={editTarget}
@@ -2405,6 +2415,18 @@ function visiblePersonRoleLabels(person: PersonOption) {
   const platformLabels = person.admin ? ["Administrator"] : [];
 
   return Array.from(new Set([...platformLabels, ...teamLabels, ...clubAdminLabels, ...leagueChairLabels, ...clubMemberLabels]));
+}
+
+function visiblePersonClubHandicapLabels(person: PersonOption) {
+  const labels = (person.clubHandicaps ?? []).map((club) => {
+    const handicap = club.handicap === null || club.handicap === undefined ? "-" : formatHandicap(club.handicap);
+    return `${shortClubName(club.club_name)} H ${handicap}`;
+  });
+  const adminOnlyLabels = (person.clubAdmins ?? [])
+    .filter((club) => !(person.clubHandicaps ?? []).some((handicapClub) => handicapClub.club_id === club.club_id))
+    .map((club) => `${shortClubName(club.club_name)} Admin`);
+
+  return Array.from(new Set([...labels, ...adminOnlyLabels]));
 }
 
 function shortClubName(name: string) {
