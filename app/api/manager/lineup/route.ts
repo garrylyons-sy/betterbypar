@@ -1205,7 +1205,7 @@ async function recordLineupActivity(
 async function upsertLineup(client: PoolClient, fixtureId: string, teamId: string, personId: string, publish: boolean) {
   const result = await client.query<{ id: string }>(
     `insert into public.fixture_lineup (fixture_id, team_id, status, submitted_by, published_at, updated_at)
-     values ($1::uuid, $2::uuid, $3::lineup_status, $4::uuid, case when $3::lineup_status = 'Published' then now() else null end, now())
+     values ($1::uuid, $2::uuid, $3::text, $4::uuid, case when $3::text = 'Published' then now() else null end, now())
      on conflict (fixture_id, team_id) do update
      set status = excluded.status,
          submitted_by = excluded.submitted_by,
