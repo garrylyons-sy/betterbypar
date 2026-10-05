@@ -198,6 +198,7 @@ export async function POST(request: NextRequest) {
     const action = String(body.action ?? "save").trim();
     const slots = Array.isArray(body.slots) ? body.slots as LineupSlotInput[] : [];
     const testManager = body.testManager;
+    const adminOverride = Boolean(body.adminOverride) && await isAppOperator(user.personId);
 
     if (!teamId || !fixtureId) {
       return NextResponse.json({ error: "teamId and fixtureId are required." }, { status: 400 });
@@ -250,7 +251,7 @@ export async function POST(request: NextRequest) {
     await withTransaction(async (client) => {
       await ensureFixtureTeam(client, fixtureId, teamId);
       const existingStatus = await loadLineupStatus(client, fixtureId, teamId);
-      if (existingStatus === "Published") {
+      if (existingStatus === "Published" && !adminOverride) {
         throw new Error("Published lineups are locked and cannot be changed.");
       }
       const playerIds = await loadTeamPlayerIds(client, teamId);

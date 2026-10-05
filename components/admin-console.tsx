@@ -163,6 +163,34 @@ type AdminMatchDraft = {
   awayTeamScore: string;
   status: string;
 };
+type AdminLineupSlot = {
+  slotNumber: number;
+  gameType: "Singles" | "Doubles";
+  label: string;
+  player1Id: string;
+  player2Id: string;
+  player1GuestName?: string;
+  player2GuestName?: string;
+  player1IsGuest?: boolean;
+  player2IsGuest?: boolean;
+};
+type AdminLineupPlayer = {
+  id: string;
+  name: string;
+  teamName?: string;
+  disabledReason?: string;
+};
+type AdminLineupPayload = {
+  players: AdminLineupPlayer[];
+  guestPlayers?: AdminLineupPlayer[];
+  lineup: { status: "Draft" | "Published"; slots: AdminLineupSlot[] } | null;
+};
+type AdminLineupEditorTarget = {
+  fixtureId: string;
+  teamId: string;
+  teamName: string;
+  leagueName: string;
+} | null;
 type AdminAdRow = SponsorAd & {
   active: boolean;
   sortOrder: number;
@@ -793,6 +821,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
   const [loading, setLoading] = useState(false);
   const [savingFixtureId, setSavingFixtureId] = useState("");
   const [drafts, setDrafts] = useState<Record<string, AdminMatchDraft>>({});
+  const [lineupTarget, setLineupTarget] = useState<AdminLineupEditorTarget>(null);
 
   useEffect(() => {
     loadMatches();
@@ -928,6 +957,22 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                     teamName={match.home_team_name}
                     onScoreChange={(value) => updateDraft(match.fixture_id, { homeTeamScore: value })}
                   />
+                  <div className="flex justify-start">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="min-h-8 px-2 text-[11px]"
+                      onClick={() => setLineupTarget((current) => current?.fixtureId === match.fixture_id && current.teamId === match.home_team_id ? null : {
+                        fixtureId: match.fixture_id,
+                        teamId: match.home_team_id,
+                        teamName: match.home_team_name,
+                        leagueName: match.league_name
+                      })}
+                    >
+                      Home lineup
+                    </Button>
+                  </div>
                   <AdminMatchTeamScoreRow
                     align="left"
                     score={draft.awayTeamScore}
@@ -937,6 +982,22 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                     teamName={match.away_team_name}
                     onScoreChange={(value) => updateDraft(match.fixture_id, { awayTeamScore: value })}
                   />
+                  <div className="flex justify-start">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="min-h-8 px-2 text-[11px]"
+                      onClick={() => setLineupTarget((current) => current?.fixtureId === match.fixture_id && current.teamId === match.away_team_id ? null : {
+                        fixtureId: match.fixture_id,
+                        teamId: match.away_team_id,
+                        teamName: match.away_team_name,
+                        leagueName: match.league_name
+                      })}
+                    >
+                      Away lineup
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-[minmax(200px,1fr)_132px]">
@@ -957,6 +1018,16 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                 <Button onClick={() => saveMatch(match)} disabled={!draftChanged || savingFixtureId === match.fixture_id} size="sm">
                   {savingFixtureId === match.fixture_id ? "Saving..." : "Save"}
                 </Button>
+                {lineupTarget?.fixtureId === match.fixture_id ? (
+                  <div className="xl:col-span-4">
+                    <AdminLineupEditor
+                      target={lineupTarget}
+                      onClose={() => setLineupTarget(null)}
+                      onMessage={onMessage}
+                      onSaved={loadMatches}
+                    />
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -968,6 +1039,261 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
       </CardContent>
     </Card>
   );
+}
+
+function AdminLineupEditor({
+  target,
+  onClose,
+  onMessage,
+  onSaved
+}: {
+  target: NonNullable<AdminLineupEditorTarget>;
+  onClose: () => void;
+  onMessage: (message: string) => void;
+  onSaved: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState("");
+  const [players, setPlayers] = useState<AdminLineupPlayer[]>([]);
+  const [guestPlayers, setGuestPlayers] = useState<AdminLineupPlayer[]>([]);
+  const [slots, setSlots] = useState<AdminLineupSlot[]>([]);
+  const [lineupStatus, setLineupStatus] = useState<"Draft" | "Published">("Draft");
+
+  useEffect(() => {
+    let active = true;
+    async function loadLineup() {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ teamId: target.teamId, fixtureId: target.fixtureId });
+        const response = await fetch(`/api/manager/lineup?${params.toString()}`, { credentials: "same-origin" });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Could not load lineup.");
+        if (!active) return;
+        const payload = data as AdminLineupPayload;
+        setPlayers(payload.players ?? []);
+        setGuestPlayers(payload.guestPlayers ?? []);
+        setSlots(payload.lineup?.slots ?? []);
+        setLineupStatus(payload.lineup?.status ?? "Draft");
+      } catch (error) {
+        if (active) onMessage(error instanceof Error ? error.message : "Could not load lineup.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    loadLineup();
+    return () => {
+      active = false;
+    };
+  }, [onMessage, target.fixtureId, target.teamId]);
+
+  const requiredPlayerSlots = slots.reduce((total, slot) => total + (slot.gameType === "Doubles" ? 2 : 1), 0);
+  const selectedPlayerSlots = slots.reduce((total, slot) => (
+    total
+    + (adminLineupSlotHasPlayer(slot, "player1") ? 1 : 0)
+    + (slot.gameType === "Doubles" && adminLineupSlotHasPlayer(slot, "player2") ? 1 : 0)
+  ), 0);
+  const selectedIds = new Set(slots.flatMap((slot) => [slot.player1Id, slot.player2Id].filter(Boolean)));
+
+  function updateSlot(slotNumber: number, prefix: "player1" | "player2", patch: Partial<AdminLineupSlot>) {
+    setSlots((current) => current.map((slot) => slot.slotNumber === slotNumber ? { ...slot, ...patch } : slot));
+  }
+
+  function selectPlayer(slot: AdminLineupSlot, prefix: "player1" | "player2", value: string) {
+    const idKey = `${prefix}Id` as "player1Id" | "player2Id";
+    const guestNameKey = `${prefix}GuestName` as "player1GuestName" | "player2GuestName";
+    const guestKey = `${prefix}IsGuest` as "player1IsGuest" | "player2IsGuest";
+    if (!value) {
+      updateSlot(slot.slotNumber, prefix, { [idKey]: "", [guestNameKey]: "", [guestKey]: false });
+      return;
+    }
+    const [kind, playerId] = value.split(":");
+    updateSlot(slot.slotNumber, prefix, {
+      [idKey]: playerId,
+      [guestNameKey]: "",
+      [guestKey]: kind === "guest"
+    });
+  }
+
+  function setTypedGuest(slot: AdminLineupSlot, prefix: "player1" | "player2", value: string) {
+    const idKey = `${prefix}Id` as "player1Id" | "player2Id";
+    const guestNameKey = `${prefix}GuestName` as "player1GuestName" | "player2GuestName";
+    const guestKey = `${prefix}IsGuest` as "player1IsGuest" | "player2IsGuest";
+    updateSlot(slot.slotNumber, prefix, {
+      [idKey]: "",
+      [guestNameKey]: value,
+      [guestKey]: Boolean(value.trim())
+    });
+  }
+
+  async function saveLineup(action: "save" | "publish") {
+    setBusy(action);
+    try {
+      const response = await fetch("/api/manager/lineup", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          teamId: target.teamId,
+          fixtureId: target.fixtureId,
+          action,
+          slots,
+          adminOverride: true
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not save lineup.");
+      setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
+      setLineupStatus(data.lineup?.status ?? (action === "publish" ? "Published" : "Draft"));
+      onMessage(action === "publish" ? `${target.teamName} lineup published.` : `${target.teamName} draft lineup saved.`);
+      await onSaved();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not save lineup.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase text-[#6c5a73]">Admin team selection</p>
+          <h3 className="text-base font-extrabold text-[#10233f]">{target.teamName}</h3>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={lineupStatus === "Published" ? "green" : "cyan"}>{lineupStatus}</Badge>
+          <Badge variant="muted">{selectedPlayerSlots}/{requiredPlayerSlots} picked</Badge>
+          <Button type="button" variant="secondary" size="sm" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+      {loading ? (
+        <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-[#6c5a73]">Loading team selection...</p>
+      ) : (
+        <div className="mt-3 grid gap-2">
+          {slots.map((slot) => (
+            <div key={slot.slotNumber} className="grid gap-2 rounded-lg bg-white p-2 ring-1 ring-[#eeeaf2] lg:grid-cols-[120px_minmax(0,1fr)] lg:items-start">
+              <div>
+                <p className="text-[11px] font-black uppercase text-[#6c5a73]">Game {slot.slotNumber}</p>
+                <p className="text-sm font-extrabold text-[#10233f]">{slot.label}</p>
+                <Badge variant={slot.gameType === "Doubles" ? "cyan" : "muted"}>{slot.gameType}</Badge>
+              </div>
+              <div className={cn("grid gap-2", slot.gameType === "Doubles" ? "md:grid-cols-2" : "")}>
+                <AdminLineupPlayerField
+                  label={slot.gameType === "Doubles" ? "Player 1" : "Player"}
+                  slot={slot}
+                  prefix="player1"
+                  players={players}
+                  guestPlayers={guestPlayers}
+                  selectedIds={selectedIds}
+                  onSelect={(value) => selectPlayer(slot, "player1", value)}
+                  onTypedGuest={(value) => setTypedGuest(slot, "player1", value)}
+                />
+                {slot.gameType === "Doubles" ? (
+                  <AdminLineupPlayerField
+                    label="Player 2"
+                    slot={slot}
+                    prefix="player2"
+                    players={players}
+                    guestPlayers={guestPlayers}
+                    selectedIds={selectedIds}
+                    onSelect={(value) => selectPlayer(slot, "player2", value)}
+                    onTypedGuest={(value) => setTypedGuest(slot, "player2", value)}
+                  />
+                ) : null}
+              </div>
+            </div>
+          ))}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button type="button" variant="secondary" onClick={() => saveLineup("save")} disabled={Boolean(busy)}>
+              {busy === "save" ? "Saving..." : "Save draft"}
+            </Button>
+            <Button type="button" onClick={() => saveLineup("publish")} disabled={Boolean(busy) || selectedPlayerSlots < requiredPlayerSlots}>
+              {busy === "publish" ? "Publishing..." : lineupStatus === "Published" ? "Override published lineup" : "Publish lineup"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminLineupPlayerField({
+  label,
+  slot,
+  prefix,
+  players,
+  guestPlayers,
+  selectedIds,
+  onSelect,
+  onTypedGuest
+}: {
+  label: string;
+  slot: AdminLineupSlot;
+  prefix: "player1" | "player2";
+  players: AdminLineupPlayer[];
+  guestPlayers: AdminLineupPlayer[];
+  selectedIds: Set<string>;
+  onSelect: (value: string) => void;
+  onTypedGuest: (value: string) => void;
+}) {
+  const idKey = `${prefix}Id` as "player1Id" | "player2Id";
+  const guestNameKey = `${prefix}GuestName` as "player1GuestName" | "player2GuestName";
+  const guestKey = `${prefix}IsGuest` as "player1IsGuest" | "player2IsGuest";
+  const selectedId = slot[idKey] ?? "";
+  const selectedValue = selectedId ? `${slot[guestKey] ? "guest" : "player"}:${selectedId}` : "";
+  const typedGuest = slot[guestNameKey] ?? "";
+
+  return (
+    <div className="grid gap-1.5">
+      <label className="grid gap-1">
+        <span className="text-[10px] font-black uppercase text-[#6c5a73]">{label}</span>
+        <select
+          className="min-h-9 rounded-lg border border-[#eeeaf2] bg-white px-2 text-[13px] font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
+          value={selectedValue}
+          onChange={(event) => onSelect(event.target.value)}
+        >
+          <option value="">Pick player</option>
+          <optgroup label="Panel players">
+            {players.map((player) => {
+              const unavailable = selectedIds.has(player.id) && player.id !== selectedId;
+              return (
+                <option key={player.id} value={`player:${player.id}`} disabled={unavailable}>
+                  {player.name}{unavailable ? " - picked" : ""}
+                </option>
+              );
+            })}
+          </optgroup>
+          {guestPlayers.length ? (
+            <optgroup label="Guest players">
+              {guestPlayers.map((player) => {
+                const unavailable = (selectedIds.has(player.id) && player.id !== selectedId) || Boolean(player.disabledReason);
+                return (
+                  <option key={player.id} value={`guest:${player.id}`} disabled={unavailable}>
+                    {player.name}{player.teamName ? ` - ${player.teamName}` : ""}{player.disabledReason ? ` - ${player.disabledReason}` : unavailable ? " - picked" : ""}
+                  </option>
+                );
+              })}
+            </optgroup>
+          ) : null}
+        </select>
+      </label>
+      <label className="grid gap-1">
+        <span className="text-[10px] font-black uppercase text-[#6c5a73]">Typed Guest Player fallback</span>
+        <input
+          className="min-h-9 rounded-lg border border-[#eeeaf2] bg-white px-2 text-[13px] font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
+          value={typedGuest}
+          onChange={(event) => onTypedGuest(event.target.value)}
+          placeholder="Only if not in system"
+        />
+      </label>
+    </div>
+  );
+}
+
+function adminLineupSlotHasPlayer(slot: AdminLineupSlot, prefix: "player1" | "player2") {
+  const idKey = `${prefix}Id` as "player1Id" | "player2Id";
+  const guestNameKey = `${prefix}GuestName` as "player1GuestName" | "player2GuestName";
+  return Boolean(slot[idKey] || String(slot[guestNameKey] ?? "").trim());
 }
 
 function AdminMatchTeamScoreRow({
