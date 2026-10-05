@@ -1180,9 +1180,9 @@ async function recordLineupActivity(
        $1,
        'Page Visit',
        case when coalesce(($5::jsonb->>'adminOverride')::boolean, false) then '/admin/matches' else '/fixtures' end,
-       $4,
+       $4::text,
        jsonb_build_object(
-         'action', $4,
+         'action', $4::text,
          'fixture_id', f.id,
          'team_id', t.id,
          'team_name', t.name,
@@ -1191,11 +1191,11 @@ async function recordLineupActivity(
          'league_name', l.name
        ) || $5::jsonb
      from public.fixture f
-     join public.team t on t.id = $3
+     join public.team t on t.id = $3::uuid
      join public.team ht on ht.id = f.home_team_id
      join public.team at on at.id = f.away_team_id
      join public.league l on l.id = f.league_id
-     where f.id = $2
+     where f.id = $2::uuid
        and (f.home_team_id = t.id or f.away_team_id = t.id)
      limit 1`,
     [personId, fixtureId, teamId, action, JSON.stringify(extraMetadata)]
@@ -1205,7 +1205,7 @@ async function recordLineupActivity(
 async function upsertLineup(client: PoolClient, fixtureId: string, teamId: string, personId: string, publish: boolean) {
   const result = await client.query<{ id: string }>(
     `insert into public.fixture_lineup (fixture_id, team_id, status, submitted_by, published_at, updated_at)
-     values ($1, $2, $3, $4, case when $3 = 'Published' then now() else null end, now())
+     values ($1::uuid, $2::uuid, $3::lineup_status, $4::uuid, case when $3::lineup_status = 'Published' then now() else null end, now())
      on conflict (fixture_id, team_id) do update
      set status = excluded.status,
          submitted_by = excluded.submitted_by,
