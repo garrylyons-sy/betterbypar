@@ -2044,6 +2044,7 @@ function PeoplePanel({
           const clubB = b.clubHandicaps?.[0]?.club_name ?? b.clubAdmins?.[0]?.club_name ?? "";
           return clubA.localeCompare(clubB) || a.name.localeCompare(b.name);
         }
+        if (sortBy === "handicap") return personPrimaryHandicap(a) - personPrimaryHandicap(b) || a.name.localeCompare(b.name);
         if (sortBy === "invite") return (Date.parse(b.invitedAt ?? "") || 0) - (Date.parse(a.invitedAt ?? "") || 0);
         if (sortBy === "status") return (a.inviteStatus || "No invite").localeCompare(b.inviteStatus || "No invite") || a.name.localeCompare(b.name);
         if (sortBy === "login") return Number(Boolean(b.loginActive)) - Number(Boolean(a.loginActive)) || a.name.localeCompare(b.name);
@@ -2150,6 +2151,7 @@ function PeoplePanel({
                 { value: "name", label: "Name" },
                 { value: "email", label: "Email" },
                 { value: "club", label: "Club" },
+                { value: "handicap", label: "Handicap" },
                 { value: "login", label: "Login status" },
                 { value: "invite", label: "Newest invite" },
                 { value: "status", label: "Invite status" }
@@ -2202,7 +2204,7 @@ function PeoplePanel({
           </div>
           {inviteSelectionStatus ? <InviteSendStatus tone={inviteSelectionStatus.tone} text={inviteSelectionStatus.text} /> : null}
           <div className="min-w-0 overflow-x-auto rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden min-w-[1080px] grid-cols-[30px_minmax(125px,1fr)_minmax(160px,1.15fr)_minmax(125px,.8fr)_minmax(180px,1fr)_72px_78px_96px_190px] gap-2 bg-[#f7f5fa] px-3 py-2 text-[11px] font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden min-w-[1120px] grid-cols-[30px_minmax(120px,1fr)_minmax(145px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_72px_78px_96px_180px] gap-2 bg-[#f7f5fa] px-3 py-2 text-[11px] font-black uppercase text-[#6c5a73] lg:grid">
               <span>
                 <input
                   className="h-4 w-4 accent-[#10233f]"
@@ -2215,23 +2217,25 @@ function PeoplePanel({
               </span>
               <span>Person</span>
               <span>Email</span>
-              <span>Club / Hcp</span>
+              <span>Club</span>
+              <span>Hcp</span>
               <span>Roles</span>
               <span>Login</span>
               <span>Invited</span>
               <span>Invite status</span>
               <span className="text-right">Actions</span>
             </div>
-            <div className="max-h-[680px] min-w-[1080px] overflow-y-auto">
+            <div className="max-h-[680px] min-w-[1120px] overflow-y-auto">
               {visiblePeople.map((person) => {
-                const clubHandicapLabels = visiblePersonClubHandicapLabels(person);
+                const clubLabels = visiblePersonClubLabels(person);
+                const handicapLabels = visiblePersonHandicapLabels(person);
                 const clubsForPerson = Array.from(new Set([
                   ...(person.clubHandicaps ?? []).map((item) => item.club_name),
                   ...(person.clubAdmins ?? []).map((item) => item.club_name)
                 ].filter(Boolean)));
                 const roleLabels = visiblePersonRoleLabels(person);
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-[13px] font-bold text-[#10233f] lg:grid-cols-[30px_minmax(125px,1fr)_minmax(160px,1.15fr)_minmax(125px,.8fr)_minmax(180px,1fr)_72px_78px_96px_190px] lg:items-center lg:gap-2">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-[13px] font-bold text-[#10233f] lg:grid-cols-[30px_minmax(120px,1fr)_minmax(145px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_72px_78px_96px_180px] lg:items-center lg:gap-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6c5a73]">
                       <input
                         className="h-4 w-4 accent-[#10233f]"
@@ -2250,14 +2254,24 @@ function PeoplePanel({
                       <p className="min-w-0 truncate text-[#6c5a73]">{person.email || "No email yet"}</p>
                     </div>
                     <div className="flex min-w-0 flex-wrap gap-1" title={clubsForPerson.join(" / ")}>
-                      {clubHandicapLabels.length ? clubHandicapLabels.slice(0, 2).map((label) => (
+                      {clubLabels.length ? clubLabels.slice(0, 2).map((label) => (
                         <span key={label} className="max-w-full truncate rounded-md bg-[#f7f5fa] px-1.5 py-0.5 text-[11px] font-black uppercase leading-tight text-[#6c5a73] ring-1 ring-[#eeeaf2]">
                           {label}
                         </span>
                       )) : (
                         <span className="text-xs font-bold text-[#6c5a73]">-</span>
                       )}
-                      {clubHandicapLabels.length > 2 ? <Badge variant="cyan">+{clubHandicapLabels.length - 2}</Badge> : null}
+                      {clubLabels.length > 2 ? <Badge variant="cyan">+{clubLabels.length - 2}</Badge> : null}
+                    </div>
+                    <div className="flex min-w-0 flex-wrap gap-1" title={handicapLabels.join(" / ")}>
+                      {handicapLabels.length ? handicapLabels.slice(0, 2).map((label) => (
+                        <span key={label} className="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-black leading-tight text-[#10233f] ring-1 ring-[#eeeaf2]">
+                          {label}
+                        </span>
+                      )) : (
+                        <span className="text-xs font-bold text-[#6c5a73]">-</span>
+                      )}
+                      {handicapLabels.length > 2 ? <Badge variant="cyan">+{handicapLabels.length - 2}</Badge> : null}
                     </div>
                     <div className="flex min-w-0 flex-wrap gap-1" title={roleLabels.join(" / ")}>
                       {roleLabels.length ? roleLabels.slice(0, 3).map((label) => (
@@ -2417,16 +2431,25 @@ function visiblePersonRoleLabels(person: PersonOption) {
   return Array.from(new Set([...platformLabels, ...teamLabels, ...clubAdminLabels, ...leagueChairLabels, ...clubMemberLabels]));
 }
 
-function visiblePersonClubHandicapLabels(person: PersonOption) {
-  const labels = (person.clubHandicaps ?? []).map((club) => {
-    const handicap = club.handicap === null || club.handicap === undefined ? "-" : formatHandicap(club.handicap);
-    return `${shortClubName(club.club_name)} H ${handicap}`;
-  });
+function visiblePersonClubLabels(person: PersonOption) {
+  const labels = (person.clubHandicaps ?? []).map((club) => shortClubName(club.club_name));
   const adminOnlyLabels = (person.clubAdmins ?? [])
     .filter((club) => !(person.clubHandicaps ?? []).some((handicapClub) => handicapClub.club_id === club.club_id))
     .map((club) => `${shortClubName(club.club_name)} Admin`);
 
   return Array.from(new Set([...labels, ...adminOnlyLabels]));
+}
+
+function visiblePersonHandicapLabels(person: PersonOption) {
+  return (person.clubHandicaps ?? [])
+    .filter((club) => club.role !== "League Chair")
+    .map((club) => club.handicap === null || club.handicap === undefined ? "-" : formatHandicap(club.handicap));
+}
+
+function personPrimaryHandicap(person: PersonOption) {
+  const rawHandicap = (person.clubHandicaps ?? []).find((club) => club.role !== "League Chair")?.handicap;
+  const numeric = Number(rawHandicap);
+  return Number.isFinite(numeric) ? numeric : Number.POSITIVE_INFINITY;
 }
 
 function shortClubName(name: string) {
