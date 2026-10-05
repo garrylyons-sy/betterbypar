@@ -161,37 +161,29 @@ do update set
   active = true,
   updated_at = now();
 
-update public.contact_directory cd
-   set active = false,
-       updated_at = now()
-  from public.person p
+delete from public.contact_directory cd
+ using public.person p
  where p.id = cd.person_id
    and cd.contact_type = 'Team Contact'
    and cd.contact_label = 'Grange B'
    and regexp_replace(lower(concat_ws(' ', p.first_name, p.last_name)), '[^a-z0-9]+', '', 'g') = 'mickcollins';
 
-update public.contact_directory cd
-   set active = false,
-       updated_at = now()
-  from public.person p
+delete from public.contact_directory cd
+ using public.person p
  where p.id = cd.person_id
    and cd.contact_type = 'Team Contact'
    and cd.contact_label = 'Grange C'
    and regexp_replace(lower(concat_ws(' ', p.first_name, p.last_name)), '[^a-z0-9]+', '', 'g') = 'morganpierse';
 
-update public.contact_directory cd
-   set active = false,
-       updated_at = now()
-  from public.person p
+delete from public.contact_directory cd
+ using public.person p
  where p.id = cd.person_id
    and cd.contact_type = 'Team Contact'
    and cd.contact_label = 'Milltown B & C'
    and regexp_replace(lower(concat_ws(' ', p.first_name, p.last_name)), '[^a-z0-9]+', '', 'g') = 'colinbyrne';
 
-update public.contact_directory cd
-   set active = false,
-       updated_at = now()
-  from public.person p
+delete from public.contact_directory cd
+ using public.person p
  where p.id = cd.person_id
    and cd.contact_type = 'Team Contact'
    and cd.contact_label = 'Milltown B & C'
