@@ -851,6 +851,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
       setSeasons((data.seasons ?? []) as AdminMatchSeason[]);
       setLeagues((data.leagues ?? []) as AdminMatchLeague[]);
       setDrafts(Object.fromEntries(nextMatches.map((match) => [match.fixture_id, matchDraft(match)])));
+      setExpandedFixtureId("");
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not load matches.");
     } finally {
