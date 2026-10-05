@@ -2228,7 +2228,7 @@ function PeoplePanel({
             <div className="max-h-[680px] min-w-[1120px] overflow-y-auto">
               {visiblePeople.map((person) => {
                 const clubLabels = visiblePersonClubLabels(person);
-                const handicapLabels = visiblePersonHandicapLabels(person);
+                const handicapLabel = personHandicapLabel(person);
                 const clubsForPerson = Array.from(new Set([
                   ...(person.clubHandicaps ?? []).map((item) => item.club_name),
                   ...(person.clubAdmins ?? []).map((item) => item.club_name)
@@ -2263,15 +2263,14 @@ function PeoplePanel({
                       )}
                       {clubLabels.length > 2 ? <Badge variant="cyan">+{clubLabels.length - 2}</Badge> : null}
                     </div>
-                    <div className="flex min-w-0 flex-wrap gap-1" title={handicapLabels.join(" / ")}>
-                      {handicapLabels.length ? handicapLabels.slice(0, 2).map((label) => (
-                        <span key={label} className="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-black leading-tight text-[#10233f] ring-1 ring-[#eeeaf2]">
-                          {label}
+                    <div className="flex min-w-0">
+                      {handicapLabel ? (
+                        <span className="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-black leading-tight text-[#10233f] ring-1 ring-[#eeeaf2]">
+                          {handicapLabel}
                         </span>
-                      )) : (
+                      ) : (
                         <span className="text-xs font-bold text-[#6c5a73]">-</span>
                       )}
-                      {handicapLabels.length > 2 ? <Badge variant="cyan">+{handicapLabels.length - 2}</Badge> : null}
                     </div>
                     <div className="flex min-w-0 flex-wrap gap-1" title={roleLabels.join(" / ")}>
                       {roleLabels.length ? roleLabels.slice(0, 3).map((label) => (
@@ -2440,16 +2439,19 @@ function visiblePersonClubLabels(person: PersonOption) {
   return Array.from(new Set([...labels, ...adminOnlyLabels]));
 }
 
-function visiblePersonHandicapLabels(person: PersonOption) {
-  return (person.clubHandicaps ?? [])
-    .filter((club) => club.role !== "League Chair")
-    .map((club) => club.handicap === null || club.handicap === undefined ? "-" : formatHandicap(club.handicap));
+function personHandicapLabel(person: PersonOption) {
+  const rawHandicap = personPrimaryHandicapValue(person);
+  return rawHandicap === null ? "" : formatHandicap(rawHandicap);
 }
 
 function personPrimaryHandicap(person: PersonOption) {
-  const rawHandicap = (person.clubHandicaps ?? []).find((club) => club.role !== "League Chair")?.handicap;
+  const rawHandicap = personPrimaryHandicapValue(person);
   const numeric = Number(rawHandicap);
   return Number.isFinite(numeric) ? numeric : Number.POSITIVE_INFINITY;
+}
+
+function personPrimaryHandicapValue(person: PersonOption) {
+  return (person.clubHandicaps ?? []).find((club) => club.role !== "League Chair" && club.handicap !== null && club.handicap !== undefined)?.handicap ?? null;
 }
 
 function shortClubName(name: string) {
