@@ -549,7 +549,7 @@ function AdminTabPanel(props: {
   onRefresh: () => void;
 }) {
   if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
-  if (props.tab === "desktop") return <DesktopAdminPanel teams={props.teams} people={props.people} requests={props.requests} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
@@ -561,20 +561,41 @@ function AdminTabPanel(props: {
 }
 
 function DesktopAdminPanel({
+  adminMode,
   teams,
   people,
   requests,
+  competitions,
   onMessage,
   onRefresh
 }: {
+  adminMode: AdminMode;
   teams: TeamOption[];
   people: PersonOption[];
   requests: InviteRequestRow[];
+  competitions: AdminCompetitionRow[];
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
   const admins = people.filter((person) => person.admin).length;
   const clubs = uniqueClubs(teams).length;
+  const players = people.filter((person) => person.teamRoles?.some((role) => role.role === "Player"));
+  const managers = people.filter((person) => person.teamRoles?.some((role) => role.role === "Manager"));
+  const withEmail = (person: PersonOption) => Boolean(person.email?.trim());
+  const invitesSent = people.filter((person) => person.inviteSentAt || person.invitedAt).length;
+  const invitesAccepted = people.filter((person) => person.inviteStatus === "Accepted" || person.inviteAcceptedAt).length;
+  const invitesPending = people.filter((person) => person.inviteStatus === "Pending").length;
+  const peopleWithEmail = people.filter(withEmail).length;
+  const playersWithEmail = players.filter(withEmail).length;
+  const playersWithoutEmail = players.length - playersWithEmail;
+  const managersWithoutEmail = managers.filter((person) => !withEmail(person)).length;
+  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const loggedInThisWeek = people.filter((person) => person.lastLogin && Date.parse(person.lastLogin) >= oneWeekAgo).length;
+  const activeLogins = people.filter((person) => person.loginActive).length;
+  const neverLoggedIn = people.filter((person) => person.accountId && !person.lastLogin).length;
+  const openCompetitions = competitions.filter((competition) => competition.status === "Open").length;
+  const liveCompetitions = competitions.filter((competition) => competition.status === "Drawn" || competition.status === "In Progress").length;
+  const completeCompetitions = competitions.filter((competition) => competition.status === "Complete").length;
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -625,73 +646,120 @@ function DesktopAdminPanel({
   }
 
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="grid min-w-0 gap-4">
+    <div className="grid min-w-0 gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>{adminMode === "platform" ? "Admin overview" : "Club admin overview"}</CardTitle>
+          <Badge variant="cyan">{adminMode === "platform" ? "Platform" : "Club"}</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <AdminMetric label="People" value={people.length} />
+          <AdminMetric label="Players" value={players.length} />
+          <AdminMetric label="Teams" value={teams.length} />
+          <AdminMetric label={adminMode === "platform" ? "Clubs" : "Managers"} value={adminMode === "platform" ? clubs : managers.length} />
+        </CardContent>
+      </Card>
+      <div className="grid gap-4 xl:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardTitle>Platform administration</CardTitle>
-            <Badge variant="cyan">Desktop console</Badge>
+            <CardTitle>Invites</CardTitle>
+            <Badge variant="muted">{invitesPending} pending</Badge>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <AdminMetric label="Clubs" value={clubs} />
-            <AdminMetric label="Teams" value={teams.length} />
-            <AdminMetric label="People" value={people.length} />
-            <AdminMetric label="Admins" value={admins} />
+          <CardContent className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <AdminMetric label="Sent" value={invitesSent} tone="cyan" />
+            <AdminMetric label="Accepted" value={invitesAccepted} tone="green" />
+            <AdminMetric label="Pending" value={invitesPending} tone="muted" />
           </CardContent>
         </Card>
-        <div className="grid gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Login Activity</CardTitle>
+            <Badge variant="muted">7 days</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <AdminMetric label="Logged in this week" value={loggedInThisWeek} tone="green" />
+            <AdminMetric label="Active logins" value={activeLogins} tone="cyan" />
+            <AdminMetric label="Never logged in" value={neverLoggedIn} tone="muted" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Email Readiness</CardTitle>
+            <Badge variant={playersWithoutEmail ? "muted" : "green"}>{peopleWithEmail}/{people.length}</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <AdminMetric label="Players with email" value={playersWithEmail} tone="green" />
+            <AdminMetric label="Players without email" value={playersWithoutEmail} tone={playersWithoutEmail ? "muted" : "green"} />
+            <AdminMetric label="Managers without email" value={managersWithoutEmail} tone={managersWithoutEmail ? "muted" : "green"} />
+          </CardContent>
+        </Card>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Competitions</CardTitle>
+            <Badge variant="muted">{competitions.length}</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-3">
+            <AdminMetric label="Open" value={openCompetitions} tone="green" />
+            <AdminMetric label="Drawn / live" value={liveCompetitions} tone="cyan" />
+            <AdminMetric label="Complete" value={completeCompetitions} tone="muted" />
+          </CardContent>
+        </Card>
+        {adminMode === "platform" ? (
           <Card>
             <CardHeader>
-              <CardTitle>Admin flow</CardTitle>
-              <Badge variant="green">Ready</Badge>
+              <CardTitle>2026/27 Tools</CardTitle>
+              <Badge variant="muted">Platform</Badge>
             </CardHeader>
             <CardContent className="grid gap-3">
-              {[
-                "Add people without creating logins",
-                "Create branded invites with multiple role rows",
-                "Grant administrator access to any person",
-                "Control each role's home panels and menus"
-              ].map((item) => (
-                <div key={item} className="rounded-xl bg-[#f7f5fa] px-4 py-3 text-sm font-bold text-[#10233f]">{item}</div>
-              ))}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>2026/27 test data</CardTitle>
-              <Badge variant="muted">2026/27</Badge>
-            </CardHeader>
-            <CardContent className="grid gap-3">
-              <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-                Generate or clear simulated match results, lineups, games and breaks for 2026/27. Fixtures and weekly schedules stay in place.
-              </p>
               <Button className="w-full justify-center" onClick={() => setGenerateOpen(true)}>
                 <Trophy className="h-4 w-4" />
-                Generate 2026/27 results
+                Generate results
               </Button>
               <Button variant="secondary" className="w-full justify-center" onClick={() => setResetOpen(true)}>
                 <Trash2 className="h-4 w-4" />
-                Clear 2026/27 test results
+                Clear test results
               </Button>
             </CardContent>
           </Card>
-        </div>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Invite Requests</CardTitle>
+              <Badge variant="muted">{requests.length}</Badge>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              {requests.length ? requests.slice(0, 4).map((request) => (
+                <div key={request.id} className="rounded-xl bg-[#f7f5fa] p-3">
+                  <p className="font-extrabold">{request.requested_person_name}</p>
+                  <p className="text-xs font-bold text-[#6c5a73]">{request.email}</p>
+                  <Badge variant={request.status === "Pending" ? "cyan" : "muted"}>{request.status}</Badge>
+                </div>
+              )) : (
+                <div className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#6c5a73]">No pending requests</div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Invite requests</CardTitle>
-          <Badge variant="muted">{requests.length}</Badge>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          {(requests.length ? requests : [{ id: "no-requests", requested_person_name: "No pending requests", email: "New requests will appear here", status: "Clear", message: null, created_at: new Date().toISOString() }]).slice(0, 8).map((request) => (
-            <div key={request.id} className="rounded-xl bg-[#f7f5fa] p-3">
-              <p className="font-extrabold">{request.requested_person_name}</p>
-              <p className="text-xs font-bold text-[#6c5a73]">{request.email}</p>
-              <Badge variant={request.status === "Pending" ? "cyan" : "muted"}>{request.status}</Badge>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      {adminMode === "platform" && requests.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Invite Requests</CardTitle>
+            <Badge variant="muted">{requests.length}</Badge>
+          </CardHeader>
+          <CardContent className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            {requests.slice(0, 8).map((request) => (
+              <div key={request.id} className="rounded-xl bg-[#f7f5fa] p-3">
+                <p className="font-extrabold">{request.requested_person_name}</p>
+                <p className="text-xs font-bold text-[#6c5a73]">{request.email}</p>
+                <Badge variant={request.status === "Pending" ? "cyan" : "muted"}>{request.status}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
       {resetOpen ? (
         <ConfirmResetMatchDataModal
           busy={resetting}
@@ -1231,10 +1299,18 @@ function CompetitionsAdminPanel({
   );
 }
 
-function AdminMetric({ label, value }: { label: string; value: number }) {
+function AdminMetric({ label, value, tone = "dark" }: { label: string; value: number; tone?: "dark" | "cyan" | "green" | "muted" }) {
+  const toneClass = {
+    dark: "bg-[#10233f] text-white",
+    cyan: "bg-[#00e5ff] text-[#10233f]",
+    green: "bg-[#00ff85] text-[#10233f]",
+    muted: "bg-[#f7f5fa] text-[#25002b] ring-1 ring-[#eeeaf2]"
+  }[tone];
+  const labelClass = tone === "dark" ? "text-white/60" : "text-[#6c5a73]";
+
   return (
-    <div className="rounded-xl bg-[#10233f] p-4 text-white">
-      <p className="text-xs font-bold uppercase text-white/60">{label}</p>
+    <div className={cn("rounded-xl p-4", toneClass)}>
+      <p className={cn("text-xs font-bold uppercase", labelClass)}>{label}</p>
       <p className="mt-1 text-3xl font-extrabold">{value}</p>
     </div>
   );
