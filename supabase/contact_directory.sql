@@ -67,7 +67,7 @@ with seed(contact_type, contact_label, person_name, club_key, league_name, team_
     ('Team Contact', 'Elm Park B', 'Bryan Kilty', 'Elm Park', 'B League', 'Elm Park B', '0876890890', 420),
     ('Team Contact', 'Elm Park C', 'Rory Butler', 'Elm Park', 'C League', 'Elm Park C', '0868381749', 430),
     ('Team Contact', 'Milltown A', 'Alan Donnelly', 'Milltown', 'A League', 'Milltown A', '0879908990', 510),
-    ('Team Contact', 'Milltown B & C', 'Colin Byrne', 'Milltown', null, 'Milltown B & C', '0872330065', 520),
+    ('Team Contact', 'Milltown B', 'Colin Byrne', 'Milltown', 'B League', 'Milltown B', '0872330065', 520),
     ('Team Contact', 'Milltown B & C', 'James McGovern', 'Milltown', null, 'Milltown B & C', '0858707865', 521),
     ('Team Contact', 'Milltown B & C', 'Brendan McVeigh', 'Milltown', null, 'Milltown B & C', '0877780864', 522),
     ('Team Contact', 'Newlands A', 'Peter Myles', 'Newlands', 'A League', 'Newlands A', '0879825127', 610),
@@ -178,3 +178,12 @@ update public.contact_directory cd
    and cd.contact_type = 'Team Contact'
    and cd.contact_label = 'Grange C'
    and regexp_replace(lower(concat_ws(' ', p.first_name, p.last_name)), '[^a-z0-9]+', '', 'g') = 'morganpierse';
+
+update public.contact_directory cd
+   set active = false,
+       updated_at = now()
+  from public.person p
+ where p.id = cd.person_id
+   and cd.contact_type = 'Team Contact'
+   and cd.contact_label = 'Milltown B & C'
+   and regexp_replace(lower(concat_ws(' ', p.first_name, p.last_name)), '[^a-z0-9]+', '', 'g') = 'colinbyrne';
