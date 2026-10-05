@@ -254,9 +254,9 @@ export async function POST(request: NextRequest) {
         throw new Error("Published lineups are locked and cannot be changed.");
       }
       const playerIds = await loadTeamPlayerIds(client, teamId);
-      const guestPlayerIds = await loadEligibleGuestPlayerIds(client, teamId);
+      const guestAccess = await loadEligibleGuestPlayerAccess(client, teamId, fixtureId);
       const fixtureMeta = await loadFixtureLineupMeta(client, fixtureId);
-      const normalized = normalizeSlots(slots, playerIds, guestPlayerIds, action === "publish", fixtureMeta.slotDefinitions, fixtureMeta.fixtureType === "Friendly");
+      const normalized = normalizeSlots(slots, playerIds, guestAccess.eligibleIds, action === "publish", fixtureMeta.slotDefinitions, fixtureMeta.fixtureType === "Friendly", guestAccess.blockedByTeam);
       const lineupId = await upsertLineup(client, fixtureId, teamId, user.personId, action === "publish");
 
       for (const slot of fixtureMeta.slotDefinitions) {
@@ -362,12 +362,17 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     [teamId]
   )).rows.map((row) => ({ id: row.person_id, name: row.player_name }));
   const playerIds = new Set(players.map((player) => player.id));
-  const guestPlayers = (await dbQuery<{ person_id: string; player_name: string; team_name: string }>(
+  const guestPlayers = (await dbQuery<{ person_id: string; player_name: string; team_name: string; already_played_for_team: string | null }>(
     eligibleGuestPlayersSql,
-    [teamId]
+    [teamId, fixture?.fixture_id ?? null]
   )).rows
     .filter((row) => !playerIds.has(row.person_id))
-    .map((row) => ({ id: row.person_id, name: row.player_name, teamName: row.team_name }));
+    .map((row) => ({
+      id: row.person_id,
+      name: row.player_name,
+      teamName: row.team_name,
+      disabledReason: row.already_played_for_team ? `Already played for ${row.already_played_for_team}` : ""
+    }));
 
   if (!fixture) {
     return { fixture: null, players, guestPlayers, lineup: null, opponentStatus: null, opponentLineup: null, games: [], weekFixtures: [] };
@@ -1017,33 +1022,68 @@ const eligibleGuestPlayersSql = `
           else null
         end
       ) > target.team_rank
+  ),
+  candidate_players as (
+    select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name, lt.name as team_name
+    from lower_teams lt
+    join public.person_team_role ptr
+      on ptr.league_id = lt.league_id
+     and ptr.team_name = lt.name
+     and ptr.role = 'Player'
+     and ptr.active = true
+    join public.club_membership cm
+      on cm.id = ptr.club_membership_id
+     and cm.club_id = lt.club_id
+     and cm.active = true
+    join public.person p on p.id = cm.person_id and p.active = true
+    union
+    select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name, lt.name as team_name
+    from lower_teams lt
+    join public.team_membership tm
+      on tm.team_id = lt.id
+     and tm.role = 'Player'
+     and tm.active = true
+    join public.person p on p.id = tm.person_id and p.active = true
+  ),
+  played_up as (
+    select person_id, min(played_for_team) as already_played_for_team
+    from (
+      select fls.player_1_id as person_id, picked_team.name as played_for_team
+      from public.fixture_lineup_slot fls
+      join public.fixture_lineup fl on fl.id = fls.lineup_id and fl.status = 'Published'
+      join public.fixture f on f.id = fl.fixture_id
+      join public.team picked_team on picked_team.id = fl.team_id
+      join target on target.season_id = f.season_id
+      where fls.player_1_id is not null
+        and fls.player_1_is_guest = true
+        and fl.team_id <> target.id
+        and ($2::uuid is null or f.id <> $2::uuid)
+      union all
+      select fls.player_2_id as person_id, picked_team.name as played_for_team
+      from public.fixture_lineup_slot fls
+      join public.fixture_lineup fl on fl.id = fls.lineup_id and fl.status = 'Published'
+      join public.fixture f on f.id = fl.fixture_id
+      join public.team picked_team on picked_team.id = fl.team_id
+      join target on target.season_id = f.season_id
+      where fls.player_2_id is not null
+        and fls.player_2_is_guest = true
+        and fl.team_id <> target.id
+        and ($2::uuid is null or f.id <> $2::uuid)
+    ) used
+    group by person_id
   )
-  select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name, lt.name as team_name
-  from lower_teams lt
-  join public.person_team_role ptr
-    on ptr.league_id = lt.league_id
-   and ptr.team_name = lt.name
-   and ptr.role = 'Player'
-   and ptr.active = true
-  join public.club_membership cm
-    on cm.id = ptr.club_membership_id
-   and cm.club_id = lt.club_id
-   and cm.active = true
-  join public.person p on p.id = cm.person_id and p.active = true
-  union
-  select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name, lt.name as team_name
-  from lower_teams lt
-  join public.team_membership tm
-    on tm.team_id = lt.id
-   and tm.role = 'Player'
-   and tm.active = true
-  join public.person p on p.id = tm.person_id and p.active = true
-  order by team_name, player_name
+  select cp.person_id, cp.player_name, cp.team_name, pu.already_played_for_team
+  from candidate_players cp
+  left join played_up pu on pu.person_id = cp.person_id
+  order by cp.team_name, cp.player_name
 `;
 
-async function loadEligibleGuestPlayerIds(client: PoolClient, teamId: string) {
-  const result = await client.query<{ person_id: string }>(eligibleGuestPlayersSql, [teamId]);
-  return new Set(result.rows.map((row) => row.person_id));
+async function loadEligibleGuestPlayerAccess(client: PoolClient, teamId: string, fixtureId: string) {
+  const result = await client.query<{ person_id: string; already_played_for_team: string | null }>(eligibleGuestPlayersSql, [teamId, fixtureId]);
+  return {
+    eligibleIds: new Set(result.rows.filter((row) => !row.already_played_for_team).map((row) => row.person_id)),
+    blockedByTeam: new Map(result.rows.filter((row) => row.already_played_for_team).map((row) => [row.person_id, row.already_played_for_team ?? "another team"]))
+  };
 }
 
 async function loadLineupStatus(client: PoolClient, fixtureId: string, teamId: string) {
@@ -1058,7 +1098,15 @@ async function loadLineupStatus(client: PoolClient, fixtureId: string, teamId: s
   return result.rows[0]?.status ?? null;
 }
 
-function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, guestPlayerIds: Set<string>, requireComplete: boolean, slotDefinitions: LineupSlotDefinition[], allowDuplicatePlayers = false) {
+function normalizeSlots(
+  slots: LineupSlotInput[],
+  playerIds: Set<string>,
+  guestPlayerIds: Set<string>,
+  requireComplete: boolean,
+  slotDefinitions: LineupSlotDefinition[],
+  allowDuplicatePlayers = false,
+  blockedGuestTeams = new Map<string, string>()
+) {
   const normalized = slotDefinitions.map((slot) => {
     const input = slots.find((item) => Number(item.slotNumber) === slot.slotNumber);
     const player1Id = String(input?.player1Id ?? "").trim();
@@ -1069,6 +1117,8 @@ function normalizeSlots(slots: LineupSlotInput[], playerIds: Set<string>, guestP
     const player2IsGuest = Boolean(input?.player2IsGuest || player2GuestName);
     if (player1Id && !player1IsGuest && !playerIds.has(player1Id)) throw new Error(`${slot.label} player is not in this team.`);
     if (player2Id && !player2IsGuest && !playerIds.has(player2Id)) throw new Error(`${slot.label} doubles partner is not in this team.`);
+    if (player1Id && player1IsGuest && blockedGuestTeams.has(player1Id)) throw new Error(`${slot.label} Guest Player already played for ${blockedGuestTeams.get(player1Id)} this season.`);
+    if (player2Id && player2IsGuest && blockedGuestTeams.has(player2Id)) throw new Error(`${slot.label} doubles Guest Player already played for ${blockedGuestTeams.get(player2Id)} this season.`);
     if (player1Id && player1IsGuest && !guestPlayerIds.has(player1Id)) throw new Error(`${slot.label} Guest Player must be from a lower team in this club.`);
     if (player2Id && player2IsGuest && !guestPlayerIds.has(player2Id)) throw new Error(`${slot.label} doubles Guest Player must be from a lower team in this club.`);
     if (player1IsGuest && !player1Id && !player1GuestName) throw new Error(`${slot.label} Guest Player must be selected from a lower team or entered as a fallback name.`);

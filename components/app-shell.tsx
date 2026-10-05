@@ -4744,7 +4744,7 @@ type ManagerLineupSlot = {
   player2GuestTeamName?: string | null;
 };
 
-type LineupPlayerOption = { id: string; name: string; teamName?: string };
+type LineupPlayerOption = { id: string; name: string; teamName?: string; disabledReason?: string };
 
 type ManagerLineupGame = {
   id: string;
@@ -6133,21 +6133,36 @@ function PlayerPickerSheet({
                 <div className="grid gap-2">
                   {guestPlayers.map((player) => {
                     const selected = selectedIsGuest && player.id === value;
+                    const disabled = Boolean(player.disabledReason) && !selected;
                     return (
                       <button
                         key={player.id}
                         type="button"
                         className={cn(
                           "flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 text-left text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]",
-                          selected ? "border-[#04f5ff] bg-[#eefbff] text-[#10233f]" : "border-[#eeeaf2] bg-[#f7f5fa] text-[#10233f] hover:bg-[#eef7f5]"
+                          selected
+                            ? "border-[#04f5ff] bg-[#eefbff] text-[#10233f]"
+                            : disabled
+                              ? "border-[#eeeaf2] bg-[#f7f5fa] text-[#8a7d91] opacity-70"
+                              : "border-[#eeeaf2] bg-[#f7f5fa] text-[#10233f] hover:bg-[#eef7f5]"
                         )}
-                        onClick={() => onSelectGuest({ playerId: player.id })}
+                        onClick={() => {
+                          if (!disabled) onSelectGuest({ playerId: player.id });
+                        }}
+                        disabled={disabled}
                       >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="min-w-0 truncate">{player.name}</span>
-                          {player.teamName ? (
-                            <span className="shrink-0 rounded bg-white px-1.5 py-0.5 align-super text-[10px] font-black uppercase leading-none text-[#6c5a73] ring-1 ring-[#d8d3df]">
-                              {player.teamName}
+                        <span className="grid min-w-0 gap-1">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 truncate">{player.name}</span>
+                            {player.teamName ? (
+                              <span className="shrink-0 rounded bg-white px-1.5 py-0.5 align-super text-[10px] font-black uppercase leading-none text-[#6c5a73] ring-1 ring-[#d8d3df]">
+                                {player.teamName}
+                              </span>
+                            ) : null}
+                          </span>
+                          {player.disabledReason ? (
+                            <span className="text-[10px] font-black uppercase tracking-wide text-[#6c5a73]">
+                              {player.disabledReason}
                             </span>
                           ) : null}
                         </span>
