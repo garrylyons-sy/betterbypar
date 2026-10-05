@@ -252,16 +252,17 @@ export async function POST(request: NextRequest) {
     }
 
     await withTransaction(async (client) => {
-      await ensureFixtureTeam(client, fixtureId, teamId);
+      await ensureFixtureTeam(client, fixtureId, teamId, { allowCompleted: adminOverride });
       const existingStatus = await loadLineupStatus(client, fixtureId, teamId);
       if (existingStatus === "Published" && !adminOverride) {
         throw new Error("Published lineups are locked and cannot be changed.");
       }
+      const shouldPublish = action === "publish" || (adminOverride && existingStatus === "Published");
       const playerIds = await loadTeamPlayerIds(client, teamId);
       const guestAccess = await loadEligibleGuestPlayerAccess(client, teamId, fixtureId);
       const fixtureMeta = await loadFixtureLineupMeta(client, fixtureId);
-      const normalized = normalizeSlots(slots, playerIds, guestAccess.eligibleIds, action === "publish", fixtureMeta.slotDefinitions, fixtureMeta.fixtureType === "Friendly", guestAccess.blockedByTeam);
-      const lineupId = await upsertLineup(client, fixtureId, teamId, user.personId, action === "publish");
+      const normalized = normalizeSlots(slots, playerIds, guestAccess.eligibleIds, shouldPublish, fixtureMeta.slotDefinitions, fixtureMeta.fixtureType === "Friendly", guestAccess.blockedByTeam);
+      const lineupId = await upsertLineup(client, fixtureId, teamId, user.personId, shouldPublish);
 
       for (const slot of fixtureMeta.slotDefinitions) {
         const selected = normalized.find((item) => item.slotNumber === slot.slotNumber);
@@ -298,10 +299,17 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (action === "publish") {
+      if (shouldPublish) {
         await generateGamesIfBothPublished(client, fixtureId, user.personId);
       }
-      await recordLineupActivity(client, user.personId, fixtureId, teamId, action === "publish" ? "Published lineup" : "Saved lineup draft", { adminOverride });
+      await recordLineupActivity(
+        client,
+        user.personId,
+        fixtureId,
+        teamId,
+        shouldPublish ? (existingStatus === "Published" ? "Updated published lineup" : "Published lineup") : "Saved lineup draft",
+        { adminOverride }
+      );
     });
 
     const payload = await loadLineupPayload(teamId, fixtureId);
@@ -952,17 +960,17 @@ function buildLineup(rows: LineupRow[], fixture: { fixture_id: string }, slotDef
   };
 }
 
-async function ensureFixtureTeam(client: PoolClient, fixtureId: string, teamId: string) {
+async function ensureFixtureTeam(client: PoolClient, fixtureId: string, teamId: string, options: { allowCompleted?: boolean } = {}) {
   const result = await client.query(
     `select 1
      from public.fixture
      where id = $1
-       and status = 'Scheduled'
+       and (status = 'Scheduled' or ($3::boolean and status = 'Completed'))
        and (home_team_id = $2 or away_team_id = $2)
      limit 1`,
-    [fixtureId, teamId]
+    [fixtureId, teamId, Boolean(options.allowCompleted)]
   );
-  if (!result.rowCount) throw new Error("Scheduled fixture not found for this team.");
+  if (!result.rowCount) throw new Error("Editable fixture not found for this team.");
 }
 
 async function loadTeamPlayerIds(client: PoolClient, teamId: string) {

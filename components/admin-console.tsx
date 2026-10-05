@@ -1145,8 +1145,9 @@ function AdminLineupEditor({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not save lineup.");
       setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
-      setLineupStatus(data.lineup?.status ?? (action === "publish" ? "Published" : "Draft"));
-      onMessage(action === "publish" ? `${target.teamName} lineup published.` : `${target.teamName} draft lineup saved.`);
+      const nextStatus = data.lineup?.status ?? (action === "publish" || lineupStatus === "Published" ? "Published" : "Draft");
+      setLineupStatus(nextStatus);
+      onMessage(nextStatus === "Published" ? `${target.teamName} published lineup updated.` : `${target.teamName} draft lineup saved.`);
       await onSaved();
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not save lineup.");
@@ -1202,7 +1203,7 @@ function AdminLineupEditor({
           ))}
           <div className="grid gap-2 sm:grid-cols-2">
             <Button type="button" variant="secondary" size="sm" onClick={() => saveLineup("save")} disabled={Boolean(busy)}>
-              {busy === "save" ? "Saving..." : "Save draft"}
+              {busy === "save" ? "Saving..." : lineupStatus === "Published" ? "Save changes" : "Save draft"}
             </Button>
             <Button type="button" size="sm" onClick={() => saveLineup("publish")} disabled={Boolean(busy) || selectedPlayerSlots < requiredPlayerSlots}>
               {busy === "publish" ? "Publishing..." : lineupStatus === "Published" ? "Override published lineup" : "Publish lineup"}
