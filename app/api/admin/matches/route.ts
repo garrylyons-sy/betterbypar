@@ -221,6 +221,33 @@ export async function PATCH(request: NextRequest) {
         matchId = matchResult.rows[0].id;
       }
 
+      await client.query(
+        `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
+         select
+           $1,
+           'Page Visit',
+           '/admin/matches',
+           'Updated match',
+           jsonb_build_object(
+             'fixture_id', f.id,
+             'fixture_date', f.fixture_date::text,
+             'status', f.status::text,
+             'league_name', l.name,
+             'home_team_name', ht.name,
+             'away_team_name', at.name,
+             'home_team_score', m.home_team_score,
+             'away_team_score', m.away_team_score
+           )
+         from public.fixture f
+         join public.league l on l.id = f.league_id
+         join public.team ht on ht.id = f.home_team_id
+         join public.team at on at.id = f.away_team_id
+         left join public.match m on m.fixture_id = f.id
+         where f.id = $2
+         limit 1`,
+        [user.personId, fixtureId]
+      );
+
       return { matchId };
     });
 

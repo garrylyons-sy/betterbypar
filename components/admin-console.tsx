@@ -275,15 +275,27 @@ function activitySummary(log: ActivityRow) {
 
 function activityContext(log: ActivityRow) {
   const teamName = metadataText(log.metadata?.team_name);
+  const opponentTeamName = metadataText(log.metadata?.opponent_team_name);
+  const homeTeamName = metadataText(log.metadata?.home_team_name);
+  const awayTeamName = metadataText(log.metadata?.away_team_name);
+  const leagueName = metadataText(log.metadata?.league_name);
   const role = metadataText(log.metadata?.role);
   const adName = metadataText(log.metadata?.ad_name);
+  const homeTeamScore = log.metadata?.home_team_score;
+  const awayTeamScore = log.metadata?.away_team_score;
+  const score = typeof homeTeamScore === "number" && typeof awayTeamScore === "number" ? `${homeTeamScore}-${awayTeamScore}` : "";
   const pagePath = log.page_path && log.page_path !== "/" ? log.page_path : "";
   if (log.activity_type === "Advert Click") {
     const pieces = [adName, pagePath].filter(Boolean);
     return pieces.length ? pieces.join(" - ") : "Advert click";
   }
+  if (homeTeamName || awayTeamName) {
+    return [leagueName, `${homeTeamName || "Home"} v ${awayTeamName || "Away"}`, score].filter(Boolean).join(" - ");
+  }
   const pieces = [
-    teamName && role ? `${teamName} - ${role}` : teamName || role,
+    leagueName,
+    teamName && opponentTeamName ? `${teamName} v ${opponentTeamName}` : "",
+    opponentTeamName ? "" : teamName && role ? `${teamName} - ${role}` : teamName || role,
     pagePath
   ].filter(Boolean);
   return pieces.length ? pieces.join(" - ") : "Session activity";
@@ -821,6 +833,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
   const [loading, setLoading] = useState(false);
   const [savingFixtureId, setSavingFixtureId] = useState("");
   const [drafts, setDrafts] = useState<Record<string, AdminMatchDraft>>({});
+  const [expandedFixtureId, setExpandedFixtureId] = useState("");
 
   useEffect(() => {
     loadMatches();
@@ -930,14 +943,20 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
             const completeStatus = match.status === "Completed" ? "green" : match.status === "Cancelled" ? "muted" : "cyan";
             const showLineupStatuses = isTodayAdminDate(match.fixture_date);
             const draftChanged = adminMatchDraftChanged(match, draft);
+            const expanded = expandedFixtureId === match.fixture_id;
 
             return (
-              <div key={match.fixture_id} className="grid gap-2 rounded-xl border border-[#eeeaf2] bg-white p-2.5 shadow-sm xl:grid-cols-[160px_minmax(360px,1fr)_minmax(360px,.9fr)_86px] xl:items-center">
-                <div className="min-w-0 xl:self-center">
+              <div
+                key={match.fixture_id}
+                className="grid gap-2 rounded-xl border border-[#eeeaf2] bg-white p-2.5 shadow-sm xl:grid-cols-[160px_minmax(360px,1fr)_minmax(360px,.9fr)_86px] xl:items-center"
+                onClick={() => setExpandedFixtureId((current) => current === match.fixture_id ? "" : match.fixture_id)}
+              >
+                <div className="min-w-0 cursor-pointer xl:self-center">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={completeStatus as "green" | "muted" | "cyan"}>{match.status}</Badge>
                     <Badge variant="muted">{match.league_name}</Badge>
                     <Badge variant="muted">{match.fixture_type}</Badge>
+                    <Badge variant={expanded ? "green" : "muted"}>{expanded ? "Teams open" : "Click for teams"}</Badge>
                   </div>
                   <p className="mt-1 text-[11px] font-bold leading-snug text-[#6c5a73]">
                     {formatAdminDate(match.fixture_date)}
@@ -946,7 +965,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                   </p>
                 </div>
 
-                <div className="grid gap-1.5">
+                <div className="grid cursor-pointer gap-1.5">
                   <AdminMatchTeamScoreRow
                     align="left"
                     score={draft.homeTeamScore}
@@ -967,7 +986,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                   />
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-[minmax(200px,1fr)_132px]">
+                <div className="grid gap-2 sm:grid-cols-[minmax(200px,1fr)_132px]" onClick={(event) => event.stopPropagation()}>
                   <CompactAdminInput
                     label="Fixture date / postponed until"
                     value={draft.fixtureDate}
@@ -982,31 +1001,36 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                   />
                 </div>
 
-                <Button onClick={() => saveMatch(match)} disabled={!draftChanged || savingFixtureId === match.fixture_id} size="sm">
+                <Button onClick={(event) => {
+                  event.stopPropagation();
+                  saveMatch(match);
+                }} disabled={!draftChanged || savingFixtureId === match.fixture_id} size="sm">
                   {savingFixtureId === match.fixture_id ? "Saving..." : "Save"}
                 </Button>
-                <div className="grid gap-2 xl:col-span-4 xl:grid-cols-2">
-                  <AdminLineupEditor
-                    target={{
-                      fixtureId: match.fixture_id,
-                      teamId: match.home_team_id,
-                      teamName: match.home_team_name,
-                      leagueName: match.league_name
-                    }}
-                    onMessage={onMessage}
-                    onSaved={loadMatches}
-                  />
-                  <AdminLineupEditor
-                    target={{
-                      fixtureId: match.fixture_id,
-                      teamId: match.away_team_id,
-                      teamName: match.away_team_name,
-                      leagueName: match.league_name
-                    }}
-                    onMessage={onMessage}
-                    onSaved={loadMatches}
-                  />
-                </div>
+                {expanded ? (
+                  <div className="grid gap-2 xl:col-span-4 xl:grid-cols-2" onClick={(event) => event.stopPropagation()}>
+                    <AdminLineupEditor
+                      target={{
+                        fixtureId: match.fixture_id,
+                        teamId: match.home_team_id,
+                        teamName: match.home_team_name,
+                        leagueName: match.league_name
+                      }}
+                      onMessage={onMessage}
+                      onSaved={loadMatches}
+                    />
+                    <AdminLineupEditor
+                      target={{
+                        fixtureId: match.fixture_id,
+                        teamId: match.away_team_id,
+                        teamName: match.away_team_name,
+                        leagueName: match.league_name
+                      }}
+                      onMessage={onMessage}
+                      onSaved={loadMatches}
+                    />
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -1220,7 +1244,7 @@ function AdminLineupPlayerField({
       <label className="grid gap-1">
         <span className="text-[10px] font-black uppercase text-[#6c5a73]">{label}</span>
         <select
-          className="min-h-8 rounded-lg border border-[#eeeaf2] bg-white px-2 text-xs font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
+          className="min-h-8 w-full min-w-0 rounded-lg border border-[#eeeaf2] bg-white px-2 text-xs font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
           value={selectedValue}
           onChange={(event) => onSelect(event.target.value)}
         >
@@ -1252,7 +1276,7 @@ function AdminLineupPlayerField({
       <label className="grid gap-0.5">
         <span className="text-[9px] font-black uppercase text-[#6c5a73]">Typed guest fallback</span>
         <input
-          className="min-h-8 rounded-lg border border-[#eeeaf2] bg-white px-2 text-xs font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
+          className="min-h-8 w-full min-w-0 rounded-lg border border-[#eeeaf2] bg-white px-2 text-xs font-bold text-[#10233f] outline-none focus-visible:outline-[#7bc7d6]"
           value={typedGuest}
           onChange={(event) => onTypedGuest(event.target.value)}
           placeholder="Only if not in system"
@@ -4415,6 +4439,7 @@ function CompactScoreInput({ ariaLabel, value, onChange }: { ariaLabel: string; 
         className="min-h-8 w-full min-w-0 rounded-lg border border-[#eeeaf2] bg-white px-2 text-center text-[13px] font-extrabold outline-none focus-visible:outline-[#7bc7d6]"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onClick={(event) => event.stopPropagation()}
         type="number"
       />
     </label>

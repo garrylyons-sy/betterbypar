@@ -215,6 +215,7 @@ export async function POST(request: NextRequest) {
       await withTransaction(async (client) => {
         await ensureFixtureTeam(client, fixtureId, teamId);
         await recordGameWinner(client, fixtureId, gameId, winnerTeamId);
+        await recordLineupActivity(client, user.personId, fixtureId, teamId, winnerTeamId ? "Recorded game result" : "Reset game result", { gameId, winnerTeamId });
       });
 
       const payload = await loadLineupPayload(teamId, fixtureId);
@@ -225,6 +226,7 @@ export async function POST(request: NextRequest) {
       await withTransaction(async (client) => {
         await ensureFixtureTeam(client, fixtureId, teamId);
         await completeMatch(client, fixtureId);
+        await recordLineupActivity(client, user.personId, fixtureId, teamId, "Completed match");
       });
 
       const payload = await loadLineupPayload(teamId, fixtureId);
@@ -242,6 +244,7 @@ export async function POST(request: NextRequest) {
       await withTransaction(async (client) => {
         await ensureFixtureTeam(client, fixtureId, teamId);
         await recordPlayerBreak(client, fixtureId, gameId, playerId, breakValue);
+        await recordLineupActivity(client, user.personId, fixtureId, teamId, "Recorded break", { gameId, playerId, breakValue });
       });
 
       const payload = await loadLineupPayload(teamId, fixtureId);
@@ -298,6 +301,7 @@ export async function POST(request: NextRequest) {
       if (action === "publish") {
         await generateGamesIfBothPublished(client, fixtureId, user.personId);
       }
+      await recordLineupActivity(client, user.personId, fixtureId, teamId, action === "publish" ? "Published lineup" : "Saved lineup draft", { adminOverride });
     });
 
     const payload = await loadLineupPayload(teamId, fixtureId);
@@ -1152,6 +1156,42 @@ function normalizeSlots(
 
 function cleanGuestName(value: unknown) {
   return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
+}
+
+async function recordLineupActivity(
+  client: PoolClient,
+  personId: string,
+  fixtureId: string,
+  teamId: string,
+  action: string,
+  extraMetadata: Record<string, unknown> = {}
+) {
+  await client.query(
+    `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
+     select
+       $1,
+       'Page Visit',
+       case when coalesce(($5::jsonb->>'adminOverride')::boolean, false) then '/admin/matches' else '/fixtures' end,
+       $4,
+       jsonb_build_object(
+         'action', $4,
+         'fixture_id', f.id,
+         'team_id', t.id,
+         'team_name', t.name,
+         'opponent_team_name', case when f.home_team_id = t.id then at.name else ht.name end,
+         'fixture_date', f.fixture_date::text,
+         'league_name', l.name
+       ) || $5::jsonb
+     from public.fixture f
+     join public.team t on t.id = $3
+     join public.team ht on ht.id = f.home_team_id
+     join public.team at on at.id = f.away_team_id
+     join public.league l on l.id = f.league_id
+     where f.id = $2
+       and (f.home_team_id = t.id or f.away_team_id = t.id)
+     limit 1`,
+    [personId, fixtureId, teamId, action, JSON.stringify(extraMetadata)]
+  );
 }
 
 async function upsertLineup(client: PoolClient, fixtureId: string, teamId: string, personId: string, publish: boolean) {
