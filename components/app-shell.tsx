@@ -5255,6 +5255,7 @@ function ManagerLineupCard({
   const [pickerTarget, setPickerTarget] = useState<LineupPickerTarget>(null);
   const [breakTarget, setBreakTarget] = useState<BreakEntryTarget>(null);
   const [openedFixtureId, setOpenedFixtureId] = useState("");
+  const [initialLoading, setInitialLoading] = useState(true);
   const dirtyDraftRef = useRef(false);
   const fixtureIdRef = useRef("");
   const matchSnapshotRef = useRef("");
@@ -5282,6 +5283,7 @@ function ManagerLineupCard({
     fixtureIdRef.current = "";
     matchSnapshotRef.current = "";
     payloadRef.current = null;
+    setInitialLoading(true);
     setSlots(defaultLineupSlotsForLeague(activeTeam.league));
 
     async function loadLineup() {
@@ -5320,6 +5322,7 @@ function ManagerLineupCard({
       } catch (error) {
         if (!cancelled && firstLoad) setMessage(error instanceof Error ? error.message : "Lineup unavailable.");
       } finally {
+        if (!cancelled && firstLoad) setInitialLoading(false);
         firstLoad = false;
       }
     }
@@ -5474,7 +5477,9 @@ function ManagerLineupCard({
       <CardContent className={cn("grid gap-3", inlineFixtureOnly && "p-0")}>
         {!payload?.fixture ? (
           <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-            No upcoming match is scheduled for {activeTeam.name}. Completed results are available in Fixtures / Results.
+            {initialLoading
+              ? "Opening team picker..."
+              : `No upcoming match is scheduled for ${activeTeam.name}. Completed results are available in Fixtures / Results.`}
           </p>
         ) : (
           <>
