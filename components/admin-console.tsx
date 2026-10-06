@@ -2243,7 +2243,7 @@ function PeoplePanel({
   const [role, setRole] = useState<InviteRole>("Player");
   const [admin, setAdmin] = useState(false);
   const [busyPersonId, setBusyPersonId] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<PersonOption | null>(null);
+  const [deleteTargets, setDeleteTargets] = useState<PersonOption[]>([]);
   const [editTarget, setEditTarget] = useState<PersonOption | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [clubFilter, setClubFilter] = useState("all");
@@ -2404,33 +2404,6 @@ function PeoplePanel({
     }
   }
 
-  async function resendInvite(person: PersonOption) {
-    if (!person.invitationId) return;
-    if (demo) {
-      onMessage(`Invite resent to ${person.email}.`);
-      return;
-    }
-
-    setBusyPersonId(person.personId);
-    try {
-      const response = await fetch("/api/admin/invites", {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ invitationId: person.invitationId, bccGarry })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Could not resend invite.");
-      const status = data.email_status ? String(data.email_status).toLowerCase() : "queued";
-      onMessage(`Invite email ${status} to ${data.email_to ?? person.email}.`);
-      onRefresh();
-    } catch (error) {
-      onMessage(error instanceof Error ? error.message : "Could not resend invite.");
-    } finally {
-      setBusyPersonId("");
-    }
-  }
-
   async function inviteSelectedPeople() {
     const selectedPeople = people.filter((person) => selectedPersonIds.includes(person.personId));
     const eligiblePeople = selectedPeople.filter(canSelectForInviteEmail);
@@ -2501,29 +2474,43 @@ function PeoplePanel({
     }
   }
 
-  async function deletePerson() {
-    if (!deleteTarget) return;
+  async function deleteSelectedPeople() {
+    if (!deleteTargets.length) return;
     if (demo) {
-      onMessage(`${deleteTarget.name} deleted.`);
-      setDeleteTarget(null);
+      onMessage(`${deleteTargets.length} ${deleteTargets.length === 1 ? "person" : "people"} deleted.`);
+      setDeleteTargets([]);
+      setSelectedPersonIds([]);
       return;
     }
 
-    setBusyPersonId(deleteTarget.personId);
+    setBusyPersonId("bulk-delete");
     try {
-      const response = await fetch("/api/admin/people", {
-        method: "DELETE",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ personId: deleteTarget.personId })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Could not delete user.");
-      onMessage(`${data.name ?? deleteTarget.name} deleted. Historical results are retained.`);
-      setDeleteTarget(null);
+      const results = await Promise.all(deleteTargets.map(async (person) => {
+        const response = await fetch("/api/admin/people", {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ personId: person.personId })
+        });
+        const data = await response.json().catch(() => ({}));
+        return {
+          ok: response.ok,
+          name: data.name ?? person.name,
+          error: data.error || `Could not delete ${person.name}.`
+        };
+      }));
+      const deleted = results.filter((result) => result.ok).length;
+      const failed = results.length - deleted;
+      onMessage([
+        deleted ? `${deleted} ${deleted === 1 ? "person" : "people"} deleted` : "",
+        failed ? `${failed} failed` : "",
+        deleted ? "Historical results are retained" : ""
+      ].filter(Boolean).join(", ") || "No people were deleted.");
+      setDeleteTargets([]);
+      setSelectedPersonIds((current) => current.filter((id) => !deleteTargets.some((person) => person.personId === id)));
       onRefresh();
     } catch (error) {
-      onMessage(error instanceof Error ? error.message : "Could not delete user.");
+      onMessage(error instanceof Error ? error.message : "Could not delete selected people.");
     } finally {
       setBusyPersonId("");
     }
@@ -2619,6 +2606,9 @@ function PeoplePanel({
   }, [people, selectedPersonIds]);
   const selectedLoginOnCount = useMemo(() => {
     return people.filter((person) => selectedPersonIds.includes(person.personId) && person.accountId && person.loginActive).length;
+  }, [people, selectedPersonIds]);
+  const selectedDeleteCount = useMemo(() => {
+    return people.filter((person) => selectedPersonIds.includes(person.personId)).length;
   }, [people, selectedPersonIds]);
   const allVisibleSelected = visiblePeople.length > 0 && visiblePeople.every((person) => selectedPersonIds.includes(person.personId));
 
@@ -2735,15 +2725,27 @@ function PeoplePanel({
                 {busyPersonId === "bulk-invite" ? "Sending..." : `Send/resend (${selectedEligibleCount})`}
               </Button>
               {adminMode === "platform" ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={disableSelectedLogins}
-                  disabled={!selectedLoginOnCount || busyPersonId === "bulk-disable"}
-                  className="text-[#b42318]"
-                >
-                  {busyPersonId === "bulk-disable" ? "Disabling..." : `Disable selected (${selectedLoginOnCount})`}
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={disableSelectedLogins}
+                    disabled={!selectedLoginOnCount || busyPersonId === "bulk-disable"}
+                    className="text-[#b42318]"
+                  >
+                    {busyPersonId === "bulk-disable" ? "Disabling..." : `Disable selected (${selectedLoginOnCount})`}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setDeleteTargets(people.filter((person) => selectedPersonIds.includes(person.personId)))}
+                    disabled={!selectedDeleteCount || busyPersonId === "bulk-delete"}
+                    className="text-[#b42318]"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {busyPersonId === "bulk-delete" ? "Deleting..." : `Delete selected (${selectedDeleteCount})`}
+                  </Button>
+                </>
               ) : null}
             </div>
             <label className="flex w-full items-center gap-2 text-xs font-bold text-[#6c5a73] sm:w-auto">
@@ -2758,7 +2760,7 @@ function PeoplePanel({
           </div>
           {inviteSelectionStatus ? <InviteSendStatus tone={inviteSelectionStatus.tone} text={inviteSelectionStatus.text} /> : null}
           <div className="min-w-0 overflow-x-auto rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden min-w-[1280px] grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_116px_150px] gap-2 bg-[#f7f5fa] px-3 py-2 text-[11px] font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden min-w-[1280px] grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_116px_88px] gap-2 bg-[#f7f5fa] px-3 py-2 text-[11px] font-black uppercase text-[#6c5a73] lg:grid">
               <span>
                 <input
                   className="h-4 w-4 accent-[#10233f]"
@@ -2789,7 +2791,7 @@ function PeoplePanel({
                 ].filter(Boolean)));
                 const roleLabels = visiblePersonRoleLabels(person);
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-1.5 text-[13px] font-bold text-[#10233f] lg:grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_116px_150px] lg:items-center lg:gap-2">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-1.5 text-[13px] font-bold text-[#10233f] lg:grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_116px_88px] lg:items-center lg:gap-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6c5a73]">
                       <input
                         className="h-4 w-4 accent-[#10233f]"
@@ -2858,18 +2860,6 @@ function PeoplePanel({
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
                       </Button>
-                      {adminMode === "platform" ? (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setDeleteTarget(person)}
-                          disabled={busyPersonId === person.personId}
-                          className="min-h-8 shrink-0 px-2 text-xs text-[#b42318]"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </Button>
-                      ) : null}
                     </div>
                   </div>
                 );
@@ -2927,12 +2917,12 @@ function PeoplePanel({
           onSetLoginAccess={(loginActive) => setLoginAccess(editTarget, loginActive)}
         />
       ) : null}
-      {deleteTarget ? (
+      {deleteTargets.length ? (
         <ConfirmDeletePersonModal
-          person={deleteTarget}
-          busy={busyPersonId === deleteTarget.personId}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={deletePerson}
+          people={deleteTargets}
+          busy={busyPersonId === "bulk-delete"}
+          onCancel={() => setDeleteTargets([])}
+          onConfirm={deleteSelectedPeople}
         />
       ) : null}
     </div>
@@ -3206,29 +3196,45 @@ function EditPersonModal({
 }
 
 function ConfirmDeletePersonModal({
-  person,
+  people,
   busy,
   onCancel,
   onConfirm
 }: {
-  person: PersonOption;
+  people: PersonOption[];
   busy: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const count = people.length;
+  const singlePerson = people[0] as PersonOption;
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Delete user">
       <div className="w-full max-w-md rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Confirm delete</p>
-            <h2 className="mt-1 text-xl font-extrabold leading-tight text-[#10233f]">{person.name}</h2>
-            {person.email ? <p className="mt-1 text-sm font-bold text-[#6c5a73]">{person.email}</p> : null}
+            <h2 className="mt-1 text-xl font-extrabold leading-tight text-[#10233f]">
+              {count === 1 ? singlePerson.name : `${count} selected people`}
+            </h2>
+            {count === 1 && singlePerson.email ? <p className="mt-1 text-sm font-bold text-[#6c5a73]">{singlePerson.email}</p> : null}
           </div>
-          {person.loginActive ? <Badge variant="green">Login enabled</Badge> : <Badge variant="muted">{person.accountId ? "Login disabled" : "No login"}</Badge>}
+          {count === 1 ? (
+            singlePerson.loginActive ? <Badge variant="green">Login enabled</Badge> : <Badge variant="muted">{singlePerson.accountId ? "Login disabled" : "No login"}</Badge>
+          ) : (
+            <Badge variant="muted">{count} people</Badge>
+          )}
         </div>
+        {count > 1 ? (
+          <div className="mt-3 max-h-36 overflow-y-auto rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f] ring-1 ring-[#eeeaf2]">
+            {people.map((person) => (
+              <p key={person.personId} className="truncate">{person.name}</p>
+            ))}
+          </div>
+        ) : null}
         <p className="mt-3 rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-          This deactivates the person, disables their login, removes active sessions and hides their current roles. Historical results, breaks and logs are retained.
+          This deactivates {count === 1 ? "the person" : "these people"}, disables login access, removes active sessions and hides current roles. Historical results, breaks and logs are retained.
         </p>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <Button variant="secondary" onClick={onCancel} disabled={busy}>
@@ -3236,7 +3242,7 @@ function ConfirmDeletePersonModal({
           </Button>
           <Button onClick={onConfirm} disabled={busy} className="bg-[#b42318] hover:bg-[#8f1d14]">
             <Trash2 className="h-4 w-4" />
-            {busy ? "Deleting..." : "Delete user"}
+            {busy ? "Deleting..." : count === 1 ? "Delete person" : `Delete ${count} people`}
           </Button>
         </div>
       </div>
