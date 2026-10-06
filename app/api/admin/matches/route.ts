@@ -52,7 +52,8 @@ export async function GET(request: NextRequest) {
            afl.status::text as away_lineup_status,
            ((case when hfl.id is null then 0 else 1 end) + (case when afl.id is null then 0 else 1 end))::int as lineup_count,
            coalesce(game_counts.game_count, 0)::int as game_count,
-           coalesce(game_counts.completed_game_count, 0)::int as completed_game_count
+           coalesce(game_counts.completed_game_count, 0)::int as completed_game_count,
+           coalesce(frame_details.frame_details, '[]'::jsonb) as frame_details
          from public.fixture f
          join public.season s on s.id = f.season_id
          join public.league l on l.id = f.league_id
@@ -68,6 +69,27 @@ export async function GET(request: NextRequest) {
            from public.game g
            where g.match_id = m.id
          ) game_counts on true
+         left join lateral (
+           select jsonb_agg(
+             jsonb_build_object(
+               'game_number', g.game_number,
+               'game_type', g.game_type::text,
+               'points_awarded', g.points_awarded,
+               'winner_team_id', g.winner_team_id,
+               'home_player_1_name', coalesce(nullif(g.home_player_1_guest_name, ''), nullif(concat_ws(' ', hp1.first_name, hp1.last_name), '')),
+               'home_player_2_name', coalesce(nullif(g.home_player_2_guest_name, ''), nullif(concat_ws(' ', hp2.first_name, hp2.last_name), '')),
+               'away_player_1_name', coalesce(nullif(g.away_player_1_guest_name, ''), nullif(concat_ws(' ', ap1.first_name, ap1.last_name), '')),
+               'away_player_2_name', coalesce(nullif(g.away_player_2_guest_name, ''), nullif(concat_ws(' ', ap2.first_name, ap2.last_name), ''))
+             )
+             order by g.game_number
+           ) as frame_details
+           from public.game g
+           left join public.person hp1 on hp1.id = g.home_player_1_id
+           left join public.person hp2 on hp2.id = g.home_player_2_id
+           left join public.person ap1 on ap1.id = g.away_player_1_id
+           left join public.person ap2 on ap2.id = g.away_player_2_id
+           where g.match_id = m.id
+         ) frame_details on true
          where s.name = $1
            and ($2 = 'all' or l.name = $2)
            and ($3 = 'all' or f.status::text = $3)

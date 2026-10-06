@@ -192,6 +192,17 @@ type AdminMatchRow = {
   lineup_count: number;
   game_count: number;
   completed_game_count: number;
+  frame_details?: AdminMatchFrame[];
+};
+type AdminMatchFrame = {
+  game_number: number;
+  game_type: string;
+  points_awarded: number;
+  winner_team_id: string | null;
+  home_player_1_name: string | null;
+  home_player_2_name: string | null;
+  away_player_1_name: string | null;
+  away_player_2_name: string | null;
 };
 type AdminMatchSeason = { id: string; name: string };
 type AdminMatchLeague = { id: string; name: string };
@@ -1148,6 +1159,11 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                 </Button>
                 {expanded ? (
                   <div className="grid gap-2 xl:col-span-4 xl:grid-cols-2" onClick={(event) => event.stopPropagation()}>
+                    {match.frame_details?.length ? (
+                      <div className="xl:col-span-2">
+                        <AdminMatchFrameDetails match={match} />
+                      </div>
+                    ) : null}
                     <AdminLineupEditor
                       target={{
                         fixtureId: match.fixture_id,
@@ -1455,6 +1471,53 @@ function AdminMatchTeamScoreRow({
       <CompactScoreInput ariaLabel={scoreLabel} value={score} onChange={onScoreChange} />
     </div>
   );
+}
+
+function AdminMatchFrameDetails({ match }: { match: AdminMatchRow }) {
+  const frames = match.frame_details ?? [];
+  if (!frames.length) return null;
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-[#eeeaf2] bg-white">
+      <div className="flex items-center justify-between gap-2 border-b border-[#eeeaf2] bg-[#f7f5fa] px-3 py-2">
+        <p className="text-[11px] font-black uppercase text-[#6c5a73]">Frame details</p>
+        <Badge variant={match.status === "Completed" ? "green" : "muted"}>
+          {match.completed_game_count}/{match.game_count || frames.length}
+        </Badge>
+      </div>
+      <div className="divide-y divide-[#eeeaf2]">
+        {frames.map((frame) => {
+          const homeWon = frame.winner_team_id === match.home_team_id;
+          const awayWon = frame.winner_team_id === match.away_team_id;
+          const homePlayers = adminFramePlayers(frame.home_player_1_name, frame.home_player_2_name);
+          const awayPlayers = adminFramePlayers(frame.away_player_1_name, frame.away_player_2_name);
+          return (
+            <div key={frame.game_number} className="grid gap-1 px-3 py-2 text-xs font-extrabold">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-black uppercase text-[#6c5a73]">
+                  Game {frame.game_number} · {frame.game_type} · {frame.points_awarded} {frame.points_awarded === 1 ? "pt" : "pts"}
+                </p>
+                {!frame.winner_team_id ? <Badge variant="muted">Awaiting</Badge> : null}
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_22px_minmax(0,1fr)] items-center gap-1.5">
+                <span className={cn("rounded-md px-2 py-1.5 text-[#10233f]", homeWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa]")}>
+                  {homePlayers}
+                </span>
+                <span className="text-center text-[10px] font-black uppercase text-[#6c5a73]">v</span>
+                <span className={cn("rounded-md px-2 py-1.5 text-right text-[#10233f]", awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa]")}>
+                  {awayPlayers}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function adminFramePlayers(player1: string | null, player2: string | null) {
+  return [player1, player2].filter(Boolean).join(" / ") || "-";
 }
 
 function AdminMatchTeamStatus({
@@ -2692,7 +2755,7 @@ function PeoplePanel({
           </div>
           {inviteSelectionStatus ? <InviteSendStatus tone={inviteSelectionStatus.tone} text={inviteSelectionStatus.text} /> : null}
           <div className="min-w-0 overflow-x-auto rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden min-w-[1380px] grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_140px_180px] gap-2 bg-[#f7f5fa] px-3 py-2 text-[11px] font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden min-w-[1280px] grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_116px_150px] gap-2 bg-[#f7f5fa] px-3 py-2 text-[11px] font-black uppercase text-[#6c5a73] lg:grid">
               <span>
                 <input
                   className="h-4 w-4 accent-[#10233f]"
@@ -2713,7 +2776,7 @@ function PeoplePanel({
               <span>Invite status</span>
               <span className="text-right">Actions</span>
             </div>
-            <div className="max-h-[680px] min-w-[1380px] overflow-y-auto">
+            <div className="max-h-[680px] min-w-[1280px] overflow-y-auto">
               {visiblePeople.map((person) => {
                 const clubLabels = visiblePersonClubLabels(person);
                 const handicapLabel = personHandicapLabel(person);
@@ -2723,7 +2786,7 @@ function PeoplePanel({
                 ].filter(Boolean)));
                 const roleLabels = visiblePersonRoleLabels(person);
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-[13px] font-bold text-[#10233f] lg:grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_140px_180px] lg:items-center lg:gap-2">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-1.5 text-[13px] font-bold text-[#10233f] lg:grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_116px_150px] lg:items-center lg:gap-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6c5a73]">
                       <input
                         className="h-4 w-4 accent-[#10233f]"
@@ -2787,7 +2850,7 @@ function PeoplePanel({
                         size="sm"
                         onClick={() => setEditTarget(person)}
                         disabled={busyPersonId === person.personId}
-                        className="min-h-9 shrink-0 px-2 text-xs"
+                        className="min-h-8 shrink-0 px-2 text-xs"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         Edit
@@ -2798,7 +2861,7 @@ function PeoplePanel({
                           size="sm"
                           onClick={() => setDeleteTarget(person)}
                           disabled={busyPersonId === person.personId}
-                          className="min-h-9 shrink-0 px-2 text-xs text-[#b42318]"
+                          className="min-h-8 shrink-0 px-2 text-xs text-[#b42318]"
                         >
                           <Trash2 className="h-4 w-4" />
                           Delete
