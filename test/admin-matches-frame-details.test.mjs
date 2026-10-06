@@ -17,3 +17,8 @@ test("admin matches UI renders frame winners when a match is expanded", () => {
   assert.match(consoleSource, /Frame details/, "frame details should have a visible section heading");
   assert.match(consoleSource, /winner_team_id/, "frame details renderer should use the winning team");
 });
+
+test("admin matches show saved lineup statuses even before match day", () => {
+  assert.match(consoleSource, /shouldShowAdminLineupStatus/, "lineup status visibility should be centralized");
+  assert.match(consoleSource, /Boolean\(status\) \|\| isTodayAdminDate/, "saved Draft or Published statuses should be visible before match day");
+});

@@ -1091,7 +1091,6 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
           {matches.map((match) => {
             const draft = drafts[match.fixture_id] ?? matchDraft(match);
             const completeStatus = match.status === "Completed" ? "green" : match.status === "Cancelled" ? "muted" : "cyan";
-            const showLineupStatuses = isTodayAdminDate(match.fixture_date);
             const draftChanged = adminMatchDraftChanged(match, draft);
             const expanded = expandedFixtureId === match.fixture_id;
 
@@ -1120,7 +1119,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                     align="left"
                     score={draft.homeTeamScore}
                     scoreLabel={`${match.home_team_name} score`}
-                    showStatus={showLineupStatuses}
+                    showStatus={shouldShowAdminLineupStatus(match.fixture_date, match.home_lineup_status)}
                     status={match.home_lineup_status}
                     teamName={match.home_team_name}
                     onScoreChange={(value) => updateDraft(match.fixture_id, { homeTeamScore: value })}
@@ -1129,7 +1128,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                     align="left"
                     score={draft.awayTeamScore}
                     scoreLabel={`${match.away_team_name} score`}
-                    showStatus={showLineupStatuses}
+                    showStatus={shouldShowAdminLineupStatus(match.fixture_date, match.away_lineup_status)}
                     status={match.away_lineup_status}
                     teamName={match.away_team_name}
                     onScoreChange={(value) => updateDraft(match.fixture_id, { awayTeamScore: value })}
@@ -1561,6 +1560,10 @@ function adminLineupStatusClass(status: string | null) {
   if (status === "Published") return "bg-[#00ff85] text-[#041a12]";
   if (status === "Draft") return "bg-[#04f5ff] text-[#10233f]";
   return "bg-[#eeeaf2] text-[#6c5a73]";
+}
+
+function shouldShowAdminLineupStatus(fixtureDate: string, status: string | null) {
+  return Boolean(status) || isTodayAdminDate(fixtureDate);
 }
 
 function isTodayAdminDate(value: string) {
