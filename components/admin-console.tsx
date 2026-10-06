@@ -118,6 +118,46 @@ type AdminCompetitionRow = {
   round_count: number;
   match_count: number;
 };
+type AdminMatchStats = {
+  totals: {
+    matches: number;
+    played: number;
+    scheduled: number;
+    postponed: number;
+    homeWins: number;
+    awayWins: number;
+    draws: number;
+    homeWinPct: number;
+    awayWinPct: number;
+    drawPct: number;
+  };
+  leagues: Array<{ leagueName: string; matches: number; played: number; scheduled: number; postponed: number; completePct: number }>;
+  scorelines: Array<{ scoreline: string; count: number; homeWins: number; awayWins: number; draws: number }>;
+  playersUsedByTeam: Array<{ teamId: string; teamName: string; count: number }>;
+  mostCommonScoreline: string | null;
+  widestSquadUsage: { teamId: string; teamName: string; count: number } | null;
+  smallestSquadUsage: { teamId: string; teamName: string; count: number } | null;
+};
+const emptyMatchStats: AdminMatchStats = {
+  totals: {
+    matches: 0,
+    played: 0,
+    scheduled: 0,
+    postponed: 0,
+    homeWins: 0,
+    awayWins: 0,
+    draws: 0,
+    homeWinPct: 0,
+    awayWinPct: 0,
+    drawPct: 0
+  },
+  leagues: [],
+  scorelines: [],
+  playersUsedByTeam: [],
+  mostCommonScoreline: null,
+  widestSquadUsage: null,
+  smallestSquadUsage: null
+};
 type AdminCompetitionDetail = {
   id: string;
   name: string;
@@ -346,6 +386,7 @@ export function AdminConsole() {
   const [requests, setRequests] = useState<InviteRequestRow[]>([]);
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [competitions, setCompetitions] = useState<AdminCompetitionRow[]>([]);
+  const [matchStats, setMatchStats] = useState<AdminMatchStats>(emptyMatchStats);
   const [ads, setAds] = useState<AdminAdRow[]>([]);
   const [appearance, setAppearance] = useState<AppearanceConfig>(defaultAppearanceConfig);
 
@@ -411,6 +452,7 @@ export function AdminConsole() {
         setRequests(data.requests ?? []);
         setInvites(data.invites ?? []);
         setCompetitions(data.competitions ?? []);
+        setMatchStats(data.matchStats ?? emptyMatchStats);
         setAds((data.ads ?? []).map((ad: {
           id: string;
           name: string;
@@ -485,7 +527,7 @@ export function AdminConsole() {
       adminMode={adminMode}
       onLogout={logout}
     >
-      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logsRefreshKey={logsRefreshKey} requests={requests} invites={invites} competitions={competitions} ads={ads} competitionsLoading={!adminDataLoaded} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
+      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logsRefreshKey={logsRefreshKey} requests={requests} invites={invites} competitions={competitions} matchStats={matchStats} ads={ads} competitionsLoading={!adminDataLoaded} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
     </AdminLayout>
   );
 }
@@ -582,6 +624,7 @@ function AdminTabPanel(props: {
   requests: InviteRequestRow[];
   invites: InviteRow[];
   competitions: AdminCompetitionRow[];
+  matchStats: AdminMatchStats;
   ads: AdminAdRow[];
   competitionsLoading: boolean;
   appearance: AppearanceConfig;
@@ -591,7 +634,7 @@ function AdminTabPanel(props: {
   onRefresh: () => void;
 }) {
   if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
-  if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
@@ -609,6 +652,7 @@ function DesktopAdminPanel({
   people,
   requests,
   competitions,
+  matchStats,
   onMessage,
   onRefresh
 }: {
@@ -617,6 +661,7 @@ function DesktopAdminPanel({
   people: PersonOption[];
   requests: InviteRequestRow[];
   competitions: AdminCompetitionRow[];
+  matchStats: AdminMatchStats;
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
@@ -639,6 +684,15 @@ function DesktopAdminPanel({
   const openCompetitions = competitions.filter((competition) => competition.status === "Open").length;
   const liveCompetitions = competitions.filter((competition) => competition.status === "Drawn" || competition.status === "In Progress").length;
   const completeCompetitions = competitions.filter((competition) => competition.status === "Complete").length;
+  const matchTotals = matchStats.totals;
+  const playedLabel = matchTotals.matches ? `${matchTotals.played}/${matchTotals.matches}` : "0/0";
+  const outcomeRows = [
+    { label: "Home wins", value: matchTotals.homeWins, percent: matchTotals.homeWinPct, className: "bg-[#00ff85]" },
+    { label: "Away wins", value: matchTotals.awayWins, percent: matchTotals.awayWinPct, className: "bg-[#00e5ff]" },
+    { label: "Draws", value: matchTotals.draws, percent: matchTotals.drawPct, className: "bg-[#e9e3ee]" }
+  ];
+  const maxScorelineCount = Math.max(1, ...matchStats.scorelines.map((row) => row.count));
+  const maxPlayersUsed = Math.max(1, ...matchStats.playersUsedByTeam.map((row) => row.count));
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -700,6 +754,90 @@ function DesktopAdminPanel({
           <AdminMetric label="Players" value={players.length} />
           <AdminMetric label="Teams" value={teams.length} />
           <AdminMetric label={adminMode === "platform" ? "Clubs" : "Managers"} value={adminMode === "platform" ? clubs : managers.length} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Match Stats</CardTitle>
+          <Badge variant="muted">{playedLabel} played</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <AdminMetric label="Matches" value={matchTotals.matches} />
+            <AdminMetric label="Played" value={matchTotals.played} tone="green" />
+            <AdminMetric label="Scheduled" value={matchTotals.scheduled} tone="cyan" />
+            <AdminMetric label="Postponed" value={matchTotals.postponed} tone="muted" />
+          </div>
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)]">
+            <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-4 ring-1 ring-[#eeeaf2]">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-black uppercase text-[#25002b]">Home / away split</p>
+                <p className="text-xs font-bold text-[#6c5a73]">{matchTotals.played} results</p>
+              </div>
+              {outcomeRows.map((row) => (
+                <AdminProgressRow key={row.label} label={row.label} value={`${row.value} (${row.percent}%)`} percent={row.percent} className={row.className} />
+              ))}
+            </div>
+            <div className="grid gap-3 rounded-xl bg-[#f7f5fa] p-4 ring-1 ring-[#eeeaf2]">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-black uppercase text-[#25002b]">League completion</p>
+                <p className="text-xs font-bold text-[#6c5a73]">Active season</p>
+              </div>
+              {matchStats.leagues.length ? matchStats.leagues.map((league) => (
+                <AdminProgressRow
+                  key={league.leagueName}
+                  label={league.leagueName}
+                  value={`${league.played}/${league.matches}`}
+                  percent={league.completePct}
+                  className="bg-[#10233f]"
+                />
+              )) : (
+                <p className="text-sm font-semibold text-[#6c5a73]">No league fixtures found.</p>
+              )}
+            </div>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="grid gap-3 rounded-xl bg-white p-4 ring-1 ring-[#eeeaf2]">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-black uppercase text-[#25002b]">Scorelines</p>
+                <Badge variant="muted">{matchStats.mostCommonScoreline ?? "None"}</Badge>
+              </div>
+              {matchStats.scorelines.length ? matchStats.scorelines.slice(0, 8).map((scoreline) => (
+                <AdminBarRow
+                  key={scoreline.scoreline}
+                  label={scoreline.scoreline}
+                  value={scoreline.count}
+                  percent={(scoreline.count / maxScorelineCount) * 100}
+                  className="bg-[#00e5ff]"
+                />
+              )) : (
+                <p className="text-sm font-semibold text-[#6c5a73]">No completed scorelines yet.</p>
+              )}
+            </div>
+            <div className="grid gap-3 rounded-xl bg-white p-4 ring-1 ring-[#eeeaf2]">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-black uppercase text-[#25002b]">Players used per team</p>
+                <Badge variant="muted">incl. guests</Badge>
+              </div>
+              {matchStats.playersUsedByTeam.length ? matchStats.playersUsedByTeam.slice(0, 10).map((team) => (
+                <AdminBarRow
+                  key={team.teamId}
+                  label={team.teamName}
+                  value={team.count}
+                  percent={(team.count / maxPlayersUsed) * 100}
+                  className="bg-[#00ff85]"
+                />
+              )) : (
+                <p className="text-sm font-semibold text-[#6c5a73]">No player appearances yet.</p>
+              )}
+              {matchStats.widestSquadUsage ? (
+                <p className="text-xs font-bold text-[#6c5a73]">
+                  Widest squad: {matchStats.widestSquadUsage.teamName} ({matchStats.widestSquadUsage.count})
+                  {matchStats.smallestSquadUsage ? ` · Smallest: ${matchStats.smallestSquadUsage.teamName} (${matchStats.smallestSquadUsage.count})` : ""}
+                </p>
+              ) : null}
+            </div>
+          </div>
         </CardContent>
       </Card>
       <div className="grid gap-4 xl:grid-cols-3">
@@ -1765,6 +1903,32 @@ function ConfirmDeleteCompetitionModal({
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AdminProgressRow({ label, value, percent, className }: { label: string; value: string; percent: number; className: string }) {
+  return (
+    <div className="grid gap-1">
+      <div className="flex items-center justify-between gap-3 text-sm font-extrabold">
+        <span className="truncate text-[#10233f]">{label}</span>
+        <span className="shrink-0 text-[#25002b]">{value}</span>
+      </div>
+      <div className="h-3 overflow-hidden rounded-full bg-white ring-1 ring-[#eeeaf2]">
+        <div className={cn("h-full rounded-full", className)} style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function AdminBarRow({ label, value, percent, className }: { label: string; value: number; percent: number; className: string }) {
+  return (
+    <div className="grid grid-cols-[minmax(120px,0.8fr)_minmax(120px,1fr)_44px] items-center gap-3 text-sm">
+      <span className="truncate font-extrabold text-[#10233f]">{label}</span>
+      <span className="h-3 overflow-hidden rounded-full bg-[#f7f5fa] ring-1 ring-[#eeeaf2]">
+        <span className={cn("block h-full rounded-full", className)} style={{ width: `${Math.max(4, Math.min(100, percent))}%` }} />
+      </span>
+      <span className="text-right font-black text-[#25002b]">{value}</span>
     </div>
   );
 }

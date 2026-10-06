@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { loadAppearanceConfig } from "@/lib/server/appearance";
+import { buildAdminMatchStats } from "@/lib/server/admin-match-stats.mjs";
 import { currentUser, loadTeamOptions } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
 
@@ -39,7 +40,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ authenticated: false, administrator: false }, { status: 401 });
     if (!administrator) return NextResponse.json({ authenticated: true, administrator: false, user }, { status: 403 });
 
-    const [teams, peopleResult, requestsResult, invitesResult, competitionsResult, adsResult, appearance] = await Promise.all([
+    const [teams, peopleResult, requestsResult, invitesResult, competitionsResult, adsResult, matchFixturesResult, matchAppearancesResult, appearance] = await Promise.all([
       loadTeamOptions().then((rows) => platformAdmin ? rows : rows.filter((team) => clubAdminClubIds.includes(team.club_id))),
       dbQuery(
         `select distinct on (p.id)
@@ -230,6 +231,80 @@ export async function GET() {
              order by sort_order, name`
           )
         : Promise.resolve({ rows: [] }),
+      dbQuery(
+        `select
+           f.id::text as fixture_id,
+           l.name as league_name,
+           ht.id::text as home_team_id,
+           ht.name as home_team_name,
+           at.id::text as away_team_id,
+           at.name as away_team_name,
+           f.fixture_date::text as fixture_date,
+           fw.starts_on::text as week_starts_on,
+           f.status::text as status,
+           coalesce(m.home_team_score, 0)::int as home_team_score,
+           coalesce(m.away_team_score, 0)::int as away_team_score
+         from public.fixture f
+         join public.season s on s.id = f.season_id
+         join public.league l on l.id = f.league_id
+         join public.team ht on ht.id = f.home_team_id
+         join public.team at on at.id = f.away_team_id
+         left join public.match m on m.fixture_id = f.id
+         left join public.fixture_week_match fwm on fwm.match_id = m.id
+         left join public.fixture_week fw on fw.id = fwm.week_id
+         where s.active = true
+           and f.fixture_type = 'League'
+           and (
+             $1::boolean = true
+             or ht.club_id = any($2::uuid[])
+             or at.club_id = any($2::uuid[])
+           )
+         order by l.name, f.fixture_date, ht.name`,
+        [platformAdmin, clubAdminClubIds]
+      ),
+      dbQuery(
+        `select distinct team_id::text, team_name, person_id::text, guest_name
+         from (
+           select f.home_team_id as team_id, ht.name as team_name, g.home_player_1_id as person_id, g.home_player_1_guest_name as guest_name
+           from public.game g
+           join public.match m on m.id = g.match_id
+           join public.fixture f on f.id = m.fixture_id
+           join public.season s on s.id = f.season_id
+           join public.team ht on ht.id = f.home_team_id
+           join public.team at on at.id = f.away_team_id
+           where s.active = true and f.fixture_type = 'League' and f.status = 'Completed' and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
+           union all
+           select f.home_team_id, ht.name, g.home_player_2_id, g.home_player_2_guest_name
+           from public.game g
+           join public.match m on m.id = g.match_id
+           join public.fixture f on f.id = m.fixture_id
+           join public.season s on s.id = f.season_id
+           join public.team ht on ht.id = f.home_team_id
+           join public.team at on at.id = f.away_team_id
+           where s.active = true and f.fixture_type = 'League' and f.status = 'Completed' and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
+           union all
+           select f.away_team_id, at.name, g.away_player_1_id, g.away_player_1_guest_name
+           from public.game g
+           join public.match m on m.id = g.match_id
+           join public.fixture f on f.id = m.fixture_id
+           join public.season s on s.id = f.season_id
+           join public.team ht on ht.id = f.home_team_id
+           join public.team at on at.id = f.away_team_id
+           where s.active = true and f.fixture_type = 'League' and f.status = 'Completed' and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
+           union all
+           select f.away_team_id, at.name, g.away_player_2_id, g.away_player_2_guest_name
+           from public.game g
+           join public.match m on m.id = g.match_id
+           join public.fixture f on f.id = m.fixture_id
+           join public.season s on s.id = f.season_id
+           join public.team ht on ht.id = f.home_team_id
+           join public.team at on at.id = f.away_team_id
+           where s.active = true and f.fixture_type = 'League' and f.status = 'Completed' and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
+         ) appearances
+         where person_id is not null or nullif(trim(guest_name), '') is not null
+         order by team_name`,
+        [platformAdmin, clubAdminClubIds]
+      ),
       loadAppearanceConfig()
     ]);
 
@@ -244,6 +319,10 @@ export async function GET() {
       invites: invitesResult.rows,
       competitions: competitionsResult.rows,
       ads: adsResult.rows,
+      matchStats: buildAdminMatchStats({
+        fixtures: matchFixturesResult.rows,
+        appearances: matchAppearancesResult.rows
+      }),
       appearance
     });
   } catch (error) {

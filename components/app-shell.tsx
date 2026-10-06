@@ -132,10 +132,10 @@ function withMyClubLast(items: AppearanceMenuId[]) {
 
 function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): AppearanceMenuId[] {
   if (role === "Club Member") {
-    return ["Home", "Bookings", "Competitions", "Interclub Leagues"];
+    return ["Home", "Fixtures", "Bookings", "Competitions", "Interclub Leagues"];
   }
   if (role === "Club Admin") {
-    return ["Home", "Competitions", "Bookings", "Contacts", "Interclub Leagues"];
+    return ["Home", "Fixtures", "Competitions", "Bookings", "Contacts", "Interclub Leagues"];
   }
   if (role === "League Chair") {
     return ["Home", "Contacts", "Interclub Leagues"];
@@ -546,7 +546,7 @@ function PageContent({
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
   const leagueTeamCount = standingsData.length;
-  const memberRestrictedPages: AppPage[] = ["Fixtures", "Match", "Results", "Players", "Stats"];
+  const memberRestrictedPages: AppPage[] = ["Match", "Results", "Players", "Stats"];
 
   if (activeTeam.role === "Club Member" && memberRestrictedPages.includes(activePage)) {
     return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
