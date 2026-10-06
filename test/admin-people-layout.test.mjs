@@ -6,7 +6,8 @@ const source = readFileSync(new URL("../components/admin-console.tsx", import.me
 
 test("people admin table reserves enough desktop width for inline row actions", () => {
   const peopleTableSource = source.slice(source.indexOf("Selected people"), source.indexOf("function EditPersonModal"));
-  assert.match(peopleTableSource, /min-w-\[1320px\]/, "people table should reserve a wider desktop layout");
-  assert.match(peopleTableSource, /_260px\]/, "actions column should be wide enough for inline Edit and Resend buttons");
+  assert.match(peopleTableSource, /min-w-\[1460px\]/, "people table should reserve a wider desktop layout");
+  assert.match(peopleTableSource, /_140px_280px\]/, "invite status and actions columns should both have fixed desktop space");
+  assert.match(peopleTableSource, /min-w-\[88px\]/, "invite status pill should have its own minimum width");
   assert.doesNotMatch(peopleTableSource, /grid-cols-\[[^\]]*_180px\]/, "old narrow people actions column should not return");
 });

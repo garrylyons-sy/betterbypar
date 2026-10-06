@@ -2692,7 +2692,7 @@ function PeoplePanel({
           </div>
           {inviteSelectionStatus ? <InviteSendStatus tone={inviteSelectionStatus.tone} text={inviteSelectionStatus.text} /> : null}
           <div className="min-w-0 overflow-x-auto rounded-xl ring-1 ring-[#eeeaf2]">
-            <div className="hidden min-w-[1320px] grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_112px_260px] gap-2 bg-[#f7f5fa] px-3 py-2 text-[11px] font-black uppercase text-[#6c5a73] lg:grid">
+            <div className="hidden min-w-[1460px] grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_140px_280px] gap-2 bg-[#f7f5fa] px-3 py-2 text-[11px] font-black uppercase text-[#6c5a73] lg:grid">
               <span>
                 <input
                   className="h-4 w-4 accent-[#10233f]"
@@ -2713,7 +2713,7 @@ function PeoplePanel({
               <span>Invite status</span>
               <span className="text-right">Actions</span>
             </div>
-            <div className="max-h-[680px] min-w-[1320px] overflow-y-auto">
+            <div className="max-h-[680px] min-w-[1460px] overflow-y-auto">
               {visiblePeople.map((person) => {
                 const clubLabels = visiblePersonClubLabels(person);
                 const handicapLabel = personHandicapLabel(person);
@@ -2723,7 +2723,7 @@ function PeoplePanel({
                 ].filter(Boolean)));
                 const roleLabels = visiblePersonRoleLabels(person);
                 return (
-                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-[13px] font-bold text-[#10233f] lg:grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_112px_260px] lg:items-center lg:gap-2">
+                  <div key={person.personId} className="grid min-w-0 gap-2 border-t border-[#eeeaf2] px-3 py-2 text-[13px] font-bold text-[#10233f] lg:grid-cols-[30px_minmax(130px,1fr)_minmax(155px,1fr)_minmax(95px,.7fr)_60px_minmax(165px,1fr)_78px_92px_140px_280px] lg:items-center lg:gap-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-[#6c5a73]">
                       <input
                         className="h-4 w-4 accent-[#10233f]"
@@ -2896,7 +2896,7 @@ function InviteStatusBadge({ person }: { person: PersonOption }) {
   ].filter(Boolean).join(" / ");
 
   return (
-    <span title={detail || undefined}>
+    <span className="inline-flex min-w-[88px]" title={detail || undefined}>
       <Badge variant={variant}>{status}</Badge>
     </span>
   );
