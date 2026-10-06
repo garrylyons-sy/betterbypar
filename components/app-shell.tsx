@@ -43,6 +43,17 @@ type ShopProduct = {
   description: string;
   imagePath: string;
   priceEuros: number;
+  optionName?: string | null;
+  optionValues?: string[];
+};
+type ShopCartItem = {
+  key: string;
+  productId: string;
+  productName: string;
+  imagePath: string;
+  priceEuros: number;
+  selectedOption: string;
+  quantity: number;
 };
 const roleOptions: Role[] = ["Player", "Manager", "Club Member", "Club Admin"];
 const RECENT_FORM_LIMIT = 3;
@@ -3764,6 +3775,13 @@ function ShopPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [products, setProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedShopOptions, setSelectedShopOptions] = useState<Record<string, string>>({});
+  const [cart, setCart] = useState<ShopCartItem[]>([]);
+  const [buyerName, setBuyerName] = useState("");
+  const [buyerEmail, setBuyerEmail] = useState("");
+  const [buyerPhone, setBuyerPhone] = useState("");
+  const [checkoutMessage, setCheckoutMessage] = useState("");
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -3776,7 +3794,11 @@ function ShopPage({ activeTeam }: { activeTeam: TeamContext }) {
         return payload.products as ShopProduct[];
       })
       .then((rows) => {
-        if (!cancelled) setProducts(rows ?? []);
+        if (!cancelled) {
+          const nextProducts = rows ?? [];
+          setProducts(nextProducts);
+          setSelectedShopOptions(Object.fromEntries(nextProducts.map((product) => [product.id, product.optionValues?.[0] ?? ""])));
+        }
       })
       .catch((fetchError) => {
         if (!cancelled) setError(fetchError instanceof Error ? fetchError.message : "Shop products could not be loaded.");
@@ -3805,6 +3827,78 @@ function ShopPage({ activeTeam }: { activeTeam: TeamContext }) {
     );
   }
 
+  const cartTotal = cart.reduce((total, item) => total + item.priceEuros * item.quantity, 0);
+
+  function updateSelectedOption(productId: string, value: string) {
+    setSelectedShopOptions((current) => ({ ...current, [productId]: value }));
+  }
+
+  function addToCart(product: ShopProduct) {
+    const selectedOption = selectedShopOptions[product.id] ?? product.optionValues?.[0] ?? "";
+    if (product.optionValues?.length && !selectedOption) {
+      setCheckoutMessage(`Choose a ${product.optionName || "option"} first.`);
+      return;
+    }
+    const key = `${product.id}:${selectedOption}`;
+    setCart((current) => {
+      const existing = current.find((item) => item.key === key);
+      if (existing) {
+        return current.map((item) => item.key === key ? { ...item, quantity: Math.min(10, item.quantity + 1) } : item);
+      }
+      return [
+        ...current,
+        {
+          key,
+          productId: product.id,
+          productName: product.productName,
+          imagePath: product.imagePath,
+          priceEuros: product.priceEuros,
+          selectedOption,
+          quantity: 1
+        }
+      ];
+    });
+    setCheckoutMessage("");
+  }
+
+  function updateCartQuantity(key: string, quantity: number) {
+    if (quantity <= 0) {
+      setCart((current) => current.filter((item) => item.key !== key));
+      return;
+    }
+    setCart((current) => current.map((item) => item.key === key ? { ...item, quantity: Math.min(10, quantity) } : item));
+  }
+
+  async function checkout() {
+    setCheckoutBusy(true);
+    setCheckoutMessage("");
+    try {
+      const response = await fetch(withTestUser("/api/shop"), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          buyerName,
+          buyerEmail,
+          buyerPhone,
+          items: cart.map((item) => ({
+            productId: item.productId,
+            selectedOption: item.selectedOption,
+            quantity: item.quantity
+          }))
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Checkout could not be completed.");
+      setCart([]);
+      setCheckoutMessage(`Order received. Status: ${payload.order?.status ?? "Pending"}.`);
+    } catch (checkoutError) {
+      setCheckoutMessage(checkoutError instanceof Error ? checkoutError.message : "Checkout could not be completed.");
+    } finally {
+      setCheckoutBusy(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -3822,7 +3916,8 @@ function ShopPage({ activeTeam }: { activeTeam: TeamContext }) {
         ) : !products.length ? (
           <div className="rounded-[var(--radius-md)] bg-[var(--pl-off-white)] p-4 text-sm font-bold text-[var(--pl-muted-text)]">No products are available yet.</div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="grid gap-3 sm:grid-cols-2">
             {products.map((product) => (
               <article key={product.id} className="overflow-hidden rounded-[var(--radius-md)] bg-[var(--pl-off-white)] ring-1 ring-[var(--pl-border)]">
                 <div className="bg-white p-3">
@@ -3838,9 +3933,81 @@ function ShopPage({ activeTeam }: { activeTeam: TeamContext }) {
                     <Badge variant="green">{formatEuroPrice(product.priceEuros)}</Badge>
                   </div>
                   <p className="text-sm font-semibold leading-relaxed text-[var(--pl-muted-text)]">{product.description}</p>
+                  {product.optionValues?.length ? (
+                    <label className="grid gap-1 text-xs font-black uppercase text-[var(--pl-muted-text)]">
+                      {product.optionName || "Option"}
+                      <select
+                        className="min-h-11 rounded-[var(--radius-sm)] border border-[var(--pl-border)] bg-white px-3 text-sm font-extrabold normal-case text-[var(--pl-text)]"
+                        value={selectedShopOptions[product.id] ?? product.optionValues[0] ?? ""}
+                        onChange={(event) => updateSelectedOption(product.id, event.target.value)}
+                      >
+                        {product.optionValues.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <Button onClick={() => addToCart(product)} size="sm">
+                    <ShoppingBag className="h-4 w-4" />
+                    Add to cart
+                  </Button>
                 </div>
               </article>
             ))}
+            </div>
+            <aside className="grid content-start gap-3 rounded-[var(--radius-md)] bg-[var(--pl-off-white)] p-3 ring-1 ring-[var(--pl-border)]">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-black text-[var(--pl-text)]">Your cart</h3>
+                <Badge variant={cart.length ? "cyan" : "muted"}>{cart.length}</Badge>
+              </div>
+              {!cart.length ? (
+                <p className="rounded-[var(--radius-sm)] bg-white p-3 text-sm font-bold text-[var(--pl-muted-text)]">Choose a size and add the tee to start an order.</p>
+              ) : (
+                <div className="grid gap-2">
+                  {cart.map((item) => (
+                    <div key={item.key} className="grid grid-cols-[52px_1fr_auto] gap-2 rounded-[var(--radius-sm)] bg-white p-2">
+                      <img alt="" className="h-12 w-12 rounded-md object-cover" src={item.imagePath} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black text-[var(--pl-text)]">{item.productName}</p>
+                        <p className="text-xs font-bold text-[var(--pl-muted-text)]">{item.selectedOption ? `Size ${item.selectedOption}` : "No option"}</p>
+                        <p className="text-xs font-bold text-[var(--pl-muted-text)]">{formatEuroPrice(item.priceEuros)}</p>
+                      </div>
+                      <input
+                        aria-label={`Quantity for ${item.productName}`}
+                        className="h-10 w-14 rounded-md border border-[var(--pl-border)] px-2 text-center text-sm font-black"
+                        min="0"
+                        max="10"
+                        type="number"
+                        value={item.quantity}
+                        onChange={(event) => updateCartQuantity(item.key, Number(event.target.value))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-between border-t border-[var(--pl-border)] pt-2 text-sm font-black text-[var(--pl-text)]">
+                <span>Total</span>
+                <span>{formatEuroPrice(cartTotal)}</span>
+              </div>
+              <div className="grid gap-2">
+                <label className="grid gap-1 text-xs font-black uppercase text-[var(--pl-muted-text)]">
+                  Name
+                  <input className="min-h-10 rounded-[var(--radius-sm)] border border-[var(--pl-border)] bg-white px-3 text-sm font-bold normal-case text-[var(--pl-text)]" value={buyerName} onChange={(event) => setBuyerName(event.target.value)} />
+                </label>
+                <label className="grid gap-1 text-xs font-black uppercase text-[var(--pl-muted-text)]">
+                  Email
+                  <input className="min-h-10 rounded-[var(--radius-sm)] border border-[var(--pl-border)] bg-white px-3 text-sm font-bold normal-case text-[var(--pl-text)]" type="email" value={buyerEmail} onChange={(event) => setBuyerEmail(event.target.value)} />
+                </label>
+                <label className="grid gap-1 text-xs font-black uppercase text-[var(--pl-muted-text)]">
+                  Phone
+                  <input className="min-h-10 rounded-[var(--radius-sm)] border border-[var(--pl-border)] bg-white px-3 text-sm font-bold normal-case text-[var(--pl-text)]" type="tel" value={buyerPhone} onChange={(event) => setBuyerPhone(event.target.value)} />
+                </label>
+              </div>
+              <Button onClick={checkout} disabled={!cart.length || checkoutBusy}>
+                {checkoutBusy ? "Checking out..." : "Checkout"}
+              </Button>
+              {checkoutMessage ? <p className="text-sm font-bold text-[var(--pl-muted-text)]">{checkoutMessage}</p> : null}
+            </aside>
           </div>
         )}
       </CardContent>
