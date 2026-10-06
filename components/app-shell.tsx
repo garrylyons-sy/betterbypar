@@ -20,6 +20,7 @@ import {
   Phone,
   PlusCircle,
   Share2,
+  ShoppingBag,
   Swords,
   Trophy,
   UserCircle,
@@ -34,8 +35,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues";
+type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Shop";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
+type ShopProduct = {
+  id: string;
+  productName: string;
+  description: string;
+  imagePath: string;
+  priceEuros: number;
+};
 const roleOptions: Role[] = ["Player", "Manager", "Club Member", "Club Admin"];
 const RECENT_FORM_LIMIT = 3;
 const SIMULATION_CONTROLS_ENABLED = false;
@@ -593,6 +601,7 @@ function PageContent({
   if (activePage === "Players") return <PlayersPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
+  if (activePage === "Shop") return <ShopPage activeTeam={activeTeam} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} userCanShare={userCanShare} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} userCanShare={userCanShare} />;
@@ -3713,6 +3722,20 @@ function MoreMenu({
           <Badge variant="muted">{activeTeam.name}</Badge>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
+          {activeTeam.hasLeagueChairAccess ? (
+            <button
+              onClick={() => onNavigate("Shop")}
+              className="grid min-h-[76px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
+                <ShoppingBag className="h-5 w-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-black">Shop</span>
+                <span className="block text-xs font-semibold text-[#6c5a73]">League Chair merch preview.</span>
+              </span>
+            </button>
+          ) : null}
           {items.map((item) => {
             const Icon = item.icon;
             return (
@@ -3735,6 +3758,98 @@ function MoreMenu({
       </Card>
     </section>
   );
+}
+
+function ShopPage({ activeTeam }: { activeTeam: TeamContext }) {
+  const [products, setProducts] = useState<ShopProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    fetch(withTestUser("/api/shop"), { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "Shop products could not be loaded.");
+        return payload.products as ShopProduct[];
+      })
+      .then((rows) => {
+        if (!cancelled) setProducts(rows ?? []);
+      })
+      .catch((fetchError) => {
+        if (!cancelled) setError(fetchError instanceof Error ? fetchError.message : "Shop products could not be loaded.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!activeTeam.hasLeagueChairAccess) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Shop</CardTitle>
+          <Badge variant="muted">League Chair</Badge>
+        </CardHeader>
+        <CardContent>
+          <p className="rounded-[var(--radius-md)] bg-[var(--pl-off-white)] p-4 text-sm font-bold text-[var(--pl-muted-text)]">
+            Shop access is currently limited to League Chairs.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>Shop</CardTitle>
+          <p className="mt-1 text-sm font-bold text-[var(--pl-muted-text)]">Small-batch Interclub Snooker ideas and merch previews.</p>
+        </div>
+        <Badge variant="cyan">{products.length || "..."}</Badge>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="rounded-[var(--radius-md)] bg-[var(--pl-off-white)] p-4 text-sm font-bold text-[var(--pl-muted-text)]">Loading products...</div>
+        ) : error ? (
+          <div className="rounded-[var(--radius-md)] bg-[var(--pl-off-white)] p-4 text-sm font-bold text-[var(--pl-muted-text)]">{error}</div>
+        ) : !products.length ? (
+          <div className="rounded-[var(--radius-md)] bg-[var(--pl-off-white)] p-4 text-sm font-bold text-[var(--pl-muted-text)]">No products are available yet.</div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {products.map((product) => (
+              <article key={product.id} className="overflow-hidden rounded-[var(--radius-md)] bg-[var(--pl-off-white)] ring-1 ring-[var(--pl-border)]">
+                <div className="bg-white p-3">
+                  <img
+                    alt={product.productName}
+                    className="aspect-square w-full rounded-[var(--radius-sm)] object-cover"
+                    src={product.imagePath}
+                  />
+                </div>
+                <div className="grid gap-2 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-lg font-black text-[var(--pl-text)]">{product.productName}</h3>
+                    <Badge variant="green">{formatEuroPrice(product.priceEuros)}</Badge>
+                  </div>
+                  <p className="text-sm font-semibold leading-relaxed text-[var(--pl-muted-text)]">{product.description}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatEuroPrice(value: number) {
+  return new Intl.NumberFormat("en-IE", { currency: "EUR", style: "currency" }).format(value);
 }
 
 function ManagerHome({
@@ -7331,7 +7446,7 @@ function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePa
         { label: "More", page: "Menu" as AppPage, icon: MenuIcon, description: "More options" }
       ]
     : [...primaryItems, ...(myClubItem ? [myClubItem] : [])];
-  const morePages: AppPage[] = ["Menu", ...overflowItems.map((item) => item.page)];
+  const morePages: AppPage[] = ["Menu", ...overflowItems.map((item) => item.page), ...(activeTeam.hasLeagueChairAccess ? ["Shop" as AppPage] : [])];
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#eeeaf2] bg-white px-1.5 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1.5 shadow-elevated lg:hidden">

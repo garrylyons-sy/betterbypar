@@ -200,6 +200,25 @@ comment on column public.ads.affiliate_code is 'Optional affiliate code, used to
 
 create index ads_active_placement_idx on public.ads (active, placement, audience, sort_order);
 
+create table public.product (
+  id uuid primary key default gen_random_uuid(),
+  product_name text not null,
+  description text not null,
+  image_path text not null,
+  price_euros numeric(8,2) not null check (price_euros >= 0),
+  active boolean not null default true,
+  sort_order integer not null default 100,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (product_name)
+);
+
+comment on table public.product is 'Small shop catalogue for Interclub Snooker products.';
+comment on column public.product.image_path is 'Product image path or data URL.';
+comment on column public.product.price_euros is 'Display price in euros.';
+
+create index product_active_sort_idx on public.product (active, sort_order, product_name);
+
 create table public.invitation (
   id uuid primary key default gen_random_uuid(),
   email text not null,
