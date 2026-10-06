@@ -698,6 +698,14 @@ export async function loadSessionPayload(user: AppUser) {
     leaguePoints: Number(row.league_points ?? 0)
   } satisfies TeamContext));
 
+  const activeSeasonName = (await dbQuery<{ name: string }>(
+    `select name
+     from public.season
+     where active = true
+     order by starts_on desc nulls last, name desc
+     limit 1`
+  )).rows[0]?.name ?? teamContexts[0]?.season ?? "2026/27";
+
   const clubContexts = (await dbQuery<{
     membership_id: string;
     club_name: string;
@@ -734,7 +742,7 @@ export async function loadSessionPayload(user: AppUser) {
     primaryColor: row.primary_color,
     accentColor: row.accent_color,
     league: "A League",
-    season: "Club",
+    season: activeSeasonName,
     role: "Club Member",
     leaguePosition: 0,
     leagueMatchesPlayed: 0
@@ -773,7 +781,7 @@ export async function loadSessionPayload(user: AppUser) {
     primaryColor: row.primary_color,
     accentColor: row.accent_color,
     league: "A League",
-    season: "Club",
+    season: activeSeasonName,
     role: "Club Admin",
     leaguePosition: 0,
     leagueMatchesPlayed: 0
@@ -810,7 +818,7 @@ export async function loadSessionPayload(user: AppUser) {
     primaryColor: row.primary_color,
     accentColor: row.accent_color,
     league: "A League",
-    season: "Club",
+    season: activeSeasonName,
     role: "League Chair",
     leaguePosition: 0,
     leagueMatchesPlayed: 0,
@@ -931,7 +939,7 @@ export async function loadSessionPayload(user: AppUser) {
         primaryColor: row.primary_color,
         accentColor: row.accent_color,
         league: "A League",
-        season: "Club",
+        season: activeSeasonName,
         role: row.role,
         leaguePosition: 0,
         leagueMatchesPlayed: 0

@@ -132,10 +132,10 @@ function withMyClubLast(items: AppearanceMenuId[]) {
 
 function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): AppearanceMenuId[] {
   if (role === "Club Member") {
-    return ["Home", "Fixtures", "Bookings", "Competitions", "Interclub Leagues"];
+    return ["Home", "Fixtures", "Table", "Bookings", "Competitions", "Interclub Leagues"];
   }
   if (role === "Club Admin") {
-    return ["Home", "Fixtures", "Competitions", "Bookings", "Contacts", "Interclub Leagues"];
+    return ["Home", "Fixtures", "Table", "Competitions", "Bookings", "Contacts", "Interclub Leagues"];
   }
   if (role === "League Chair") {
     return ["Home", "Contacts", "Interclub Leagues"];

@@ -25,7 +25,7 @@ export const appearancePanelOptions: Array<{ id: AppearancePanelId; label: strin
 
 export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string; description: string; roles: Role[] }> = [
   { id: "Home", label: "Home", description: "Role home dashboard.", roles: appearanceRoles },
-  { id: "Fixtures", label: "Fixtures", description: "Fixture and season cards.", roles: ["Player", "Manager"] },
+  { id: "Fixtures", label: "Fixtures", description: "Fixture and season cards.", roles: ["Player", "Manager", "Club Member", "Club Admin"] },
   { id: "Results", label: "Results", description: "Team and league results.", roles: ["Player", "Manager"] },
   { id: "Table", label: "Tables", description: "League tables.", roles: ["Player", "Manager", "Club Member"] },
   { id: "Club", label: "My Club", description: "Bookings and club competitions.", roles: ["Player", "Manager"] },
@@ -53,12 +53,12 @@ export const defaultAppearanceConfig: AppearanceConfig = {
   "Club Member": {
     role: "Club Member",
     panels: ["openCompetitions"],
-    menuItems: ["Home", "Bookings", "Competitions", "Interclub Leagues"]
+    menuItems: ["Home", "Fixtures", "Table", "Bookings", "Competitions", "Interclub Leagues"]
   },
   "Club Admin": {
     role: "Club Admin",
     panels: ["clubCompetitionAdmin", "openCompetitions", "interclubLeagues"],
-    menuItems: ["Home", "Competitions", "Bookings", "Contacts", "Interclub Leagues"]
+    menuItems: ["Home", "Fixtures", "Table", "Competitions", "Bookings", "Contacts", "Interclub Leagues"]
   },
   "League Chair": {
     role: "League Chair",
