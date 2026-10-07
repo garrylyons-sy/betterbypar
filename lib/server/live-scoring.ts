@@ -36,6 +36,10 @@ type SessionRow = {
   home_player_2_id: string | null;
   away_player_1_id: string | null;
   away_player_2_id: string | null;
+  home_player_1_guest_name: string | null;
+  home_player_2_guest_name: string | null;
+  away_player_1_guest_name: string | null;
+  away_player_2_guest_name: string | null;
 };
 
 type GameContext = {
@@ -50,6 +54,10 @@ type GameContext = {
   home_player_2_id: string | null;
   away_player_1_id: string | null;
   away_player_2_id: string | null;
+  home_player_1_guest_name: string | null;
+  home_player_2_guest_name: string | null;
+  away_player_1_guest_name: string | null;
+  away_player_2_guest_name: string | null;
 };
 
 export type LiveScoringInput = {
@@ -140,19 +148,31 @@ export async function loadLiveScoringFixture(fixtureId: string, personId: string
     winner_team_id: string | null;
     home_player_1_id: string | null;
     home_player_1_name: string | null;
+    home_player_1_guest_name: string | null;
     home_player_2_id: string | null;
     home_player_2_name: string | null;
+    home_player_2_guest_name: string | null;
     away_player_1_id: string | null;
     away_player_1_name: string | null;
+    away_player_1_guest_name: string | null;
     away_player_2_id: string | null;
     away_player_2_name: string | null;
+    away_player_2_guest_name: string | null;
   }>(
     `select g.id::text, g.game_number, g.game_type::text, g.home_score, g.away_score,
             g.winner_team_id::text,
-            g.home_player_1_id::text, concat_ws(' ', hp1.first_name, hp1.last_name) as home_player_1_name,
-            g.home_player_2_id::text, concat_ws(' ', hp2.first_name, hp2.last_name) as home_player_2_name,
-            g.away_player_1_id::text, concat_ws(' ', ap1.first_name, ap1.last_name) as away_player_1_name,
-            g.away_player_2_id::text, concat_ws(' ', ap2.first_name, ap2.last_name) as away_player_2_name
+            g.home_player_1_id::text,
+            coalesce(nullif(g.home_player_1_guest_name, ''), nullif(concat_ws(' ', hp1.first_name, hp1.last_name), '')) as home_player_1_name,
+            g.home_player_1_guest_name,
+            g.home_player_2_id::text,
+            coalesce(nullif(g.home_player_2_guest_name, ''), nullif(concat_ws(' ', hp2.first_name, hp2.last_name), '')) as home_player_2_name,
+            g.home_player_2_guest_name,
+            g.away_player_1_id::text,
+            coalesce(nullif(g.away_player_1_guest_name, ''), nullif(concat_ws(' ', ap1.first_name, ap1.last_name), '')) as away_player_1_name,
+            g.away_player_1_guest_name,
+            g.away_player_2_id::text,
+            coalesce(nullif(g.away_player_2_guest_name, ''), nullif(concat_ws(' ', ap2.first_name, ap2.last_name), '')) as away_player_2_name,
+            g.away_player_2_guest_name
      from public.fixture f
      join public.match m on m.fixture_id = f.id
      join public.game g on g.match_id = m.id
@@ -205,7 +225,9 @@ async function gameContext(client: PoolClient, fixtureId: string, gameId: string
             f.status::text as fixture_status, f.home_team_id::text, f.away_team_id::text,
             g.winner_team_id::text,
             g.home_player_1_id::text, g.home_player_2_id::text,
-            g.away_player_1_id::text, g.away_player_2_id::text
+            g.away_player_1_id::text, g.away_player_2_id::text,
+            g.home_player_1_guest_name, g.home_player_2_guest_name,
+            g.away_player_1_guest_name, g.away_player_2_guest_name
      from public.fixture f
      join public.match m on m.fixture_id = f.id
      join public.game g on g.match_id = m.id
@@ -220,15 +242,34 @@ async function gameContext(client: PoolClient, fixtureId: string, gameId: string
   return game;
 }
 
+function guestParticipantKey(team: "home" | "away", slot: 1 | 2) {
+  return `guest:${team}:${slot}`;
+}
+
+function databasePersonId(value: string | null | undefined) {
+  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null;
+}
+
+type GamePlayers = Pick<GameContext,
+  | "home_player_1_id" | "home_player_2_id" | "away_player_1_id" | "away_player_2_id"
+  | "home_player_1_guest_name" | "home_player_2_guest_name" | "away_player_1_guest_name" | "away_player_2_guest_name"
+>;
+
+function participantKey(game: GamePlayers, team: "home" | "away", slot: 1 | 2) {
+  const personId = game[`${team}_player_${slot}_id`];
+  const guestName = game[`${team}_player_${slot}_guest_name`];
+  return personId ?? (guestName?.trim() ? guestParticipantKey(team, slot) : null);
+}
+
 function assertGamePlayer(
-  game: Pick<GameContext, "home_player_1_id" | "home_player_2_id" | "away_player_1_id" | "away_player_2_id">,
+  game: GamePlayers,
   team: "home" | "away",
   playerId: string | null | undefined
 ) {
   if (!playerId) return;
-  const allowed = team === "home"
-    ? [game.home_player_1_id, game.home_player_2_id]
-    : [game.away_player_1_id, game.away_player_2_id];
+  const allowed = [participantKey(game, team, 1), participantKey(game, team, 2)];
   if (!allowed.includes(playerId)) {
     throw new LiveScoringError("Player is not part of that side in this frame.", 400, "INVALID_PLAYER");
   }
@@ -284,6 +325,7 @@ async function appendEvent(client: PoolClient, session: SessionRow, action: stri
     : input.team === "away" || input.awardedTo === "away"
       ? session.away_team_id
       : null;
+  const eventPlayerId = input.playerId ?? input.activePlayerId ?? null;
   await client.query(
     `insert into public.live_frame_event (
        session_id, sequence_number, event_type, team_id, player_id, ball_value, points,
@@ -296,12 +338,12 @@ async function appendEvent(client: PoolClient, session: SessionRow, action: stri
       session.id,
       eventName(action),
       teamId,
-      input.playerId ?? input.activePlayerId ?? null,
+      databasePersonId(eventPlayerId),
       input.value ?? null,
       input.points ?? null,
       before ? JSON.stringify(eventState(before)) : null,
       JSON.stringify(eventState(after)),
-      JSON.stringify({ action }),
+      JSON.stringify({ action, participant_key: eventPlayerId }),
       personId
     ]
   );
@@ -313,7 +355,9 @@ async function lockedSession(client: PoolClient, sessionId: string) {
             lfs.scorer_person_id::text, lfs.lease_expires_at::text,
             f.home_team_id::text, f.away_team_id::text, g.winner_team_id::text as game_winner_team_id,
             g.home_player_1_id::text, g.home_player_2_id::text,
-            g.away_player_1_id::text, g.away_player_2_id::text
+            g.away_player_1_id::text, g.away_player_2_id::text,
+            g.home_player_1_guest_name, g.home_player_2_guest_name,
+            g.away_player_1_guest_name, g.away_player_2_guest_name
      from public.live_frame_session lfs
      join public.fixture f on f.id = lfs.fixture_id
      join public.game g on g.id = lfs.game_id
@@ -363,7 +407,7 @@ async function saveSession(client: PoolClient, session: SessionRow, state: LiveS
      where public.live_frame_session.id = $1
        and public.live_frame_session.version = $2
        and f.id = public.live_frame_session.fixture_id`,
-    [session.id, session.version, status, state.homeScore, state.awayScore, state.activeTeam, state.activePlayerId, state.currentBreak, state.redsRemaining, state.phase, JSON.stringify(state), personId, LEASE_SECONDS]
+    [session.id, session.version, status, state.homeScore, state.awayScore, state.activeTeam, databasePersonId(state.activePlayerId), state.currentBreak, state.redsRemaining, state.phase, JSON.stringify(state), personId, LEASE_SECONDS]
   );
   if (!result.rowCount) throw new LiveScoringError("Live scoring changed elsewhere. Reloading the latest score.", 409, "STALE_VERSION");
 }
@@ -394,7 +438,7 @@ async function startSession(client: PoolClient, personId: string, input: LiveSco
         input.gameId,
         JSON.stringify(state),
         (input.activeTeam ?? "home") === "home" ? game.home_team_id : game.away_team_id,
-        input.activePlayerId ?? null,
+        databasePersonId(input.activePlayerId),
         personId,
         LEASE_SECONDS,
         game.home_team_id,
@@ -420,13 +464,14 @@ async function persistBreaks(client: PoolClient, session: SessionRow, state: Liv
   }
   for (const [index, completedBreak] of breaks.entries()) {
     const breakValue = Number(completedBreak.value);
-    if (!completedBreak.playerId || breakValue < 30) continue;
+    const playerId = databasePersonId(completedBreak.playerId);
+    if (!playerId || breakValue < 30) continue;
     const sourceKey = `live-session:${session.id}:break:${index}:${completedBreak.playerId}:${breakValue}`;
     await client.query(
       `insert into public.break (game_id, player_id, break_value, source_label, source_key)
        values ($1, $2, $3, 'live-scoring', $4)
        on conflict (source_key) do nothing`,
-      [session.game_id, completedBreak.playerId, breakValue, sourceKey]
+      [session.game_id, playerId, breakValue, sourceKey]
     );
   }
 }

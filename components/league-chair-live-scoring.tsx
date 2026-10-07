@@ -47,12 +47,16 @@ type LiveGame = {
   winner_team_id: string | null;
   home_player_1_id: string | null;
   home_player_1_name: string | null;
+  home_player_1_guest_name: string | null;
   home_player_2_id: string | null;
   home_player_2_name: string | null;
+  home_player_2_guest_name: string | null;
   away_player_1_id: string | null;
   away_player_1_name: string | null;
+  away_player_1_guest_name: string | null;
   away_player_2_id: string | null;
   away_player_2_name: string | null;
+  away_player_2_guest_name: string | null;
 };
 
 type LiveFixturePayload = {
@@ -100,16 +104,16 @@ const colourNames: Record<number, string> = {
 };
 
 function playersFor(game: LiveGame, side: Side) {
-  const players = side === "home"
-    ? [
-        { id: game.home_player_1_id, name: game.home_player_1_name },
-        { id: game.home_player_2_id, name: game.home_player_2_name }
-      ]
-    : [
-        { id: game.away_player_1_id, name: game.away_player_1_name },
-        { id: game.away_player_2_id, name: game.away_player_2_name }
-      ];
-  return players.filter((player): player is { id: string; name: string | null } => Boolean(player.id));
+  const player = (slot: 1 | 2) => {
+    const personId = game[`${side}_player_${slot}_id`];
+    const guestName = game[`${side}_player_${slot}_guest_name`];
+    const guestKey = guestName?.trim() ? `guest:${side}:${slot}` : null;
+    return {
+      id: personId ?? guestKey,
+      name: game[`${side}_player_${slot}_name`] ?? guestName
+    };
+  };
+  return [player(1), player(2)].filter((item): item is { id: string; name: string | null } => Boolean(item.id));
 }
 
 function playerNames(game: LiveGame, side: Side) {

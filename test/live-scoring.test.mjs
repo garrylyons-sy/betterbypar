@@ -93,6 +93,15 @@ test("retains completed visits for qualifying break persistence", () => {
   assert.deepEqual(ended.breaks, [{ team: "home", playerId: "home-1", value: 31 }]);
 });
 
+test("scores a typed guest by its stable lineup participant key", () => {
+  const guestKey = "guest:home:1";
+  const start = createLiveFrameState({ activeTeam: "home", activePlayerId: guestKey });
+  const scored = applyLiveFrameAction(start, { type: "pot", team: "home", playerId: guestKey, value: 1 });
+
+  assert.equal(scored.homeScore, 1);
+  assert.equal(scored.activePlayerId, guestKey);
+});
+
 test("corrects the visual ball inventory without altering frame totals", () => {
   const start = createLiveFrameState({ activeTeam: "home", homeScore: 24, awayScore: 12 });
   const corrected = applyLiveFrameAction(start, {

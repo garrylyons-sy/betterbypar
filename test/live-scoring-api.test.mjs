@@ -35,7 +35,17 @@ test("official game results validate the fixture and refresh match points", () =
 
 test("player-attributed scoring is restricted to players in that frame and side", () => {
   assert.match(service, /home_player_1_id[\s\S]*home_player_2_id[\s\S]*away_player_1_id[\s\S]*away_player_2_id/);
+  assert.match(service, /home_player_1_guest_name[\s\S]*home_player_2_guest_name[\s\S]*away_player_1_guest_name[\s\S]*away_player_2_guest_name/);
+  assert.match(service, /guest:\$\{team\}:\$\{slot\}/, "typed guests should receive stable participant keys");
   assert.match(service, /Player is not part of that side in this frame/);
+});
+
+test("typed guest participant keys never enter UUID-only database columns", () => {
+  assert.match(service, /function databasePersonId/);
+  assert.match(service, /databasePersonId\(state\.activePlayerId\)/);
+  assert.match(service, /databasePersonId\(eventPlayerId\)/);
+  assert.match(service, /participant_key: eventPlayerId/);
+  assert.match(service, /databasePersonId\(completedBreak\.playerId\)/);
 });
 
 test("live mutations enforce versions and an exclusive scorer lease", () => {

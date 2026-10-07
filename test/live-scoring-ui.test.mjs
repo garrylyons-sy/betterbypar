@@ -19,6 +19,13 @@ test("League Chair controls support ordinary frame results and launch live scori
   assert.match(controls, /Start live scoring|Open live scoring/, "undecided frames should expose live scoring");
 });
 
+test("published typed guests remain selectable in the live scorer", () => {
+  assert.match(controls, /home_player_1_guest_name/);
+  assert.match(controls, /away_player_2_guest_name/);
+  assert.match(controls, /guest:\$\{side\}:\$\{slot\}/);
+  assert.match(controls, /personId \?\? guestKey/);
+});
+
 test("mobile scorer shows the table state and complete scoring controls", () => {
   for (const label of ["Current break", "Reds left", "End visit", "Undo", "Foul", "Concede", "Correct balls"]) {
     assert.match(controls, new RegExp(label), `live scorer should include ${label}`);
