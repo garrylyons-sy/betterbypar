@@ -9,7 +9,8 @@ const managerRoute = readFileSync(new URL("../app/api/manager/lineup/route.ts", 
 const fixtureRoute = readFileSync(new URL("../app/api/fixtures/weeks/route.ts", import.meta.url), "utf8");
 
 test("live scoring API authenticates before loading undiscoverable scoring data", () => {
-  assert.match(route, /currentUserFromRequest\(request\)/);
+  assert.match(route, /currentUser\(\)/, "live scoring must use cookie-only authentication");
+  assert.doesNotMatch(route, /currentUserFromRequest/, "test-user impersonation must not reach scoring actions");
   assert.match(route, /requireLeagueChairScoringAccess\(user\.personId\)/);
   assert.match(route, /League Chair access required[\s\S]*status: 403/);
   assert.doesNotMatch(fixtureRoute, /live_frame_session/, "general fixture payload must not expose pilot state");
@@ -61,7 +62,7 @@ test("completion is idempotent and writes official totals and qualifying breaks"
 test("API exposes ordinary results and every planned live scoring action", () => {
   for (const action of [
     "recordResult", "start", "pot", "foul", "endVisit", "selectPlayer", "undo",
-    "correctBalls", "concede", "respotBlack", "takeover", "pause", "resume", "complete", "abandon"
+    "correctBalls", "concede", "respotBlack", "takeover", "handover", "pause", "resume", "complete", "abandon"
   ]) {
     assert.match(route, new RegExp(`"${action}"`), `${action} should be accepted`);
   }
@@ -69,5 +70,12 @@ test("API exposes ordinary results and every planned live scoring action", () =>
   assert.match(service, /Started live scoring/);
   assert.match(service, /Took over live scoring/);
   assert.match(service, /Completed live-scored frame/);
+  assert.match(service, /Released live scoring/);
   assert.doesNotMatch(service, /Recorded live pot/);
+});
+
+test("invalid scoring actions return stable client errors", () => {
+  assert.match(service, /INVALID_ACTION/);
+  assert.match(service, /GameResultError/);
+  assert.match(route, /error instanceof LiveScoringError/);
 });

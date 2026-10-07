@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 
 import { applyLiveFrameAction, createLiveFrameState } from "@/lib/live-scoring.mjs";
 import { dbQuery, withTransaction } from "@/lib/server/db";
-import { recordOfficialGameResult } from "@/lib/server/game-results";
+import { GameResultError, recordOfficialGameResult } from "@/lib/server/game-results";
 
 const LEASE_SECONDS = 45;
 
@@ -253,12 +253,24 @@ function eventName(action: string) {
     concede: "Complete",
     respotBlack: "CorrectBalls",
     takeover: "Takeover",
+    handover: "Takeover",
     pause: "Pause",
     resume: "Resume",
     complete: "Complete",
     abandon: "Abandon"
   };
   return names[action] ?? "Start";
+}
+
+async function saveOfficialGameResult(client: PoolClient, input: Parameters<typeof recordOfficialGameResult>[1]) {
+  try {
+    return await recordOfficialGameResult(client, input);
+  } catch (error) {
+    if (error instanceof GameResultError) {
+      throw new LiveScoringError(error.message, error.status, "INVALID_RESULT");
+    }
+    throw error;
+  }
 }
 
 function eventState(state: LiveState) {
@@ -420,7 +432,7 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
   await withTransaction(async (client) => {
     if (input.action === "recordResult") {
       if (!input.gameId) throw new LiveScoringError("Game is required.");
-      await recordOfficialGameResult(client, {
+      await saveOfficialGameResult(client, {
         fixtureId: input.fixtureId,
         gameId: input.gameId,
         winnerTeamId: input.winnerTeamId ?? null
@@ -455,6 +467,20 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
       );
       await appendEvent(client, session, "takeover", personId, session.state, session.state, input);
       await logActivity(client, personId, input.fixtureId, "Took over live scoring", { session_id: session.id, game_id: session.game_id });
+      return;
+    }
+
+    if (input.action === "handover") {
+      ensureVersionAndLease(session, input, personId);
+      await client.query(
+        `update public.live_frame_session
+         set scorer_person_id = null, lease_expires_at = null,
+             version = version + 1, updated_by = $3, updated_at = now()
+         where id = $1 and version = $2`,
+        [session.id, session.version, personId]
+      );
+      await appendEvent(client, session, "handover", personId, session.state, session.state, input);
+      await logActivity(client, personId, input.fixtureId, "Released live scoring", { session_id: session.id, game_id: session.game_id });
       return;
     }
 
@@ -498,7 +524,7 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
         throw new LiveScoringError("Finish the frame or record a concession before completing it.", 409, "FRAME_NOT_READY");
       }
       const winnerTeamId = state.winner === "home" ? session.home_team_id : session.away_team_id;
-      await recordOfficialGameResult(client, {
+      await saveOfficialGameResult(client, {
         fixtureId: input.fixtureId,
         gameId: session.game_id,
         winnerTeamId,
@@ -541,7 +567,12 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
               : input.action === "respotBlack"
                 ? { type: "respotBlack" }
             : { type: input.action };
-    const after = applyLiveFrameAction(before, action);
+    let after: LiveState;
+    try {
+      after = applyLiveFrameAction(before, action);
+    } catch (error) {
+      throw new LiveScoringError(error instanceof Error ? error.message : "Invalid scoring action.", 400, "INVALID_ACTION");
+    }
     await saveSession(client, session, after, personId);
     await appendEvent(client, session, input.action, personId, before, after, input);
   });

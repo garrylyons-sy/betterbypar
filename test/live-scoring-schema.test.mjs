@@ -30,6 +30,7 @@ for (const [label, sql] of [["migration", migration], ["canonical schema", schem
     assert.match(sql, /state_after jsonb not null/i);
     assert.match(sql, /unique \(session_id, sequence_number\)/i);
     assert.match(sql, /create trigger live_frame_event_immutable/i);
+    assert.match(sql, /pg_trigger_depth\(\) > 1/i, "foreign-key cascades should remain compatible with immutable events");
   });
 
   test(`${label} enforces one active session and future realtime compatibility`, () => {

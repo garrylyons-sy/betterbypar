@@ -953,7 +953,7 @@ export async function loadSessionPayload(user: AppUser) {
     ...operatorTeamContexts,
     ...operatorClubContexts
   ];
-  const contexts: TeamContext[] = leagueChairMemberships.length && baseContexts.length
+  const contexts: TeamContext[] = (leagueChairMemberships.length > 0 || isAppOperator) && baseContexts.length
     ? baseContexts.map((context) => ({
       ...context,
       hasLeagueChairAccess: true

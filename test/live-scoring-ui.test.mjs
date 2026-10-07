@@ -32,5 +32,8 @@ test("polling is two-second, visible-only, and isolated from the normal fixtures
   assert.match(controls, /document\.visibilityState === "visible"/, "polling should stop while the app is backgrounded");
   assert.match(controls, /visibilitychange/, "visibility changes should restart or stop polling");
   assert.match(controls, /2000/, "open live controls should poll every two seconds");
+  assert.match(controls, /controlsOpen && selectedGameId/, "polling should stop when the scorer closes");
+  assert.match(controls, /Hand over/, "the current scorer should be able to release control explicitly");
+  assert.match(controls, /Confirm[\s\S]*Complete frame|window\.confirm\([\s\S]*Complete frame/, "official completion should require winner confirmation");
   assert.doesNotMatch(fixtureRoute, /live_frame_session|live_frame_event/, "normal fixture reads must not include live scoring data");
 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { currentUserFromRequest } from "@/lib/server/auth";
+import { currentUser } from "@/lib/server/auth";
 import {
   LiveScoringError,
   loadLiveScoringFixture,
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 const actions = new Set([
   "recordResult", "start", "pot", "foul", "endVisit", "selectPlayer", "undo",
-  "correctBalls", "concede", "respotBlack", "takeover", "pause", "resume", "complete", "abandon"
+  "correctBalls", "concede", "respotBlack", "takeover", "handover", "pause", "resume", "complete", "abandon"
 ]);
 
 function errorResponse(error: unknown) {
@@ -25,8 +25,8 @@ function errorResponse(error: unknown) {
   return NextResponse.json({ error: "Live scoring is unavailable." }, { status: 500, headers: { "Cache-Control": "no-store" } });
 }
 
-async function authorisedUser(request: NextRequest) {
-  const user = await currentUserFromRequest(request);
+async function authorisedUser() {
+  const user = await currentUser();
   if (!user) return { response: NextResponse.json({ error: "Sign in required." }, { status: 401 }), user: null };
   if (!await requireLeagueChairScoringAccess(user.personId)) {
     return { response: NextResponse.json({ error: "League Chair access required." }, { status: 403 }), user: null };
@@ -36,7 +36,7 @@ async function authorisedUser(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const access = await authorisedUser(request);
+    const access = await authorisedUser();
     if (!access.user) return access.response!;
     const fixtureId = request.nextUrl.searchParams.get("fixtureId")?.trim() ?? "";
     if (!fixtureId) return NextResponse.json({ error: "Fixture is required." }, { status: 400 });
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const access = await authorisedUser(request);
+    const access = await authorisedUser();
     if (!access.user) return access.response!;
     const body = await request.json().catch(() => ({})) as LiveScoringInput;
     if (!actions.has(String(body.action ?? ""))) {

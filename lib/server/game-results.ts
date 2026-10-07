@@ -8,6 +8,16 @@ export type OfficialGameResultInput = {
   awayScore?: number;
 };
 
+export class GameResultError extends Error {
+  status: number;
+
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = "GameResultError";
+    this.status = status;
+  }
+}
+
 export async function recordOfficialGameResult(client: PoolClient, input: OfficialGameResultInput) {
   const result = await client.query<{ match_id: string; home_team_id: string; away_team_id: string }>(
     `select m.id as match_id,
@@ -24,15 +34,15 @@ export async function recordOfficialGameResult(client: PoolClient, input: Offici
     [input.fixtureId, input.gameId]
   );
   const game = result.rows[0];
-  if (!game) throw new Error("Game not found for this fixture.");
+  if (!game) throw new GameResultError("Game not found for this fixture.", 404);
   if (input.winnerTeamId && input.winnerTeamId !== game.home_team_id && input.winnerTeamId !== game.away_team_id) {
-    throw new Error("Winner must be one of the teams in this fixture.");
+    throw new GameResultError("Winner must be one of the teams in this fixture.");
   }
   if (input.homeScore !== undefined && (!Number.isInteger(input.homeScore) || input.homeScore < 0)) {
-    throw new Error("Home frame score must be a non-negative integer.");
+    throw new GameResultError("Home frame score must be a non-negative integer.");
   }
   if (input.awayScore !== undefined && (!Number.isInteger(input.awayScore) || input.awayScore < 0)) {
-    throw new Error("Away frame score must be a non-negative integer.");
+    throw new GameResultError("Away frame score must be a non-negative integer.");
   }
 
   await client.query(

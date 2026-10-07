@@ -176,7 +176,7 @@ export function LeagueChairMatchControls({
   }, [controlsOpen, load]);
 
   useEffect(() => {
-    if (!controlsOpen) return;
+    if (!(controlsOpen && selectedGameId)) return;
     const poll = () => {
       if (document.visibilityState === "visible" && navigator.onLine && !busyRef.current) void load(true);
     };
@@ -195,7 +195,7 @@ export function LeagueChairMatchControls({
       window.removeEventListener("online", online);
       window.removeEventListener("offline", offline);
     };
-  }, [controlsOpen, load]);
+  }, [controlsOpen, load, selectedGameId]);
 
   const send = useCallback(async (action: LiveAction) => {
     if (!navigator.onLine) {
@@ -600,11 +600,14 @@ export function LiveFrameScorer({
               {state.status === "Ready" ? (
                 <div className="grid gap-2 rounded-lg bg-[#e9fff4] p-3 ring-1 ring-[#00a85a33]">
                   <p className="text-sm font-black text-[#007a45]">Frame ready: {state.winner === "home" ? payload.fixture.home_team_name : payload.fixture.away_team_name} wins.</p>
-                  <Button type="button" disabled={controlsDisabled} onClick={() => void act({ action: "complete" })}>Complete frame</Button>
+                  <Button type="button" disabled={controlsDisabled} onClick={() => {
+                    const winnerName = state.winner === "home" ? payload.fixture.home_team_name : payload.fixture.away_team_name;
+                    if (window.confirm(`Complete frame and record ${winnerName} as the winner?`)) void act({ action: "complete" });
+                  }}>Complete frame</Button>
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-2 gap-2 border-t border-[#d8d3df] pt-3">
+              <div className="grid grid-cols-3 gap-2 border-t border-[#d8d3df] pt-3">
                 <Button type="button" variant="secondary" disabled={controlsDisabled} onClick={() => void act({ action: session.status === "Paused" ? "resume" : "pause" })}>
                   {session.status === "Paused" ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
                   {session.status === "Paused" ? "Resume" : "Pause"}
@@ -613,6 +616,12 @@ export function LiveFrameScorer({
                   if (window.confirm("Abandon live scoring? The official frame result will not change.")) void act({ action: "abandon" });
                 }}>
                   <RotateCcw className="h-4 w-4" /> Abandon
+                </Button>
+                <Button type="button" variant="outline" disabled={controlsDisabled} onClick={async () => {
+                  const next = await act({ action: "handover" });
+                  if (next) onClose();
+                }}>
+                  Hand over
                 </Button>
               </div>
             </>

@@ -59,6 +59,12 @@ returns trigger
 language plpgsql
 as $$
 begin
+  if pg_trigger_depth() > 1 then
+    if tg_op = 'DELETE' then
+      return old;
+    end if;
+    return new;
+  end if;
   raise exception 'Live frame events are immutable';
 end;
 $$;

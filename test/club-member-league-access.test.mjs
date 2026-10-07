@@ -31,3 +31,7 @@ test("club members are configured to access fixtures and tables for the active s
     "Club-only contexts should use the active season rather than the literal Club season"
   );
 });
+
+test("platform operator contexts receive League Chair pilot access", () => {
+  assert.match(authSource, /isAppOperator[\s\S]*hasLeagueChairAccess: true/);
+});
