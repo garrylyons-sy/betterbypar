@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { clubDraftFromRecord } from "../lib/admin-club-form.ts";
 import {
   changedClubFields,
   clubAuditLabel,
@@ -81,6 +82,28 @@ test("reports only fields whose persisted values changed", () => {
     changedClubFields(current, { ...current, venue: "Castle clubhouse", active: false }),
     ["venue", "active"]
   );
+});
+
+test("editing a club preserves unset optional colours", () => {
+  assert.deepEqual(clubDraftFromRecord({
+    id: "club-1",
+    name: "New Club",
+    venue: null,
+    address: null,
+    logoPath: null,
+    primaryColor: null,
+    accentColor: null,
+    active: true
+  }), {
+    id: "club-1",
+    name: "New Club",
+    venue: "",
+    address: "",
+    logoPath: "",
+    primaryColor: "",
+    accentColor: "",
+    active: true
+  });
 });
 
 test("clubs admin navigation is available to platform and club administrators", () => {

@@ -6,6 +6,7 @@ import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { clubDraftFromRecord, type AdminClubFormDraft, type AdminClubRecord } from "@/lib/admin-club-form";
 import { appearancePanelOptions, defaultAppearanceConfig, normalizeAppearanceConfig } from "@/lib/appearance";
 import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
@@ -251,27 +252,6 @@ type AdminAdRow = SponsorAd & {
 type AdminUser = {
   email: string;
   name: string;
-};
-type AdminClubRow = {
-  id: string;
-  name: string;
-  venue: string | null;
-  address: string | null;
-  logoPath: string | null;
-  primaryColor: string | null;
-  accentColor: string | null;
-  active: boolean;
-  updatedAt?: string;
-};
-type AdminClubDraft = {
-  id?: string;
-  name: string;
-  venue: string;
-  address: string;
-  logoPath: string;
-  primaryColor: string;
-  accentColor: string;
-  active: boolean;
 };
 
 const roles: TeamRole[] = ["Player", "Manager"];
@@ -682,7 +662,7 @@ function AdminTabPanel(props: {
   return <InvitesPanel {...props} />;
 }
 
-const emptyClubDraft: AdminClubDraft = {
+const emptyClubDraft: AdminClubFormDraft = {
   name: "",
   venue: "",
   address: "",
@@ -692,27 +672,14 @@ const emptyClubDraft: AdminClubDraft = {
   active: true
 };
 
-function clubDraft(club: AdminClubRow): AdminClubDraft {
-  return {
-    id: club.id,
-    name: club.name,
-    venue: club.venue ?? "",
-    address: club.address ?? "",
-    logoPath: club.logoPath ?? "",
-    primaryColor: club.primaryColor ?? "#10233F",
-    accentColor: club.accentColor ?? "#00E5F0",
-    active: club.active
-  };
-}
-
 function ClubsPanel({ adminMode, onMessage }: { adminMode: AdminMode; onMessage: (message: string) => void }) {
-  const [clubs, setClubs] = useState<AdminClubRow[]>([]);
+  const [clubs, setClubs] = useState<AdminClubRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<"active" | "inactive" | "all">("active");
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<AdminClubDraft>(emptyClubDraft);
-  const [baseline, setBaseline] = useState<AdminClubDraft>(emptyClubDraft);
+  const [draft, setDraft] = useState<AdminClubFormDraft>(emptyClubDraft);
+  const [baseline, setBaseline] = useState<AdminClubFormDraft>(emptyClubDraft);
 
   useEffect(() => {
     let cancelled = false;
@@ -736,8 +703,8 @@ function ClubsPanel({ adminMode, onMessage }: { adminMode: AdminMode; onMessage:
   const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline);
   const isCreating = selectedClubId === "new";
 
-  function selectClub(club: AdminClubRow) {
-    const next = clubDraft(club);
+  function selectClub(club: AdminClubRecord) {
+    const next = clubDraftFromRecord(club);
     setSelectedClubId(club.id);
     setDraft(next);
     setBaseline(next);
@@ -761,9 +728,9 @@ function ClubsPanel({ adminMode, onMessage }: { adminMode: AdminMode; onMessage:
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Club could not be saved.");
-      const saved = data.club as AdminClubRow;
+      const saved = data.club as AdminClubRecord;
       setClubs((current) => [...current.filter((club) => club.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)));
-      const next = clubDraft(saved);
+      const next = clubDraftFromRecord(saved);
       setSelectedClubId(saved.id);
       setDraft(next);
       setBaseline(next);
