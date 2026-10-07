@@ -349,6 +349,7 @@ function activitySummary(log: ActivityRow) {
 function activityContext(log: ActivityRow) {
   const teamName = metadataText(log.metadata?.team_name);
   const opponentTeamName = metadataText(log.metadata?.opponent_team_name);
+  const clubName = metadataText(log.metadata?.club_name);
   const homeTeamName = metadataText(log.metadata?.home_team_name);
   const awayTeamName = metadataText(log.metadata?.away_team_name);
   const leagueName = metadataText(log.metadata?.league_name);
@@ -367,6 +368,7 @@ function activityContext(log: ActivityRow) {
   }
   const pieces = [
     leagueName,
+    clubName,
     teamName && opponentTeamName ? `${teamName} v ${opponentTeamName}` : "",
     opponentTeamName ? "" : teamName && role ? `${teamName} - ${role}` : teamName || role,
     pagePath

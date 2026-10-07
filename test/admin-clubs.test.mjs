@@ -4,6 +4,7 @@ import test from "node:test";
 
 import {
   changedClubFields,
+  clubAuditLabel,
   clubMutationPolicy,
   normalizeClubInput
 } from "../lib/server/admin-clubs.ts";
@@ -100,4 +101,18 @@ test("clubs editor restricts logo uploads to supported image types", () => {
   const panelSource = adminConsoleSource.slice(adminConsoleSource.indexOf("function ClubsPanel"), adminConsoleSource.indexOf("function CompetitionsAdminPanel"));
   assert.match(panelSource, /accept="image\/png,image\/jpeg,image\/webp"/);
   assert.match(panelSource, /file\.size > 1024 \* 1024/);
+});
+
+test("club audit labels distinguish each mutation and skip no-op updates", () => {
+  assert.equal(clubAuditLabel("create", ["name"], true), "Club created");
+  assert.equal(clubAuditLabel("update", ["venue"], true), "Club updated");
+  assert.equal(clubAuditLabel("update", ["active"], false), "Club deactivated");
+  assert.equal(clubAuditLabel("update", ["active"], true), "Club reactivated");
+  assert.equal(clubAuditLabel("update", [], true), null);
+});
+
+test("admin logs show the affected club from audit metadata", () => {
+  const contextSource = adminConsoleSource.slice(adminConsoleSource.indexOf("function activityContext"), adminConsoleSource.indexOf("function activityBadgeVariant"));
+  assert.match(contextSource, /club_name/);
+  assert.match(contextSource, /clubName/);
 });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { changedClubFields, clubMutationPolicy, normalizeClubInput, type ClubAdminMode, type ClubSettings } from "@/lib/server/admin-clubs";
+import { changedClubFields, clubAuditLabel, clubMutationPolicy, normalizeClubInput, type ClubAdminMode, type ClubSettings } from "@/lib/server/admin-clubs";
 import { currentUser } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
@@ -101,8 +101,8 @@ export async function POST(request: Request) {
       );
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
-         values ($1, 'Page Visit', '/admin/clubs', 'Club created', jsonb_build_object('club_id', $2::text, 'club_name', $3, 'changed_fields', $4::jsonb))`,
-        [access.user!.personId, result.rows[0].id, result.rows[0].name, JSON.stringify(clubMutationPolicy("platform").writableFields)]
+         values ($1, 'Page Visit', '/admin/clubs', $2, jsonb_build_object('club_id', $3::text, 'club_name', $4, 'changed_fields', $5::jsonb))`,
+        [access.user!.personId, clubAuditLabel("create", ["name"], input.active), result.rows[0].id, result.rows[0].name, JSON.stringify(clubMutationPolicy("platform").writableFields)]
       );
       return result.rows[0];
     });
@@ -156,7 +156,8 @@ export async function PATCH(request: Request) {
          returning id::text, name, venue, address, logo_path, primary_color, accent_color, active, updated_at::text`,
         [id, next.name, next.venue, next.address, next.logoPath, next.primaryColor, next.accentColor, next.active]
       );
-      const label = changes.includes("active") ? (next.active ? "Club reactivated" : "Club deactivated") : "Club updated";
+      const label = clubAuditLabel("update", changes, next.active);
+      if (!label) return updated.rows[0];
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
          values ($1, 'Page Visit', '/admin/clubs', $2, jsonb_build_object('club_id', $3::text, 'club_name', $4, 'changed_fields', $5::jsonb))`,

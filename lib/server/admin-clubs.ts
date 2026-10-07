@@ -64,3 +64,10 @@ export function normalizeClubInput(input: Record<string, unknown>, mode: "create
 export function changedClubFields(current: ClubSettings, next: ClubSettings) {
   return platformWritableFields.filter((field) => current[field] !== next[field]);
 }
+
+export function clubAuditLabel(action: "create" | "update", changedFields: string[], active: boolean) {
+  if (action === "create") return "Club created";
+  if (!changedFields.length) return null;
+  if (changedFields.includes("active")) return active ? "Club reactivated" : "Club deactivated";
+  return "Club updated";
+}
