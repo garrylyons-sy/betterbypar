@@ -163,7 +163,13 @@ export function LeagueChairMatchControls({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "League Chair scoring is unavailable.");
-      setPayload(data);
+      const nextPayload = data as LiveFixturePayload;
+      setPayload(nextPayload);
+      setSelectedGameId((current) => {
+        if (!current) return current;
+        const activeSession = nextPayload.sessions.some((session) => session.game_id === current && !["Completed", "Abandoned"].includes(session.status));
+        return activeSession ? current : "";
+      });
       setMessage("");
       if (navigator.onLine) setSaveState("Saved");
     } catch (error) {
@@ -295,7 +301,7 @@ export function LeagueChairMatchControls({
                     size="sm"
                     variant={game.winner_team_id === payload.fixture.home_team_id ? "default" : "secondary"}
                     aria-label={`Record home win for game ${game.game_number}`}
-                    disabled={saveState === "Saving" || Boolean(session && session.status !== "Completed")}
+                    disabled={saveState === "Saving" || game.winner_team_id === payload.fixture.home_team_id || Boolean(session && session.status !== "Completed")}
                     onClick={() => void send({ action: "recordResult", gameId: game.id, winnerTeamId: payload.fixture.home_team_id })}
                   >
                     Home
@@ -305,7 +311,7 @@ export function LeagueChairMatchControls({
                     size="sm"
                     variant={!game.winner_team_id ? "outline" : "secondary"}
                     aria-label={`Reset game ${game.game_number} to undecided`}
-                    disabled={saveState === "Saving" || Boolean(session && session.status !== "Completed")}
+                    disabled={saveState === "Saving" || !game.winner_team_id || Boolean(session && session.status !== "Completed")}
                     onClick={() => void send({ action: "recordResult", gameId: game.id, winnerTeamId: null })}
                   >
                     Undecided
@@ -315,7 +321,7 @@ export function LeagueChairMatchControls({
                     size="sm"
                     variant={game.winner_team_id === payload.fixture.away_team_id ? "default" : "secondary"}
                     aria-label={`Record away win for game ${game.game_number}`}
-                    disabled={saveState === "Saving" || Boolean(session && session.status !== "Completed")}
+                    disabled={saveState === "Saving" || game.winner_team_id === payload.fixture.away_team_id || Boolean(session && session.status !== "Completed")}
                     onClick={() => void send({ action: "recordResult", gameId: game.id, winnerTeamId: payload.fixture.away_team_id })}
                   >
                     Away

@@ -240,6 +240,15 @@ async function gameContext(client: PoolClient, fixtureId: string, gameId: string
   const game = result.rows[0];
   if (!game) throw new LiveScoringError("Game not found for this fixture.", 404, "NOT_FOUND");
   if (game.fixture_status === "Completed") throw new LiveScoringError("This match is already completed.", 409, "MATCH_COMPLETED");
+  const recordedBreaks = await client.query<{ has_breaks: boolean }>(
+    `select exists (
+       select 1 from public.break where game_id = $1
+     ) as has_breaks`,
+    [gameId]
+  );
+  if (recordedBreaks.rows[0]?.has_breaks) {
+    throw new LiveScoringError("Recorded breaks already exist for this frame. Remove them before starting live scoring.", 409, "BREAKS_EXIST");
+  }
   return game;
 }
 

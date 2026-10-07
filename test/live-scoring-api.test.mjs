@@ -34,8 +34,16 @@ test("official game results validate the fixture and refresh match points", () =
   assert.match(results, /status in \('Live', 'Paused', 'Completed'\)/);
   assert.match(results, /A live scorer is active for this frame/);
   assert.match(results, /superseded_at = now\(\)/);
+  assert.match(results, /const resultChanged =/);
+  assert.match(results, /liveSession && liveSession\.id !== input\.liveSessionId && resultChanged/);
   assert.match(results, /source_key like 'live-session:' \|\| \$1 \|\| ':break:%'/);
   assert.match(service, /liveSessionId: session\.id/);
+});
+
+test("manual break entry cannot overlap a live-scored frame", () => {
+  assert.match(managerRoute, /recordPlayerBreak[\s\S]*for update of g/);
+  assert.match(managerRoute, /status in \('Live', 'Paused', 'Completed'\)[\s\S]*This frame is using live scoring/);
+  assert.match(service, /select exists \([\s\S]*from public\.break[\s\S]*Recorded breaks already exist for this frame/);
 });
 
 test("player-attributed scoring is restricted to players in that frame and side", () => {

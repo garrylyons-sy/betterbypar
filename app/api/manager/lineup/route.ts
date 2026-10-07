@@ -1372,10 +1372,23 @@ async function recordPlayerBreak(client: PoolClient, fixtureId: string, gameId: 
          or ($3::uuid = g.away_player_2_id and coalesce(g.away_player_2_counts_for_stats, true))
        )
        and f.status <> 'Completed'
-     limit 1`,
+     limit 1
+     for update of g`,
     [fixtureId, gameId, playerId]
   );
   if (!result.rowCount) throw new Error("Break player must be one of the stat-eligible players in this game.");
+  const liveSession = await client.query(
+    `select 1
+     from public.live_frame_session
+     where game_id = $1
+       and superseded_at is null
+       and status in ('Live', 'Paused', 'Completed')
+     limit 1`,
+    [gameId]
+  );
+  if (liveSession.rowCount) {
+    throw new Error("This frame is using live scoring, so its breaks must be managed by the live scorer.");
+  }
 
   await client.query(
     `insert into public.break (game_id, player_id, break_value, source_label)

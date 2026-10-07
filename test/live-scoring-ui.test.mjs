@@ -8,6 +8,7 @@ const fixtureRoute = readFileSync(new URL("../app/api/fixtures/weeks/route.ts", 
 
 test("League Chair controls are gated and closed until a fixture is deliberately expanded", () => {
   assert.match(appShell, /activeTeam\.hasLiveScoringAccess[\s\S]*LeagueChairMatchControls/, "fixture controls should only mount for the scoring capability");
+  assert.match(appShell, /if \(!canInspect && !activeTeam\.hasLiveScoringAccess\) return;/, "League Chairs should be able to expand fixtures before lineups are published");
   assert.match(controls, /const \[controlsOpen, setControlsOpen\] = useState\(false\)/, "scoring controls should start closed");
   assert.match(controls, /League Chair scoring/, "the closed control should have a clear label");
 });
@@ -43,5 +44,6 @@ test("polling is two-second, visible-only, and isolated from the normal fixtures
   assert.match(controls, /Hand over/, "the current scorer should be able to release control explicitly");
   assert.match(controls, /Confirm[\s\S]*Complete frame|window\.confirm\([\s\S]*Complete frame/, "official completion should require winner confirmation");
   assert.match(controls, /action\.action === "complete" \|\| action\.action === "abandon"[\s\S]*setSelectedGameId\(""\)/, "terminal actions should stop live polling");
+  assert.match(controls, /setSelectedGameId\(\(current\)[\s\S]*activeSession[\s\S]*return activeSession \? current : ""/, "polling should close when another scorer ends the session");
   assert.doesNotMatch(fixtureRoute, /live_frame_session|live_frame_event/, "normal fixture reads must not include live scoring data");
 });

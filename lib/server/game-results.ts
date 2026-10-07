@@ -21,10 +21,20 @@ export class GameResultError extends Error {
 }
 
 export async function recordOfficialGameResult(client: PoolClient, input: OfficialGameResultInput) {
-  const result = await client.query<{ match_id: string; home_team_id: string; away_team_id: string }>(
+  const result = await client.query<{
+    match_id: string;
+    home_team_id: string;
+    away_team_id: string;
+    winner_team_id: string | null;
+    home_score: number;
+    away_score: number;
+  }>(
     `select m.id as match_id,
             f.home_team_id,
-            f.away_team_id
+            f.away_team_id,
+            g.winner_team_id::text,
+            g.home_score,
+            g.away_score
      from public.match m
      join public.fixture f on f.id = m.fixture_id
      join public.game g on g.match_id = m.id
@@ -57,8 +67,11 @@ export async function recordOfficialGameResult(client: PoolClient, input: Offici
      limit 1`,
     [input.gameId]
   )).rows[0];
+  const resultChanged = input.winnerTeamId !== game.winner_team_id
+    || (input.homeScore !== undefined && input.homeScore !== game.home_score)
+    || (input.awayScore !== undefined && input.awayScore !== game.away_score);
 
-  if (liveSession && liveSession.id !== input.liveSessionId) {
+  if (liveSession && liveSession.id !== input.liveSessionId && resultChanged) {
     if (liveSession.status === "Live" || liveSession.status === "Paused") {
       throw new GameResultError("A live scorer is active for this frame. Finish or abandon it before changing the result.", 409);
     }

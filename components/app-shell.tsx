@@ -5425,7 +5425,7 @@ function FixtureWeekCarouselCard({
                           setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                           return;
                         }
-                        if (!canInspect) return;
+                        if (!canInspect && !activeTeam.hasLiveScoringAccess) return;
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                       }}
                     >
