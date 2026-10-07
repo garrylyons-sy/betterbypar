@@ -228,6 +228,7 @@ export function LeagueChairMatchControls({
       }
       setPayload(data);
       setSaveState("Saved");
+      if (action.action === "complete" || action.action === "abandon") setSelectedGameId("");
       onDataRefresh?.();
       return data as LiveFixturePayload;
     } catch (error) {

@@ -641,7 +641,9 @@ create table public.live_frame_session (
   started_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   completed_at timestamptz,
-  abandoned_at timestamptz
+  abandoned_at timestamptz,
+  superseded_at timestamptz,
+  superseded_by uuid references public.person(id) on delete set null
 );
 
 create unique index live_frame_session_one_active_game_idx
@@ -1700,6 +1702,8 @@ alter table public.fixture_week_match enable row level security;
 alter table public.match enable row level security;
 alter table public.game enable row level security;
 alter table public.player_game_result enable row level security;
+alter table public.live_frame_session enable row level security;
+alter table public.live_frame_event enable row level security;
 alter table public.match_lineup enable row level security;
 alter table public.fixture_lineup enable row level security;
 alter table public.fixture_lineup_slot enable row level security;

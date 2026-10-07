@@ -204,6 +204,7 @@ export async function loadLiveScoringFixture(fixtureId: string, personId: string
      from public.live_frame_session lfs
      left join public.person scorer on scorer.id = lfs.scorer_person_id
      where lfs.fixture_id = $1
+       and lfs.superseded_at is null
      order by lfs.game_id, lfs.updated_at desc`,
     [fixtureId]
   )).rows.map((session) => ({
@@ -485,7 +486,8 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
       await saveOfficialGameResult(client, {
         fixtureId: input.fixtureId,
         gameId: input.gameId,
-        winnerTeamId: input.winnerTeamId ?? null
+        winnerTeamId: input.winnerTeamId ?? null,
+        actorPersonId: personId
       });
       await logActivity(client, personId, input.fixtureId, "Recorded League Chair game result", {
         game_id: input.gameId,
@@ -581,7 +583,9 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
         gameId: session.game_id,
         winnerTeamId,
         homeScore: state.homeScore,
-        awayScore: state.awayScore
+        awayScore: state.awayScore,
+        liveSessionId: session.id,
+        actorPersonId: personId
       });
       await persistBreaks(client, session, state);
       await client.query(

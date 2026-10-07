@@ -24,8 +24,14 @@ create table if not exists public.live_frame_session (
   started_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   completed_at timestamptz,
-  abandoned_at timestamptz
+  abandoned_at timestamptz,
+  superseded_at timestamptz,
+  superseded_by uuid references public.person(id) on delete set null
 );
+
+alter table public.live_frame_session
+  add column if not exists superseded_at timestamptz,
+  add column if not exists superseded_by uuid references public.person(id) on delete set null;
 
 create unique index if not exists live_frame_session_one_active_game_idx
   on public.live_frame_session (game_id)
@@ -76,6 +82,8 @@ for each row execute function public.reject_live_frame_event_mutation();
 
 alter table public.live_frame_session replica identity full;
 alter table public.live_frame_event replica identity full;
+alter table public.live_frame_session enable row level security;
+alter table public.live_frame_event enable row level security;
 
 comment on table public.live_frame_session is 'League Chair live-scoring snapshot. Provisional totals become official only when the frame is completed.';
 comment on table public.live_frame_event is 'Immutable ordered audit stream for a League Chair live-scoring session.';

@@ -31,6 +31,11 @@ test("official game results validate the fixture and refresh match points", () =
   assert.match(results, /public\.refresh_match_team_points/);
   assert.match(managerRoute, /recordOfficialGameResult/);
   assert.doesNotMatch(managerRoute, /async function recordGameWinner/);
+  assert.match(results, /status in \('Live', 'Paused', 'Completed'\)/);
+  assert.match(results, /A live scorer is active for this frame/);
+  assert.match(results, /superseded_at = now\(\)/);
+  assert.match(results, /source_key like 'live-session:' \|\| \$1 \|\| ':break:%'/);
+  assert.match(service, /liveSessionId: session\.id/);
 });
 
 test("player-attributed scoring is restricted to players in that frame and side", () => {

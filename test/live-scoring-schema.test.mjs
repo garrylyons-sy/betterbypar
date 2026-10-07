@@ -19,6 +19,8 @@ for (const [label, sql] of [["migration", migration], ["canonical schema", schem
     assert.match(sql, /version integer not null default 1 check \(version > 0\)/i);
     assert.match(sql, /scorer_person_id uuid references public\.person\(id\) on delete set null/i);
     assert.match(sql, /lease_expires_at timestamptz/i);
+    assert.match(sql, /superseded_at timestamptz/i);
+    assert.match(sql, /superseded_by uuid references public\.person\(id\) on delete set null/i);
   });
 
   test(`${label} defines ordered immutable live frame events`, () => {
@@ -37,5 +39,10 @@ for (const [label, sql] of [["migration", migration], ["canonical schema", schem
     assert.match(sql, /create unique index(?: if not exists)? live_frame_session_one_active_game_idx[\s\S]*where status in \('Live', 'Paused'\)/i);
     assert.match(sql, /alter table public\.live_frame_session replica identity full/i);
     assert.match(sql, /alter table public\.live_frame_event replica identity full/i);
+  });
+
+  test(`${label} denies direct Data API access to live scoring tables`, () => {
+    assert.match(sql, /alter table public\.live_frame_session enable row level security/i);
+    assert.match(sql, /alter table public\.live_frame_event enable row level security/i);
   });
 }

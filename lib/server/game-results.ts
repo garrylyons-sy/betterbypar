@@ -6,6 +6,8 @@ export type OfficialGameResultInput = {
   winnerTeamId: string | null;
   homeScore?: number;
   awayScore?: number;
+  liveSessionId?: string;
+  actorPersonId?: string;
 };
 
 export class GameResultError extends Error {
@@ -43,6 +45,35 @@ export async function recordOfficialGameResult(client: PoolClient, input: Offici
   }
   if (input.awayScore !== undefined && (!Number.isInteger(input.awayScore) || input.awayScore < 0)) {
     throw new GameResultError("Away frame score must be a non-negative integer.");
+  }
+
+  const liveSession = (await client.query<{ id: string; status: "Live" | "Paused" | "Completed" }>(
+    `select id::text, status
+     from public.live_frame_session
+     where game_id = $1
+       and superseded_at is null
+       and status in ('Live', 'Paused', 'Completed')
+     order by started_at desc
+     limit 1`,
+    [input.gameId]
+  )).rows[0];
+
+  if (liveSession && liveSession.id !== input.liveSessionId) {
+    if (liveSession.status === "Live" || liveSession.status === "Paused") {
+      throw new GameResultError("A live scorer is active for this frame. Finish or abandon it before changing the result.", 409);
+    }
+    await client.query(
+      `update public.live_frame_session
+       set superseded_at = now(), superseded_by = $2, updated_at = now()
+       where id = $1 and superseded_at is null`,
+      [liveSession.id, input.actorPersonId ?? null]
+    );
+    await client.query(
+      `delete from public.break
+       where source_label = 'live-scoring'
+         and source_key like 'live-session:' || $1 || ':break:%'`,
+      [liveSession.id]
+    );
   }
 
   await client.query(

@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
 
       await withTransaction(async (client) => {
         await ensureFixtureTeam(client, fixtureId, teamId);
-        await recordOfficialGameResult(client, { fixtureId, gameId, winnerTeamId });
+        await recordOfficialGameResult(client, { fixtureId, gameId, winnerTeamId, actorPersonId: user.personId });
         await recordLineupActivity(client, user.personId, fixtureId, teamId, winnerTeamId ? "Recorded game result" : "Reset game result", { gameId, winnerTeamId });
       });
 
