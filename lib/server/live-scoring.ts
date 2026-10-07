@@ -373,7 +373,12 @@ async function startSession(client: PoolClient, personId: string, input: LiveSco
   const game = await gameContext(client, input.fixtureId, input.gameId);
   if (game.winner_team_id) throw new LiveScoringError("This frame already has a result.", 409, "FRAME_COMPLETED");
   assertGamePlayer(game, input.activeTeam ?? "home", input.activePlayerId);
-  const state = createLiveFrameState({ activeTeam: input.activeTeam ?? "home", activePlayerId: input.activePlayerId ?? null });
+  let state: LiveState;
+  try {
+    state = createLiveFrameState({ activeTeam: input.activeTeam ?? "home", activePlayerId: input.activePlayerId ?? null });
+  } catch (error) {
+    throw new LiveScoringError(error instanceof Error ? error.message : "Invalid scoring action.", 400, "INVALID_ACTION");
+  }
   try {
     const result = await client.query<SessionRow>(
       `insert into public.live_frame_session (
@@ -454,6 +459,9 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
     const session = await lockedSession(client, input.sessionId);
     if (session.fixture_id !== input.fixtureId) throw new LiveScoringError("Live scoring session not found.", 404, "NOT_FOUND");
     if (input.action === "complete" && session.status === "Completed") return;
+    if (session.status === "Completed" || session.status === "Abandoned") {
+      throw new LiveScoringError("This live session is closed.", 409, "SESSION_CLOSED");
+    }
     if (input.action === "takeover") {
       if (session.version !== input.version) {
         throw new LiveScoringError("Live scoring changed elsewhere. Reloading the latest score.", 409, "STALE_VERSION");
@@ -485,7 +493,6 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
     }
 
     ensureVersionAndLease(session, input, personId);
-    if (session.status === "Abandoned") throw new LiveScoringError("This live session was abandoned.", 409, "SESSION_CLOSED");
     const before = session.state;
 
     if (input.action === "abandon") {

@@ -822,7 +822,8 @@ export async function loadSessionPayload(user: AppUser) {
     role: "League Chair",
     leaguePosition: 0,
     leagueMatchesPlayed: 0,
-    hasLeagueChairAccess: true
+    hasLeagueChairAccess: true,
+    hasLiveScoringAccess: true
   } satisfies TeamContext));
 
   const isAppOperator = (await dbQuery<{ is_operator: boolean }>(
@@ -953,10 +954,11 @@ export async function loadSessionPayload(user: AppUser) {
     ...operatorTeamContexts,
     ...operatorClubContexts
   ];
-  const contexts: TeamContext[] = (leagueChairMemberships.length > 0 || isAppOperator) && baseContexts.length
+  const contexts: TeamContext[] = baseContexts.length
     ? baseContexts.map((context) => ({
       ...context,
-      hasLeagueChairAccess: true
+      hasLeagueChairAccess: leagueChairMemberships.length > 0 || context.hasLeagueChairAccess,
+      hasLiveScoringAccess: leagueChairMemberships.length > 0 || isAppOperator
     }))
     : [...baseContexts, ...leagueChairFallbackContexts];
   const standings = (await dbQuery<{

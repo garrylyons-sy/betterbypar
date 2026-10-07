@@ -7,7 +7,7 @@ const controls = readFileSync(new URL("../components/league-chair-live-scoring.t
 const fixtureRoute = readFileSync(new URL("../app/api/fixtures/weeks/route.ts", import.meta.url), "utf8");
 
 test("League Chair controls are gated and closed until a fixture is deliberately expanded", () => {
-  assert.match(appShell, /activeTeam\.hasLeagueChairAccess[\s\S]*LeagueChairMatchControls/, "fixture controls should only mount for League Chair access");
+  assert.match(appShell, /activeTeam\.hasLiveScoringAccess[\s\S]*LeagueChairMatchControls/, "fixture controls should only mount for the scoring capability");
   assert.match(controls, /const \[controlsOpen, setControlsOpen\] = useState\(false\)/, "scoring controls should start closed");
   assert.match(controls, /League Chair scoring/, "the closed control should have a clear label");
 });

@@ -47,6 +47,7 @@ export type TeamContext = {
   pointsAgainst?: number;
   leaguePoints?: number;
   hasLeagueChairAccess?: boolean;
+  hasLiveScoringAccess?: boolean;
 };
 
 export type SponsorAd = {

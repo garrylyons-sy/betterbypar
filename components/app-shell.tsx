@@ -5401,7 +5401,7 @@ function FixtureWeekCarouselCard({
                 const canEditInline = canManage && fixture.status !== "Completed";
                 const ownLineupPublished = fixtureOwnLineupPublished(fixture, activeTeam.teamId);
                 const canInspect = fixtureHasStarted(fixture) || fixtureHasPublishedLineups(fixture) || ownLineupPublished;
-                const canOpenRow = Boolean(activeTeam.hasLeagueChairAccess || canManage || canInspect);
+                const canOpenRow = Boolean(activeTeam.hasLiveScoringAccess || canManage || canInspect);
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
                 const lineupsPublished = fixtureHasPublishedLineups(fixture) && fixture.status !== "Completed" && fixture.completedGames === 0;
@@ -5478,7 +5478,7 @@ function FixtureWeekCarouselCard({
                     </button>
                     {expanded && canOpenRow ? (
                       <div className="grid gap-3 border-t border-[#eeeaf2] bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-                        {activeTeam.hasLeagueChairAccess ? (
+                        {activeTeam.hasLiveScoringAccess ? (
                           <LeagueChairMatchControls fixtureId={fixture.id} onDataRefresh={onDataRefresh} />
                         ) : null}
                         {canEditInline ? (

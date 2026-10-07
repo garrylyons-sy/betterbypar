@@ -57,6 +57,7 @@ test("completion is idempotent and writes official totals and qualifying breaks"
   assert.match(service, /live-session:\$\{session\.id\}:break/);
   assert.match(service, /breakValue < 30/);
   assert.match(service, /on conflict \(source_key\) do nothing/);
+  assert.match(service, /session\.status === "Completed" \|\| session\.status === "Abandoned"[\s\S]*SESSION_CLOSED/, "terminal sessions must reject every non-idempotent mutation");
 });
 
 test("API exposes ordinary results and every planned live scoring action", () => {
@@ -77,5 +78,6 @@ test("API exposes ordinary results and every planned live scoring action", () =>
 test("invalid scoring actions return stable client errors", () => {
   assert.match(service, /INVALID_ACTION/);
   assert.match(service, /GameResultError/);
+  assert.match(service, /createLiveFrameState[\s\S]*INVALID_ACTION/, "malformed start state should be a stable client error");
   assert.match(route, /error instanceof LiveScoringError/);
 });
