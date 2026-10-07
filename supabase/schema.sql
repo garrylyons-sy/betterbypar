@@ -71,8 +71,11 @@ create table public.club (
   logo_path text,
   primary_color text check (primary_color is null or primary_color ~ '^#[0-9A-Fa-f]{6}$'),
   accent_color text check (accent_color is null or accent_color ~ '^#[0-9A-Fa-f]{6}$'),
-  active boolean not null default true
+  active boolean not null default true,
+  updated_at timestamptz not null default now()
 );
+
+create unique index club_name_case_insensitive_idx on public.club (lower(name));
 
 create table public.club_table (
   table_id uuid primary key default gen_random_uuid(),
