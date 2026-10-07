@@ -70,7 +70,6 @@ export async function GET() {
     const access = await requireClubAdminAccess();
     if (!access.user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
     if (!access.mode) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
-
     const clubs = await dbQuery<ClubRow>(
       `select id::text, name, venue, address, logo_path, primary_color, accent_color, active, updated_at::text
        from public.club
@@ -119,6 +118,7 @@ export async function PATCH(request: Request) {
     const access = await requireClubAdminAccess();
     if (!access.user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
     if (!access.mode) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+    const mode = access.mode;
 
     const body = await request.json() as Record<string, unknown>;
     const id = String(body.id ?? "").trim();
@@ -131,21 +131,21 @@ export async function PATCH(request: Request) {
         [id]
       );
       if (!existing.rowCount) throw new Error("Club was not found.");
-      if (access.mode === "club" && (!access.clubIds.includes(id) || !existing.rows[0].active)) {
+      if (mode === "club" && (!access.clubIds.includes(id) || !existing.rows[0].active)) {
         const forbidden = new Error("Club administrator access is required for this club.");
         Object.assign(forbidden, { status: 403 });
         throw forbidden;
       }
 
       const current = rowSettings(existing.rows[0]);
-      if (access.mode === "club") {
+      if (mode === "club") {
         if ((body.name !== undefined && String(body.name).trim() !== current.name) || (body.active !== undefined && Boolean(body.active) !== current.active)) {
           const forbidden = new Error("Club administrators cannot rename or deactivate clubs.");
           Object.assign(forbidden, { status: 403 });
           throw forbidden;
         }
       }
-      const next = normalizeClubInput({ ...current, ...body }, access.mode);
+      const next = normalizeClubInput({ ...current, ...body }, mode);
       const changes = changedClubFields(current, next);
       if (!changes.length) return existing.rows[0];
 

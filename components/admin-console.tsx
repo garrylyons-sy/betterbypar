@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, Building2, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "desktop" | "competitions" | "matches" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
+type AdminTab = "desktop" | "clubs" | "competitions" | "matches" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type TeamRole = "Player" | "Manager";
 type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair";
@@ -252,14 +252,36 @@ type AdminUser = {
   email: string;
   name: string;
 };
+type AdminClubRow = {
+  id: string;
+  name: string;
+  venue: string | null;
+  address: string | null;
+  logoPath: string | null;
+  primaryColor: string | null;
+  accentColor: string | null;
+  active: boolean;
+  updatedAt?: string;
+};
+type AdminClubDraft = {
+  id?: string;
+  name: string;
+  venue: string;
+  address: string;
+  logoPath: string;
+  primaryColor: string;
+  accentColor: string;
+  active: boolean;
+};
 
 const roles: TeamRole[] = ["Player", "Manager"];
 const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
 const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
 const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin", "League Chair"];
-const clubAdminTabs: AdminTab[] = ["people", "competitions", "matches"];
+const clubAdminTabs: AdminTab[] = ["clubs", "people", "competitions", "matches"];
 const adminNavItems = [
   { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
+  { id: "clubs" as const, label: "Clubs", icon: Building2 },
   { id: "competitions" as const, label: "Competitions", icon: Trophy },
   { id: "matches" as const, label: "Matches", icon: CalendarDays },
   { id: "people" as const, label: "People", icon: UserPlus },
@@ -646,6 +668,7 @@ function AdminTabPanel(props: {
 }) {
   if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
   if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
@@ -655,6 +678,239 @@ function AdminTabPanel(props: {
   if (props.tab === "adverts") return <AdvertsPanel {...props} />;
   if (props.tab === "logs") return <LogsPanel refreshKey={props.logsRefreshKey} />;
   return <InvitesPanel {...props} />;
+}
+
+const emptyClubDraft: AdminClubDraft = {
+  name: "",
+  venue: "",
+  address: "",
+  logoPath: "",
+  primaryColor: "#10233F",
+  accentColor: "#00E5F0",
+  active: true
+};
+
+function clubDraft(club: AdminClubRow): AdminClubDraft {
+  return {
+    id: club.id,
+    name: club.name,
+    venue: club.venue ?? "",
+    address: club.address ?? "",
+    logoPath: club.logoPath ?? "",
+    primaryColor: club.primaryColor ?? "#10233F",
+    accentColor: club.accentColor ?? "#00E5F0",
+    active: club.active
+  };
+}
+
+function ClubsPanel({ adminMode, onMessage }: { adminMode: AdminMode; onMessage: (message: string) => void }) {
+  const [clubs, setClubs] = useState<AdminClubRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState<"active" | "inactive" | "all">("active");
+  const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<AdminClubDraft>(emptyClubDraft);
+  const [baseline, setBaseline] = useState<AdminClubDraft>(emptyClubDraft);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch("/api/admin/clubs", { credentials: "same-origin", cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Clubs could not be loaded.");
+        if (!cancelled) setClubs(data.clubs ?? []);
+      })
+      .catch((error) => {
+        if (!cancelled) onMessage(error instanceof Error ? error.message : "Clubs could not be loaded.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [onMessage]);
+
+  const visibleClubs = clubs.filter((club) => filter === "all" || (filter === "active" ? club.active : !club.active));
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline);
+  const isCreating = selectedClubId === "new";
+
+  function selectClub(club: AdminClubRow) {
+    const next = clubDraft(club);
+    setSelectedClubId(club.id);
+    setDraft(next);
+    setBaseline(next);
+  }
+
+  function startCreate() {
+    const next = { ...emptyClubDraft };
+    setSelectedClubId("new");
+    setDraft(next);
+    setBaseline(next);
+  }
+
+  async function saveClub() {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/admin/clubs", {
+        method: isCreating ? "POST" : "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(draft)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Club could not be saved.");
+      const saved = data.club as AdminClubRow;
+      setClubs((current) => [...current.filter((club) => club.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)));
+      const next = clubDraft(saved);
+      setSelectedClubId(saved.id);
+      setDraft(next);
+      setBaseline(next);
+      onMessage(isCreating ? "Club created." : "Club saved.");
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Club could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleLogo(file: File | undefined) {
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      onMessage("Club logo must be a PNG, JPEG or WebP image.");
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      onMessage("Club logo must be 1 MB or smaller.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setDraft((current) => ({ ...current, logoPath: String(reader.result ?? "") }));
+    reader.onerror = () => onMessage("Club logo could not be read.");
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>Clubs</CardTitle>
+          <p className="mt-1 text-sm font-bold text-[#6c5a73]">Manage club identity, location and branding.</p>
+        </div>
+        {adminMode === "platform" ? (
+          <Button size="sm" onClick={startCreate}>
+            <PlusCircle className="h-4 w-4" />
+            Create club
+          </Button>
+        ) : <Badge variant="muted">Your club</Badge>}
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {adminMode === "platform" ? (
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Club status filter">
+            {(["active", "inactive", "all"] as const).map((value) => (
+              <Button key={value} size="sm" variant={filter === value ? "dark" : "secondary"} onClick={() => setFilter(value)}>
+                {value[0].toUpperCase() + value.slice(1)}
+              </Button>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="overflow-x-auto rounded-xl ring-1 ring-[#eeeaf2]">
+          <div className="min-w-[640px]">
+            <div className="grid grid-cols-[56px_minmax(180px,1.3fr)_minmax(180px,1fr)_100px_88px] items-center gap-3 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73]">
+              <span>Logo</span><span>Club</span><span>Venue</span><span>Status</span><span className="text-right">Action</span>
+            </div>
+            {visibleClubs.map((club) => (
+              <div key={club.id} className="grid grid-cols-[56px_minmax(180px,1.3fr)_minmax(180px,1fr)_100px_88px] items-center gap-3 border-t border-[#eeeaf2] px-3 py-2.5">
+                <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-lg bg-white ring-1 ring-[#eeeaf2]">
+                  {club.logoPath ? <img src={club.logoPath} alt="" className="h-full w-full object-contain p-1" /> : <Building2 className="h-5 w-5 text-[#6c5a73]" />}
+                </div>
+                <span className="truncate text-sm font-extrabold text-[#10233f]">{club.name}</span>
+                <span className="truncate text-sm font-bold text-[#6c5a73]">{club.venue || "-"}</span>
+                <Badge variant={club.active ? "green" : "muted"}>{club.active ? "Active" : "Inactive"}</Badge>
+                <Button size="sm" variant="secondary" onClick={() => selectClub(club)}>
+                  <Pencil className="h-4 w-4" />
+                  Edit
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+        {loading ? <p className="text-sm font-bold text-[#6c5a73]">Loading clubs...</p> : null}
+        {!loading && !visibleClubs.length ? <p className="text-sm font-bold text-[#6c5a73]">No clubs match this filter.</p> : null}
+
+        {selectedClubId ? (
+          <section className="grid gap-4 border-t border-[#eeeaf2] pt-4" aria-label={isCreating ? "Create club" : `Edit ${baseline.name}`}>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-extrabold text-[#25002b]">{isCreating ? "Create club" : baseline.name}</h3>
+                <p className="text-sm font-bold text-[#6c5a73]">{isCreating ? "Add the club's identity and branding." : "Changes update club branding throughout the app."}</p>
+              </div>
+              <Button size="sm" variant="secondary" onClick={() => setSelectedClubId(null)}>
+                <XCircle className="h-4 w-4" />
+                Close
+              </Button>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-1.5">
+                <span className="text-xs font-bold uppercase text-[#6c5a73]">Official name</span>
+                <input className="min-h-11 rounded-xl border border-[#eeeaf2] bg-white px-3 font-bold read-only:bg-[#f7f5fa] read-only:text-[#6c5a73]" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} readOnly={adminMode === "club"} />
+              </label>
+              <ClubTextInput label="Venue" value={draft.venue} onChange={(venue) => setDraft((current) => ({ ...current, venue }))} />
+              <label className="grid gap-1.5 md:col-span-2">
+                <span className="text-xs font-bold uppercase text-[#6c5a73]">Address</span>
+                <textarea className="min-h-24 rounded-xl border border-[#eeeaf2] bg-white px-3 py-2 font-bold" value={draft.address} onChange={(event) => setDraft((current) => ({ ...current, address: event.target.value }))} />
+              </label>
+              <ClubColorInput label="Primary colour" value={draft.primaryColor} onChange={(primaryColor) => setDraft((current) => ({ ...current, primaryColor }))} />
+              <ClubColorInput label="Accent colour" value={draft.accentColor} onChange={(accentColor) => setDraft((current) => ({ ...current, accentColor }))} />
+            </div>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-bold uppercase text-[#6c5a73]">Club logo</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]">
+                  {draft.logoPath ? <img src={draft.logoPath} alt="Club logo preview" className="h-full w-full object-contain p-2" /> : <Building2 className="h-8 w-8 text-[#6c5a73]" />}
+                </div>
+                <input className="min-h-11 flex-1 rounded-xl border border-[#eeeaf2] bg-white px-3 py-2 text-sm font-bold file:mr-3 file:rounded-lg file:border-0 file:bg-[#00e5f0] file:px-3 file:py-1.5 file:font-extrabold" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleLogo(event.target.files?.[0])} />
+                {draft.logoPath ? <Button size="sm" variant="secondary" onClick={() => setDraft((current) => ({ ...current, logoPath: "" }))}>Remove</Button> : null}
+              </div>
+              <span className="text-xs font-semibold text-[#6c5a73]">PNG, JPEG or WebP, up to 1 MB.</span>
+            </label>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {adminMode === "platform" ? (
+                <AdminCheckbox label="Active club" checked={draft.active} onChange={(active) => setDraft((current) => ({ ...current, active }))} />
+              ) : <Badge variant={draft.active ? "green" : "muted"}>{draft.active ? "Active" : "Inactive"}</Badge>}
+              <Button onClick={saveClub} disabled={!isDirty || saving}>
+                {saving ? "Saving..." : isCreating ? "Create club" : "Save changes"}
+              </Button>
+            </div>
+          </section>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ClubTextInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="grid gap-1.5">
+      <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
+      <input className="min-h-11 rounded-xl border border-[#eeeaf2] bg-white px-3 font-bold" value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function ClubColorInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="grid gap-1.5">
+      <span className="text-xs font-bold uppercase text-[#6c5a73]">{label}</span>
+      <span className="flex min-h-11 items-center gap-2 rounded-xl border border-[#eeeaf2] bg-white px-2">
+        <input className="h-8 w-10 cursor-pointer border-0 bg-transparent p-0" type="color" value={value || "#10233F"} onChange={(event) => onChange(event.target.value.toUpperCase())} />
+        <input className="min-w-0 flex-1 bg-transparent px-1 font-mono text-sm font-bold uppercase outline-none" value={value} onChange={(event) => onChange(event.target.value.toUpperCase())} maxLength={7} />
+      </span>
+    </label>
+  );
 }
 
 function DesktopAdminPanel({

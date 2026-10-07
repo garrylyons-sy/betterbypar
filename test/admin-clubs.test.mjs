@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -8,6 +9,7 @@ import {
 } from "../lib/server/admin-clubs.ts";
 
 const pngDataUrl = `data:image/png;base64,${Buffer.from("small-logo").toString("base64")}`;
+const adminConsoleSource = readFileSync(new URL("../components/admin-console.tsx", import.meta.url), "utf8");
 
 test("normalizes database-backed club settings", () => {
   assert.deepEqual(
@@ -78,4 +80,24 @@ test("reports only fields whose persisted values changed", () => {
     changedClubFields(current, { ...current, venue: "Castle clubhouse", active: false }),
     ["venue", "active"]
   );
+});
+
+test("clubs admin navigation is available to platform and club administrators", () => {
+  assert.match(adminConsoleSource, /type AdminTab = [^;]*"clubs"/);
+  assert.match(adminConsoleSource, /const clubAdminTabs:[^=]*= \[[^\]]*"clubs"/);
+  assert.match(adminConsoleSource, /label: "Clubs"/);
+});
+
+test("clubs editor stays closed until selected and protects club identity fields", () => {
+  const panelSource = adminConsoleSource.slice(adminConsoleSource.indexOf("function ClubsPanel"), adminConsoleSource.indexOf("function CompetitionsAdminPanel"));
+  assert.match(panelSource, /selectedClubId/);
+  assert.match(panelSource, /adminMode === "club"/);
+  assert.match(panelSource, /readOnly=\{adminMode === "club"\}/);
+  assert.match(panelSource, /disabled=\{!isDirty \|\| saving\}/);
+});
+
+test("clubs editor restricts logo uploads to supported image types", () => {
+  const panelSource = adminConsoleSource.slice(adminConsoleSource.indexOf("function ClubsPanel"), adminConsoleSource.indexOf("function CompetitionsAdminPanel"));
+  assert.match(panelSource, /accept="image\/png,image\/jpeg,image\/webp"/);
+  assert.match(panelSource, /file\.size > 1024 \* 1024/);
 });
