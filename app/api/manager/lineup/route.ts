@@ -3,6 +3,7 @@ import { PoolClient } from "pg";
 
 import { currentUser, testUserFromEmail } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
+import { recordOfficialGameResult } from "@/lib/server/game-results";
 
 export const runtime = "nodejs";
 
@@ -214,7 +215,7 @@ export async function POST(request: NextRequest) {
 
       await withTransaction(async (client) => {
         await ensureFixtureTeam(client, fixtureId, teamId);
-        await recordGameWinner(client, fixtureId, gameId, winnerTeamId);
+        await recordOfficialGameResult(client, { fixtureId, gameId, winnerTeamId });
         await recordLineupActivity(client, user.personId, fixtureId, teamId, winnerTeamId ? "Recorded game result" : "Reset game result", { gameId, winnerTeamId });
       });
 
@@ -1327,30 +1328,6 @@ async function generateGamesIfBothPublished(client: PoolClient, fixtureId: strin
       ]
     );
   }
-}
-
-async function recordGameWinner(client: PoolClient, fixtureId: string, gameId: string, winnerTeamId: string | null) {
-  const result = await client.query<{ match_id: string; home_team_id: string; away_team_id: string }>(
-    `select m.id as match_id,
-            f.home_team_id,
-            f.away_team_id
-     from public.match m
-     join public.fixture f on f.id = m.fixture_id
-     join public.game g on g.match_id = m.id
-     where f.id = $1
-       and g.id = $2
-       and f.status <> 'Completed'
-     limit 1`,
-    [fixtureId, gameId]
-  );
-  const game = result.rows[0];
-  if (!game) throw new Error("Game not found for this fixture.");
-  if (winnerTeamId && winnerTeamId !== game.home_team_id && winnerTeamId !== game.away_team_id) {
-    throw new Error("Winner must be one of the teams in this fixture.");
-  }
-
-  await client.query("update public.game set winner_team_id = $1 where id = $2", [winnerTeamId, gameId]);
-  await client.query("select public.refresh_match_team_points($1)", [game.match_id]);
 }
 
 async function completeMatch(client: PoolClient, fixtureId: string) {

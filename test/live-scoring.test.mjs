@@ -86,6 +86,41 @@ test("ends a visit and allows a doubles player to be selected", () => {
   );
 });
 
+test("retains completed visits for qualifying break persistence", () => {
+  const start = createLiveFrameState({ activeTeam: "home", activePlayerId: "home-1", currentBreak: 31, homeScore: 31 });
+  const ended = applyLiveFrameAction(start, { type: "endVisit" });
+
+  assert.deepEqual(ended.breaks, [{ team: "home", playerId: "home-1", value: 31 }]);
+});
+
+test("corrects the visual ball inventory without altering frame totals", () => {
+  const start = createLiveFrameState({ activeTeam: "home", homeScore: 24, awayScore: 12 });
+  const corrected = applyLiveFrameAction(start, {
+    type: "correctBalls",
+    redsRemaining: 8,
+    phase: "reds",
+    expectedBall: "red",
+    coloursRemaining: [2, 3, 4, 5, 6, 7]
+  });
+
+  assert.equal(corrected.redsRemaining, 8);
+  assert.equal(corrected.homeScore, 24);
+  assert.equal(corrected.awayScore, 12);
+  assert.throws(
+    () => applyLiveFrameAction(start, { type: "correctBalls", redsRemaining: 16, phase: "reds", expectedBall: "red" }),
+    /reds remaining/i
+  );
+
+  const inferred = applyLiveFrameAction(start, {
+    type: "correctBalls",
+    redsRemaining: 0,
+    phase: "colours",
+    expectedBall: undefined,
+    coloursRemaining: [4, 5, 6, 7]
+  });
+  assert.equal(inferred.expectedBall, 4);
+});
+
 test("undo restores the complete prior scoring state", () => {
   const start = createLiveFrameState({ activeTeam: "home", activePlayerId: "home-1" });
   const red = applyLiveFrameAction(start, { type: "pot", team: "home", playerId: "home-1", value: 1 });
