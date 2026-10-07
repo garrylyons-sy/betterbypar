@@ -7,4 +7,5 @@ Pre-flight: Task 4 produces the pilot UI verified and rolled out by Task 5; visi
 Task 3: Ruling: the plan's API action list omitted concession and re-spotted black although the approved spec requires both — added `concede` and `respotBlack` actions so a frame can finish early or resolve a tied clearance — if wrong, these two controls would be unavailable during live play.
 Task 1: complete (commits 23e1f17..4ff56e6, tests: node --test test/live-scoring.test.mjs → ℹ duration_ms 69.528958)
 Task 2: complete (commits 4ff56e6..d802e94, tests: node --test test/live-scoring-schema.test.mjs → ℹ duration_ms 80.650042)
-Task 3: complete (commits d802e94..d802e94, tests: node --test test/live-scoring-api.test.mjs → ℹ duration_ms 70.7445)
+Task 3: complete (commits d802e94..ed4ef4b, tests: node --test test/live-scoring-api.test.mjs → ℹ duration_ms 70.7445)
+Task 4: complete (commits ed4ef4b..ed4ef4b, tests: node --test test/live-scoring-ui.test.mjs → ℹ duration_ms 62.609708)

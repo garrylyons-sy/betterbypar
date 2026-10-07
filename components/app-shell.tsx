@@ -32,6 +32,7 @@ import { clubTeamStructure, playerGameResults as demoPlayerGameResults, recentRe
 import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, MatchResult, PlayerBreakStat, PlayerGameResult, Role, RoleAppearance, SponsorAd, Standing, TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LeagueChairMatchControls } from "@/components/league-chair-live-scoring";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -5400,7 +5401,7 @@ function FixtureWeekCarouselCard({
                 const canEditInline = canManage && fixture.status !== "Completed";
                 const ownLineupPublished = fixtureOwnLineupPublished(fixture, activeTeam.teamId);
                 const canInspect = fixtureHasStarted(fixture) || fixtureHasPublishedLineups(fixture) || ownLineupPublished;
-                const canOpenRow = canManage || canInspect;
+                const canOpenRow = Boolean(activeTeam.hasLeagueChairAccess || canManage || canInspect);
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
                 const lineupsPublished = fixtureHasPublishedLineups(fixture) && fixture.status !== "Completed" && fixture.completedGames === 0;
@@ -5476,7 +5477,10 @@ function FixtureWeekCarouselCard({
                       ) : null}
                     </button>
                     {expanded && canOpenRow ? (
-                      <div className="border-t border-[#eeeaf2] bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+                      <div className="grid gap-3 border-t border-[#eeeaf2] bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
+                        {activeTeam.hasLeagueChairAccess ? (
+                          <LeagueChairMatchControls fixtureId={fixture.id} onDataRefresh={onDataRefresh} />
+                        ) : null}
                         {canEditInline ? (
                           <ManagerLineupCard
                             activeTeam={activeTeam}
@@ -5485,9 +5489,9 @@ function FixtureWeekCarouselCard({
                             onDataRefresh={onDataRefresh}
                             onTeamSummaryUpdate={onTeamSummaryUpdate}
                           />
-                        ) : (
+                        ) : canInspect ? (
                           <ReadOnlyFixtureDetails fixture={fixture} />
-                        )}
+                        ) : null}
                       </div>
                     ) : null}
                   </article>

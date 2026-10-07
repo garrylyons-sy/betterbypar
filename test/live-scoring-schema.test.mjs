@@ -6,6 +6,10 @@ const migration = readFileSync(new URL("../supabase/league_chair_live_scoring.sq
 const schema = readFileSync(new URL("../supabase/schema.sql", import.meta.url), "utf8");
 
 for (const [label, sql] of [["migration", migration], ["canonical schema", schema]]) {
+  test(`${label} supports meaningful match activity logs`, () => {
+    assert.match(sql, /'Match Action'/, "the activity enum should accept live-scoring audit entries");
+  });
+
   test(`${label} defines the live frame snapshot`, () => {
     assert.match(sql, /create table(?: if not exists)? public\.live_frame_session/i);
     assert.match(sql, /game_id uuid not null references public\.game\(id\) on delete cascade/i);

@@ -45,6 +45,8 @@ test("live mutations enforce versions and an exclusive scorer lease", () => {
   assert.match(service, /lease_expires_at[\s\S]*scorer_person_id/);
   assert.match(service, /Another League Chair is currently scoring this frame/);
   assert.match(service, /LiveScoringError\([^\n]+423/);
+  assert.match(service, /lease_expires_at = now\(\) \+ make_interval[\s\S]*status = 'Live'/, "visible polling should renew the scorer lease");
+  assert.match(service, /nextStatus === "Paused"[\s\S]*lease_expires_at = null/, "pausing should release the active lease");
 });
 
 test("completion is idempotent and writes official totals and qualifying breaks", () => {

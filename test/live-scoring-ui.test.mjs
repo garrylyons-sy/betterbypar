@@ -1,0 +1,36 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+const appShell = readFileSync(new URL("../components/app-shell.tsx", import.meta.url), "utf8");
+const controls = readFileSync(new URL("../components/league-chair-live-scoring.tsx", import.meta.url), "utf8");
+const fixtureRoute = readFileSync(new URL("../app/api/fixtures/weeks/route.ts", import.meta.url), "utf8");
+
+test("League Chair controls are gated and closed until a fixture is deliberately expanded", () => {
+  assert.match(appShell, /activeTeam\.hasLeagueChairAccess[\s\S]*LeagueChairMatchControls/, "fixture controls should only mount for League Chair access");
+  assert.match(controls, /const \[controlsOpen, setControlsOpen\] = useState\(false\)/, "scoring controls should start closed");
+  assert.match(controls, /League Chair scoring/, "the closed control should have a clear label");
+});
+
+test("League Chair controls support ordinary frame results and launch live scoring", () => {
+  assert.match(controls, /winnerTeamId: null/, "ordinary results should be resettable to undecided");
+  assert.match(controls, /Record home win/, "ordinary result controls should identify the home side");
+  assert.match(controls, /Record away win/, "ordinary result controls should identify the away side");
+  assert.match(controls, /Start live scoring|Open live scoring/, "undecided frames should expose live scoring");
+});
+
+test("mobile scorer shows the table state and complete scoring controls", () => {
+  for (const label of ["Current break", "Reds left", "End visit", "Undo", "Foul", "Concede", "Correct balls"]) {
+    assert.match(controls, new RegExp(label), `live scorer should include ${label}`);
+  }
+  assert.match(controls, /Array\.from\(\{ length: state\.redsRemaining \}/, "the remaining reds should be visualised");
+  assert.match(controls, /\[2, 3, 4, 5, 6, 7\]/, "the six colours should be represented visually");
+  assert.match(controls, /Saved|Saving|Offline|Conflict/, "save and connectivity status should be visible");
+});
+
+test("polling is two-second, visible-only, and isolated from the normal fixtures payload", () => {
+  assert.match(controls, /document\.visibilityState === "visible"/, "polling should stop while the app is backgrounded");
+  assert.match(controls, /visibilitychange/, "visibility changes should restart or stop polling");
+  assert.match(controls, /2000/, "open live controls should poll every two seconds");
+  assert.doesNotMatch(fixtureRoute, /live_frame_session|live_frame_event/, "normal fixture reads must not include live scoring data");
+});

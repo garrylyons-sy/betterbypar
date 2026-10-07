@@ -95,6 +95,15 @@ export async function requireLeagueChairScoringAccess(personId: string) {
 }
 
 export async function loadLiveScoringFixture(fixtureId: string, personId: string) {
+  await dbQuery(
+    `update public.live_frame_session
+     set lease_expires_at = now() + make_interval(secs => $3)
+     where fixture_id = $1
+       and scorer_person_id = $2
+       and status = 'Live'`,
+    [fixtureId, personId, LEASE_SECONDS]
+  );
+
   const fixture = (await dbQuery<{
     id: string;
     status: string;
@@ -469,6 +478,14 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
     if (input.action === "pause" || input.action === "resume") {
       const nextStatus = input.action === "pause" ? "Paused" : "Live";
       await saveSession(client, session, before, personId, nextStatus);
+      if (nextStatus === "Paused") {
+        await client.query(
+          `update public.live_frame_session
+           set lease_expires_at = null
+           where id = $1`,
+          [session.id]
+        );
+      }
       await appendEvent(client, session, input.action, personId, before, before, input);
       await logActivity(client, personId, input.fixtureId, input.action === "pause" ? "Paused live scoring" : "Resumed live scoring", { session_id: session.id, game_id: session.game_id });
       return;

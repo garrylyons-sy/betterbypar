@@ -1,3 +1,6 @@
+alter type public.user_activity_type
+  add value if not exists 'Match Action';
+
 create table if not exists public.live_frame_session (
   id uuid primary key default gen_random_uuid(),
   fixture_id uuid not null references public.fixture(id) on delete cascade,
