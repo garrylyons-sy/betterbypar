@@ -144,3 +144,12 @@ test("admin logs show the affected club from audit metadata", () => {
   assert.match(contextSource, /club_name/);
   assert.match(contextSource, /clubName/);
 });
+
+test("club audit metadata gives PostgreSQL explicit parameter types", () => {
+  const clubsApiSource = readFileSync(new URL("../app/api/admin/clubs/route.ts", import.meta.url), "utf8");
+  const auditQueries = clubsApiSource.match(/jsonb_build_object\([^\n]+/g) ?? [];
+  assert.equal(auditQueries.length, 2);
+  for (const query of auditQueries) {
+    assert.match(query, /'club_name', \$4::text/);
+  }
+});

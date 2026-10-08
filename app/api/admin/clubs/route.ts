@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       );
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
-         values ($1, 'Page Visit', '/admin/clubs', $2, jsonb_build_object('club_id', $3::text, 'club_name', $4, 'changed_fields', $5::jsonb))`,
+         values ($1, 'Page Visit', '/admin/clubs', $2, jsonb_build_object('club_id', $3::text, 'club_name', $4::text, 'changed_fields', $5::jsonb))`,
         [access.user!.personId, clubAuditLabel("create", ["name"], input.active), result.rows[0].id, result.rows[0].name, JSON.stringify(clubMutationPolicy("platform").writableFields)]
       );
       return result.rows[0];
@@ -164,7 +164,7 @@ export async function PATCH(request: Request) {
       if (!label) return updated.rows[0];
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
-         values ($1, 'Page Visit', '/admin/clubs', $2, jsonb_build_object('club_id', $3::text, 'club_name', $4, 'changed_fields', $5::jsonb))`,
+         values ($1, 'Page Visit', '/admin/clubs', $2, jsonb_build_object('club_id', $3::text, 'club_name', $4::text, 'changed_fields', $5::jsonb))`,
         [access.user!.personId, label, id, next.name, JSON.stringify(changes)]
       );
       return updated.rows[0];
