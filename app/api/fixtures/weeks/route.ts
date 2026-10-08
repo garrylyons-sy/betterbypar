@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
+import { fixturePlayerWinPercentage, loadFixturePlayerWinPercentages } from "@/lib/server/player-win-percentages";
 
 export const runtime = "nodejs";
 
@@ -239,6 +240,7 @@ export async function GET(request: NextRequest) {
        order by f.fixture_date, g.game_number`,
       [fixtureIds]
     )).rows : [];
+    const playerWinPercentages = await loadFixturePlayerWinPercentages(fixtureIds);
     const gameIds = gameRows.map((game) => game.id);
     const breakRows = gameIds.length ? (await dbQuery<{
       id: string;
@@ -484,12 +486,16 @@ export async function GET(request: NextRequest) {
             winner_team_id: game.winner_team_id,
             home_player_1_id: game.home_player_1_id,
             home_player_1_name: game.home_player_1_name,
+            home_player_1_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, row.fixture_id, game.home_player_1_id),
             home_player_2_id: game.home_player_2_id,
             home_player_2_name: game.home_player_2_name,
+            home_player_2_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, row.fixture_id, game.home_player_2_id),
             away_player_1_id: game.away_player_1_id,
             away_player_1_name: game.away_player_1_name,
+            away_player_1_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, row.fixture_id, game.away_player_1_id),
             away_player_2_id: game.away_player_2_id,
             away_player_2_name: game.away_player_2_name,
+            away_player_2_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, row.fixture_id, game.away_player_2_id),
             home_player_1_is_guest: game.home_player_1_is_guest,
             home_player_2_is_guest: game.home_player_2_is_guest,
             away_player_1_is_guest: game.away_player_1_is_guest,

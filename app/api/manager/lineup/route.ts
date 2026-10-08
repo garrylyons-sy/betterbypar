@@ -4,6 +4,7 @@ import { PoolClient } from "pg";
 import { currentUser, testUserFromEmail } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import { recordOfficialGameResult } from "@/lib/server/game-results";
+import { fixturePlayerWinPercentage, loadFixturePlayerWinPercentages } from "@/lib/server/player-win-percentages";
 
 export const runtime = "nodejs";
 
@@ -712,6 +713,11 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
      order by wf.fixture_date, g.game_number`,
     [fixture.fixture_id]
   )).rows;
+  const percentageFixtureIds = Array.from(new Set([
+    fixture.fixture_id,
+    ...weekFixtureRows.map((row) => row.fixture_id)
+  ]));
+  const playerWinPercentages = await loadFixturePlayerWinPercentages(percentageFixtureIds);
   const gameIds = [...games.map((game) => game.id), ...weekGameRows.map((game) => game.id)];
   const breakRows = gameIds.length ? (await dbQuery<GameBreakRow>(
     `select
@@ -759,21 +765,25 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
         winner_team_id: game.winner_team_id,
         home_player_1_id: game.home_player_1_id,
         home_player_1_name: game.home_player_1_name,
+        home_player_1_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, row.fixture_id, game.home_player_1_id),
         home_player_1_is_guest: game.home_player_1_is_guest,
         home_player_1_counts_for_stats: game.home_player_1_counts_for_stats,
         home_player_1_guest_team_name: game.home_player_1_guest_team_name,
         home_player_2_id: game.home_player_2_id,
         home_player_2_name: game.home_player_2_name,
+        home_player_2_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, row.fixture_id, game.home_player_2_id),
         home_player_2_is_guest: game.home_player_2_is_guest,
         home_player_2_counts_for_stats: game.home_player_2_counts_for_stats,
         home_player_2_guest_team_name: game.home_player_2_guest_team_name,
         away_player_1_id: game.away_player_1_id,
         away_player_1_name: game.away_player_1_name,
+        away_player_1_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, row.fixture_id, game.away_player_1_id),
         away_player_1_is_guest: game.away_player_1_is_guest,
         away_player_1_counts_for_stats: game.away_player_1_counts_for_stats,
         away_player_1_guest_team_name: game.away_player_1_guest_team_name,
         away_player_2_id: game.away_player_2_id,
         away_player_2_name: game.away_player_2_name,
+        away_player_2_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, row.fixture_id, game.away_player_2_id),
         away_player_2_is_guest: game.away_player_2_is_guest,
         away_player_2_counts_for_stats: game.away_player_2_counts_for_stats,
         away_player_2_guest_team_name: game.away_player_2_guest_team_name,
@@ -801,6 +811,10 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
     opponentLineup: opponent,
     games: games.map((game) => ({
       ...game,
+      home_player_1_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, fixture.fixture_id, game.home_player_1_id),
+      home_player_2_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, fixture.fixture_id, game.home_player_2_id),
+      away_player_1_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, fixture.fixture_id, game.away_player_1_id),
+      away_player_2_win_percentage: fixturePlayerWinPercentage(playerWinPercentages, fixture.fixture_id, game.away_player_2_id),
       breaks: breaksForGame(game.id)
     })),
     weekFixtures,

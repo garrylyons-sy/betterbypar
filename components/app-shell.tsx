@@ -5037,21 +5037,25 @@ type ManagerLineupGame = {
   winner_team_id: string | null;
   home_player_1_id: string | null;
   home_player_1_name: string;
+  home_player_1_win_percentage?: number | null;
   home_player_1_is_guest?: boolean;
   home_player_1_counts_for_stats?: boolean;
   home_player_1_guest_team_name?: string | null;
   home_player_2_id: string | null;
   home_player_2_name: string | null;
+  home_player_2_win_percentage?: number | null;
   home_player_2_is_guest?: boolean;
   home_player_2_counts_for_stats?: boolean;
   home_player_2_guest_team_name?: string | null;
   away_player_1_id: string | null;
   away_player_1_name: string;
+  away_player_1_win_percentage?: number | null;
   away_player_1_is_guest?: boolean;
   away_player_1_counts_for_stats?: boolean;
   away_player_1_guest_team_name?: string | null;
   away_player_2_id: string | null;
   away_player_2_name: string | null;
+  away_player_2_win_percentage?: number | null;
   away_player_2_is_guest?: boolean;
   away_player_2_counts_for_stats?: boolean;
   away_player_2_guest_team_name?: string | null;
@@ -5497,7 +5501,7 @@ function FixtureWeekCarouselCard({
                             onTeamSummaryUpdate={onTeamSummaryUpdate}
                           />
                         ) : canInspect ? (
-                          <ReadOnlyFixtureDetails fixture={fixture} />
+                          <ReadOnlyFixtureDetails fixture={fixture} showWinPercentages={Boolean(activeTeam.hasLeagueChairAccess)} />
                         ) : null}
                       </div>
                     ) : null}
@@ -5906,9 +5910,10 @@ function ManagerLineupCard({
                               onBreak={(game) => setBreakTarget({ game, fixture: payload.fixture! })}
                               pendingGameIds={pendingGameIds}
                               locked={matchLocked || !payload.canManage}
+                              showWinPercentages={Boolean(activeTeam.hasLeagueChairAccess)}
                             />
                           ) : null}
-                          {isOwnFixture && matchReady && (matchLocked || !payload.canManage) ? <ReadOnlyFixtureDetails fixture={fixture} /> : null}
+                          {isOwnFixture && matchReady && (matchLocked || !payload.canManage) ? <ReadOnlyFixtureDetails fixture={fixture} showWinPercentages={Boolean(activeTeam.hasLeagueChairAccess)} /> : null}
                           {isOwnFixture && payload.canManage && matchReady && !matchLocked ? (
                             <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3">
                               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -5925,7 +5930,7 @@ function ManagerLineupCard({
                               </Button>
                             </div>
                           ) : null}
-                          {!isOwnFixture ? <ReadOnlyFixtureDetails fixture={fixture} /> : null}
+                          {!isOwnFixture ? <ReadOnlyFixtureDetails fixture={fixture} showWinPercentages={Boolean(activeTeam.hasLeagueChairAccess)} /> : null}
                           {isOwnFixture && !managedPublished && payload.canManage && !matchLocked ? (
                             <>
                               <div className="grid gap-2">
@@ -6530,17 +6535,18 @@ type GuestTaggedPlayer = {
   name?: string | null;
   isGuest?: boolean;
   guestTeamName?: string | null;
+  winPercentage?: number | null;
 };
 
 function gameSidePlayers(game: ManagerLineupGame, side: "home" | "away"): GuestTaggedPlayer[] {
   return side === "home"
     ? [
-        { name: game.home_player_1_name, isGuest: game.home_player_1_is_guest, guestTeamName: game.home_player_1_guest_team_name },
-        { name: game.home_player_2_name, isGuest: game.home_player_2_is_guest, guestTeamName: game.home_player_2_guest_team_name }
+        { name: game.home_player_1_name, isGuest: game.home_player_1_is_guest, guestTeamName: game.home_player_1_guest_team_name, winPercentage: game.home_player_1_win_percentage },
+        { name: game.home_player_2_name, isGuest: game.home_player_2_is_guest, guestTeamName: game.home_player_2_guest_team_name, winPercentage: game.home_player_2_win_percentage }
       ]
     : [
-        { name: game.away_player_1_name, isGuest: game.away_player_1_is_guest, guestTeamName: game.away_player_1_guest_team_name },
-        { name: game.away_player_2_name, isGuest: game.away_player_2_is_guest, guestTeamName: game.away_player_2_guest_team_name }
+        { name: game.away_player_1_name, isGuest: game.away_player_1_is_guest, guestTeamName: game.away_player_1_guest_team_name, winPercentage: game.away_player_1_win_percentage },
+        { name: game.away_player_2_name, isGuest: game.away_player_2_is_guest, guestTeamName: game.away_player_2_guest_team_name, winPercentage: game.away_player_2_win_percentage }
       ];
 }
 
@@ -6569,23 +6575,26 @@ function PlayerGuestBadge({ isGuest, guestTeamName }: { isGuest?: boolean; guest
   return <span className="shrink-0 rounded bg-[#eefbff] px-1.5 py-0.5 text-[10px] font-black uppercase text-[#10233f] ring-1 ring-[#04f5ff55]">{label}</span>;
 }
 
-function PlayerNameWithGuest({ align, player }: { align?: "left" | "right"; player: GuestTaggedPlayer }) {
+function PlayerNameWithGuest({ align, player, showWinPercentage = false }: { align?: "left" | "right"; player: GuestTaggedPlayer; showWinPercentage?: boolean }) {
   return (
     <span className={cn("inline-flex min-w-0 max-w-full flex-wrap items-center gap-1", align === "right" ? "justify-end text-right" : "")}>
       <span className="min-w-0 whitespace-normal break-words">{player.name || "TBC"}</span>
+      {showWinPercentage && player.winPercentage !== null && player.winPercentage !== undefined ? (
+        <span className="shrink-0 text-[10px] font-bold opacity-60">({Math.round(player.winPercentage)}%)</span>
+      ) : null}
       <PlayerGuestBadge isGuest={player.isGuest} guestTeamName={player.guestTeamName} />
     </span>
   );
 }
 
-function GamePlayerLabel({ align = "left", players, className }: { align?: "left" | "right"; players: GuestTaggedPlayer[]; className?: string }) {
+function GamePlayerLabel({ align = "left", players, className, showWinPercentages = false }: { align?: "left" | "right"; players: GuestTaggedPlayer[]; className?: string; showWinPercentages?: boolean }) {
   const visiblePlayers = players.filter((player) => player.name);
   return (
     <p className={cn("flex min-w-0 flex-wrap items-center gap-1.5 rounded-md px-2 py-1.5 leading-tight", align === "right" ? "justify-end text-right" : "", className)}>
       {(visiblePlayers.length ? visiblePlayers : [{ name: "TBC" }]).map((player, index) => (
         <Fragment key={`${player.name || "TBC"}-${index}`}>
           {index ? <span className="shrink-0 text-[#6c5a73]">/</span> : null}
-          <PlayerNameWithGuest align={align} player={player} />
+          <PlayerNameWithGuest align={align} player={player} showWinPercentage={showWinPercentages} />
         </Fragment>
       ))}
     </p>
@@ -6593,7 +6602,8 @@ function GamePlayerLabel({ align = "left", players, className }: { align?: "left
 }
 
 function ReadOnlyFixtureDetails({
-  fixture
+  fixture,
+  showWinPercentages = false
 }: {
   fixture: {
     games?: ManagerLineupGame[];
@@ -6606,9 +6616,11 @@ function ReadOnlyFixtureDetails({
     homeTeamScore?: number | null;
     awayTeamScore?: number | null;
   };
+  showWinPercentages?: boolean;
 }) {
   const games = fixture.games ?? [];
   const lineups = fixture.lineups ?? [];
+  const showPlayerWinPercentages = Boolean(showWinPercentages && fixture.status !== "Completed");
 
   if (!games.length) {
     if (lineups.length) {
@@ -6672,9 +6684,9 @@ function ReadOnlyFixtureDetails({
                 {!game.winner_team_id ? <Badge variant="muted">Awaiting</Badge> : null}
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-stretch gap-1.5 text-xs font-extrabold sm:grid-cols-[minmax(0,1fr)_28px_minmax(0,1fr)] sm:gap-2 sm:text-sm">
-                <GamePlayerLabel className={cn(homeWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} players={homePlayers} />
+                <GamePlayerLabel className={cn(homeWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} players={homePlayers} showWinPercentages={showPlayerWinPercentages} />
                 <span className="grid place-items-center text-center text-xs font-black uppercase text-[#6c5a73]">v</span>
-                <GamePlayerLabel align="right" className={cn(awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} players={awayPlayers} />
+                <GamePlayerLabel align="right" className={cn(awayWon ? "bg-[#e9fff4] text-[#007a45]" : "bg-[#f7f5fa] text-[#10233f]")} players={awayPlayers} showWinPercentages={showPlayerWinPercentages} />
               </div>
               {game.breaks?.length ? (
                 <div className="flex flex-wrap gap-1">
@@ -6728,17 +6740,20 @@ function GeneratedMatchCard({
   onRecord,
   onBreak,
   pendingGameIds,
-  locked = false
+  locked = false,
+  showWinPercentages = false
 }: {
   payload: ManagerLineupPayload;
   onRecord: (gameId: string, winnerTeamId: string | null) => void;
   onBreak: (game: ManagerLineupGame) => void;
   pendingGameIds: Set<string>;
   locked?: boolean;
+  showWinPercentages?: boolean;
 }) {
   const games = payload.games;
   const fixture = payload.fixture;
   if (!fixture) return null;
+  const showPlayerWinPercentages = Boolean(showWinPercentages && fixture.status !== "Completed");
 
   return (
     <div className="rounded-xl bg-[#10233f] p-3 text-white">
@@ -6761,9 +6776,9 @@ function GeneratedMatchCard({
               <div className="min-w-0">
                 <p className="text-xs font-extrabold uppercase text-white/55">Game {game.game_number} - {game.points_awarded} pts</p>
                 <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5 leading-tight">
-                  <GamePlayerLabel className="bg-transparent px-0 py-0 text-white" players={homePlayers} />
+                  <GamePlayerLabel className="bg-transparent px-0 py-0 text-white" players={homePlayers} showWinPercentages={showPlayerWinPercentages} />
                   <span className="text-white/55">v</span>
-                  <GamePlayerLabel align="right" className="bg-transparent px-0 py-0 text-white" players={awayPlayers} />
+                  <GamePlayerLabel align="right" className="bg-transparent px-0 py-0 text-white" players={awayPlayers} showWinPercentages={showPlayerWinPercentages} />
                 </div>
               </div>
               <div className="grid gap-1.5 sm:grid-cols-2">
