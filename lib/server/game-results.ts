@@ -91,11 +91,11 @@ export async function recordOfficialGameResult(client: PoolClient, input: Offici
 
   await client.query(
     `update public.game
-     set home_score = coalesce($3, home_score),
-         away_score = coalesce($4, away_score),
-         winner_team_id = $5
-     where id = $2`,
-    [input.fixtureId, input.gameId, input.homeScore ?? null, input.awayScore ?? null, input.winnerTeamId]
+     set home_score = coalesce($2, home_score),
+         away_score = coalesce($3, away_score),
+         winner_team_id = $4
+     where id = $1`,
+    [input.gameId, input.homeScore ?? null, input.awayScore ?? null, input.winnerTeamId]
   );
   await client.query("select public.refresh_match_team_points($1)", [game.match_id]);
   return game;

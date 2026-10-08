@@ -40,6 +40,14 @@ test("official game results validate the fixture and refresh match points", () =
   assert.match(service, /liveSessionId: session\.id/);
 });
 
+test("official game result updates bind every SQL parameter in order", () => {
+  assert.match(
+    results,
+    /update public\.game[\s\S]*home_score = coalesce\(\$2, home_score\)[\s\S]*away_score = coalesce\(\$3, away_score\)[\s\S]*winner_team_id = \$4[\s\S]*where id = \$1/
+  );
+  assert.match(results, /\[input\.gameId, input\.homeScore \?\? null, input\.awayScore \?\? null, input\.winnerTeamId\]/);
+});
+
 test("manual break entry cannot overlap a live-scored frame", () => {
   assert.match(managerRoute, /recordPlayerBreak[\s\S]*for update of g/);
   assert.match(managerRoute, /status in \('Live', 'Paused', 'Completed'\)[\s\S]*This frame is using live scoring/);
