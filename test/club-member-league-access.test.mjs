@@ -35,5 +35,6 @@ test("club members are configured to access fixtures and tables for the active s
 test("platform operator contexts receive League Chair pilot access", () => {
   assert.match(authSource, /isAppOperator[\s\S]*hasLiveScoringAccess/);
   assert.doesNotMatch(authSource, /\(leagueChairMemberships\.length > 0 \|\| isAppOperator\)[\s\S]*hasLeagueChairAccess: true/, "operator scoring must not grant unrelated League Chair features");
-  assert.match(appShellSource, /activeTeam\.hasLiveScoringAccess[\s\S]*LeagueChairMatchControls/);
+  assert.match(appShellSource, /activeTeam\.hasLiveScoringAccess[\s\S]*LeagueChairLiveStatusList/);
+  assert.doesNotMatch(appShellSource, /LeagueChairMatchControls/, "full scoring controls must remain in the standalone scorer");
 });

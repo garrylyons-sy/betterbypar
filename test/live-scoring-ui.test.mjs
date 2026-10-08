@@ -6,9 +6,14 @@ const appShell = readFileSync(new URL("../components/app-shell.tsx", import.meta
 const controls = readFileSync(new URL("../components/league-chair-live-scoring.tsx", import.meta.url), "utf8");
 const fixtureRoute = readFileSync(new URL("../app/api/fixtures/weeks/route.ts", import.meta.url), "utf8");
 
-test("League Chair controls are gated and closed until a fixture is deliberately expanded", () => {
-  assert.match(appShell, /activeTeam\.hasLiveScoringAccess[\s\S]*LeagueChairMatchControls/, "fixture controls should only mount for the scoring capability");
-  assert.match(appShell, /if \(!canInspect && !activeTeam\.hasLiveScoringAccess\) return;/, "League Chairs should be able to expand fixtures before lineups are published");
+test("main fixtures expose only active read-only live state to League Chairs", () => {
+  assert.match(appShell, /activeTeam\.hasLiveScoringAccess[\s\S]*fixtureLiveStatuses\.length/);
+  assert.match(appShell, /if \(!canInspect && !hasVisibleLiveScoring\) return;/, "League Chairs should only expand a fixture when it has active live scoring");
+  assert.match(appShell, /LeagueChairLiveStatusList/);
+  assert.doesNotMatch(appShell, /LeagueChairMatchControls/, "full scoring controls should remain in the standalone scorer");
+});
+
+test("standalone League Chair controls are closed until deliberately expanded", () => {
   assert.match(controls, /const \[controlsOpen, setControlsOpen\] = useState\(false\)/, "scoring controls should start closed");
   assert.match(controls, /League Chair scoring/, "the closed control should have a clear label");
 });

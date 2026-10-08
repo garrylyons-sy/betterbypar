@@ -71,6 +71,13 @@ test("normal fixtures show a small League Chair-only live indicator", () => {
   assert.match(service, /s\.active = true[\s\S]*f\.status <> 'Completed'[\s\S]*f\.fixture_type = 'League'[\s\S]*f\.fixture_date >= current_date/);
 });
 
+test("the main app shows only read-only live state for League Chair access", () => {
+  assert.match(dashboard, /export function LeagueChairLiveStatusList/);
+  assert.match(appShell, /LeagueChairLiveStatusList/);
+  assert.match(appShell, /fixtureLiveStatuses\.length/);
+  assert.doesNotMatch(appShell, /LeagueChairMatchControls/, "full scoring controls belong only on the standalone live-scoring route");
+});
+
 test("the standalone route remains intentionally absent from normal navigation", () => {
   assert.doesNotMatch(appShell, /href=["']\/livescoring["']/);
   assert.doesNotMatch(appShell, /menuEntry\(["']\/livescoring["']\)/);

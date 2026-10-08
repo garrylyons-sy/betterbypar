@@ -144,6 +144,15 @@ function CompactStatus({ status }: { status: CompactLiveStatus }) {
   );
 }
 
+export function LeagueChairLiveStatusList({ statuses }: { statuses: CompactLiveStatus[] }) {
+  if (!statuses.length) return null;
+  return (
+    <div className="grid gap-2" aria-label="Live scoring status">
+      {statuses.map((status) => <CompactStatus key={status.game_id} status={status} />)}
+    </div>
+  );
+}
+
 export function LiveScoringDashboard({ userName }: { userName: string }) {
   const [payload, setPayload] = useState<DashboardPayload>({ fixtures: [], statuses: [] });
   const [selectedFixtureId, setSelectedFixtureId] = useState("");
@@ -262,8 +271,8 @@ export function LiveScoringDashboard({ userName }: { userName: string }) {
                   </div>
                 </button>
                 {fixtureStatuses.length ? (
-                  <div className="grid gap-2 border-t border-[#eeeaf2] px-3 py-2">
-                    {fixtureStatuses.map((status) => <CompactStatus key={status.game_id} status={status} />)}
+                  <div className="border-t border-[#eeeaf2] px-3 py-2">
+                    <LeagueChairLiveStatusList statuses={fixtureStatuses} />
                   </div>
                 ) : null}
                 {selected ? (

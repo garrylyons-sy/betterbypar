@@ -32,8 +32,7 @@ import { clubTeamStructure, playerGameResults as demoPlayerGameResults, recentRe
 import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, MatchResult, PlayerBreakStat, PlayerGameResult, Role, RoleAppearance, SponsorAd, Standing, TeamContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { LeagueChairMatchControls } from "@/components/league-chair-live-scoring";
-import { LeagueChairLiveIndicator, useLiveScoringStatuses } from "@/components/live-scoring-dashboard";
+import { LeagueChairLiveIndicator, LeagueChairLiveStatusList, useLiveScoringStatuses } from "@/components/live-scoring-dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -5404,7 +5403,9 @@ function FixtureWeekCarouselCard({
                 const canEditInline = canManage && fixture.status !== "Completed";
                 const ownLineupPublished = fixtureOwnLineupPublished(fixture, activeTeam.teamId);
                 const canInspect = fixtureHasStarted(fixture) || fixtureHasPublishedLineups(fixture) || ownLineupPublished;
-                const canOpenRow = Boolean(activeTeam.hasLiveScoringAccess || canManage || canInspect);
+                const fixtureLiveStatuses = liveStatuses[fixture.id] ?? [];
+                const hasVisibleLiveScoring = Boolean(activeTeam.hasLiveScoringAccess && fixtureLiveStatuses.length);
+                const canOpenRow = Boolean(hasVisibleLiveScoring || canManage || canInspect);
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
                 const lineupsPublished = fixtureHasPublishedLineups(fixture) && fixture.status !== "Completed" && fixture.completedGames === 0;
@@ -5428,7 +5429,7 @@ function FixtureWeekCarouselCard({
                           setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                           return;
                         }
-                        if (!canInspect && !activeTeam.hasLiveScoringAccess) return;
+                        if (!canInspect && !hasVisibleLiveScoring) return;
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                       }}
                     >
@@ -5479,13 +5480,13 @@ function FixtureWeekCarouselCard({
                         </span>
                       ) : null}
                       {activeTeam.hasLiveScoringAccess ? (
-                        <LeagueChairLiveIndicator statuses={liveStatuses[fixture.id] ?? []} />
+                        <LeagueChairLiveIndicator statuses={fixtureLiveStatuses} />
                       ) : null}
                     </button>
                     {expanded && canOpenRow ? (
                       <div className="grid gap-3 border-t border-[#eeeaf2] bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-                        {activeTeam.hasLiveScoringAccess ? (
-                          <LeagueChairMatchControls fixtureId={fixture.id} onDataRefresh={onDataRefresh} />
+                        {hasVisibleLiveScoring ? (
+                          <LeagueChairLiveStatusList statuses={fixtureLiveStatuses} />
                         ) : null}
                         {canEditInline ? (
                           <ManagerLineupCard
