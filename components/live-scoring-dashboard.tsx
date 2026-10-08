@@ -33,6 +33,8 @@ type DashboardFixture = {
   away_team_name: string;
   home_team_score: number;
   away_team_score: number;
+  home_lineup_status: "Draft" | "Published" | null;
+  away_lineup_status: "Draft" | "Published" | null;
   has_live_session: boolean;
 };
 
@@ -106,6 +108,24 @@ export function LeagueChairLiveIndicator({ statuses }: { statuses: CompactLiveSt
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IE", { weekday: "short", day: "numeric", month: "short" })
     .format(new Date(value));
+}
+
+function TeamSelectionIndicator({ status }: { status: DashboardFixture["home_lineup_status"] }) {
+  const indicator = status === "Published"
+    ? { short: "TP", label: "Team published", className: "bg-[#e9fff4] text-[#007a45] ring-[#00a85a33]" }
+    : status === "Draft"
+      ? { short: "DS", label: "Draft saved", className: "bg-[#e6fbff] text-[#006f83] ring-[#00cfe833]" }
+      : { short: "TB", label: "To be picked", className: "bg-[#f0edf4] text-[#6c5a73] ring-[#d8d3df]" };
+
+  return (
+    <span
+      title={indicator.label}
+      aria-label={indicator.label}
+      className={cn("inline-grid h-5 min-w-6 shrink-0 place-items-center rounded px-1 text-[10px] font-black ring-1", indicator.className)}
+    >
+      {indicator.short}
+    </span>
+  );
 }
 
 function CompactStatus({ status }: { status: CompactLiveStatus }) {
@@ -229,10 +249,12 @@ export function LiveScoringDashboard({ userName }: { userName: string }) {
                     <CalendarDays className="h-4 w-4 text-[#6c5a73]" />
                     <span className="text-xs font-extrabold uppercase text-[#6c5a73]">{formatDate(fixture.fixture_date)}</span>
                   </div>
-                  <div className="min-w-0 text-sm font-black sm:text-center">
-                    <span>{fixture.home_team_name}</span>
-                    <span className="px-2 text-[#6c5a73]">v</span>
-                    <span>{fixture.away_team_name}</span>
+                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,1fr)_auto] items-center gap-1.5 text-sm font-black">
+                    <span className="min-w-0 truncate text-right">{fixture.home_team_name}</span>
+                    <TeamSelectionIndicator status={fixture.home_lineup_status} />
+                    <span className="px-1 text-[#6c5a73]">v</span>
+                    <span className="min-w-0 truncate">{fixture.away_team_name}</span>
+                    <TeamSelectionIndicator status={fixture.away_lineup_status} />
                   </div>
                   <div className="flex items-center gap-2 sm:justify-end">
                     <Badge variant="muted">{fixture.league_name}</Badge>

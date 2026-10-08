@@ -165,12 +165,16 @@ export async function loadLiveScoringDashboard() {
     away_team_name: string;
     home_team_score: number;
     away_team_score: number;
+    home_lineup_status: "Draft" | "Published" | null;
+    away_lineup_status: "Draft" | "Published" | null;
     has_live_session: boolean;
   }>(
     `select f.id::text, f.fixture_date::text, f.status::text,
             s.name as season_name, l.name as league_name,
             ht.name as home_team_name, at.name as away_team_name,
             m.home_team_score, m.away_team_score,
+            hfl.status::text as home_lineup_status,
+            afl.status::text as away_lineup_status,
             exists (
               select 1
               from public.live_frame_session lfs
@@ -184,6 +188,8 @@ export async function loadLiveScoringDashboard() {
      join public.team ht on ht.id = f.home_team_id
      join public.team at on at.id = f.away_team_id
      join public.match m on m.fixture_id = f.id
+     left join public.fixture_lineup hfl on hfl.fixture_id = f.id and hfl.team_id = f.home_team_id
+     left join public.fixture_lineup afl on afl.fixture_id = f.id and afl.team_id = f.away_team_id
      where s.active = true
        and f.status <> 'Completed'
        and f.fixture_type = 'League'

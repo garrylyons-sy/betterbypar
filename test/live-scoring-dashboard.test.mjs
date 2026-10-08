@@ -38,6 +38,18 @@ test("dashboard selects current fixtures and reuses the established scorer", () 
   assert.match(dashboard, /Live now/);
 });
 
+test("dashboard shows each team's compact lineup state", () => {
+  assert.match(service, /hfl\.status::text as home_lineup_status/);
+  assert.match(service, /afl\.status::text as away_lineup_status/);
+  assert.match(service, /left join public\.fixture_lineup hfl[\s\S]*left join public\.fixture_lineup afl/);
+  assert.match(dashboard, /TeamSelectionIndicator/);
+  for (const status of ["TB", "DS", "TP", "To be picked", "Draft saved", "Team published"]) {
+    assert.match(dashboard, new RegExp(status), `dashboard should expose ${status}`);
+  }
+  assert.match(dashboard, /home_lineup_status/);
+  assert.match(dashboard, /away_lineup_status/);
+});
+
 test("League Chair observers see meaningful frame state without controlling it", () => {
   assert.match(controls, /liveFrameStatusLabel/);
   for (const wording of ["reds left", "Red next", "Colour next", "Re-spotted black", "Current break"]) {

@@ -36,6 +36,12 @@ test("mobile scorer shows the table state and complete scoring controls", () => 
   assert.match(controls, /Saved|Saving|Offline|Conflict/, "save and connectivity status should be visible");
 });
 
+test("an unscored frame clearly offers to switch the starting team", () => {
+  assert.match(controls, /const frameIsUnscored =/);
+  assert.match(controls, /const otherTeamName =/);
+  assert.match(controls, /frameIsUnscored \? `Switch to \$\{otherTeamName\}` : "End visit"/);
+});
+
 test("polling is two-second, visible-only, and isolated from the normal fixtures payload", () => {
   assert.match(controls, /document\.visibilityState === "visible"/, "polling should stop while the app is backgrounded");
   assert.match(controls, /visibilitychange/, "visibility changes should restart or stop polling");

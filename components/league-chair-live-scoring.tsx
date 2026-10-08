@@ -437,6 +437,8 @@ export function LiveFrameScorer({
   const [correctedColours, setCorrectedColours] = useState(state.coloursRemaining);
   const activePlayers = useMemo(() => playersFor(game, state.activeTeam), [game, state.activeTeam]);
   const otherSide: Side = state.activeTeam === "home" ? "away" : "home";
+  const otherTeamName = otherSide === "home" ? payload.fixture.home_team_name : payload.fixture.away_team_name;
+  const frameIsUnscored = state.homeScore === 0 && state.awayScore === 0 && state.redsRemaining === 15 && state.currentBreak === 0;
   const controlsDisabled = saveState === "Saving" || saveState === "Offline" || !session.canControl;
   const scoringDisabled = controlsDisabled || session.status === "Paused";
   const allowedValues = state.expectedBall === "red"
@@ -582,7 +584,7 @@ export function LiveFrameScorer({
                   <Undo2 className="h-4 w-4" /> Undo
                 </Button>
                 <Button type="button" variant="secondary" disabled={scoringDisabled || state.status === "Ready"} onClick={() => void act({ action: "endVisit" })}>
-                  End visit
+                  {frameIsUnscored ? `Switch to ${otherTeamName}` : "End visit"}
                 </Button>
                 <Button type="button" variant="secondary" disabled={scoringDisabled || state.status === "Ready"} onClick={() => setShowFoul((open) => !open)}>
                   Foul
