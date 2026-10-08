@@ -81,6 +81,8 @@ test("the main app shows only read-only live state for League Chair access", () 
   assert.match(dashboard, /export function LeagueChairLiveStatusList/);
   assert.match(appShell, /LeagueChairLiveStatusList/);
   assert.match(appShell, /fixtureLiveStatuses\.length/);
+  assert.match(appShell, /LeagueChairLiveStatusList statuses=\{fixtureLiveStatuses\} showScorer=\{false\}/, "the main app should omit scorer attribution");
+  assert.match(dashboard, /showScorer = true/, "the dedicated live-scoring dashboard should retain scorer attribution by default");
   assert.doesNotMatch(appShell, /LeagueChairMatchControls/, "full scoring controls belong only on the standalone live-scoring route");
 });
 

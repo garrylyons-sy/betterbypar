@@ -128,9 +128,12 @@ function TeamSelectionIndicator({ status }: { status: DashboardFixture["home_lin
   );
 }
 
-function CompactStatus({ status }: { status: CompactLiveStatus }) {
+function CompactStatus({ status, showScorer }: { status: CompactLiveStatus; showScorer: boolean }) {
   return (
-    <div className="grid gap-1 rounded-md bg-[#edf8f5] p-2.5 text-xs ring-1 ring-[#1b8a7233] sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:gap-3">
+    <div className={cn(
+      "grid gap-1 rounded-md bg-[#edf8f5] p-2.5 text-xs ring-1 ring-[#1b8a7233] sm:items-center sm:gap-3",
+      showScorer ? "sm:grid-cols-[auto_minmax(0,1fr)_auto]" : "sm:grid-cols-[auto_minmax(0,1fr)]"
+    )}>
       <div className="flex items-center gap-2">
         <Badge variant={status.status === "Paused" ? "muted" : "green"}>{status.status}</Badge>
         <strong className="text-sm tabular-nums text-[#10233f]">{status.state.homeScore}-{status.state.awayScore}</strong>
@@ -139,16 +142,16 @@ function CompactStatus({ status }: { status: CompactLiveStatus }) {
         <p>Game {status.game_number} · {liveFrameStatusLabel(status.state)}</p>
         <p className="truncate">{status.active_player_name ? `${status.active_player_name} · ` : ""}Current break {status.state.currentBreak}</p>
       </div>
-      <p className="font-bold text-[#6c5a73] sm:text-right">{status.scorer_name ?? "Unassigned scorer"}</p>
+      {showScorer ? <p className="font-bold text-[#6c5a73] sm:text-right">{status.scorer_name ?? "Unassigned scorer"}</p> : null}
     </div>
   );
 }
 
-export function LeagueChairLiveStatusList({ statuses }: { statuses: CompactLiveStatus[] }) {
+export function LeagueChairLiveStatusList({ statuses, showScorer = true }: { statuses: CompactLiveStatus[]; showScorer?: boolean }) {
   if (!statuses.length) return null;
   return (
     <div className="grid gap-2" aria-label="Live scoring status">
-      {statuses.map((status) => <CompactStatus key={status.game_id} status={status} />)}
+      {statuses.map((status) => <CompactStatus key={status.game_id} status={status} showScorer={showScorer} />)}
     </div>
   );
 }

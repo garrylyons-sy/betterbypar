@@ -5486,7 +5486,7 @@ function FixtureWeekCarouselCard({
                     {expanded && canOpenRow ? (
                       <div className="grid gap-3 border-t border-[#eeeaf2] bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
                         {hasVisibleLiveScoring ? (
-                          <LeagueChairLiveStatusList statuses={fixtureLiveStatuses} />
+                          <LeagueChairLiveStatusList statuses={fixtureLiveStatuses} showScorer={false} />
                         ) : null}
                         {canEditInline ? (
                           <ManagerLineupCard
