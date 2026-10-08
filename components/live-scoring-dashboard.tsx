@@ -178,7 +178,6 @@ export function LiveScoringDashboard({ userName = "", embedded = false }: { user
   const [payload, setPayload] = useState<DashboardPayload>({ fixtures: [], statuses: [] });
   const [selectedFixtureId, setSelectedFixtureId] = useState("");
   const [league, setLeague] = useState("All leagues");
-  const [date, setDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -215,10 +214,7 @@ export function LiveScoringDashboard({ userName = "", embedded = false }: { user
 
   const statuses = useMemo(() => groupStatuses(payload.statuses), [payload.statuses]);
   const leagues = useMemo(() => Array.from(new Set(payload.fixtures.map((fixture) => fixture.league_name))), [payload.fixtures]);
-  const fixtures = payload.fixtures.filter((fixture) => {
-    if (league !== "All leagues" && fixture.league_name !== league) return false;
-    return !date || fixture.fixture_date.slice(0, 10) === date;
-  });
+  const fixtures = payload.fixtures.filter((fixture) => league === "All leagues" || fixture.league_name === league);
   const hasActiveScoring = payload.statuses.some((status) => status.status === "Live");
 
   const dashboardContent = (
@@ -234,7 +230,7 @@ export function LiveScoringDashboard({ userName = "", embedded = false }: { user
               Refresh
             </Button>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2">
             <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
               League
               <select value={league} onChange={(event) => setLeague(event.target.value)} className="min-h-11 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]">
@@ -242,16 +238,12 @@ export function LiveScoringDashboard({ userName = "", embedded = false }: { user
                 {leagues.map((name) => <option key={name}>{name}</option>)}
               </select>
             </label>
-            <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
-              Date
-              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="min-h-11 rounded-lg border border-[#d8d3df] bg-white px-3 text-sm font-bold normal-case text-[#10233f]" />
-            </label>
           </div>
         </section>
 
         {message ? <p className="rounded-lg bg-[#fff8eb] p-3 text-sm font-bold text-[#8a5a00]">{message}</p> : null}
         {loading ? <p className="rounded-lg bg-white p-4 text-sm font-bold text-[#6c5a73] ring-1 ring-[#eeeaf2]">Loading fixtures...</p> : null}
-        {!loading && !fixtures.length ? <p className="rounded-lg bg-white p-4 text-sm font-bold text-[#6c5a73] ring-1 ring-[#eeeaf2]">No upcoming fixtures match these filters.</p> : null}
+        {!loading && !fixtures.length ? <p className="rounded-lg bg-white p-4 text-sm font-bold text-[#6c5a73] ring-1 ring-[#eeeaf2]">No matches are scheduled for today.</p> : null}
 
         <section className="grid gap-3">
           {fixtures.map((fixture) => {

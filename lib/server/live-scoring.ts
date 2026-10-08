@@ -196,7 +196,7 @@ export async function loadLiveScoringDashboard() {
      where s.active = true
        and f.status <> 'Completed'
        and f.fixture_type = 'League'
-       and f.fixture_date >= current_date
+       and (f.fixture_date at time zone 'Europe/Dublin')::date = (now() at time zone 'Europe/Dublin')::date
      order by has_live_session desc, f.fixture_date, l.name, ht.name`,
     []
   )).rows;

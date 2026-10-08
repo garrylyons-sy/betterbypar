@@ -39,11 +39,13 @@ test("dashboard selects current fixtures and reuses the established scorer", () 
   assert.match(service, /export async function loadLiveScoringDashboard/);
   assert.match(service, /s\.active = true/);
   assert.match(service, /f\.status <> 'Completed'/);
+  assert.match(service, /f\.fixture_date at time zone 'Europe\/Dublin'[\s\S]*now\(\) at time zone 'Europe\/Dublin'/, "the dashboard query should only load today's Dublin fixtures");
   assert.match(service, /order by[\s\S]*has_live_session desc[\s\S]*fixture_date/);
   assert.match(dashboardRoute, /loadLiveScoringDashboard/);
   assert.match(dashboard, /LeagueChairMatchControls/);
   assert.match(dashboard, /defaultOpen/);
   assert.match(dashboard, /All leagues/);
+  assert.doesNotMatch(dashboard, /type="date"/, "today-only live scoring should not offer a date picker");
   assert.match(dashboard, /Live now/);
 });
 
