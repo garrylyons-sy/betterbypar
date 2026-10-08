@@ -331,7 +331,7 @@ export function LeagueChairMatchControls({
             const session = payload.sessions.find((item) => item.game_id === game.id && !["Abandoned"].includes(item.status));
             const decided = Boolean(game.winner_team_id);
             return (
-              <div key={game.id} className="grid gap-2 border-b border-[#eeeaf2] pb-3 last:border-0 last:pb-0 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div key={game.id} className="grid gap-2 border-b border-[#eeeaf2] pb-3 last:border-0 last:pb-0">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Game {game.game_number} · {game.game_type}</p>

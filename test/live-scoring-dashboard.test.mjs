@@ -38,6 +38,12 @@ test("dashboard selects current fixtures and reuses the established scorer", () 
   assert.match(dashboard, /Live now/);
 });
 
+test("desktop dashboard keeps the compact mobile scoring hierarchy", () => {
+  assert.match(dashboard, /max-w-3xl/, "the standalone dashboard should remain comfortably narrow on desktop");
+  assert.doesNotMatch(dashboard, /max-w-5xl/, "desktop should not stretch the scorer into a wide dashboard");
+  assert.doesNotMatch(controls, /lg:grid-cols-\[minmax\(0,1fr\)_auto\]/, "game details and controls should stay stacked at desktop widths");
+});
+
 test("dashboard shows each team's compact lineup state", () => {
   assert.match(service, /hfl\.status::text as home_lineup_status/);
   assert.match(service, /afl\.status::text as away_lineup_status/);

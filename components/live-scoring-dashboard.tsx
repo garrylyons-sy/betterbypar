@@ -202,7 +202,7 @@ export function LiveScoringDashboard({ userName }: { userName: string }) {
   return (
     <main className="min-h-screen bg-[#f7f5fa] text-[#10233f]">
       <header className="sticky top-0 z-40 bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
+        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <a href="/" className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10" aria-label="Back to Interclub Snooker">
               <ArrowLeft className="h-5 w-5" />
@@ -216,7 +216,7 @@ export function LiveScoringDashboard({ userName }: { userName: string }) {
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-5xl gap-4 px-4 py-4 sm:px-6">
+      <div className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-4 sm:px-6">
         <section className="grid gap-3 rounded-lg bg-white p-4 ring-1 ring-[#eeeaf2]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
