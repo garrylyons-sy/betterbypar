@@ -176,10 +176,12 @@ export async function GET(request: NextRequest) {
     const fixtureId = request.nextUrl.searchParams.get("fixtureId")?.trim();
     const testManager = request.nextUrl.searchParams.get("testManager");
     const testUser = request.nextUrl.searchParams.get("testUser");
+    const requestedAdminOverride = request.nextUrl.searchParams.get("adminOverride") === "true";
     if (!teamId) return NextResponse.json({ error: "teamId is required." }, { status: 400 });
-    const { canManage } = await requireTeamMember(teamId, { testManager, testUser });
+    const { user, canManage } = await requireTeamMember(teamId, { testManager, testUser });
+    const adminOverride = requestedAdminOverride && await isAppOperator(user.personId);
 
-    const payload = await loadLineupPayload(teamId, fixtureId || undefined);
+    const payload = await loadLineupPayload(teamId, fixtureId || undefined, { ignorePlayUpLimit: adminOverride });
     return NextResponse.json({ ...payload, canManage });
   } catch (error) {
     return NextResponse.json(
@@ -200,7 +202,8 @@ export async function POST(request: NextRequest) {
     const action = String(body.action ?? "save").trim();
     const slots = Array.isArray(body.slots) ? body.slots as LineupSlotInput[] : [];
     const testManager = body.testManager;
-    const adminOverride = Boolean(body.adminOverride) && await isAppOperator(user.personId);
+    const requestedAdminOverride = Boolean(body.adminOverride);
+    const adminOverride = requestedAdminOverride && await isAppOperator(user.personId);
 
     if (!teamId || !fixtureId) {
       return NextResponse.json({ error: "teamId and fixtureId are required." }, { status: 400 });
@@ -261,7 +264,7 @@ export async function POST(request: NextRequest) {
       }
       const shouldPublish = action === "publish" || (adminOverride && existingStatus === "Published");
       const playerIds = await loadTeamPlayerIds(client, teamId);
-      const guestAccess = await loadEligibleGuestPlayerAccess(client, teamId, fixtureId);
+      const guestAccess = await loadEligibleGuestPlayerAccess(client, teamId, fixtureId, { ignorePlayUpLimit: adminOverride });
       const fixtureMeta = await loadFixtureLineupMeta(client, fixtureId);
       const normalized = normalizeSlots(slots, playerIds, guestAccess.eligibleIds, shouldPublish, fixtureMeta.slotDefinitions, fixtureMeta.fixtureType === "Friendly", guestAccess.blockedByTeam);
       const lineupId = await upsertLineup(client, fixtureId, teamId, user.personId, shouldPublish);
@@ -314,7 +317,7 @@ export async function POST(request: NextRequest) {
       );
     });
 
-    const payload = await loadLineupPayload(teamId, fixtureId);
+    const payload = await loadLineupPayload(teamId, fixtureId, { ignorePlayUpLimit: adminOverride });
     return NextResponse.json({ ok: true, ...payload, canManage: true });
   } catch (error) {
     return NextResponse.json(
@@ -324,7 +327,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
+async function loadLineupPayload(
+  teamId: string,
+  preferredFixtureId?: string,
+  options: { ignorePlayUpLimit?: boolean } = {}
+) {
   const fixtureResult = await dbQuery<{
     fixture_id: string;
     fixture_date: string;
@@ -386,7 +393,7 @@ async function loadLineupPayload(teamId: string, preferredFixtureId?: string) {
       id: row.person_id,
       name: row.player_name,
       teamName: row.team_name,
-      disabledReason: row.already_played_for_team ? `Already played for ${row.already_played_for_team}` : ""
+      disabledReason: !options.ignorePlayUpLimit && row.already_played_for_team ? `Already played for ${row.already_played_for_team}` : ""
     }));
 
   if (!fixture) {
@@ -1106,11 +1113,17 @@ const eligibleGuestPlayersSql = `
   order by cp.team_name, cp.player_name
 `;
 
-async function loadEligibleGuestPlayerAccess(client: PoolClient, teamId: string, fixtureId: string) {
+async function loadEligibleGuestPlayerAccess(
+  client: PoolClient,
+  teamId: string,
+  fixtureId: string,
+  options: { ignorePlayUpLimit?: boolean } = {}
+) {
   const result = await client.query<{ person_id: string; already_played_for_team: string | null }>(eligibleGuestPlayersSql, [teamId, fixtureId]);
+  const ignorePlayUpLimit = Boolean(options.ignorePlayUpLimit);
   return {
-    eligibleIds: new Set(result.rows.filter((row) => !row.already_played_for_team).map((row) => row.person_id)),
-    blockedByTeam: new Map(result.rows.filter((row) => row.already_played_for_team).map((row) => [row.person_id, row.already_played_for_team ?? "another team"]))
+    eligibleIds: new Set((ignorePlayUpLimit ? result.rows : result.rows.filter((row) => !row.already_played_for_team)).map((row) => row.person_id)),
+    blockedByTeam: ignorePlayUpLimit ? new Map() : new Map(result.rows.filter((row) => row.already_played_for_team).map((row) => [row.person_id, row.already_played_for_team ?? "another team"]))
   };
 }
 

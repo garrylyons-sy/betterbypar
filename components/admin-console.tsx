@@ -1448,7 +1448,7 @@ function AdminLineupEditor({
     async function loadLineup() {
       setLoading(true);
       try {
-        const params = new URLSearchParams({ teamId: target.teamId, fixtureId: target.fixtureId });
+        const params = new URLSearchParams({ adminOverride: "true", teamId: target.teamId, fixtureId: target.fixtureId });
         const response = await fetch(`/api/manager/lineup?${params.toString()}`, { credentials: "same-origin" });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Could not load lineup.");
