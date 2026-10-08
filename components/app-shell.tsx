@@ -33,6 +33,7 @@ import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, MatchResult
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LeagueChairMatchControls } from "@/components/league-chair-live-scoring";
+import { LeagueChairLiveIndicator, useLiveScoringStatuses } from "@/components/live-scoring-dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -5342,6 +5343,8 @@ function FixtureWeekCarouselCard({
   }, [activeTeam.league, activeTeam.season, activeTeam.teamId, embeddedDemoMode]);
 
   const week = weeks[activeIndex];
+  const liveFixtureIds = useMemo(() => week?.fixtures.map((fixture) => fixture.id) ?? [], [week]);
+  const liveStatuses = useLiveScoringStatuses(liveFixtureIds, Boolean(activeTeam.hasLiveScoringAccess));
   const managerCanShare = userCanShare;
 
   return (
@@ -5474,6 +5477,9 @@ function FixtureWeekCarouselCard({
                         <span className="justify-self-start rounded-lg bg-[#fff8eb] px-3 py-1.5 text-xs font-extrabold uppercase text-[#8a5a00] ring-1 ring-[#ffb00055]">
                           {postponedLabel}
                         </span>
+                      ) : null}
+                      {activeTeam.hasLiveScoringAccess ? (
+                        <LeagueChairLiveIndicator statuses={liveStatuses[fixture.id] ?? []} />
                       ) : null}
                     </button>
                     {expanded && canOpenRow ? (

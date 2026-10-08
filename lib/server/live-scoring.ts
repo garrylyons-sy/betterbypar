@@ -102,6 +102,100 @@ export async function requireLeagueChairScoringAccess(personId: string) {
   return Boolean(rows[0]?.can_score);
 }
 
+export type LiveScoringStatus = {
+  fixture_id: string;
+  game_id: string;
+  game_number: number;
+  game_type: string;
+  status: "Live" | "Paused";
+  state: LiveState;
+  scorer_name: string | null;
+  active_player_name: string | null;
+};
+
+export async function loadLiveScoringStatuses(fixtureIds: string[]) {
+  const ids = Array.from(new Set(fixtureIds
+    .map((id) => id.trim())
+    .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))))
+    .slice(0, 50);
+  if (!ids.length) return [];
+
+  return (await dbQuery<LiveScoringStatus>(
+    `select distinct on (lfs.fixture_id, lfs.game_id)
+            lfs.fixture_id::text, lfs.game_id::text, g.game_number, g.game_type::text,
+            lfs.status, lfs.state,
+            nullif(concat_ws(' ', scorer.first_name, scorer.last_name), '') as scorer_name,
+            coalesce(
+              nullif(concat_ws(' ', active_player.first_name, active_player.last_name), ''),
+              case lfs.state->>'activePlayerId'
+                when 'guest:home:1' then g.home_player_1_guest_name
+                when 'guest:home:2' then g.home_player_2_guest_name
+                when 'guest:away:1' then g.away_player_1_guest_name
+                when 'guest:away:2' then g.away_player_2_guest_name
+                else null
+              end
+            ) as active_player_name
+     from public.live_frame_session lfs
+     join public.fixture f on f.id = lfs.fixture_id
+     join public.season s on s.id = f.season_id
+     join public.match m on m.fixture_id = f.id
+     join public.game g on g.id = lfs.game_id and g.match_id = m.id
+     left join public.person scorer on scorer.id = lfs.scorer_person_id
+     left join public.person active_player on active_player.id = lfs.active_player_id
+     where lfs.fixture_id = any($1::uuid[])
+       and lfs.status in ('Live', 'Paused')
+       and lfs.superseded_at is null
+       and s.active = true
+       and f.status <> 'Completed'
+       and f.fixture_type = 'League'
+       and f.fixture_date >= current_date
+     order by lfs.fixture_id, lfs.game_id, lfs.updated_at desc`,
+    [ids]
+  )).rows;
+}
+
+export async function loadLiveScoringDashboard() {
+  const fixtures = (await dbQuery<{
+    id: string;
+    fixture_date: string;
+    status: string;
+    season_name: string;
+    league_name: string;
+    home_team_name: string;
+    away_team_name: string;
+    home_team_score: number;
+    away_team_score: number;
+    has_live_session: boolean;
+  }>(
+    `select f.id::text, f.fixture_date::text, f.status::text,
+            s.name as season_name, l.name as league_name,
+            ht.name as home_team_name, at.name as away_team_name,
+            m.home_team_score, m.away_team_score,
+            exists (
+              select 1
+              from public.live_frame_session lfs
+              where lfs.fixture_id = f.id
+                and lfs.status in ('Live', 'Paused')
+                and lfs.superseded_at is null
+            ) as has_live_session
+     from public.fixture f
+     join public.season s on s.id = f.season_id
+     join public.league l on l.id = f.league_id
+     join public.team ht on ht.id = f.home_team_id
+     join public.team at on at.id = f.away_team_id
+     join public.match m on m.fixture_id = f.id
+     where s.active = true
+       and f.status <> 'Completed'
+       and f.fixture_type = 'League'
+       and f.fixture_date >= current_date
+     order by has_live_session desc, f.fixture_date, l.name, ht.name`,
+    []
+  )).rows;
+
+  const statuses = await loadLiveScoringStatuses(fixtures.map((fixture) => fixture.id));
+  return { fixtures, statuses };
+}
+
 export async function loadLiveScoringFixture(fixtureId: string, personId: string) {
   await dbQuery(
     `update public.live_frame_session

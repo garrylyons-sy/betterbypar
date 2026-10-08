@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 type Side = "home" | "away";
 type SaveState = "Saved" | "Saving" | "Offline" | "Conflict";
 
-type LiveFrameState = {
+export type LiveFrameState = {
   homeScore: number;
   awayScore: number;
   activeTeam: Side;
@@ -25,7 +25,7 @@ type LiveFrameState = {
   history: unknown[];
 };
 
-type LiveSession = {
+export type LiveSession = {
   id: string;
   game_id: string;
   status: "Live" | "Paused" | "Completed" | "Abandoned";
@@ -33,12 +33,13 @@ type LiveSession = {
   version: number;
   scorer_person_id: string | null;
   scorer_name: string | null;
+  activePlayerName?: string | null;
   lease_expires_at: string | null;
   canControl: boolean;
   canTakeOver: boolean;
 };
 
-type LiveGame = {
+export type LiveGame = {
   id: string;
   game_number: number;
   game_type: string;
@@ -103,6 +104,17 @@ const colourNames: Record<number, string> = {
   7: "Black"
 };
 
+export function liveFrameStatusLabel(state: LiveFrameState) {
+  if (state.phase === "respotted-black") return "Re-spotted black";
+  if (state.phase === "colours") {
+    return typeof state.expectedBall === "number"
+      ? `${colourNames[state.expectedBall]} next`
+      : "Colours complete";
+  }
+  const ball = state.expectedBall === "colour" ? "Colour next" : "Red next";
+  return `${state.redsRemaining} ${state.redsRemaining === 1 ? "red" : "reds"} left · ${ball}`;
+}
+
 function playersFor(game: LiveGame, side: Side) {
   const player = (slot: 1 | 2) => {
     const personId = game[`${side}_player_${slot}_id`];
@@ -119,6 +131,30 @@ function playersFor(game: LiveGame, side: Side) {
 function playerNames(game: LiveGame, side: Side) {
   const names = playersFor(game, side).map((player) => player.name).filter(Boolean);
   return names.length ? names.join(" / ") : "Lineup not published";
+}
+
+function activePlayerName(session: LiveSession, game: LiveGame) {
+  if (session.activePlayerName) return session.activePlayerName;
+  const active = [...playersFor(game, "home"), ...playersFor(game, "away")]
+    .find((player) => player.id === session.state.activePlayerId);
+  return active?.name ?? null;
+}
+
+export function LiveFrameStatusSummary({ session, game }: { session: LiveSession; game: LiveGame }) {
+  const player = activePlayerName(session, game);
+  return (
+    <div className="mt-2 grid gap-2 rounded-lg bg-[#edf8f5] p-2.5 ring-1 ring-[#1b8a7233] sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+      <div className="flex items-center gap-2">
+        <Badge variant={session.status === "Paused" ? "muted" : "green"}>{session.status}</Badge>
+        <span className="text-base font-black tabular-nums text-[#10233f]">{session.state.homeScore}-{session.state.awayScore}</span>
+      </div>
+      <div className="min-w-0 text-xs font-bold text-[#49645e]">
+        <p>{liveFrameStatusLabel(session.state)}</p>
+        <p className="truncate">{player ? `${player} · ` : ""}Current break {session.state.currentBreak}</p>
+      </div>
+      <p className="text-xs font-bold text-[#6c5a73] sm:text-right">Scorer: {session.scorer_name ?? "Unassigned"}</p>
+    </div>
+  );
 }
 
 function statusTone(status: SaveState) {
@@ -141,9 +177,11 @@ function frameSnookersRequired(state: LiveFrameState) {
 
 export function LeagueChairMatchControls({
   fixtureId,
+  defaultOpen = false,
   onDataRefresh
 }: {
   fixtureId: string;
+  defaultOpen?: boolean;
   onDataRefresh?: () => void;
 }) {
   const [controlsOpen, setControlsOpen] = useState(false);
@@ -153,6 +191,10 @@ export function LeagueChairMatchControls({
   const [message, setMessage] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("Saved");
   const busyRef = useRef(false);
+
+  useEffect(() => {
+    if (defaultOpen) setControlsOpen(true);
+  }, [defaultOpen]);
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -185,6 +227,12 @@ export function LeagueChairMatchControls({
     void load();
   }, [controlsOpen, load]);
 
+  const selectedSessionCanControl = Boolean(payload?.sessions.find((session) => (
+    session.game_id === selectedGameId
+      && !["Completed", "Abandoned"].includes(session.status)
+      && session.canControl
+  )));
+
   useEffect(() => {
     if (!(controlsOpen && selectedGameId)) return;
     const poll = () => {
@@ -195,7 +243,7 @@ export function LeagueChairMatchControls({
       poll();
     };
     const offline = () => setSaveState("Offline");
-    const pollId = window.setInterval(poll, 2000);
+    const pollId = window.setInterval(poll, selectedSessionCanControl ? 2000 : 10000);
     document.addEventListener("visibilitychange", poll);
     window.addEventListener("online", online);
     window.addEventListener("offline", offline);
@@ -205,7 +253,7 @@ export function LeagueChairMatchControls({
       window.removeEventListener("online", online);
       window.removeEventListener("offline", offline);
     };
-  }, [controlsOpen, load, selectedGameId]);
+  }, [controlsOpen, load, selectedGameId, selectedSessionCanControl]);
 
   const send = useCallback(async (action: LiveAction) => {
     if (!navigator.onLine) {
@@ -294,6 +342,9 @@ export function LeagueChairMatchControls({
                     <span className="text-[#6c5a73]">v</span>
                     <span className="text-right">{playerNames(game, "away")}</span>
                   </div>
+                  {session && (session.status === "Live" || session.status === "Paused") ? (
+                    <LiveFrameStatusSummary session={session} game={game} />
+                  ) : null}
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
                   <Button
