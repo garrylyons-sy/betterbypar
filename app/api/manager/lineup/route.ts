@@ -388,11 +388,14 @@ async function loadLineupPayload(
     eligibleGuestPlayersSql,
     [teamId, fixture?.fixture_id ?? null]
   )).rows;
-  const teamAllowsUnlimitedLowerPlayers = Boolean((await dbQuery<{ allow_unlimited_lower_team_players: boolean }>(
-    "select allow_unlimited_lower_team_players from public.team where id = $1",
+  const clubAllowsUnlimitedLowerPlayers = Boolean((await dbQuery<{ allow_unlimited_lower_team_players: boolean }>(
+    `select c.allow_unlimited_lower_team_players
+     from public.team t
+     join public.club c on c.id = t.club_id
+     where t.id = $1`,
     [teamId]
   )).rows[0]?.allow_unlimited_lower_team_players);
-  const ignorePlayUpLimit = Boolean(options.ignorePlayUpLimit) || teamAllowsUnlimitedLowerPlayers;
+  const ignorePlayUpLimit = Boolean(options.ignorePlayUpLimit) || clubAllowsUnlimitedLowerPlayers;
   const visibleGuestPlayers = guestPlayers
     .filter((row) => !playerIds.has(row.person_id))
     .map((row) => ({
@@ -1128,12 +1131,15 @@ async function loadEligibleGuestPlayerAccess(
   const [result, teamSetting] = await Promise.all([
     client.query<{ person_id: string; already_played_for_team: string | null }>(eligibleGuestPlayersSql, [teamId, fixtureId]),
     client.query<{ allow_unlimited_lower_team_players: boolean }>(
-      "select allow_unlimited_lower_team_players from public.team where id = $1",
+      `select c.allow_unlimited_lower_team_players
+       from public.team t
+       join public.club c on c.id = t.club_id
+       where t.id = $1`,
       [teamId]
     )
   ]);
-  const teamAllowsUnlimitedLowerPlayers = Boolean(teamSetting.rows[0]?.allow_unlimited_lower_team_players);
-  const ignorePlayUpLimit = Boolean(options.ignorePlayUpLimit) || teamAllowsUnlimitedLowerPlayers;
+  const clubAllowsUnlimitedLowerPlayers = Boolean(teamSetting.rows[0]?.allow_unlimited_lower_team_players);
+  const ignorePlayUpLimit = Boolean(options.ignorePlayUpLimit) || clubAllowsUnlimitedLowerPlayers;
   return {
     eligibleIds: new Set((ignorePlayUpLimit ? result.rows : result.rows.filter((row) => !row.already_played_for_team)).map((row) => row.person_id)),
     blockedByTeam: ignorePlayUpLimit ? new Map() : new Map(result.rows.filter((row) => row.already_played_for_team).map((row) => [row.person_id, row.already_played_for_team ?? "another team"]))

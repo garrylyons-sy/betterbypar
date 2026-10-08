@@ -14,6 +14,7 @@ type ClubRow = {
   logo_path: string | null;
   primary_color: string | null;
   accent_color: string | null;
+  allow_unlimited_lower_team_players: boolean;
   active: boolean;
   updated_at: string;
 };
@@ -27,6 +28,7 @@ function clubResponse(row: ClubRow) {
     logoPath: row.logo_path,
     primaryColor: row.primary_color,
     accentColor: row.accent_color,
+    allowUnlimitedLowerTeamPlayers: row.allow_unlimited_lower_team_players,
     active: row.active,
     updatedAt: row.updated_at
   };
@@ -41,6 +43,7 @@ function rowSettings(row: ClubRow): ClubSettings {
     logoPath: club.logoPath,
     primaryColor: club.primaryColor,
     accentColor: club.accentColor,
+    allowUnlimitedLowerTeamPlayers: club.allowUnlimitedLowerTeamPlayers,
     active: club.active
   };
 }
@@ -71,7 +74,7 @@ export async function GET() {
     if (!access.user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
     if (!access.mode) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
     const clubs = await dbQuery<ClubRow>(
-      `select id::text, name, venue, address, logo_path, primary_color, accent_color, active, updated_at::text
+      `select id::text, name, venue, address, logo_path, primary_color, accent_color, allow_unlimited_lower_team_players, active, updated_at::text
        from public.club
        where $1::boolean = true
           or (active = true and id = any($2::uuid[]))
@@ -94,10 +97,10 @@ export async function POST(request: Request) {
     const input = normalizeClubInput(await request.json(), "create");
     const club = await withTransaction(async (client) => {
       const result = await client.query<ClubRow>(
-        `insert into public.club (name, venue, address, logo_path, primary_color, accent_color, active, updated_at)
-         values ($1, $2, $3, $4, $5, $6, $7, now())
-         returning id::text, name, venue, address, logo_path, primary_color, accent_color, active, updated_at::text`,
-        [input.name, input.venue, input.address, input.logoPath, input.primaryColor, input.accentColor, input.active]
+        `insert into public.club (name, venue, address, logo_path, primary_color, accent_color, allow_unlimited_lower_team_players, active, updated_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, now())
+         returning id::text, name, venue, address, logo_path, primary_color, accent_color, allow_unlimited_lower_team_players, active, updated_at::text`,
+        [input.name, input.venue, input.address, input.logoPath, input.primaryColor, input.accentColor, input.allowUnlimitedLowerTeamPlayers, input.active]
       );
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
@@ -126,7 +129,7 @@ export async function PATCH(request: Request) {
 
     const result = await withTransaction(async (client) => {
       const existing = await client.query<ClubRow>(
-        `select id::text, name, venue, address, logo_path, primary_color, accent_color, active, updated_at::text
+        `select id::text, name, venue, address, logo_path, primary_color, accent_color, allow_unlimited_lower_team_players, active, updated_at::text
          from public.club where id = $1 for update`,
         [id]
       );
@@ -151,10 +154,11 @@ export async function PATCH(request: Request) {
 
       const updated = await client.query<ClubRow>(
         `update public.club
-         set name = $2, venue = $3, address = $4, logo_path = $5, primary_color = $6, accent_color = $7, active = $8, updated_at = now()
+         set name = $2, venue = $3, address = $4, logo_path = $5, primary_color = $6, accent_color = $7,
+             allow_unlimited_lower_team_players = $8, active = $9, updated_at = now()
          where id = $1
-         returning id::text, name, venue, address, logo_path, primary_color, accent_color, active, updated_at::text`,
-        [id, next.name, next.venue, next.address, next.logoPath, next.primaryColor, next.accentColor, next.active]
+         returning id::text, name, venue, address, logo_path, primary_color, accent_color, allow_unlimited_lower_team_players, active, updated_at::text`,
+        [id, next.name, next.venue, next.address, next.logoPath, next.primaryColor, next.accentColor, next.allowUnlimitedLowerTeamPlayers, next.active]
       );
       const label = clubAuditLabel("update", changes, next.active);
       if (!label) return updated.rows[0];

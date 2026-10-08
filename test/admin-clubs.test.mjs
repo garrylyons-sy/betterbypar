@@ -22,6 +22,7 @@ test("normalizes database-backed club settings", () => {
       logoPath: pngDataUrl,
       primaryColor: "#0a1b2c",
       accentColor: "#DDEEFF",
+      allowUnlimitedLowerTeamPlayers: true,
       active: true
     }, "create"),
     {
@@ -31,6 +32,7 @@ test("normalizes database-backed club settings", () => {
       logoPath: pngDataUrl,
       primaryColor: "#0A1B2C",
       accentColor: "#DDEEFF",
+      allowUnlimitedLowerTeamPlayers: true,
       active: true
     }
   );
@@ -59,11 +61,11 @@ test("preserves existing path-based logos", () => {
 test("applies platform and club administrator mutation policies", () => {
   assert.deepEqual(clubMutationPolicy("platform"), {
     canCreate: true,
-    writableFields: ["name", "venue", "address", "logoPath", "primaryColor", "accentColor", "active"]
+    writableFields: ["name", "venue", "address", "logoPath", "primaryColor", "accentColor", "allowUnlimitedLowerTeamPlayers", "active"]
   });
   assert.deepEqual(clubMutationPolicy("club"), {
     canCreate: false,
-    writableFields: ["venue", "address", "logoPath", "primaryColor", "accentColor"]
+    writableFields: ["venue", "address", "logoPath", "primaryColor", "accentColor", "allowUnlimitedLowerTeamPlayers"]
   });
 });
 
@@ -75,6 +77,7 @@ test("reports only fields whose persisted values changed", () => {
     logoPath: "/club-logos/castle.svg",
     primaryColor: "#071A78",
     accentColor: "#00E6F0",
+    allowUnlimitedLowerTeamPlayers: false,
     active: true
   };
   assert.deepEqual(changedClubFields(current, { ...current }), []);
@@ -93,6 +96,7 @@ test("editing a club preserves unset optional colours", () => {
     logoPath: null,
     primaryColor: null,
     accentColor: null,
+    allowUnlimitedLowerTeamPlayers: false,
     active: true
   }), {
     id: "club-1",
@@ -102,6 +106,7 @@ test("editing a club preserves unset optional colours", () => {
     logoPath: "",
     primaryColor: "",
     accentColor: "",
+    allowUnlimitedLowerTeamPlayers: false,
     active: true
   });
 });

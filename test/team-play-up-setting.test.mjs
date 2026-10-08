@@ -8,34 +8,37 @@ function source(path) {
 }
 
 const schema = source("../supabase/schema.sql");
-const migration = source("../supabase/team_unlimited_lower_players.sql");
-const teamApi = source("../app/api/admin/teams/route.ts");
+const migration = source("../supabase/club_unlimited_lower_players.sql");
+const clubsApi = source("../app/api/admin/clubs/route.ts");
 const adminConsole = source("../components/admin-console.tsx");
 const auth = source("../lib/server/auth.ts");
 const lineupRoute = source("../app/api/manager/lineup/route.ts");
 
-test("teams persist the unlimited lower-player setting", () => {
-  assert.match(schema, /allow_unlimited_lower_team_players boolean not null default false/);
-  assert.match(migration, /alter table public\.team[\s\S]*add column if not exists allow_unlimited_lower_team_players boolean not null default false/);
+test("clubs persist the unlimited lower-player setting", () => {
+  const clubTable = schema.slice(schema.indexOf("create table public.club ("), schema.indexOf("create unique index club_name_case_insensitive_idx"));
+  const teamTable = schema.slice(schema.indexOf("create table public.team ("), schema.indexOf("create table public.team_membership"));
+  assert.match(clubTable, /allow_unlimited_lower_team_players boolean not null default false/);
+  assert.doesNotMatch(teamTable, /allow_unlimited_lower_team_players/);
+  assert.match(migration, /alter table public\.club[\s\S]*add column if not exists allow_unlimited_lower_team_players boolean not null default false/);
+  assert.match(migration, /alter table public\.team[\s\S]*drop column if exists allow_unlimited_lower_team_players/);
 });
 
-test("club and platform admins can update the setting only for teams in scope", () => {
-  assert.match(teamApi, /requireTeamSettingsAccess/);
-  assert.match(teamApi, /allow_unlimited_lower_team_players = \$2/);
-  assert.match(teamApi, /clubIds\.includes\(existing\.club_id\)/);
-  assert.match(teamApi, /Updated team player eligibility/);
+test("club and platform admins update the setting through club settings", () => {
+  assert.match(clubsApi, /allow_unlimited_lower_team_players/);
+  assert.match(clubsApi, /next\.allowUnlimitedLowerTeamPlayers/);
+  assert.match(clubsApi, /Club administrator access is required for this club/);
 });
 
-test("the Clubs panel exposes the setting for each team", () => {
-  assert.match(auth, /allow_unlimited_lower_team_players/);
+test("the Clubs panel exposes one club-level setting", () => {
   assert.match(adminConsole, /allowUnlimitedLowerTeamPlayers/);
   assert.match(adminConsole, /Allow unlimited lower team players/);
-  assert.match(adminConsole, /\/api\/admin\/teams/);
+  assert.doesNotMatch(adminConsole, /\/api\/admin\/teams/);
+  assert.doesNotMatch(auth, /t\.allow_unlimited_lower_team_players/);
 });
 
-test("manager lineup eligibility honours the team setting without weakening other teams", () => {
-  assert.match(lineupRoute, /allow_unlimited_lower_team_players/);
-  assert.match(lineupRoute, /teamAllowsUnlimitedLowerPlayers/);
-  assert.match(lineupRoute, /Boolean\(options\.ignorePlayUpLimit\) \|\| teamAllowsUnlimitedLowerPlayers/);
+test("manager lineup eligibility honours the club setting without weakening other clubs", () => {
+  assert.match(lineupRoute, /join public\.club[\s\S]*allow_unlimited_lower_team_players/);
+  assert.match(lineupRoute, /clubAllowsUnlimitedLowerPlayers/);
+  assert.match(lineupRoute, /Boolean\(options\.ignorePlayUpLimit\) \|\| clubAllowsUnlimitedLowerPlayers/);
   assert.match(lineupRoute, /Guest Player already played for/, "the default restriction must remain in place");
 });

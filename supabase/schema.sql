@@ -71,6 +71,7 @@ create table public.club (
   logo_path text,
   primary_color text check (primary_color is null or primary_color ~ '^#[0-9A-Fa-f]{6}$'),
   accent_color text check (accent_color is null or accent_color ~ '^#[0-9A-Fa-f]{6}$'),
+  allow_unlimited_lower_team_players boolean not null default false,
   active boolean not null default true,
   updated_at timestamptz not null default now()
 );
@@ -111,7 +112,6 @@ create table public.team (
   season_id uuid not null references public.season(id) on delete cascade,
   name text not null,
   active boolean not null default true,
-  allow_unlimited_lower_team_players boolean not null default false,
   unique (league_id, season_id, name)
 );
 

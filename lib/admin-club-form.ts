@@ -6,6 +6,7 @@ export type AdminClubRecord = {
   logoPath: string | null;
   primaryColor: string | null;
   accentColor: string | null;
+  allowUnlimitedLowerTeamPlayers: boolean;
   active: boolean;
   updatedAt?: string;
 };
@@ -18,6 +19,7 @@ export type AdminClubFormDraft = {
   logoPath: string;
   primaryColor: string;
   accentColor: string;
+  allowUnlimitedLowerTeamPlayers: boolean;
   active: boolean;
 };
 
@@ -30,6 +32,7 @@ export function clubDraftFromRecord(club: AdminClubRecord): AdminClubFormDraft {
     logoPath: club.logoPath ?? "",
     primaryColor: club.primaryColor ?? "",
     accentColor: club.accentColor ?? "",
+    allowUnlimitedLowerTeamPlayers: club.allowUnlimitedLowerTeamPlayers,
     active: club.active
   };
 }

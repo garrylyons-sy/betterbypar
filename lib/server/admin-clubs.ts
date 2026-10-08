@@ -7,11 +7,12 @@ export type ClubSettings = {
   logoPath: string | null;
   primaryColor: string | null;
   accentColor: string | null;
+  allowUnlimitedLowerTeamPlayers: boolean;
   active: boolean;
 };
 
-const platformWritableFields = ["name", "venue", "address", "logoPath", "primaryColor", "accentColor", "active"] as const;
-const clubWritableFields = ["venue", "address", "logoPath", "primaryColor", "accentColor"] as const;
+const platformWritableFields = ["name", "venue", "address", "logoPath", "primaryColor", "accentColor", "allowUnlimitedLowerTeamPlayers", "active"] as const;
+const clubWritableFields = ["venue", "address", "logoPath", "primaryColor", "accentColor", "allowUnlimitedLowerTeamPlayers"] as const;
 const maxLogoBytes = 1024 * 1024;
 
 function optionalText(value: unknown) {
@@ -57,6 +58,7 @@ export function normalizeClubInput(input: Record<string, unknown>, mode: "create
     logoPath: logo(input.logoPath ?? input.logo_path),
     primaryColor: color(input.primaryColor ?? input.primary_color),
     accentColor: color(input.accentColor ?? input.accent_color),
+    allowUnlimitedLowerTeamPlayers: Boolean(input.allowUnlimitedLowerTeamPlayers ?? input.allow_unlimited_lower_team_players),
     active: input.active === undefined ? true : Boolean(input.active)
   };
 }

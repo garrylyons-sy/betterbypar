@@ -564,7 +564,6 @@ export async function loadTeamOptions() {
     team_name: string;
     league_name: string;
     season_name: string;
-    allow_unlimited_lower_team_players: boolean;
   }>(
     `with logical_teams as (
        select distinct on (c.id, l.id, t.name)
@@ -573,8 +572,7 @@ export async function loadTeamOptions() {
          t.id as team_id,
          t.name as team_name,
          l.name as league_name,
-         s.name as season_name,
-         t.allow_unlimited_lower_team_players
+         s.name as season_name
        from public.team t
        join public.club c on c.id = t.club_id
        join public.league l on l.id = t.league_id
