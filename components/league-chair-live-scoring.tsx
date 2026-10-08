@@ -49,15 +49,19 @@ export type LiveGame = {
   home_player_1_id: string | null;
   home_player_1_name: string | null;
   home_player_1_guest_name: string | null;
+  home_player_1_win_percentage: number | null;
   home_player_2_id: string | null;
   home_player_2_name: string | null;
   home_player_2_guest_name: string | null;
+  home_player_2_win_percentage: number | null;
   away_player_1_id: string | null;
   away_player_1_name: string | null;
   away_player_1_guest_name: string | null;
+  away_player_1_win_percentage: number | null;
   away_player_2_id: string | null;
   away_player_2_name: string | null;
   away_player_2_guest_name: string | null;
+  away_player_2_win_percentage: number | null;
 };
 
 type LiveFixturePayload = {
@@ -108,6 +112,12 @@ function clearanceFrom(nextColour: number) {
   return [2, 3, 4, 5, 6, 7].filter((value) => value >= nextColour);
 }
 
+type FramePlayer = {
+  id: string;
+  name: string | null;
+  winPercentage: number | null;
+};
+
 export function liveFrameStatusLabel(state: LiveFrameState) {
   if (state.phase === "respotted-black") return "Re-spotted black";
   if (state.phase === "colours") {
@@ -126,15 +136,30 @@ function playersFor(game: LiveGame, side: Side) {
     const guestKey = guestName?.trim() ? `guest:${side}:${slot}` : null;
     return {
       id: personId ?? guestKey,
-      name: game[`${side}_player_${slot}_name`] ?? guestName
+      name: game[`${side}_player_${slot}_name`] ?? guestName,
+      winPercentage: game[`${side}_player_${slot}_win_percentage`]
     };
   };
-  return [player(1), player(2)].filter((item): item is { id: string; name: string | null } => Boolean(item.id));
+  return [player(1), player(2)].filter((item): item is FramePlayer => Boolean(item.id));
 }
 
-function playerNames(game: LiveGame, side: Side) {
-  const names = playersFor(game, side).map((player) => player.name).filter(Boolean);
-  return names.length ? names.join(" / ") : "Lineup not published";
+function PlayerNames({ game, side }: { game: LiveGame; side: Side }) {
+  const players = playersFor(game, side).filter((player) => player.name);
+  if (!players.length) return <span>Lineup not published</span>;
+
+  return (
+    <span className={cn("inline-flex flex-wrap items-baseline gap-x-1", side === "away" && "justify-end")}>
+      {players.map((player, index) => (
+        <span key={player.id} className="whitespace-nowrap">
+          {index ? <span className="mr-1 text-[#6c5a73]">/</span> : null}
+          {player.name}
+          {player.winPercentage !== null ? (
+            <span className="ml-1 text-[10px] font-bold text-[#6c5a73]">({Math.round(player.winPercentage)}%)</span>
+          ) : null}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 function activePlayerName(session: LiveSession, game: LiveGame) {
@@ -342,9 +367,9 @@ export function LeagueChairMatchControls({
                     {session ? <Badge variant={session.status === "Completed" ? "green" : "cyan"}>{session.status}</Badge> : null}
                   </div>
                   <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-sm font-black">
-                    <span>{playerNames(game, "home")}</span>
+                    <PlayerNames game={game} side="home" />
                     <span className="text-[#6c5a73]">v</span>
-                    <span className="text-right">{playerNames(game, "away")}</span>
+                    <span className="text-right"><PlayerNames game={game} side="away" /></span>
                   </div>
                   {session && (session.status === "Live" || session.status === "Paused") ? (
                     <LiveFrameStatusSummary session={session} game={game} />

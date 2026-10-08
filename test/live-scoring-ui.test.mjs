@@ -5,6 +5,7 @@ import test from "node:test";
 const appShell = readFileSync(new URL("../components/app-shell.tsx", import.meta.url), "utf8");
 const controls = readFileSync(new URL("../components/league-chair-live-scoring.tsx", import.meta.url), "utf8");
 const fixtureRoute = readFileSync(new URL("../app/api/fixtures/weeks/route.ts", import.meta.url), "utf8");
+const liveScoringService = readFileSync(new URL("../lib/server/live-scoring.ts", import.meta.url), "utf8");
 
 test("main fixtures expose only active read-only live state to League Chairs", () => {
   assert.match(appShell, /activeTeam\.hasLiveScoringAccess[\s\S]*fixtureLiveStatuses\.length/);
@@ -30,6 +31,17 @@ test("published typed guests remain selectable in the live scorer", () => {
   assert.match(controls, /away_player_2_guest_name/);
   assert.match(controls, /guest:\$\{side\}:\$\{slot\}/);
   assert.match(controls, /personId \?\? guestKey/);
+});
+
+test("League Chair game lists show each registered player's season win percentage", () => {
+  assert.match(liveScoringService, /player_game_result_view/, "percentages should use the canonical completed-game result source");
+  assert.match(liveScoringService, /pgr\.season_id = f\.season_id/);
+  assert.match(liveScoringService, /pgr\.league_id = f\.league_id/);
+  assert.match(liveScoringService, /home_player_1_win_percentage/);
+  assert.match(liveScoringService, /away_player_2_win_percentage/);
+  assert.match(controls, /winPercentage/);
+  assert.match(controls, /Math\.round\(player\.winPercentage\)/);
+  assert.match(controls, /text-\[10px\]/, "the percentage should remain visually secondary to the player name");
 });
 
 test("mobile scorer shows the table state and complete scoring controls", () => {

@@ -252,30 +252,66 @@ export async function loadLiveScoringFixture(fixtureId: string, personId: string
     home_player_1_id: string | null;
     home_player_1_name: string | null;
     home_player_1_guest_name: string | null;
+    home_player_1_win_percentage: number | null;
     home_player_2_id: string | null;
     home_player_2_name: string | null;
     home_player_2_guest_name: string | null;
+    home_player_2_win_percentage: number | null;
     away_player_1_id: string | null;
     away_player_1_name: string | null;
     away_player_1_guest_name: string | null;
+    away_player_1_win_percentage: number | null;
     away_player_2_id: string | null;
     away_player_2_name: string | null;
     away_player_2_guest_name: string | null;
+    away_player_2_win_percentage: number | null;
   }>(
-    `select g.id::text, g.game_number, g.game_type::text, g.home_score, g.away_score,
+    `with player_stats as (
+       select
+         fp.person_id,
+         case
+           when count(distinct pgr.game_id) > 0 then round(
+             100.0 * count(distinct pgr.game_id) filter (where pgr.winner_player_id = fp.person_id)
+             / count(distinct pgr.game_id)
+           )::int
+           else null
+         end as win_percentage
+       from public.fixture f
+       join public.match fixture_match on fixture_match.fixture_id = f.id
+       join public.game fixture_game on fixture_game.match_id = fixture_match.id
+       cross join lateral (
+         values
+           (fixture_game.home_player_1_id),
+           (fixture_game.home_player_2_id),
+           (fixture_game.away_player_1_id),
+           (fixture_game.away_player_2_id)
+       ) as fp(person_id)
+       left join public.player_game_result_view pgr
+         on pgr.season_id = f.season_id
+        and pgr.league_id = f.league_id
+        and (pgr.player_1_id = fp.person_id or pgr.player_2_id = fp.person_id)
+       where f.id = $1
+         and fp.person_id is not null
+       group by fp.person_id
+     )
+     select g.id::text, g.game_number, g.game_type::text, g.home_score, g.away_score,
             g.winner_team_id::text,
             g.home_player_1_id::text,
             coalesce(nullif(g.home_player_1_guest_name, ''), nullif(concat_ws(' ', hp1.first_name, hp1.last_name), '')) as home_player_1_name,
             g.home_player_1_guest_name,
+            hp1_stats.win_percentage as home_player_1_win_percentage,
             g.home_player_2_id::text,
             coalesce(nullif(g.home_player_2_guest_name, ''), nullif(concat_ws(' ', hp2.first_name, hp2.last_name), '')) as home_player_2_name,
             g.home_player_2_guest_name,
+            hp2_stats.win_percentage as home_player_2_win_percentage,
             g.away_player_1_id::text,
             coalesce(nullif(g.away_player_1_guest_name, ''), nullif(concat_ws(' ', ap1.first_name, ap1.last_name), '')) as away_player_1_name,
             g.away_player_1_guest_name,
+            ap1_stats.win_percentage as away_player_1_win_percentage,
             g.away_player_2_id::text,
             coalesce(nullif(g.away_player_2_guest_name, ''), nullif(concat_ws(' ', ap2.first_name, ap2.last_name), '')) as away_player_2_name,
-            g.away_player_2_guest_name
+            g.away_player_2_guest_name,
+            ap2_stats.win_percentage as away_player_2_win_percentage
      from public.fixture f
      join public.match m on m.fixture_id = f.id
      join public.game g on g.match_id = m.id
@@ -283,6 +319,10 @@ export async function loadLiveScoringFixture(fixtureId: string, personId: string
      left join public.person hp2 on hp2.id = g.home_player_2_id
      left join public.person ap1 on ap1.id = g.away_player_1_id
      left join public.person ap2 on ap2.id = g.away_player_2_id
+     left join player_stats hp1_stats on hp1_stats.person_id = g.home_player_1_id
+     left join player_stats hp2_stats on hp2_stats.person_id = g.home_player_2_id
+     left join player_stats ap1_stats on ap1_stats.person_id = g.away_player_1_id
+     left join player_stats ap2_stats on ap2_stats.person_id = g.away_player_2_id
      where f.id = $1
      order by g.game_number`,
     [fixtureId]
