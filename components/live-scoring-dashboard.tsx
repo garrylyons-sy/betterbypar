@@ -156,6 +156,24 @@ export function LeagueChairLiveStatusList({ statuses, showScorer = true }: { sta
   );
 }
 
+function LiveScoringFavicon({ active }: { active: boolean }) {
+  useEffect(() => {
+    const previousTitle = document.title;
+    const icon = document.createElement("link");
+    icon.id = "live-scoring-favicon";
+    icon.rel = "icon";
+    icon.type = "image/svg+xml";
+    document.head.appendChild(icon);
+    icon.href = active ? "/live-scoring-live-icon.svg" : "/live-scoring-icon.svg";
+    document.title = active ? "LIVE · Live Scoring | Interclub Snooker" : "Live Scoring | Interclub Snooker";
+    return () => {
+      icon.remove();
+      document.title = previousTitle;
+    };
+  }, [active]);
+  return null;
+}
+
 export function LiveScoringDashboard({ userName }: { userName: string }) {
   const [payload, setPayload] = useState<DashboardPayload>({ fixtures: [], statuses: [] });
   const [selectedFixtureId, setSelectedFixtureId] = useState("");
@@ -201,9 +219,11 @@ export function LiveScoringDashboard({ userName }: { userName: string }) {
     if (league !== "All leagues" && fixture.league_name !== league) return false;
     return !date || fixture.fixture_date.slice(0, 10) === date;
   });
+  const hasActiveScoring = payload.statuses.some((status) => status.status === "Live");
 
   return (
     <main className="min-h-screen bg-[#f7f5fa] text-[#10233f]">
+      <LiveScoringFavicon active={hasActiveScoring} />
       <header className="sticky top-0 z-40 bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">

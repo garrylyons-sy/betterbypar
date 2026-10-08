@@ -104,6 +104,10 @@ const colourNames: Record<number, string> = {
   7: "Black"
 };
 
+function clearanceFrom(nextColour: number) {
+  return [2, 3, 4, 5, 6, 7].filter((value) => value >= nextColour);
+}
+
 export function liveFrameStatusLabel(state: LiveFrameState) {
   if (state.phase === "respotted-black") return "Re-spotted black";
   if (state.phase === "colours") {
@@ -743,19 +747,22 @@ export function LiveFrameScorer({
 
                   {setupPhase === "colours" ? (
                     <div className="grid gap-1">
-                      <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Colours remaining</p>
+                      <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Next colour</p>
                       <div className="flex flex-wrap gap-3">
                         {[2, 3, 4, 5, 6, 7].map((value) => (
                           <button
                             key={value}
                             type="button"
-                            aria-label={`${colourNames[value]} ${setupColours.includes(value) ? "on table" : "potted"}`}
-                            onClick={() => setSetupColours((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value].sort())}
+                            aria-label={`${colourNames[value]} next`}
+                            onClick={() => {
+                              setSetupColours(clearanceFrom(value));
+                              setSetupExpectedBall(value);
+                            }}
                             className={cn("h-9 w-9 rounded-full ring-2 ring-offset-2", colourStyles[value], setupColours.includes(value) ? "ring-[#10233f]" : "ring-transparent opacity-30")}
                           />
                         ))}
                       </div>
-                      <p className="text-xs font-semibold text-[#6c5a73]">Next ball: {colourNames[setupColours[0]] ?? "none selected"}</p>
+                      <p className="text-xs font-semibold text-[#6c5a73]">Selecting a colour marks every lower colour as potted.</p>
                     </div>
                   ) : null}
 

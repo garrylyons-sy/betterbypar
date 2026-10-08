@@ -48,6 +48,12 @@ test("a late scorer can set the complete state and continue", () => {
   assert.match(controls, /action: "setState"/);
 });
 
+test("selecting the next clearance colour removes every lower colour", () => {
+  assert.match(controls, /function clearanceFrom/);
+  assert.match(controls, /value >= nextColour/);
+  assert.match(controls, /setSetupColours\(clearanceFrom\(value\)\)/);
+});
+
 test("an unscored frame clearly offers to switch the starting team", () => {
   assert.match(controls, /const frameIsUnscored =/);
   assert.match(controls, /const otherTeamName =/);

@@ -8,6 +8,7 @@ function source(path) {
 }
 
 const page = source("../app/livescoring/page.tsx");
+const layout = source("../app/livescoring/layout.tsx");
 const dashboard = source("../components/live-scoring-dashboard.tsx");
 const dashboardRoute = source("../app/api/league-chair/live-scoring/dashboard/route.ts");
 const service = source("../lib/server/live-scoring.ts");
@@ -24,6 +25,14 @@ test("standalone live scoring is server-protected for League Chairs", () => {
   assert.doesNotMatch(dashboardRoute, /currentUserFromRequest|testUser/, "the dashboard must not support impersonation");
   assert.match(dashboardRoute, /requireLeagueChairScoringAccess\(user\.personId\)/);
   assert.match(dashboardRoute, /League Chair access required[\s\S]*status: 403/);
+});
+
+test("live scoring has its own favicon and signals active scoring", () => {
+  assert.match(layout, /live-scoring-icon\.svg/);
+  assert.match(dashboard, /LiveScoringFavicon/);
+  assert.match(dashboard, /live-scoring-live-icon\.svg/);
+  assert.match(dashboard, /status\.status === "Live"/);
+  assert.match(dashboard, /document\.title = active/);
 });
 
 test("dashboard selects current fixtures and reuses the established scorer", () => {

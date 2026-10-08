@@ -61,6 +61,12 @@ test("player-attributed scoring is restricted to players in that frame and side"
   assert.match(service, /Player is not part of that side in this frame/);
 });
 
+test("a new singles frame starts ready to score without catch-up setup", () => {
+  assert.match(service, /function defaultActivePlayerId/);
+  assert.match(service, /participants\.length === 1 \? participants\[0\] : null/);
+  assert.match(service, /createLiveFrameState\(\{ activeTeam, activePlayerId \}\)/);
+});
+
 test("typed guest participant keys never enter UUID-only database columns", () => {
   assert.match(service, /function databasePersonId/);
   assert.match(service, /databasePersonId\(state\.activePlayerId\)/);
