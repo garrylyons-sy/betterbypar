@@ -174,7 +174,7 @@ function LiveScoringFavicon({ active }: { active: boolean }) {
   return null;
 }
 
-export function LiveScoringDashboard({ userName }: { userName: string }) {
+export function LiveScoringDashboard({ userName = "", embedded = false }: { userName?: string; embedded?: boolean }) {
   const [payload, setPayload] = useState<DashboardPayload>({ fixtures: [], statuses: [] });
   const [selectedFixtureId, setSelectedFixtureId] = useState("");
   const [league, setLeague] = useState("All leagues");
@@ -221,25 +221,8 @@ export function LiveScoringDashboard({ userName }: { userName: string }) {
   });
   const hasActiveScoring = payload.statuses.some((status) => status.status === "Live");
 
-  return (
-    <main className="min-h-screen bg-[#f7f5fa] text-[#10233f]">
-      <LiveScoringFavicon active={hasActiveScoring} />
-      <header className="sticky top-0 z-40 bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <a href="/" className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10" aria-label="Back to Interclub Snooker">
-              <ArrowLeft className="h-5 w-5" />
-            </a>
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase text-white/65">Interclub Snooker</p>
-              <h1 className="truncate text-lg font-black">Live scoring</h1>
-            </div>
-          </div>
-          <p className="max-w-[42%] truncate text-xs font-bold text-white/70">{userName}</p>
-        </div>
-      </header>
-
-      <div className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-4 sm:px-6">
+  const dashboardContent = (
+    <div className={cn("mx-auto grid w-full max-w-3xl gap-4", embedded ? "" : "px-4 py-4 sm:px-6")}>
         <section className="grid gap-3 rounded-lg bg-white p-4 ring-1 ring-[#eeeaf2]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -307,7 +290,31 @@ export function LiveScoringDashboard({ userName }: { userName: string }) {
             );
           })}
         </section>
-      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return <section className="min-w-0 text-[#10233f]">{dashboardContent}</section>;
+  }
+
+  return (
+    <main className="min-h-screen bg-[#f7f5fa] text-[#10233f]">
+      <LiveScoringFavicon active={hasActiveScoring} />
+      <header className="sticky top-0 z-40 bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6">
+        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <a href="/" className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10" aria-label="Back to Interclub Snooker">
+              <ArrowLeft className="h-5 w-5" />
+            </a>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase text-white/65">Interclub Snooker</p>
+              <h1 className="truncate text-lg font-black">Live scoring</h1>
+            </div>
+          </div>
+          <p className="max-w-[42%] truncate text-xs font-bold text-white/70">{userName}</p>
+        </div>
+      </header>
+      {dashboardContent}
     </main>
   );
 }

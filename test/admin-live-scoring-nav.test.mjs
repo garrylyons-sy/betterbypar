@@ -4,10 +4,11 @@ import test from "node:test";
 
 const adminConsole = readFileSync(new URL("../components/admin-console.tsx", import.meta.url), "utf8");
 
-test("platform admin navigation links to live scoring immediately after matches", () => {
+test("platform admin navigation opens an integrated live-scoring panel immediately after matches", () => {
   assert.match(adminConsole, /label: "Matches"[\s\S]*label: "Live Scoring"/);
-  assert.match(adminConsole, /id: "live-scoring"[\s\S]*href: "\/livescoring"/);
-  assert.match(adminConsole, /href=\{item\.href\}/);
+  assert.match(adminConsole, /type AdminTab = [^;]*"live-scoring"/);
+  assert.match(adminConsole, /props\.tab === "live-scoring"[\s\S]*<LiveScoringDashboard embedded/);
+  assert.doesNotMatch(adminConsole, /href: "\/livescoring"/);
 });
 
 test("club admins do not receive the platform live-scoring navigation item", () => {

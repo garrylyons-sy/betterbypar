@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, Building2, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, Radio, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
+import { LiveScoringDashboard } from "@/components/live-scoring-dashboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "desktop" | "clubs" | "competitions" | "matches" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
+type AdminTab = "desktop" | "clubs" | "competitions" | "matches" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type TeamRole = "Player" | "Manager";
 type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair";
@@ -259,25 +260,18 @@ const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Adm
 const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
 const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin", "League Chair"];
 const clubAdminTabs: AdminTab[] = ["clubs", "people", "competitions", "matches"];
-const adminNavItems: Array<
-  | { id: AdminTab; label: string; icon: typeof LayoutPanelTop; href?: never }
-  | { id: "live-scoring"; label: string; icon: typeof LayoutPanelTop; href: string }
-> = [
+const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPanelTop }> = [
   { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
   { id: "clubs" as const, label: "Clubs", icon: Building2 },
   { id: "competitions" as const, label: "Competitions", icon: Trophy },
   { id: "matches" as const, label: "Matches", icon: CalendarDays },
-  { id: "live-scoring", label: "Live Scoring", icon: Radio, href: "/livescoring" },
+  { id: "live-scoring", label: "Live Scoring", icon: Radio },
   { id: "people" as const, label: "People", icon: UserPlus },
   { id: "permissions" as const, label: "Permissions", icon: Users },
   { id: "appearance" as const, label: "Appearance", icon: LayoutPanelTop },
   { id: "adverts" as const, label: "Adverts", icon: Megaphone },
   { id: "logs" as const, label: "Logs", icon: Activity }
 ];
-
-function isAdminTabId(id: AdminTab | "live-scoring"): id is AdminTab {
-  return id !== "live-scoring";
-}
 const demoTeams: TeamOption[] = clubTeamStructure.flatMap((club) =>
   club.teams.map((team) => ({
     teamId: team,
@@ -581,7 +575,7 @@ function AdminLayout({
   onLogout: () => void;
   children: React.ReactNode;
 }) {
-  const navItems = adminNavItems.filter((item) => adminMode === "platform" || (isAdminTabId(item.id) && clubAdminTabs.includes(item.id)));
+  const navItems = adminNavItems.filter((item) => adminMode === "platform" || clubAdminTabs.includes(item.id));
   return (
     <main className="min-h-screen bg-[#f7f5fa] text-[#25002b]">
       <header className="bg-[#10233f] px-4 py-5 text-white shadow-elevated sm:px-6 lg:px-10">
@@ -618,14 +612,6 @@ function AdminLayout({
           {navItems.map((item) => {
             const Icon = item.icon;
             const className = `flex min-h-11 shrink-0 items-center gap-3 rounded-lg px-4 text-sm font-bold lg:w-full ${tab === item.id ? "bg-[#10233f] text-white" : "text-[#25002b]"}`;
-            if (item.id === "live-scoring") {
-              return (
-                <a key={item.id} href={item.href} className={className}>
-                  <Icon className="h-5 w-5" />
-                  {item.label}
-                </a>
-              );
-            }
             return (
               <button
                 key={item.id}
@@ -670,6 +656,7 @@ function AdminTabPanel(props: {
   if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
+  if (props.tab === "live-scoring") return <LiveScoringDashboard embedded />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
   if (props.tab === "invites") return <PeoplePanel {...props} />;
   if (props.tab === "permissions") return <PermissionsPanel {...props} />;
