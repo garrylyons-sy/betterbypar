@@ -74,6 +74,9 @@ export type LiveScoringInput = {
   value?: number;
   points?: number;
   awardedTo?: "home" | "away";
+  homeScore?: number;
+  awayScore?: number;
+  currentBreak?: number;
   redsRemaining?: number;
   phase?: string;
   expectedBall?: string | number | null;
@@ -401,6 +404,7 @@ function eventName(action: string) {
     selectPlayer: "SelectPlayer",
     undo: "Undo",
     correctBalls: "CorrectBalls",
+    setState: "CorrectBalls",
     concede: "Complete",
     respotBlack: "CorrectBalls",
     takeover: "Takeover",
@@ -712,8 +716,24 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
     if ((input.action === "pot" || input.action === "selectPlayer") && input.team) {
       assertGamePlayer(session, input.team, input.playerId);
     }
+    if (input.action === "setState" && input.activeTeam) {
+      assertGamePlayer(session, input.activeTeam, input.activePlayerId);
+    }
 
-    const action = input.action === "correctBalls"
+    const action = input.action === "setState"
+      ? {
+          type: "setState",
+          homeScore: input.homeScore,
+          awayScore: input.awayScore,
+          activeTeam: input.activeTeam,
+          activePlayerId: input.activePlayerId,
+          currentBreak: input.currentBreak,
+          redsRemaining: input.redsRemaining,
+          phase: input.phase,
+          expectedBall: input.expectedBall,
+          coloursRemaining: input.coloursRemaining
+        }
+      : input.action === "correctBalls"
       ? {
           type: "correctBalls",
           redsRemaining: input.redsRemaining,

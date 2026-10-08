@@ -130,6 +130,52 @@ test("corrects the visual ball inventory without altering frame totals", () => {
   assert.equal(inferred.expectedBall, 4);
 });
 
+test("sets the complete current frame state when live scoring starts late", () => {
+  const start = createLiveFrameState({ activeTeam: "home" });
+  const caughtUp = applyLiveFrameAction(start, {
+    type: "setState",
+    homeScore: 34,
+    awayScore: 21,
+    activeTeam: "away",
+    activePlayerId: "away-1",
+    currentBreak: 6,
+    redsRemaining: 8,
+    phase: "reds",
+    expectedBall: "red",
+    coloursRemaining: [2, 3, 4, 5, 6, 7]
+  });
+
+  assert.equal(caughtUp.homeScore, 34);
+  assert.equal(caughtUp.awayScore, 21);
+  assert.equal(caughtUp.activeTeam, "away");
+  assert.equal(caughtUp.activePlayerId, "away-1");
+  assert.equal(caughtUp.currentBreak, 6);
+  assert.equal(caughtUp.redsRemaining, 8);
+  assert.equal(caughtUp.expectedBall, "red");
+  assert.equal(caughtUp.history.length, 1);
+
+  const undone = applyLiveFrameAction(caughtUp, { type: "undo" });
+  assert.equal(undone.homeScore, 0);
+  assert.equal(undone.awayScore, 0);
+  assert.equal(undone.redsRemaining, 15);
+});
+
+test("validates a caught-up current break and table state", () => {
+  const start = createLiveFrameState({ activeTeam: "home" });
+  assert.throws(() => applyLiveFrameAction(start, {
+    type: "setState",
+    homeScore: 10,
+    awayScore: 12,
+    activeTeam: "home",
+    activePlayerId: "home-1",
+    currentBreak: 11,
+    redsRemaining: 9,
+    phase: "reds",
+    expectedBall: "colour",
+    coloursRemaining: [2, 3, 4, 5, 6, 7]
+  }), /current break/i);
+});
+
 test("undo restores the complete prior scoring state", () => {
   const start = createLiveFrameState({ activeTeam: "home", activePlayerId: "home-1" });
   const red = applyLiveFrameAction(start, { type: "pot", team: "home", playerId: "home-1", value: 1 });

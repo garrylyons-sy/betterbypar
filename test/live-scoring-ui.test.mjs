@@ -33,12 +33,19 @@ test("published typed guests remain selectable in the live scorer", () => {
 });
 
 test("mobile scorer shows the table state and complete scoring controls", () => {
-  for (const label of ["Current break", "Reds left", "End visit", "Undo", "Foul", "Concede", "Correct balls"]) {
+  for (const label of ["Current break", "Reds left", "End visit", "Undo", "Foul", "Concede", "Set current state"]) {
     assert.match(controls, new RegExp(label), `live scorer should include ${label}`);
   }
   assert.match(controls, /Array\.from\(\{ length: state\.redsRemaining \}/, "the remaining reds should be visualised");
   assert.match(controls, /\[2, 3, 4, 5, 6, 7\]/, "the six colours should be represented visually");
   assert.match(controls, /Saved|Saving|Offline|Conflict/, "save and connectivity status should be visible");
+});
+
+test("a late scorer can set the complete state and continue", () => {
+  for (const label of ["Set current state", "Home score", "Away score", "Team at table", "Active player", "Current break", "Reds remaining", "Next ball", "Apply and continue"]) {
+    assert.match(controls, new RegExp(label), `catch-up controls should include ${label}`);
+  }
+  assert.match(controls, /action: "setState"/);
 });
 
 test("an unscored frame clearly offers to switch the starting team", () => {

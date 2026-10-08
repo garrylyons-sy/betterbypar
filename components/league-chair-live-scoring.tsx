@@ -431,11 +431,30 @@ export function LiveFrameScorer({
 }) {
   const state = session.state;
   const [showFoul, setShowFoul] = useState(false);
-  const [showCorrection, setShowCorrection] = useState(false);
-  const [correctedReds, setCorrectedReds] = useState(state.redsRemaining);
-  const [correctedPhase, setCorrectedPhase] = useState(state.phase);
-  const [correctedColours, setCorrectedColours] = useState(state.coloursRemaining);
+  const [showStateSetup, setShowStateSetup] = useState(false);
+  const [setupHomeScore, setSetupHomeScore] = useState(state.homeScore);
+  const [setupAwayScore, setSetupAwayScore] = useState(state.awayScore);
+  const [setupActiveTeam, setSetupActiveTeam] = useState<Side>(state.activeTeam);
+  const [setupActivePlayerId, setSetupActivePlayerId] = useState(state.activePlayerId ?? "");
+  const [setupCurrentBreak, setSetupCurrentBreak] = useState(state.currentBreak);
+  const [setupReds, setSetupReds] = useState(state.redsRemaining);
+  const [setupPhase, setSetupPhase] = useState(state.phase);
+  const [setupExpectedBall, setSetupExpectedBall] = useState<LiveFrameState["expectedBall"]>(state.expectedBall);
+  const [setupColours, setSetupColours] = useState(state.coloursRemaining);
   const activePlayers = useMemo(() => playersFor(game, state.activeTeam), [game, state.activeTeam]);
+  const setupPlayers = useMemo(() => playersFor(game, setupActiveTeam), [game, setupActiveTeam]);
+  const setupActiveScore = setupActiveTeam === "home" ? setupHomeScore : setupAwayScore;
+  const stateSetupError = !setupActivePlayerId
+    ? "Choose the active player."
+    : setupHomeScore < 0 || setupAwayScore < 0 || setupCurrentBreak < 0
+      ? "Scores and the current break cannot be negative."
+      : setupCurrentBreak > setupActiveScore
+        ? "The current break cannot exceed the active team's score."
+        : setupReds < 0 || setupReds > 15
+          ? "Reds remaining must be between 0 and 15."
+          : setupPhase === "colours" && setupColours.length === 0
+            ? "Select at least one colour remaining."
+            : "";
   const otherSide: Side = state.activeTeam === "home" ? "away" : "home";
   const otherTeamName = otherSide === "home" ? payload.fixture.home_team_name : payload.fixture.away_team_name;
   const frameIsUnscored = state.homeScore === 0 && state.awayScore === 0 && state.redsRemaining === 15 && state.currentBreak === 0;
@@ -454,6 +473,22 @@ export function LiveFrameScorer({
     sessionId: session.id,
     version: session.version
   });
+
+  const toggleStateSetup = () => {
+    if (!showStateSetup) {
+      setSetupHomeScore(state.homeScore);
+      setSetupAwayScore(state.awayScore);
+      setSetupActiveTeam(state.activeTeam);
+      const currentPlayers = playersFor(game, state.activeTeam);
+      setSetupActivePlayerId(state.activePlayerId ?? (currentPlayers.length === 1 ? currentPlayers[0].id : ""));
+      setSetupCurrentBreak(state.currentBreak);
+      setSetupReds(state.redsRemaining);
+      setSetupPhase(state.phase);
+      setSetupExpectedBall(state.expectedBall);
+      setSetupColours(state.coloursRemaining);
+    }
+    setShowStateSetup((open) => !open);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#f7f5fa]" role="dialog" aria-modal="true" aria-label={`Live score game ${game.game_number}`}>
@@ -611,49 +646,139 @@ export function LiveFrameScorer({
                     void act({ action: "concede", winner: otherSide });
                   }
                 }}>Concede</Button>
-                <Button type="button" variant="outline" disabled={scoringDisabled} onClick={() => {
-                  setCorrectedReds(state.redsRemaining);
-                  setCorrectedPhase(state.phase);
-                  setCorrectedColours(state.coloursRemaining);
-                  setShowCorrection((open) => !open);
-                }}>Correct balls</Button>
+                <Button type="button" variant="outline" disabled={scoringDisabled} onClick={toggleStateSetup}>Set current state</Button>
               </div>
 
-              {showCorrection ? (
-                <div className="grid gap-3 rounded-lg bg-white p-3 ring-1 ring-[#eeeaf2] sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-                  <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
-                    Reds remaining
-                    <input className="h-11 rounded-lg border border-[#d8d3df] px-3 text-base font-bold text-[#10233f]" type="number" min={0} max={15} value={correctedReds} onChange={(event) => setCorrectedReds(Number(event.target.value))} />
-                  </label>
-                  <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
-                    Table phase
-                    <select className="h-11 rounded-lg border border-[#d8d3df] px-3 text-sm font-bold text-[#10233f]" value={correctedPhase} onChange={(event) => {
-                      const phase = event.target.value as LiveFrameState["phase"];
-                      setCorrectedPhase(phase);
-                      if (phase === "reds") setCorrectedColours([2, 3, 4, 5, 6, 7]);
-                      if (phase === "respotted-black") setCorrectedColours([7]);
-                    }}>
-                      <option value="reds">Reds and colours</option>
-                      <option value="colours">Colour clearance</option>
-                      <option value="respotted-black">Re-spotted black</option>
-                    </select>
-                  </label>
-                  <div className="flex flex-wrap gap-2 sm:col-span-3" aria-label="Colours remaining">
-                    {[2, 3, 4, 5, 6, 7].map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        aria-label={`${colourNames[value]} ${correctedColours.includes(value) ? "on table" : "potted"}`}
-                        disabled={correctedPhase !== "colours"}
-                        onClick={() => setCorrectedColours((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value].sort())}
-                        className={cn("h-8 w-8 rounded-full ring-2 ring-offset-2 disabled:opacity-40", colourStyles[value], correctedColours.includes(value) ? "ring-[#10233f]" : "ring-transparent opacity-30")}
-                      />
-                    ))}
+              {showStateSetup ? (
+                <div className="grid gap-3 rounded-lg bg-white p-3 ring-1 ring-[#eeeaf2]">
+                  <div>
+                    <p className="text-sm font-black">Set current state</p>
+                    <p className="text-xs font-semibold text-[#6c5a73]">Use the scoreboard and table as they are now, then continue scoring normally.</p>
                   </div>
-                  <Button type="button" disabled={controlsDisabled} onClick={() => {
-                    setShowCorrection(false);
-                    void act({ action: "correctBalls", redsRemaining: correctedReds, phase: correctedPhase, coloursRemaining: correctedColours });
-                  }}>Apply</Button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
+                      Home score
+                      <input className="h-11 rounded-lg border border-[#d8d3df] px-3 text-base font-bold text-[#10233f]" type="number" min={0} value={setupHomeScore} onChange={(event) => setSetupHomeScore(Number(event.target.value))} />
+                    </label>
+                    <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
+                      Away score
+                      <input className="h-11 rounded-lg border border-[#d8d3df] px-3 text-base font-bold text-[#10233f]" type="number" min={0} value={setupAwayScore} onChange={(event) => setSetupAwayScore(Number(event.target.value))} />
+                    </label>
+                  </div>
+
+                  <fieldset className="grid gap-1">
+                    <legend className="text-xs font-extrabold uppercase text-[#6c5a73]">Team at table</legend>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(["home", "away"] as Side[]).map((side) => (
+                        <Button key={side} type="button" size="sm" variant={setupActiveTeam === side ? "default" : "secondary"} onClick={() => {
+                          const sidePlayers = playersFor(game, side);
+                          setSetupActiveTeam(side);
+                          setSetupActivePlayerId(sidePlayers.length === 1 ? sidePlayers[0].id : "");
+                          setSetupCurrentBreak(0);
+                        }}>
+                          {side === "home" ? payload.fixture.home_team_name : payload.fixture.away_team_name}
+                        </Button>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
+                      Active player
+                      <select className="h-11 rounded-lg border border-[#d8d3df] px-3 text-sm font-bold normal-case text-[#10233f]" value={setupActivePlayerId} onChange={(event) => setSetupActivePlayerId(event.target.value)}>
+                        <option value="">Choose player</option>
+                        {setupPlayers.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
+                      Current break
+                      <input className="h-11 rounded-lg border border-[#d8d3df] px-3 text-base font-bold text-[#10233f]" type="number" min={0} value={setupCurrentBreak} onChange={(event) => setSetupCurrentBreak(Number(event.target.value))} />
+                    </label>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
+                      Reds remaining
+                      <input className="h-11 rounded-lg border border-[#d8d3df] px-3 text-base font-bold text-[#10233f]" type="number" min={0} max={15} value={setupReds} onChange={(event) => {
+                        const reds = Number(event.target.value);
+                        setSetupReds(reds);
+                        if (reds === 0 && setupExpectedBall === "red") setSetupExpectedBall("colour");
+                      }} />
+                    </label>
+                    <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
+                      Table phase
+                      <select className="h-11 rounded-lg border border-[#d8d3df] px-3 text-sm font-bold normal-case text-[#10233f]" value={setupPhase} onChange={(event) => {
+                        const phase = event.target.value as LiveFrameState["phase"];
+                        setSetupPhase(phase);
+                        if (phase === "reds") {
+                          setSetupColours([2, 3, 4, 5, 6, 7]);
+                          setSetupExpectedBall(setupReds > 0 ? "red" : "colour");
+                        } else if (phase === "colours") {
+                          setSetupReds(0);
+                          setSetupColours([2, 3, 4, 5, 6, 7]);
+                          setSetupExpectedBall(2);
+                        } else {
+                          setSetupReds(0);
+                          setSetupColours([7]);
+                          setSetupExpectedBall(7);
+                        }
+                      }}>
+                        <option value="reds">Reds and colours</option>
+                        <option value="colours">Colour clearance</option>
+                        <option value="respotted-black">Re-spotted black</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  {setupPhase === "reds" ? (
+                    <fieldset className="grid gap-1">
+                      <legend className="text-xs font-extrabold uppercase text-[#6c5a73]">Next ball</legend>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button type="button" size="sm" variant={setupExpectedBall === "red" ? "default" : "secondary"} disabled={setupReds === 0} onClick={() => setSetupExpectedBall("red")}>Red</Button>
+                        <Button type="button" size="sm" variant={setupExpectedBall === "colour" ? "default" : "secondary"} onClick={() => setSetupExpectedBall("colour")}>Colour</Button>
+                      </div>
+                    </fieldset>
+                  ) : null}
+
+                  {setupPhase === "colours" ? (
+                    <div className="grid gap-1">
+                      <p className="text-xs font-extrabold uppercase text-[#6c5a73]">Colours remaining</p>
+                      <div className="flex flex-wrap gap-3">
+                        {[2, 3, 4, 5, 6, 7].map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-label={`${colourNames[value]} ${setupColours.includes(value) ? "on table" : "potted"}`}
+                            onClick={() => setSetupColours((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value].sort())}
+                            className={cn("h-9 w-9 rounded-full ring-2 ring-offset-2", colourStyles[value], setupColours.includes(value) ? "ring-[#10233f]" : "ring-transparent opacity-30")}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-xs font-semibold text-[#6c5a73]">Next ball: {colourNames[setupColours[0]] ?? "none selected"}</p>
+                    </div>
+                  ) : null}
+
+                  {stateSetupError ? <p className="text-xs font-bold text-[#9d1c1c]">{stateSetupError}</p> : null}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button type="button" variant="secondary" onClick={() => setShowStateSetup(false)}>Cancel</Button>
+                    <Button type="button" disabled={controlsDisabled || Boolean(stateSetupError)} onClick={() => {
+                      setShowStateSetup(false);
+                      void act({
+                        action: "setState",
+                        homeScore: setupHomeScore,
+                        awayScore: setupAwayScore,
+                        activeTeam: setupActiveTeam,
+                        activePlayerId: setupActivePlayerId || null,
+                        currentBreak: setupCurrentBreak,
+                        redsRemaining: setupReds,
+                        phase: setupPhase,
+                        expectedBall: setupExpectedBall,
+                        coloursRemaining: setupColours
+                      });
+                    }}>Apply and continue</Button>
+                  </div>
                 </div>
               ) : null}
 

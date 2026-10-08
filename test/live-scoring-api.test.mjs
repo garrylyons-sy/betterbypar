@@ -94,7 +94,7 @@ test("completion is idempotent and writes official totals and qualifying breaks"
 test("API exposes ordinary results and every planned live scoring action", () => {
   for (const action of [
     "recordResult", "start", "pot", "foul", "endVisit", "selectPlayer", "undo",
-    "correctBalls", "concede", "respotBlack", "takeover", "handover", "pause", "resume", "complete", "abandon"
+    "correctBalls", "setState", "concede", "respotBlack", "takeover", "handover", "pause", "resume", "complete", "abandon"
   ]) {
     assert.match(route, new RegExp(`"${action}"`), `${action} should be accepted`);
   }

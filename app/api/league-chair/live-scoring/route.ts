@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 const actions = new Set([
   "recordResult", "start", "pot", "foul", "endVisit", "selectPlayer", "undo",
-  "correctBalls", "concede", "respotBlack", "takeover", "handover", "pause", "resume", "complete", "abandon"
+  "correctBalls", "setState", "concede", "respotBlack", "takeover", "handover", "pause", "resume", "complete", "abandon"
 ]);
 
 function errorResponse(error: unknown) {
