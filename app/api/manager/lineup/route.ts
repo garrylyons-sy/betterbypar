@@ -387,17 +387,23 @@ async function loadLineupPayload(
   const guestPlayers = (await dbQuery<{ person_id: string; player_name: string; team_name: string; already_played_for_team: string | null }>(
     eligibleGuestPlayersSql,
     [teamId, fixture?.fixture_id ?? null]
-  )).rows
+  )).rows;
+  const teamAllowsUnlimitedLowerPlayers = Boolean((await dbQuery<{ allow_unlimited_lower_team_players: boolean }>(
+    "select allow_unlimited_lower_team_players from public.team where id = $1",
+    [teamId]
+  )).rows[0]?.allow_unlimited_lower_team_players);
+  const ignorePlayUpLimit = Boolean(options.ignorePlayUpLimit) || teamAllowsUnlimitedLowerPlayers;
+  const visibleGuestPlayers = guestPlayers
     .filter((row) => !playerIds.has(row.person_id))
     .map((row) => ({
       id: row.person_id,
       name: row.player_name,
       teamName: row.team_name,
-      disabledReason: !options.ignorePlayUpLimit && row.already_played_for_team ? `Already played for ${row.already_played_for_team}` : ""
+      disabledReason: !ignorePlayUpLimit && row.already_played_for_team ? `Already played for ${row.already_played_for_team}` : ""
     }));
 
   if (!fixture) {
-    return { fixture: null, players, guestPlayers, lineup: null, opponentStatus: null, opponentLineup: null, games: [], weekFixtures: [] };
+    return { fixture: null, players, guestPlayers: visibleGuestPlayers, lineup: null, opponentStatus: null, opponentLineup: null, games: [], weekFixtures: [] };
   }
 
   const lineupRows = (await dbQuery<LineupRow>(
@@ -812,7 +818,7 @@ async function loadLineupPayload(
       fixtureType: fixture.fixture_type
     },
     players,
-    guestPlayers,
+    guestPlayers: visibleGuestPlayers,
     lineup: own,
     opponentStatus,
     opponentLineup: opponent,
@@ -1119,8 +1125,15 @@ async function loadEligibleGuestPlayerAccess(
   fixtureId: string,
   options: { ignorePlayUpLimit?: boolean } = {}
 ) {
-  const result = await client.query<{ person_id: string; already_played_for_team: string | null }>(eligibleGuestPlayersSql, [teamId, fixtureId]);
-  const ignorePlayUpLimit = Boolean(options.ignorePlayUpLimit);
+  const [result, teamSetting] = await Promise.all([
+    client.query<{ person_id: string; already_played_for_team: string | null }>(eligibleGuestPlayersSql, [teamId, fixtureId]),
+    client.query<{ allow_unlimited_lower_team_players: boolean }>(
+      "select allow_unlimited_lower_team_players from public.team where id = $1",
+      [teamId]
+    )
+  ]);
+  const teamAllowsUnlimitedLowerPlayers = Boolean(teamSetting.rows[0]?.allow_unlimited_lower_team_players);
+  const ignorePlayUpLimit = Boolean(options.ignorePlayUpLimit) || teamAllowsUnlimitedLowerPlayers;
   return {
     eligibleIds: new Set((ignorePlayUpLimit ? result.rows : result.rows.filter((row) => !row.already_played_for_team)).map((row) => row.person_id)),
     blockedByTeam: ignorePlayUpLimit ? new Map() : new Map(result.rows.filter((row) => row.already_played_for_team).map((row) => [row.person_id, row.already_played_for_team ?? "another team"]))

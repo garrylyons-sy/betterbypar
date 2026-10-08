@@ -23,6 +23,7 @@ type TeamOption = {
   teamName: string;
   clubName: string;
   leagueName: string;
+  allowUnlimitedLowerTeamPlayers?: boolean;
 };
 type ClubOption = {
   clubId: string;
@@ -433,12 +434,13 @@ export function AdminConsole() {
           setTab("people");
         }
         setAdminDataLoaded(true);
-        setTeams((data.teams ?? []).map((team: { club_id: string; team_id: string; team_name: string; club_name: string; league_name: string }) => ({
+        setTeams((data.teams ?? []).map((team: { club_id: string; team_id: string; team_name: string; club_name: string; league_name: string; allow_unlimited_lower_team_players?: boolean }) => ({
           teamId: team.team_id,
           clubId: team.club_id,
           teamName: team.team_name,
           clubName: team.club_name,
-          leagueName: team.league_name
+          leagueName: team.league_name,
+          allowUnlimitedLowerTeamPlayers: Boolean(team.allow_unlimited_lower_team_players)
         })));
 
         const seen = new Map<string, PersonOption>();
@@ -653,7 +655,7 @@ function AdminTabPanel(props: {
 }) {
   if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
   if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
-  if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;
+  if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} teams={props.teams} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
   if (props.tab === "live-scoring") return <LiveScoringDashboard embedded />;
@@ -676,12 +678,23 @@ const emptyClubDraft: AdminClubFormDraft = {
   active: true
 };
 
-function ClubsPanel({ adminMode, onMessage }: { adminMode: AdminMode; onMessage: (message: string) => void }) {
+function ClubsPanel({
+  adminMode,
+  teams,
+  onMessage,
+  onRefresh
+}: {
+  adminMode: AdminMode;
+  teams: TeamOption[];
+  onMessage: (message: string) => void;
+  onRefresh: () => void;
+}) {
   const [clubs, setClubs] = useState<AdminClubRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<"active" | "inactive" | "all">("active");
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
+  const [savingTeamId, setSavingTeamId] = useState("");
   const [draft, setDraft] = useState<AdminClubFormDraft>(emptyClubDraft);
   const [baseline, setBaseline] = useState<AdminClubFormDraft>(emptyClubDraft);
 
@@ -706,6 +719,9 @@ function ClubsPanel({ adminMode, onMessage }: { adminMode: AdminMode; onMessage:
   const visibleClubs = clubs.filter((club) => filter === "all" || (filter === "active" ? club.active : !club.active));
   const isDirty = JSON.stringify(draft) !== JSON.stringify(baseline);
   const isCreating = selectedClubId === "new";
+  const selectedClubTeams = selectedClubId && selectedClubId !== "new"
+    ? teams.filter((team) => team.clubId === selectedClubId)
+    : [];
 
   function selectClub(club: AdminClubRecord) {
     const next = clubDraftFromRecord(club);
@@ -743,6 +759,26 @@ function ClubsPanel({ adminMode, onMessage }: { adminMode: AdminMode; onMessage:
       onMessage(error instanceof Error ? error.message : "Club could not be saved.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function updateTeamPlayerEligibility(team: TeamOption, allowUnlimitedLowerTeamPlayers: boolean) {
+    setSavingTeamId(team.teamId);
+    try {
+      const response = await fetch("/api/admin/teams", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ teamId: team.teamId, allowUnlimitedLowerTeamPlayers })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Team setting could not be saved.");
+      onMessage(`${team.teamName} player eligibility updated.`);
+      onRefresh();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Team setting could not be saved.");
+    } finally {
+      setSavingTeamId("");
     }
   }
 
@@ -837,6 +873,31 @@ function ClubsPanel({ adminMode, onMessage }: { adminMode: AdminMode; onMessage:
               <ClubColorInput label="Primary colour" value={draft.primaryColor} onChange={(primaryColor) => setDraft((current) => ({ ...current, primaryColor }))} />
               <ClubColorInput label="Accent colour" value={draft.accentColor} onChange={(accentColor) => setDraft((current) => ({ ...current, accentColor }))} />
             </div>
+
+            {selectedClubTeams.length ? (
+              <section className="grid gap-2 border-t border-[#eeeaf2] pt-4" aria-label="Team settings">
+                <div>
+                  <h4 className="text-sm font-extrabold text-[#25002b]">Team settings</h4>
+                  <p className="text-xs font-semibold text-[#6c5a73]">Control lower-team player eligibility for each active team.</p>
+                </div>
+                <div className="grid gap-2">
+                  {selectedClubTeams.map((team) => (
+                    <div key={team.teamId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#f7f5fa] px-3 py-2 ring-1 ring-[#eeeaf2]">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-extrabold text-[#10233f]">{team.teamName}</p>
+                        <p className="text-xs font-semibold text-[#6c5a73]">{team.leagueName}</p>
+                      </div>
+                      <AdminCheckbox
+                        label="Allow unlimited lower team players"
+                        checked={Boolean(team.allowUnlimitedLowerTeamPlayers)}
+                        disabled={savingTeamId === team.teamId}
+                        onChange={(checked) => updateTeamPlayerEligibility(team, checked)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             <label className="grid gap-2">
               <span className="text-xs font-bold uppercase text-[#6c5a73]">Club logo</span>
@@ -4612,16 +4673,18 @@ function AdminCheckbox({
   label,
   checked,
   onChange,
-  description
+  description,
+  disabled = false
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   description?: string;
+  disabled?: boolean;
 }) {
   return (
-    <label className="flex items-start gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
-      <input className="mt-1 h-4 w-4 accent-[#10233f]" type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    <label className={cn("flex items-start gap-3 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]", disabled && "opacity-60")}>
+      <input className="mt-1 h-4 w-4 accent-[#10233f]" type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
       <span>
         <span className="block text-sm font-extrabold text-[#10233f]">{label}</span>
         {description ? <span className="block text-xs font-semibold text-[#6c5a73]">{description}</span> : null}

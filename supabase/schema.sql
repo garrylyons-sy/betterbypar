@@ -111,6 +111,7 @@ create table public.team (
   season_id uuid not null references public.season(id) on delete cascade,
   name text not null,
   active boolean not null default true,
+  allow_unlimited_lower_team_players boolean not null default false,
   unique (league_id, season_id, name)
 );
 
