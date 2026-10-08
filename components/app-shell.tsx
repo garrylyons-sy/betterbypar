@@ -6045,6 +6045,7 @@ function ManagerLineupCard({
       setPayload(data);
       setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
       setMessage(winnerTeamId ? "Game result updated." : "Game result reset.");
+      window.dispatchEvent(new Event("interclub:refresh-panels"));
       onDataRefresh?.();
     } catch (error) {
       setPayload(previousPayload);
