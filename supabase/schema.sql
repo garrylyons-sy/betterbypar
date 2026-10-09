@@ -658,7 +658,7 @@ create table public.live_frame_event (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.live_frame_session(id) on delete cascade,
   sequence_number integer not null check (sequence_number > 0),
-  event_type text not null check (event_type in ('Start', 'Pot', 'Foul', 'EndVisit', 'SelectPlayer', 'CorrectBalls', 'Undo', 'Takeover', 'Pause', 'Resume', 'Complete', 'Abandon')),
+  event_type text not null check (event_type in ('Start', 'Pot', 'Foul', 'EndVisit', 'SelectPlayer', 'CorrectBalls', 'ResetFrame', 'Undo', 'Takeover', 'Pause', 'Resume', 'Complete', 'Abandon')),
   team_id uuid references public.team(id) on delete set null,
   player_id uuid references public.person(id) on delete set null,
   ball_value integer check (ball_value between 1 and 7),

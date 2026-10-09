@@ -263,46 +263,50 @@ export async function GET() {
         [platformAdmin, clubAdminClubIds]
       ),
       dbQuery(
-        `select distinct team_id::text, team_name, person_id::text, guest_name
+        `select distinct league_name, team_id::text, team_name, person_id::text, guest_name
          from (
-           select f.home_team_id as team_id, ht.name as team_name, g.home_player_1_id as person_id, g.home_player_1_guest_name as guest_name
+           select l.name as league_name, f.home_team_id as team_id, ht.name as team_name, g.home_player_1_id as person_id, g.home_player_1_guest_name as guest_name
            from public.game g
            join public.match m on m.id = g.match_id
            join public.fixture f on f.id = m.fixture_id
            join public.season s on s.id = f.season_id
+           join public.league l on l.id = f.league_id
            join public.team ht on ht.id = f.home_team_id
            join public.team at on at.id = f.away_team_id
            where s.active = true and f.fixture_type = 'League' and f.status = 'Completed' and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
            union all
-           select f.home_team_id, ht.name, g.home_player_2_id, g.home_player_2_guest_name
+           select l.name, f.home_team_id, ht.name, g.home_player_2_id, g.home_player_2_guest_name
            from public.game g
            join public.match m on m.id = g.match_id
            join public.fixture f on f.id = m.fixture_id
            join public.season s on s.id = f.season_id
+           join public.league l on l.id = f.league_id
            join public.team ht on ht.id = f.home_team_id
            join public.team at on at.id = f.away_team_id
            where s.active = true and f.fixture_type = 'League' and f.status = 'Completed' and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
            union all
-           select f.away_team_id, at.name, g.away_player_1_id, g.away_player_1_guest_name
+           select l.name, f.away_team_id, at.name, g.away_player_1_id, g.away_player_1_guest_name
            from public.game g
            join public.match m on m.id = g.match_id
            join public.fixture f on f.id = m.fixture_id
            join public.season s on s.id = f.season_id
+           join public.league l on l.id = f.league_id
            join public.team ht on ht.id = f.home_team_id
            join public.team at on at.id = f.away_team_id
            where s.active = true and f.fixture_type = 'League' and f.status = 'Completed' and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
            union all
-           select f.away_team_id, at.name, g.away_player_2_id, g.away_player_2_guest_name
+           select l.name, f.away_team_id, at.name, g.away_player_2_id, g.away_player_2_guest_name
            from public.game g
            join public.match m on m.id = g.match_id
            join public.fixture f on f.id = m.fixture_id
            join public.season s on s.id = f.season_id
+           join public.league l on l.id = f.league_id
            join public.team ht on ht.id = f.home_team_id
            join public.team at on at.id = f.away_team_id
            where s.active = true and f.fixture_type = 'League' and f.status = 'Completed' and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
          ) appearances
          where person_id is not null or nullif(trim(guest_name), '') is not null
-         order by team_name`,
+         order by league_name, team_name`,
         [platformAdmin, clubAdminClubIds]
       ),
       loadAppearanceConfig()

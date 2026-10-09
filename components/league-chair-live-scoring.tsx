@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Pause, Play, Radio, RotateCcw, Undo2, WifiOff, X } from "lucide-react";
+import { Check, ChevronDown, Minus, Pause, Play, Plus, Radio, RotateCcw, Undo2, WifiOff, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -204,6 +204,36 @@ function frameSnookersRequired(state: LiveFrameState) {
   return deficit > 0 ? Math.ceil(deficit / 4) : 0;
 }
 
+function NumberAdjuster({
+  label,
+  value,
+  min = 0,
+  max,
+  onChange
+}: {
+  label: string;
+  value: number;
+  min?: number;
+  max?: number;
+  onChange: (value: number) => void;
+}) {
+  const setValue = (next: number) => onChange(Math.min(max ?? Number.MAX_SAFE_INTEGER, Math.max(min, next)));
+  return (
+    <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
+      {label}
+      <span className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] overflow-hidden rounded-lg border border-[#d8d3df] bg-white">
+        <button type="button" className="grid h-11 place-items-center border-r border-[#d8d3df] disabled:opacity-30" disabled={value <= min} onClick={() => setValue(value - 1)} aria-label={`Reduce ${label}`}>
+          <Minus className="h-4 w-4" />
+        </button>
+        <input className="min-w-0 text-center text-base font-bold text-[#10233f] outline-none" type="number" min={min} max={max} value={value} onChange={(event) => setValue(Number(event.target.value))} />
+        <button type="button" className="grid h-11 place-items-center border-l border-[#d8d3df] disabled:opacity-30" disabled={max !== undefined && value >= max} onClick={() => setValue(value + 1)} aria-label={`Increase ${label}`}>
+          <Plus className="h-4 w-4" />
+        </button>
+      </span>
+    </label>
+  );
+}
+
 export function LeagueChairMatchControls({
   fixtureId,
   defaultOpen = false,
@@ -394,7 +424,7 @@ export function LeagueChairMatchControls({
                     disabled={saveState === "Saving" || !game.winner_team_id || Boolean(session && session.status !== "Completed")}
                     onClick={() => void send({ action: "recordResult", gameId: game.id, winnerTeamId: null })}
                   >
-                    Undecided
+                    Reset result
                   </Button>
                   <Button
                     type="button"
@@ -473,12 +503,12 @@ export function LiveFrameScorer({
   const activePlayers = useMemo(() => playersFor(game, state.activeTeam), [game, state.activeTeam]);
   const setupPlayers = useMemo(() => playersFor(game, setupActiveTeam), [game, setupActiveTeam]);
   const setupActiveScore = setupActiveTeam === "home" ? setupHomeScore : setupAwayScore;
-  const stateSetupError = !setupActivePlayerId
-    ? "Choose the active player."
-    : setupHomeScore < 0 || setupAwayScore < 0 || setupCurrentBreak < 0
+  const stateSetupError = setupHomeScore < 0 || setupAwayScore < 0 || setupCurrentBreak < 0
       ? "Scores and the current break cannot be negative."
       : setupCurrentBreak > setupActiveScore
         ? "The current break cannot exceed the active team's score."
+        : setupCurrentBreak > 0 && !setupActivePlayerId
+          ? "Choose the active player for the current break."
         : setupReds < 0 || setupReds > 15
           ? "Reds remaining must be between 0 and 15."
           : setupPhase === "colours" && setupColours.length === 0
@@ -486,7 +516,6 @@ export function LiveFrameScorer({
             : "";
   const otherSide: Side = state.activeTeam === "home" ? "away" : "home";
   const otherTeamName = otherSide === "home" ? payload.fixture.home_team_name : payload.fixture.away_team_name;
-  const frameIsUnscored = state.homeScore === 0 && state.awayScore === 0 && state.redsRemaining === 15 && state.currentBreak === 0;
   const controlsDisabled = saveState === "Saving" || saveState === "Offline" || !session.canControl;
   const scoringDisabled = controlsDisabled || session.status === "Paused";
   const allowedValues = state.expectedBall === "red"
@@ -508,8 +537,7 @@ export function LiveFrameScorer({
       setSetupHomeScore(state.homeScore);
       setSetupAwayScore(state.awayScore);
       setSetupActiveTeam(state.activeTeam);
-      const currentPlayers = playersFor(game, state.activeTeam);
-      setSetupActivePlayerId(state.activePlayerId ?? (currentPlayers.length === 1 ? currentPlayers[0].id : ""));
+      setSetupActivePlayerId(state.activePlayerId ?? "");
       setSetupCurrentBreak(state.currentBreak);
       setSetupReds(state.redsRemaining);
       setSetupPhase(state.phase);
@@ -572,6 +600,12 @@ export function LiveFrameScorer({
             </div>
           </div>
 
+          {session.canControl ? (
+            <Button type="button" variant="outline" disabled={scoringDisabled} onClick={toggleStateSetup}>
+              Adjust score &amp; balls
+            </Button>
+          ) : null}
+
           <div className="relative min-h-36 overflow-hidden rounded-lg border-[6px] border-[#6f4625] bg-[#087a43] p-3 shadow-inner">
             <div className="flex flex-wrap justify-center gap-2">
               {Array.from({ length: state.redsRemaining }, (_, index) => (
@@ -601,10 +635,12 @@ export function LiveFrameScorer({
               <div className="grid gap-2 rounded-lg bg-white p-3 ring-1 ring-[#eeeaf2]">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-xs font-extrabold uppercase text-[#6c5a73]">At table</p>
-                    <p className="text-sm font-black">{state.activeTeam === "home" ? payload.fixture.home_team_name : payload.fixture.away_team_name}</p>
+                    <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{state.activePlayerId ? "At table" : "No player at table"}</p>
+                    <p className="text-sm font-black">
+                      {!state.activePlayerId ? "Next side: " : ""}{state.activeTeam === "home" ? payload.fixture.home_team_name : payload.fixture.away_team_name}
+                    </p>
                   </div>
-                  <Badge variant="cyan">{state.expectedBall === null ? "Frame decided" : typeof state.expectedBall === "number" ? colourNames[state.expectedBall] : state.expectedBall}</Badge>
+                  <Badge variant={state.activePlayerId ? "cyan" : "muted"}>{state.activePlayerId ? (state.expectedBall === null ? "Frame decided" : typeof state.expectedBall === "number" ? colourNames[state.expectedBall] : state.expectedBall) : "Waiting"}</Badge>
                 </div>
                 {activePlayers.length ? (
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -614,10 +650,10 @@ export function LiveFrameScorer({
                         type="button"
                         size="sm"
                         variant={state.activePlayerId === player.id ? "default" : "secondary"}
-                        disabled={scoringDisabled}
+                        disabled={scoringDisabled || Boolean(state.activePlayerId)}
                         onClick={() => void act({ action: "selectPlayer", team: state.activeTeam, playerId: player.id })}
                       >
-                        {player.name || "Selected player"}
+                        {state.activePlayerId === player.id ? `${player.name || "Player"} at table` : `Start visit: ${player.name || "Player"}`}
                       </Button>
                     ))}
                   </div>
@@ -648,9 +684,9 @@ export function LiveFrameScorer({
                   <Undo2 className="h-4 w-4" /> Undo
                 </Button>
                 <Button type="button" variant="secondary" disabled={scoringDisabled || state.status === "Ready"} onClick={() => void act({ action: "endVisit" })}>
-                  {frameIsUnscored ? `Switch to ${otherTeamName}` : "End visit"}
+                  {!state.activePlayerId ? `Switch to ${otherTeamName}` : "End visit"}
                 </Button>
-                <Button type="button" variant="secondary" disabled={scoringDisabled || state.status === "Ready"} onClick={() => setShowFoul((open) => !open)}>
+                <Button type="button" variant="secondary" disabled={scoringDisabled || state.status === "Ready" || !state.activePlayerId} onClick={() => setShowFoul((open) => !open)}>
                   Foul
                 </Button>
               </div>
@@ -669,41 +705,37 @@ export function LiveFrameScorer({
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-2 gap-2">
-                <Button type="button" variant="outline" disabled={scoringDisabled || state.status === "Ready"} onClick={() => {
+              <Button type="button" variant="outline" disabled={scoringDisabled || state.status === "Ready"} onClick={() => {
                   if (window.confirm(`Concede to ${otherSide === "home" ? payload.fixture.home_team_name : payload.fixture.away_team_name}?`)) {
                     void act({ action: "concede", winner: otherSide });
                   }
                 }}>Concede</Button>
-                <Button type="button" variant="outline" disabled={scoringDisabled} onClick={toggleStateSetup}>Set current state</Button>
-              </div>
 
               {showStateSetup ? (
-                <div className="grid gap-3 rounded-lg bg-white p-3 ring-1 ring-[#eeeaf2]">
+                <div className="fixed inset-0 z-[60] overflow-y-auto bg-[#f7f5fa] p-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-[max(env(safe-area-inset-top),0.75rem)]">
+                  <div className="mx-auto grid w-full max-w-xl gap-3 rounded-lg bg-white p-3 ring-1 ring-[#eeeaf2]">
                   <div>
-                    <p className="text-sm font-black">Set current state</p>
-                    <p className="text-xs font-semibold text-[#6c5a73]">Use the scoreboard and table as they are now, then continue scoring normally.</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-black">Adjust score &amp; balls</p>
+                      <Button type="button" size="icon" variant="ghost" onClick={() => setShowStateSetup(false)} aria-label="Close frame adjustment">
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <p className="text-xs font-semibold text-[#6c5a73]">Enter the score and balls currently on the table, then continue scoring.</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
-                      Home score
-                      <input className="h-11 rounded-lg border border-[#d8d3df] px-3 text-base font-bold text-[#10233f]" type="number" min={0} value={setupHomeScore} onChange={(event) => setSetupHomeScore(Number(event.target.value))} />
-                    </label>
-                    <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
-                      Away score
-                      <input className="h-11 rounded-lg border border-[#d8d3df] px-3 text-base font-bold text-[#10233f]" type="number" min={0} value={setupAwayScore} onChange={(event) => setSetupAwayScore(Number(event.target.value))} />
-                    </label>
+                    <NumberAdjuster label="Home score" value={setupHomeScore} onChange={setSetupHomeScore} />
+                    <NumberAdjuster label="Away score" value={setupAwayScore} onChange={setSetupAwayScore} />
                   </div>
 
                   <fieldset className="grid gap-1">
-                    <legend className="text-xs font-extrabold uppercase text-[#6c5a73]">Team at table</legend>
+                    <legend className="text-xs font-extrabold uppercase text-[#6c5a73]">Next side / team at table</legend>
                     <div className="grid grid-cols-2 gap-2">
                       {(["home", "away"] as Side[]).map((side) => (
                         <Button key={side} type="button" size="sm" variant={setupActiveTeam === side ? "default" : "secondary"} onClick={() => {
-                          const sidePlayers = playersFor(game, side);
                           setSetupActiveTeam(side);
-                          setSetupActivePlayerId(sidePlayers.length === 1 ? sidePlayers[0].id : "");
+                          setSetupActivePlayerId("");
                           setSetupCurrentBreak(0);
                         }}>
                           {side === "home" ? payload.fixture.home_team_name : payload.fixture.away_team_name}
@@ -716,7 +748,7 @@ export function LiveFrameScorer({
                     <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
                       Active player
                       <select className="h-11 rounded-lg border border-[#d8d3df] px-3 text-sm font-bold normal-case text-[#10233f]" value={setupActivePlayerId} onChange={(event) => setSetupActivePlayerId(event.target.value)}>
-                        <option value="">Choose player</option>
+                        <option value="">No player at table</option>
                         {setupPlayers.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
                       </select>
                     </label>
@@ -727,14 +759,10 @@ export function LiveFrameScorer({
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
-                      Reds remaining
-                      <input className="h-11 rounded-lg border border-[#d8d3df] px-3 text-base font-bold text-[#10233f]" type="number" min={0} max={15} value={setupReds} onChange={(event) => {
-                        const reds = Number(event.target.value);
+                    <NumberAdjuster label="Reds remaining" value={setupReds} min={0} max={15} onChange={(reds) => {
                         setSetupReds(reds);
                         if (reds === 0 && setupExpectedBall === "red") setSetupExpectedBall("colour");
                       }} />
-                    </label>
                     <label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
                       Table phase
                       <select className="h-11 rounded-lg border border-[#d8d3df] px-3 text-sm font-bold normal-case text-[#10233f]" value={setupPhase} onChange={(event) => {
@@ -811,6 +839,7 @@ export function LiveFrameScorer({
                       });
                     }}>Apply and continue</Button>
                   </div>
+                  </div>
                 </div>
               ) : null}
 
@@ -828,7 +857,7 @@ export function LiveFrameScorer({
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-3 gap-2 border-t border-[#d8d3df] pt-3">
+              <div className="grid grid-cols-2 gap-2 border-t border-[#d8d3df] pt-3 sm:grid-cols-4">
                 <Button type="button" variant="secondary" disabled={controlsDisabled} onClick={() => void act({ action: session.status === "Paused" ? "resume" : "pause" })}>
                   {session.status === "Paused" ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
                   {session.status === "Paused" ? "Resume" : "Pause"}
@@ -837,6 +866,11 @@ export function LiveFrameScorer({
                   if (window.confirm("Abandon live scoring? The official frame result will not change.")) void act({ action: "abandon" });
                 }}>
                   <RotateCcw className="h-4 w-4" /> Abandon
+                </Button>
+                <Button type="button" variant="outline" disabled={scoringDisabled} onClick={() => {
+                  if (window.confirm("Reset this frame to 0-0 with 15 reds? This clears the current scoring state.")) void act({ action: "resetFrame" });
+                }}>
+                  <RotateCcw className="h-4 w-4" /> Reset frame
                 </Button>
                 <Button type="button" variant="outline" disabled={controlsDisabled} onClick={async () => {
                   const next = await act({ action: "handover" });

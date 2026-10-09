@@ -45,7 +45,7 @@ test("League Chair game lists show each registered player's season win percentag
 });
 
 test("mobile scorer shows the table state and complete scoring controls", () => {
-  for (const label of ["Current break", "Reds left", "End visit", "Undo", "Foul", "Concede", "Set current state"]) {
+  for (const label of ["Current break", "Reds left", "End visit", "Undo", "Foul", "Concede", "Adjust score"] ) {
     assert.match(controls, new RegExp(label), `live scorer should include ${label}`);
   }
   assert.match(controls, /Array\.from\(\{ length: state\.redsRemaining \}/, "the remaining reds should be visualised");
@@ -53,8 +53,20 @@ test("mobile scorer shows the table state and complete scoring controls", () => 
   assert.match(controls, /Saved|Saving|Offline|Conflict/, "save and connectivity status should be visible");
 });
 
+test("scorer clearly distinguishes waiting, active visits, adjustment, and reset", () => {
+  assert.match(controls, /No player at table/);
+  assert.match(controls, /Next side/);
+  assert.match(controls, /Start visit/);
+  assert.match(controls, /Adjust score/);
+  assert.match(controls, /Reset frame/);
+  assert.match(controls, /!state\.activePlayerId/, "ball controls must remain disabled without an active player");
+  assert.match(controls, /action: "resetFrame"/);
+  assert.match(controls, /Boolean\(state\.activePlayerId\)/, "player choices should lock during an active visit");
+  assert.match(controls, /disabled=\{scoringDisabled\}[\s\S]{0,400}Reset frame/, "frame reset should be unavailable while scoring is paused");
+});
+
 test("a late scorer can set the complete state and continue", () => {
-  for (const label of ["Set current state", "Home score", "Away score", "Team at table", "Active player", "Current break", "Reds remaining", "Next ball", "Apply and continue"]) {
+  for (const label of ["Adjust score", "Home score", "Away score", "team at table", "Active player", "Current break", "Reds remaining", "Next ball", "Apply and continue"]) {
     assert.match(controls, new RegExp(label), `catch-up controls should include ${label}`);
   }
   assert.match(controls, /action: "setState"/);
@@ -66,10 +78,9 @@ test("selecting the next clearance colour removes every lower colour", () => {
   assert.match(controls, /setSetupColours\(clearanceFrom\(value\)\)/);
 });
 
-test("an unscored frame clearly offers to switch the starting team", () => {
-  assert.match(controls, /const frameIsUnscored =/);
+test("a frame without an active visit clearly offers to switch the next team", () => {
   assert.match(controls, /const otherTeamName =/);
-  assert.match(controls, /frameIsUnscored \? `Switch to \$\{otherTeamName\}` : "End visit"/);
+  assert.match(controls, /!state\.activePlayerId \? `Switch to \$\{otherTeamName\}` : "End visit"/);
 });
 
 test("polling is two-second, visible-only, and isolated from the normal fixtures payload", () => {

@@ -416,11 +416,6 @@ function participantKey(game: GamePlayers, team: "home" | "away", slot: 1 | 2) {
   return personId ?? (guestName?.trim() ? guestParticipantKey(team, slot) : null);
 }
 
-function defaultActivePlayerId(game: GamePlayers, team: "home" | "away") {
-  const participants = [participantKey(game, team, 1), participantKey(game, team, 2)].filter(Boolean);
-  return participants.length === 1 ? participants[0] : null;
-}
-
 function assertGamePlayer(
   game: GamePlayers,
   team: "home" | "away",
@@ -450,6 +445,7 @@ function eventName(action: string) {
     undo: "Undo",
     correctBalls: "CorrectBalls",
     setState: "CorrectBalls",
+    resetFrame: "ResetFrame",
     concede: "Complete",
     respotBlack: "CorrectBalls",
     takeover: "Takeover",
@@ -576,11 +572,9 @@ async function startSession(client: PoolClient, personId: string, input: LiveSco
   const game = await gameContext(client, input.fixtureId, input.gameId);
   if (game.winner_team_id) throw new LiveScoringError("This frame already has a result.", 409, "FRAME_COMPLETED");
   const activeTeam = input.activeTeam ?? "home";
-  const activePlayerId = input.activePlayerId ?? defaultActivePlayerId(game, activeTeam);
-  assertGamePlayer(game, activeTeam, activePlayerId);
   let state: LiveState;
   try {
-    state = createLiveFrameState({ activeTeam, activePlayerId });
+    state = createLiveFrameState({ activeTeam, activePlayerId: null });
   } catch (error) {
     throw new LiveScoringError(error instanceof Error ? error.message : "Invalid scoring action.", 400, "INVALID_ACTION");
   }
@@ -599,7 +593,7 @@ async function startSession(client: PoolClient, personId: string, input: LiveSco
         input.gameId,
         JSON.stringify(state),
         activeTeam === "home" ? game.home_team_id : game.away_team_id,
-        databasePersonId(activePlayerId),
+        null,
         personId,
         LEASE_SECONDS,
         game.home_team_id,

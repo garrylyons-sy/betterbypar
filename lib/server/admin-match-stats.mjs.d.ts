@@ -13,13 +13,14 @@ export type AdminMatchStatsFixture = {
 };
 
 export type AdminMatchStatsAppearance = {
+  league_name?: string | null;
   team_id?: string | null;
   team_name?: string | null;
   person_id?: string | null;
   guest_name?: string | null;
 };
 
-export type AdminMatchStats = {
+export type AdminMatchStatsView = {
   totals: {
     matches: number;
     played: number;
@@ -38,6 +39,10 @@ export type AdminMatchStats = {
   mostCommonScoreline: string | null;
   widestSquadUsage: { teamId: string; teamName: string; count: number } | null;
   smallestSquadUsage: { teamId: string; teamName: string; count: number } | null;
+};
+
+export type AdminMatchStats = AdminMatchStatsView & {
+  scopes: Array<AdminMatchStatsView & { leagueName: string }>;
 };
 
 export function buildAdminMatchStats(input: {

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const migration = readFileSync(new URL("../supabase/league_chair_live_scoring.sql", import.meta.url), "utf8");
 const schema = readFileSync(new URL("../supabase/schema.sql", import.meta.url), "utf8");
+const resetMigrationUrl = new URL("../supabase/live_scoring_reset_frame.sql", import.meta.url);
 
 for (const [label, sql] of [["migration", migration], ["canonical schema", schema]]) {
   test(`${label} supports meaningful match activity logs`, () => {
@@ -46,3 +47,12 @@ for (const [label, sql] of [["migration", migration], ["canonical schema", schem
     assert.match(sql, /alter table public\.live_frame_event enable row level security/i);
   });
 }
+
+test("live scoring schema and upgrade migration accept audited frame resets", () => {
+  assert.equal(existsSync(resetMigrationUrl), true, "the deployed schema needs an upgrade migration");
+  const resetMigration = readFileSync(resetMigrationUrl, "utf8");
+  assert.match(migration, /'ResetFrame'/);
+  assert.match(schema, /'ResetFrame'/);
+  assert.match(resetMigration, /drop constraint if exists live_frame_event_event_type_check/i);
+  assert.match(resetMigration, /add constraint live_frame_event_event_type_check[\s\S]*'ResetFrame'/i);
+});

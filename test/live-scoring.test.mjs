@@ -18,6 +18,58 @@ test("creates a standard frame with fifteen reds and 147 available", () => {
   assert.equal(pointsRemaining(state), 147);
 });
 
+test("does not allow scoring until a player has explicitly started a visit", () => {
+  const waiting = createLiveFrameState({ activeTeam: "home" });
+
+  assert.equal(waiting.activePlayerId, null);
+  assert.throws(
+    () => applyLiveFrameAction(waiting, { type: "pot", team: "home", value: 1 }),
+    /start.*visit/i
+  );
+  assert.throws(
+    () => applyLiveFrameAction(waiting, { type: "foul", awardedTo: "away", points: 4 }),
+    /start.*visit/i
+  );
+
+  const started = applyLiveFrameAction(waiting, { type: "selectPlayer", team: "home", playerId: "home-1" });
+  const scored = applyLiveFrameAction(started, { type: "pot", team: "home", playerId: "home-1", value: 1 });
+  assert.equal(scored.homeScore, 1);
+});
+
+test("reset frame restores the opening state and leaves nobody at the table", () => {
+  const inProgress = createLiveFrameState({
+    activeTeam: "away",
+    activePlayerId: "away-1",
+    homeScore: 18,
+    awayScore: 27,
+    currentBreak: 9,
+    redsRemaining: 10,
+    expectedBall: "colour"
+  });
+
+  const reset = applyLiveFrameAction(inProgress, { type: "resetFrame" });
+
+  assert.equal(reset.homeScore, 0);
+  assert.equal(reset.awayScore, 0);
+  assert.equal(reset.redsRemaining, 15);
+  assert.equal(reset.expectedBall, "red");
+  assert.equal(reset.activeTeam, "home");
+  assert.equal(reset.activePlayerId, null);
+  assert.equal(reset.currentBreak, 0);
+  assert.deepEqual(reset.breaks, []);
+});
+
+test("reset frame remains available after a winner is ready but before completion", () => {
+  const live = createLiveFrameState({ activeTeam: "home", activePlayerId: "home-1", homeScore: 42, awayScore: 18 });
+  const ready = applyLiveFrameAction(live, { type: "concede", winner: "home" });
+
+  assert.equal(ready.status, "Ready");
+  const reset = applyLiveFrameAction(ready, { type: "resetFrame" });
+  assert.equal(reset.status, "Live");
+  assert.equal(reset.homeScore, 0);
+  assert.equal(reset.activePlayerId, null);
+});
+
 test("requires alternating reds and colours while reds remain", () => {
   const start = createLiveFrameState({ activeTeam: "home", activePlayerId: "home-1" });
   const afterRed = applyLiveFrameAction(start, { type: "pot", team: "home", playerId: "home-1", value: 1 });
@@ -83,6 +135,15 @@ test("ends a visit and allows a doubles player to be selected", () => {
   assert.throws(
     () => applyLiveFrameAction(ended, { type: "selectPlayer", team: "home", playerId: "home-2" }),
     /active side/i
+  );
+});
+
+test("cannot change the player while a visit is active", () => {
+  const active = createLiveFrameState({ activeTeam: "home", activePlayerId: "home-1", homeScore: 30, currentBreak: 30 });
+
+  assert.throws(
+    () => applyLiveFrameAction(active, { type: "selectPlayer", team: "home", playerId: "home-2" }),
+    /end.*visit/i
   );
 });
 
@@ -206,7 +267,8 @@ test("supports concession and a tied re-spotted black", () => {
     coloursRemaining: []
   });
   const respotted = applyLiveFrameAction(tiedClearance, { type: "respotBlack" });
-  const black = applyLiveFrameAction(respotted, { type: "pot", team: "away", playerId: "away-1", value: 7 });
+  const visit = applyLiveFrameAction(respotted, { type: "selectPlayer", team: "away", playerId: "away-1" });
+  const black = applyLiveFrameAction(visit, { type: "pot", team: "away", playerId: "away-1", value: 7 });
 
   assert.equal(respotted.phase, "respotted-black");
   assert.deepEqual(respotted.coloursRemaining, [7]);

@@ -47,12 +47,12 @@ test("buildAdminMatchStats counts match outcomes, scorelines, and guest players 
       }
     ],
     appearances: [
-      { team_id: "castle-a", team_name: "Castle A", person_id: "person-1", guest_name: null },
-      { team_id: "castle-a", team_name: "Castle A", person_id: "person-2", guest_name: null },
-      { team_id: "castle-a", team_name: "Castle A", person_id: null, guest_name: "Guest One" },
-      { team_id: "castle-a", team_name: "Castle A", person_id: null, guest_name: " guest one " },
-      { team_id: "castle-a", team_name: "Castle A", person_id: null, guest_name: "Guest Two" },
-      { team_id: "newlands-c", team_name: "Newlands C", person_id: "person-3", guest_name: null }
+      { league_name: "A League", team_id: "castle-a", team_name: "Castle A", person_id: "person-1", guest_name: null },
+      { league_name: "A League", team_id: "castle-a", team_name: "Castle A", person_id: "person-2", guest_name: null },
+      { league_name: "A League", team_id: "castle-a", team_name: "Castle A", person_id: null, guest_name: "Guest One" },
+      { league_name: "A League", team_id: "castle-a", team_name: "Castle A", person_id: null, guest_name: " guest one " },
+      { league_name: "A League", team_id: "castle-a", team_name: "Castle A", person_id: null, guest_name: "Guest Two" },
+      { league_name: "C League", team_id: "newlands-c", team_name: "Newlands C", person_id: "person-3", guest_name: null }
     ]
   });
 
@@ -77,4 +77,27 @@ test("buildAdminMatchStats counts match outcomes, scorelines, and guest players 
     ]
   );
   assert.equal(stats.mostCommonScoreline, "2-5");
+});
+
+test("buildAdminMatchStats provides complete views for all leagues and each league", () => {
+  const stats = buildAdminMatchStats({
+    fixtures: [
+      { fixture_id: "a-1", league_name: "A League", status: "Completed", home_team_score: 7, away_team_score: 0 },
+      { fixture_id: "b-1", league_name: "B League", status: "Completed", home_team_score: 3, away_team_score: 4 },
+      { fixture_id: "c-1", league_name: "C League", status: "Scheduled", home_team_score: 0, away_team_score: 0 }
+    ],
+    appearances: [
+      { league_name: "A League", team_id: "a-team", team_name: "A Team", person_id: "a-player", guest_name: null },
+      { league_name: "B League", team_id: "b-team", team_name: "B Team", person_id: null, guest_name: "B Guest" }
+    ]
+  });
+
+  assert.deepEqual(stats.scopes.map((scope) => scope.leagueName), ["All leagues", "A League", "B League", "C League"]);
+  assert.equal(stats.scopes[0].totals.matches, 3);
+  assert.equal(stats.scopes[1].totals.matches, 1);
+  assert.equal(stats.scopes[1].totals.homeWins, 1);
+  assert.deepEqual(stats.scopes[1].playersUsedByTeam.map((row) => row.teamName), ["A Team"]);
+  assert.equal(stats.scopes[2].totals.awayWins, 1);
+  assert.deepEqual(stats.scopes[2].playersUsedByTeam.map((row) => row.teamName), ["B Team"]);
+  assert.equal(stats.scopes[3].totals.scheduled, 1);
 });

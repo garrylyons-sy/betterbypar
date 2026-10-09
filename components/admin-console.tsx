@@ -120,7 +120,7 @@ type AdminCompetitionRow = {
   round_count: number;
   match_count: number;
 };
-type AdminMatchStats = {
+type AdminMatchStatsView = {
   totals: {
     matches: number;
     played: number;
@@ -140,6 +140,9 @@ type AdminMatchStats = {
   widestSquadUsage: { teamId: string; teamName: string; count: number } | null;
   smallestSquadUsage: { teamId: string; teamName: string; count: number } | null;
 };
+type AdminMatchStats = AdminMatchStatsView & {
+  scopes: Array<AdminMatchStatsView & { leagueName: string }>;
+};
 const emptyMatchStats: AdminMatchStats = {
   totals: {
     matches: 0,
@@ -158,7 +161,8 @@ const emptyMatchStats: AdminMatchStats = {
   playersUsedByTeam: [],
   mostCommonScoreline: null,
   widestSquadUsage: null,
-  smallestSquadUsage: null
+  smallestSquadUsage: null,
+  scopes: []
 };
 type AdminCompetitionDetail = {
   id: string;
@@ -938,15 +942,20 @@ function DesktopAdminPanel({
   const openCompetitions = competitions.filter((competition) => competition.status === "Open").length;
   const liveCompetitions = competitions.filter((competition) => competition.status === "Drawn" || competition.status === "In Progress").length;
   const completeCompetitions = competitions.filter((competition) => competition.status === "Complete").length;
-  const matchTotals = matchStats.totals;
+  const [statsLeague, setStatsLeague] = useState("All leagues");
+  const statScopes = matchStats.scopes.length
+    ? matchStats.scopes
+    : [{ leagueName: "All leagues", ...matchStats }];
+  const selectedMatchStats = statScopes.find((scope) => scope.leagueName === statsLeague) ?? statScopes[0];
+  const matchTotals = selectedMatchStats.totals;
   const playedLabel = matchTotals.matches ? `${matchTotals.played}/${matchTotals.matches}` : "0/0";
   const outcomeRows = [
     { label: "Home wins", value: matchTotals.homeWins, percent: matchTotals.homeWinPct, className: "bg-[#00ff85]" },
     { label: "Away wins", value: matchTotals.awayWins, percent: matchTotals.awayWinPct, className: "bg-[#00e5ff]" },
     { label: "Draws", value: matchTotals.draws, percent: matchTotals.drawPct, className: "bg-[#e9e3ee]" }
   ];
-  const maxScorelineCount = Math.max(1, ...matchStats.scorelines.map((row) => row.count));
-  const maxPlayersUsed = Math.max(1, ...matchStats.playersUsedByTeam.map((row) => row.count));
+  const maxScorelineCount = Math.max(1, ...selectedMatchStats.scorelines.map((row) => row.count));
+  const maxPlayersUsed = Math.max(1, ...selectedMatchStats.playersUsedByTeam.map((row) => row.count));
   const [resetOpen, setResetOpen] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -1016,6 +1025,20 @@ function DesktopAdminPanel({
           <Badge variant="muted">{playedLabel} played</Badge>
         </CardHeader>
         <CardContent className="grid gap-4">
+          <div className="flex max-w-full gap-2 overflow-x-auto pb-1" role="group" aria-label="Match statistics league">
+            {statScopes.map((scope) => (
+              <Button
+                key={scope.leagueName}
+                type="button"
+                size="sm"
+                variant={selectedMatchStats.leagueName === scope.leagueName ? "default" : "secondary"}
+                className="shrink-0"
+                onClick={() => setStatsLeague(scope.leagueName)}
+              >
+                {scope.leagueName}
+              </Button>
+            ))}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <AdminMetric label="Matches" value={matchTotals.matches} />
             <AdminMetric label="Played" value={matchTotals.played} tone="green" />
@@ -1037,7 +1060,7 @@ function DesktopAdminPanel({
                 <p className="text-sm font-black uppercase text-[#25002b]">League completion</p>
                 <p className="text-xs font-bold text-[#6c5a73]">Active season</p>
               </div>
-              {matchStats.leagues.length ? matchStats.leagues.map((league) => (
+              {selectedMatchStats.leagues.length ? selectedMatchStats.leagues.map((league) => (
                 <AdminProgressRow
                   key={league.leagueName}
                   label={league.leagueName}
@@ -1054,9 +1077,9 @@ function DesktopAdminPanel({
             <div className="grid gap-3 rounded-xl bg-white p-4 ring-1 ring-[#eeeaf2]">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-black uppercase text-[#25002b]">Scorelines</p>
-                <Badge variant="muted">{matchStats.mostCommonScoreline ?? "None"}</Badge>
+                <Badge variant="muted">{selectedMatchStats.mostCommonScoreline ?? "None"}</Badge>
               </div>
-              {matchStats.scorelines.length ? matchStats.scorelines.slice(0, 8).map((scoreline) => (
+              {selectedMatchStats.scorelines.length ? selectedMatchStats.scorelines.slice(0, 8).map((scoreline) => (
                 <AdminBarRow
                   key={scoreline.scoreline}
                   label={scoreline.scoreline}
@@ -1073,7 +1096,7 @@ function DesktopAdminPanel({
                 <p className="text-sm font-black uppercase text-[#25002b]">Players used per team</p>
                 <Badge variant="muted">incl. guests</Badge>
               </div>
-              {matchStats.playersUsedByTeam.length ? matchStats.playersUsedByTeam.slice(0, 10).map((team) => (
+              {selectedMatchStats.playersUsedByTeam.length ? selectedMatchStats.playersUsedByTeam.slice(0, 10).map((team) => (
                 <AdminBarRow
                   key={team.teamId}
                   label={team.teamName}
@@ -1084,10 +1107,10 @@ function DesktopAdminPanel({
               )) : (
                 <p className="text-sm font-semibold text-[#6c5a73]">No player appearances yet.</p>
               )}
-              {matchStats.widestSquadUsage ? (
+              {selectedMatchStats.widestSquadUsage ? (
                 <p className="text-xs font-bold text-[#6c5a73]">
-                  Widest squad: {matchStats.widestSquadUsage.teamName} ({matchStats.widestSquadUsage.count})
-                  {matchStats.smallestSquadUsage ? ` · Smallest: ${matchStats.smallestSquadUsage.teamName} (${matchStats.smallestSquadUsage.count})` : ""}
+                  Widest squad: {selectedMatchStats.widestSquadUsage.teamName} ({selectedMatchStats.widestSquadUsage.count})
+                  {selectedMatchStats.smallestSquadUsage ? ` · Smallest: ${selectedMatchStats.smallestSquadUsage.teamName} (${selectedMatchStats.smallestSquadUsage.count})` : ""}
                 </p>
               ) : null}
             </div>
