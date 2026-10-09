@@ -52,7 +52,7 @@ export const defaultAppearanceConfig: AppearanceConfig = {
   },
   "Club Member": {
     role: "Club Member",
-    panels: ["openCompetitions"],
+    panels: ["clubAccess", "openCompetitions"],
     menuItems: ["Home", "Fixtures", "Table", "Bookings", "Competitions", "Interclub Leagues"]
   },
   "Club Admin": {

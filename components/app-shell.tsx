@@ -2891,16 +2891,6 @@ function AttackSnookerGameCard() {
 }
 
 function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; panels: AppearancePanelId[] }) {
-  const compactPanels = useMemo(() => {
-    if (activeTeam.role === "Club Member") {
-      return panels.filter((panel) => panel === "openCompetitions");
-    }
-    if (activeTeam.role === "Club Admin") {
-      return panels.filter((panel) => panel === "clubCompetitionAdmin" || panel === "openCompetitions" || panel === "interclubLeagues");
-    }
-    return panels;
-  }, [activeTeam.role, panels]);
-
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "clubAccess") {
       return (
@@ -2911,10 +2901,26 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
           </CardHeader>
           <CardContent className="grid gap-2">
             <MiniStat label="Club" value={activeTeam.club.replace(" Golf Club", "")} />
-            <MiniStat label="Access" value="Tables" />
-            <p className="rounded-xl bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">
-              Club members can book tables and enter competitions at their club.
-            </p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {[
+                { label: "Book a table", page: "Bookings" as AppPage, icon: CalendarPlus },
+                { label: "Fixtures", page: "Fixtures" as AppPage, icon: CalendarDays },
+                { label: "League tables", page: "Table" as AppPage, icon: Trophy }
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.page}
+                    type="button"
+                    onClick={() => onNavigate(item.page)}
+                    className="flex min-h-12 items-center gap-2 rounded-lg bg-[#f7f5fa] px-3 text-left font-extrabold text-[#10233f] ring-1 ring-[#eeeaf2] transition hover:bg-[#eef3f5]"
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
       );
@@ -2996,7 +3002,7 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      {compactPanels.map(renderPanel)}
+      {panels.map(renderPanel)}
     </section>
   );
 }

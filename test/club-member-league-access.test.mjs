@@ -32,6 +32,27 @@ test("club members are configured to access fixtures and tables for the active s
   );
 });
 
+test("club member home respects configured panels and remains useful without open competitions", () => {
+  assert.match(
+    appearanceSource,
+    /"Club Member":\s*\{[\s\S]*panels:\s*\[[^\]]*"clubAccess"[^\]]*"openCompetitions"/,
+    "Club access should be part of the default club-member home"
+  );
+
+  const memberHomeSource = appShellSource.slice(
+    appShellSource.indexOf("function ClubMemberHome"),
+    appShellSource.indexOf("function MemberActionsCard")
+  );
+  assert.doesNotMatch(
+    memberHomeSource,
+    /return panels\.filter\(\(panel\) => panel === "openCompetitions"\)/,
+    "The club-member home must not discard panels selected in Appearance"
+  );
+  for (const shortcut of ["Book a table", "Fixtures", "League tables"]) {
+    assert.match(memberHomeSource, new RegExp(`label: "${shortcut}"`));
+  }
+});
+
 test("platform operator contexts receive League Chair pilot access", () => {
   assert.match(authSource, /isAppOperator[\s\S]*hasLiveScoringAccess/);
   assert.doesNotMatch(authSource, /\(leagueChairMemberships\.length > 0 \|\| isAppOperator\)[\s\S]*hasLeagueChairAccess: true/, "operator scoring must not grant unrelated League Chair features");
