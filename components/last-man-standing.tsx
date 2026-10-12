@@ -35,7 +35,7 @@ function apiPath(path: string) {
 }
 
 async function loadSummaries() {
-  const response = await fetch(apiPath("/api/last-man-standing"), { credentials: "same-origin" });
+  const response = await fetch(apiPath("/api/last-man-standing"), { credentials: "same-origin", cache: "no-store" });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Last Man Standing could not be loaded.");
   return (data.competitions ?? []) as Summary[];
@@ -45,8 +45,15 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
   const [competitions, setCompetitions] = useState<Summary[]>([]);
   useEffect(() => {
     let active = true;
-    loadSummaries().then((rows) => { if (active) setCompetitions(rows); }).catch(() => {});
-    return () => { active = false; };
+    const refresh = () => loadSummaries().then((rows) => { if (active) setCompetitions(rows); }).catch(() => {});
+    void refresh();
+    window.addEventListener("focus", refresh);
+    window.addEventListener("interclub:refresh-panels", refresh);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("interclub:refresh-panels", refresh);
+    };
   }, []);
   if (!competitions.length) return null;
   const competition = competitions.find((item) => item.isEntered) ?? competitions[0];
@@ -87,7 +94,7 @@ export function LastManStandingPage() {
       const nextId = preferredId || selectedId || rows[0]?.id || "";
       setSelectedId(nextId);
       if (!nextId) return setDetail(null);
-      const response = await fetch(apiPath(`/api/last-man-standing/${nextId}`), { credentials: "same-origin" });
+      const response = await fetch(apiPath(`/api/last-man-standing/${nextId}`), { credentials: "same-origin", cache: "no-store" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Competition could not be loaded.");
       setDetail(data);

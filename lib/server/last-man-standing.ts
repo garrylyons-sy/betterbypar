@@ -58,6 +58,15 @@ type EntryOption = {
   teamName: string;
 };
 
+export function filterEntryOptionsForCompetitionTier(
+  roles: { options: EntryOption[]; defaultOption: EntryOption | null },
+  competitionTier: "A" | "B" | "C" | null
+) {
+  if (!competitionTier) return roles;
+  const options = roles.options.filter((option) => option.tier === competitionTier);
+  return { options, defaultOption: options[0] ?? null };
+}
+
 export class LastManStandingError extends Error {
   status: number;
   code: string;
@@ -250,9 +259,15 @@ async function competitionRow(client: Pick<PoolClient, "query">, competitionId: 
     status: string;
     entry_opens_at: string;
     entry_closes_at: string;
+    competition_tier: "A" | "B" | "C" | null;
   }>(
-    `select id::text, season_id::text, name, audience, status, entry_opens_at::text, entry_closes_at::text
-     from public.last_man_standing_competition where id = $1 ${lock ? "for update" : ""}`,
+    `select c.id::text, c.season_id::text, c.name, c.audience, c.status,
+            c.entry_opens_at::text, c.entry_closes_at::text,
+            (select case when count(distinct rs.tier) = 1 then min(rs.tier) end
+             from public.last_man_standing_round r
+             join public.last_man_standing_round_schedule rs on rs.round_id = r.id
+             where r.competition_id = c.id) as competition_tier
+     from public.last_man_standing_competition c where c.id = $1 ${lock ? "for update of c" : ""}`,
     [competitionId]
   );
   const row = result.rows[0];
@@ -271,7 +286,9 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
   const queryClient = { query: dbQuery } as unknown as Pick<PoolClient, "query">;
   const competition = await competitionRow(queryClient, competitionId);
   const [roles, detail] = await Promise.all([
-    loadRoleOptions(queryClient, user, competition.season_id),
+    loadRoleOptions(queryClient, user, competition.season_id).then((options) => (
+      filterEntryOptionsForCompetitionTier(options, competition.competition_tier)
+    )),
     dbQuery<{
       entry_id: string | null;
       entry_status: string | null;
@@ -493,7 +510,10 @@ export async function enterLastManStandingCompetition(user: AppUser, input: Ente
     if (competition.status !== "Open" || now < new Date(competition.entry_opens_at) || now >= new Date(competition.entry_closes_at)) {
       throw new LastManStandingError("Entries are not open for this competition.", 409, "ENTRY_CLOSED");
     }
-    const roleOptions = await loadRoleOptions(client, user, competition.season_id);
+    const roleOptions = filterEntryOptionsForCompetitionTier(
+      await loadRoleOptions(client, user, competition.season_id),
+      competition.competition_tier
+    );
     const chosen = roleOptions.options.find((option) => (
       (!input.tier || option.tier === input.tier)
       && (!input.sourceTeamId || option.teamId === input.sourceTeamId)
@@ -1020,14 +1040,17 @@ async function createFollowingLastManStandingRound(
     cycle_number: number;
     round_number: number;
     season_id: string;
+    current_schedule_count: number;
   }>(
-    `select r.cycle_number, r.round_number, c.season_id::text
+    `select r.cycle_number, r.round_number, c.season_id::text,
+            (select count(*)::int from public.last_man_standing_round_schedule where round_id = r.id) as current_schedule_count
      from public.last_man_standing_round r
      join public.last_man_standing_competition c on c.id = r.competition_id
      where r.id = $1 and r.competition_id = $2`,
     [input.roundId, input.competitionId]
   );
   if (!current.rows[0]) return null;
+  const currentScheduleCount = Number(current.rows[0].current_schedule_count);
 
   const schedules = await client.query<{
     tier: "A" | "B" | "C";
@@ -1064,7 +1087,7 @@ async function createFollowingLastManStandingRound(
      order by current_schedule.tier`,
     [input.roundId, current.rows[0].season_id]
   );
-  if (schedules.rows.length !== 3) return null;
+  if (!currentScheduleCount || schedules.rows.length !== currentScheduleCount) return null;
 
   const cycleNumber = input.nextCycle ? Number(current.rows[0].cycle_number) + 1 : Number(current.rows[0].cycle_number);
   const roundNumber = input.nextCycle ? 1 : Number(current.rows[0].round_number) + 1;

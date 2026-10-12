@@ -64,7 +64,8 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [seasonId, setSeasonId] = useState("");
-  const [firstRoundWeeks, setFirstRoundWeeks] = useState<Record<"A" | "B" | "C", string>>({ A: "", B: "", C: "" });
+  const [league, setLeague] = useState<FixtureWeek["league_name"]>("A League");
+  const [firstRoundWeekId, setFirstRoundWeekId] = useState("");
   const [resolutionPlayers, setResolutionPlayers] = useState<Record<string, string>>({});
 
   async function load() {
@@ -86,10 +87,10 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
 
   useEffect(() => { void load(); }, []);
 
-  const weeksByTier = useMemo(() => Object.fromEntries((["A", "B", "C"] as const).map((tier) => [
-    tier,
-    fixtureWeeks.filter((week) => week.season_id === seasonId && week.league_name === `${tier} League`)
-  ])) as Record<"A" | "B" | "C", FixtureWeek[]>, [fixtureWeeks, seasonId]);
+  const availableWeeks = useMemo(
+    () => fixtureWeeks.filter((week) => week.season_id === seasonId && week.league_name === league),
+    [fixtureWeeks, league, seasonId]
+  );
 
   async function createCompetition() {
     setSaving(true);
@@ -98,14 +99,14 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          name, seasonId, firstRoundWeeks
+          name, seasonId, league, firstRoundWeekId
         })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Competition could not be created.");
       setShowCreate(false);
       setName("");
-      setFirstRoundWeeks({ A: "", B: "", C: "" });
+      setFirstRoundWeekId("");
       onMessage("Last Man Standing competition created.");
       await load();
     } catch (error) {
@@ -177,7 +178,7 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
   }
 
   return (
-    <section className="grid gap-4">
+    <section className="grid self-start content-start gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white px-4 py-3 shadow-card">
         <div>
           <p className="text-xs font-extrabold uppercase text-[#6c5a73]">League competition</p>
@@ -187,13 +188,14 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
       </div>
 
       {showCreate ? (
-        <div className="grid gap-3 rounded-lg bg-white p-3 shadow-card">
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.25fr_.8fr_repeat(3,1fr)]">
+        <div className="grid gap-2 rounded-lg bg-white p-3 shadow-card">
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.3fr_.8fr_.7fr_1fr]">
             <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Name<input className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={name} onChange={(event) => setName(event.target.value)} /></label>
-            <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Season<select className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={seasonId} onChange={(event) => setSeasonId(event.target.value)}>{seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}</select></label>
-            {(["A", "B", "C"] as const).map((tier) => <label key={tier} className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">First round · {tier} League<select className="min-h-11 rounded-lg border px-2 text-sm normal-case text-[#25002b]" value={firstRoundWeeks[tier]} onChange={(event) => setFirstRoundWeeks((current) => ({ ...current, [tier]: event.target.value }))}><option value="">Choose week</option>{weeksByTier[tier].map((week) => <option key={week.id} value={week.id}>{week.week_label} · {new Date(`${week.match_date}T12:00:00`).toLocaleDateString("en-IE", { day: "numeric", month: "short" })}</option>)}</select></label>)}
+            <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Season<select className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={seasonId} onChange={(event) => { setSeasonId(event.target.value); setFirstRoundWeekId(""); }}>{seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}</select></label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">League<select className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={league} onChange={(event) => { setLeague(event.target.value as FixtureWeek["league_name"]); setFirstRoundWeekId(""); }}><option>A League</option><option>B League</option><option>C League</option></select></label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">First round<select className="min-h-11 rounded-lg border px-2 text-sm normal-case text-[#25002b]" value={firstRoundWeekId} onChange={(event) => setFirstRoundWeekId(event.target.value)}><option value="">Choose week</option>{availableWeeks.map((week) => <option key={week.id} value={week.id}>{week.week_label} · {new Date(`${week.match_date}T12:00:00`).toLocaleDateString("en-IE", { day: "numeric", month: "short" })}</option>)}</select></label>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold text-[#6c5a73]">Entries close automatically at noon on the earliest first-round match day. Later rounds follow the next valid league week.</p><Button disabled={saving || !name.trim() || !seasonId || Object.values(firstRoundWeeks).some((week) => !week)} onClick={createCompetition}>{saving ? "Creating..." : "Create competition"}</Button></div>
+          <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold text-[#6c5a73]">Entries close at noon on the first match day. Later rounds follow the next valid {league} week.</p><Button disabled={saving || !name.trim() || !seasonId || !firstRoundWeekId} onClick={createCompetition}>{saving ? "Creating..." : "Create competition"}</Button></div>
         </div>
       ) : null}
 
@@ -204,7 +206,7 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
         const needsReview = competition.rounds.some((round) => round.status === "Needs Review");
         return <article key={competition.id} className="overflow-hidden rounded-lg bg-white shadow-card">
           <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" onClick={() => setExpandedCompetitionId(expanded ? null : competition.id)}>
-            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Trophy className="h-5 w-5 text-[#00a873]" /><h3 className="truncate font-extrabold">{competition.name}</h3><Badge variant="cyan">{competition.status}</Badge>{needsReview ? <Badge variant="gold"><ShieldAlert className="h-3 w-3" /> Needs Review</Badge> : null}</div><p className="mt-1 text-xs font-bold text-[#6c5a73]">{competition.season_name} · {competition.standing_count} of {competition.entrant_count} standing · {competition.audience}</p></div>
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Trophy className="h-5 w-5 text-[#00a873]" /><h3 className="truncate font-extrabold">{competition.name}</h3><Badge variant="cyan">{competition.status}</Badge>{needsReview ? <Badge variant="gold"><ShieldAlert className="h-3 w-3" /> Needs Review</Badge> : null}</div><p className="mt-1 text-xs font-bold text-[#6c5a73]">{competition.season_name} · {competition.rounds[0]?.schedules.length === 1 ? `${competition.rounds[0].schedules[0].tier} League · ` : ""}{competition.standing_count} of {competition.entrant_count} standing</p></div>
             {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
           </button>
           {expanded ? <div className="grid gap-3 border-t p-3">

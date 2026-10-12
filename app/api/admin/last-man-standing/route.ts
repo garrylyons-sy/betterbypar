@@ -171,62 +171,44 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const name = String(body.name ?? "").trim();
     const seasonId = String(body.seasonId ?? "").trim();
+    const league = String(body.league ?? "").trim();
+    const firstRoundWeekId = String(body.firstRoundWeekId ?? "").trim();
     const audience = "League Chair";
-    const firstRoundWeeks = body.firstRoundWeeks && typeof body.firstRoundWeeks === "object"
-      ? body.firstRoundWeeks as Record<string, unknown>
-      : {};
-    if (!name || !seasonId) return NextResponse.json({ error: "Name and season are required." }, { status: 400 });
+    const tier = league === "A League" ? "A" : league === "B League" ? "B" : league === "C League" ? "C" : null;
+    if (!name || !seasonId || !tier || !firstRoundWeekId) {
+      return NextResponse.json({ error: "Name, season, league and first round are required." }, { status: 400 });
+    }
 
     const id = await withTransaction(async (client) => {
-      const schedules: Array<{
-        tier: "A" | "B" | "C";
-        leagueId: string;
-        fixtureWeekId: string;
-        matchDate: string;
-        deadlineAt: string;
-      }> = [];
-      for (const tier of ["A", "B", "C"] as const) {
-        const weekId = String(firstRoundWeeks[tier] ?? "");
-        const week = await client.query<{ league_id: string; match_date: string; deadline_at: string }>(
-          `select fw.league_id::text,
-                  min((f.fixture_date at time zone 'Europe/Dublin')::date)::text as match_date,
-                  (((min((f.fixture_date at time zone 'Europe/Dublin')::date) + time '12:00')
-                    at time zone 'Europe/Dublin'))::text as deadline_at
-           from public.fixture_week fw
-           join public.league l on l.id = fw.league_id
-           join public.fixture_week_match fwm on fwm.week_id = fw.id
-           join public.match m on m.id = fwm.match_id
-           join public.fixture f on f.id = m.fixture_id
-           where fw.id = $1 and fw.season_id = $2 and l.name = $3
-             and fw.starts_on is not null
-             and lower(fw.week_label) not like '%break%'
-             and f.fixture_type = 'League'
-             and f.status not in ('Cancelled', 'Completed')
-             and f.original_fixture_date is null
-             and (f.fixture_date at time zone 'Europe/Dublin')::date
-               between fw.starts_on and fw.starts_on + 6
-           group by fw.id
-           having ((min((f.fixture_date at time zone 'Europe/Dublin')::date) + time '12:00')
-             at time zone 'Europe/Dublin') > now()`,
-          [weekId, seasonId, `${tier} League`]
-        );
-        if (!week.rows[0]) throw new Error(`Choose a future ${tier} League week with scheduled league matches.`);
-        schedules.push({
-          tier,
-          leagueId: week.rows[0].league_id,
-          fixtureWeekId: weekId,
-          matchDate: week.rows[0].match_date,
-          deadlineAt: week.rows[0].deadline_at
-        });
-      }
-      const entryClosesAt = schedules
-        .map((schedule) => schedule.deadlineAt)
-        .sort((left, right) => new Date(left).getTime() - new Date(right).getTime())[0];
+      const week = await client.query<{ league_id: string; match_date: string; deadline_at: string }>(
+        `select fw.league_id::text,
+                min((f.fixture_date at time zone 'Europe/Dublin')::date)::text as match_date,
+                (((min((f.fixture_date at time zone 'Europe/Dublin')::date) + time '12:00')
+                  at time zone 'Europe/Dublin'))::text as deadline_at
+         from public.fixture_week fw
+         join public.league l on l.id = fw.league_id
+         join public.fixture_week_match fwm on fwm.week_id = fw.id
+         join public.match m on m.id = fwm.match_id
+         join public.fixture f on f.id = m.fixture_id
+         where fw.id = $1 and fw.season_id = $2 and l.name = $3
+           and fw.starts_on is not null
+           and lower(fw.week_label) not like '%break%'
+           and f.fixture_type = 'League'
+           and f.status not in ('Cancelled', 'Completed')
+           and f.original_fixture_date is null
+           and (f.fixture_date at time zone 'Europe/Dublin')::date
+             between fw.starts_on and fw.starts_on + 6
+         group by fw.id
+         having ((min((f.fixture_date at time zone 'Europe/Dublin')::date) + time '12:00')
+           at time zone 'Europe/Dublin') > now()`,
+        [firstRoundWeekId, seasonId, league]
+      );
+      if (!week.rows[0]) throw new Error(`Choose a future ${league} week with scheduled league matches.`);
       const competition = await client.query<{ id: string }>(
         `insert into public.last_man_standing_competition (
            season_id, name, audience, entry_opens_at, entry_closes_at, status, created_by
          ) values ($1, $2, $3, now(), $4, 'Open', $5) returning id::text`,
-        [seasonId, name, audience, entryClosesAt, access.user!.personId]
+        [seasonId, name, audience, week.rows[0].deadline_at, access.user!.personId]
       );
       const round = await client.query<{ id: string }>(
         `insert into public.last_man_standing_round (
@@ -234,14 +216,12 @@ export async function POST(request: Request) {
          ) values ($1, 1, 'Round 1', false, 'Open', now()) returning id::text`,
         [competition.rows[0].id]
       );
-      for (const schedule of schedules) {
-        await client.query(
-          `insert into public.last_man_standing_round_schedule (
-             round_id, tier, league_id, fixture_week_id, default_match_date
-           ) values ($1, $2, $3, $4, $5)`,
-          [round.rows[0].id, schedule.tier, schedule.leagueId, schedule.fixtureWeekId, schedule.matchDate]
-        );
-      }
+      await client.query(
+        `insert into public.last_man_standing_round_schedule (
+           round_id, tier, league_id, fixture_week_id, default_match_date
+         ) values ($1, $2, $3, $4, $5)`,
+        [round.rows[0].id, tier, week.rows[0].league_id, firstRoundWeekId, week.rows[0].match_date]
+      );
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
          values ($1, 'Page Visit', '/admin/last-man-standing', 'Created Last Man Standing competition',

@@ -11,6 +11,10 @@ test("League Chair access adds the Last Man Standing page and home panel", () =>
   assert.match(shell, /hasLeagueChairAccess/);
   assert.match(shell, /LastManStandingHomePanel/);
   assert.match(shell, /LastManStandingPage/);
+  const panel = read("../components/last-man-standing.tsx");
+  assert.match(panel, /cache: "no-store"/);
+  assert.match(panel, /interclub:refresh-panels/);
+  assert.match(panel, /window\.addEventListener\("focus"/);
 });
 
 test("participant UI exposes deadline, primary action, and automatic replacement reasons", () => {

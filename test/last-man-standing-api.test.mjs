@@ -3,10 +3,26 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  filterEntryOptionsForCompetitionTier,
   participantAccessDecision,
   presentLastManStandingEntries,
   summarizeLastManStandingCompetitions
 } from "../lib/server/last-man-standing.ts";
+
+test("a league-specific competition only offers roles from its league", () => {
+  const roles = {
+    options: [
+      { tier: "A", sourceRole: "Player", teamId: "a", teamName: "Castle A" },
+      { tier: "B", sourceRole: "Manager", teamId: "b", teamName: "Castle B" }
+    ],
+    defaultOption: { tier: "A", sourceRole: "Player", teamId: "a", teamName: "Castle A" }
+  };
+  assert.deepEqual(filterEntryOptionsForCompetitionTier(roles, "B"), {
+    options: [{ tier: "B", sourceRole: "Manager", teamId: "b", teamName: "Castle B" }],
+    defaultOption: { tier: "B", sourceRole: "Manager", teamId: "b", teamName: "Castle B" }
+  });
+  assert.deepEqual(filterEntryOptionsForCompetitionTier(roles, null), roles);
+});
 
 test("participant access distinguishes authentication, League Chair pilot access, and audience", () => {
   assert.deepEqual(participantAccessDecision({ authenticated: false, hasLeagueChairAccess: false, audience: "League Chair" }), {

@@ -64,12 +64,14 @@ test("settlement uses official game winners, stops on no winner, and supports au
   assert.match(source, /c\.status in \('Open', 'In Progress'\)/);
   assert.match(source, /lower\(fw\.week_label\) not like '%break%'/i);
   assert.match(source, /original_fixture_date is null/i);
+  assert.match(source, /currentScheduleCount/);
+  assert.doesNotMatch(source, /schedules\.rows\.length !== 3/);
   const settle = source.slice(source.indexOf("export async function settleLastManStandingRound"), source.indexOf("export async function startNextLastManStandingCycle"));
   assert.doesNotMatch(settle, /set status = 'Standing', winner = false, eliminated_round_id = null/);
   const newCycle = source.slice(source.indexOf("export async function startNextLastManStandingCycle"), source.indexOf("export async function reopenLastManStandingRound"));
   assert.match(newCycle, /set status = 'Standing', winner = false, eliminated_round_id = null/);
   const followingRound = source.slice(source.indexOf("async function createFollowingLastManStandingRound"), source.indexOf("async function openNextLastManStandingRound"));
-  const scheduleLookup = followingRound.slice(followingRound.indexOf("const schedules"), followingRound.indexOf("if (schedules.rows.length"));
+  const scheduleLookup = followingRound.slice(followingRound.indexOf("const schedules"), followingRound.indexOf("if (!currentScheduleCount"));
   assert.doesNotMatch(scheduleLookup, /\$3/);
 });
 

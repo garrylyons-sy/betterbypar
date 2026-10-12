@@ -37,9 +37,12 @@ test("Last Man Standing admin APIs are platform-only and support management acti
   assert.match(createRoute, /lower\(fw\.week_label\) not like '%break%'/i);
   assert.match(createRoute, /original_fixture_date is null/i);
   assert.match(createRoute, /at time zone 'Europe\/Dublin'/i);
+  assert.match(createRoute, /body\.league/);
+  assert.match(createRoute, /body\.firstRoundWeekId/);
   assert.doesNotMatch(createRoute, /body\.entryOpensAt/);
   assert.doesNotMatch(createRoute, /body\.entryClosesAt/);
   assert.doesNotMatch(createRoute, /body\.rounds/);
+  assert.doesNotMatch(createRoute, /for \(const tier of \["A", "B", "C"\]/);
   assert.doesNotMatch(read("../components/admin-last-man-standing.tsx"), /<option>Everyone<\/option>/);
   assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /VALID_STATUS_TRANSITIONS/);
   assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /hashtext\('lifecycle'\)/);
@@ -53,9 +56,8 @@ test("admin navigation exposes a lazy standalone Last Man Standing section only 
   assert.doesNotMatch(consoleSource.match(/const clubAdminTabs[\s\S]*?\];/)?.[0] ?? "", /last-man-standing/);
   assert.match(panelSource, /\/api\/admin\/last-man-standing/);
   assert.match(panelSource, /expandedCompetitionId/);
-  assert.match(panelSource, /A League/);
-  assert.match(panelSource, /B League/);
-  assert.match(panelSource, /C League/);
+  assert.match(panelSource, /firstRoundWeekId/);
+  assert.doesNotMatch(panelSource, /firstRoundWeeks/);
   assert.match(panelSource, /Needs Review/);
   assert.match(panelSource, /Process now/);
   assert.match(panelSource, /Reopen/);
@@ -66,5 +68,6 @@ test("admin navigation exposes a lazy standalone Last Man Standing section only 
   assert.doesNotMatch(panelSource, /Entries open/);
   assert.doesNotMatch(panelSource, /Add round/);
   assert.match(panelSource, /First round/);
-  assert.match(panelSource, /Entries close automatically/);
+  assert.match(panelSource, /Entries close at noon/);
+  assert.match(panelSource, /className="grid self-start content-start gap-3"/);
 });
