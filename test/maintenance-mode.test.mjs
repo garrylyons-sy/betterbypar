@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-import { canSignInDuringMaintenance, shouldShowMaintenance } from "../lib/maintenance-policy.mjs";
+import { canSignInDuringMaintenance, maintenanceRequestDecision, shouldShowMaintenance } from "../lib/maintenance-policy.mjs";
 
 test("maintenance mode has a dedicated access policy and database migration", () => {
   assert.equal(existsSync(new URL("../lib/maintenance-policy.mjs", import.meta.url)), true);
@@ -16,7 +16,33 @@ test("maintenance blocks ordinary pages but leaves its own page and admin reacha
   assert.equal(shouldShowMaintenance("/admin", true), false);
   assert.equal(shouldShowMaintenance("/admin/people", true), false);
   assert.equal(shouldShowMaintenance("/maintenance", true), false);
+  assert.equal(shouldShowMaintenance("/administrator", true), true);
   assert.equal(shouldShowMaintenance("/fixtures", false), false);
+});
+
+test("maintenance centrally blocks normal APIs and old club-admin sessions", () => {
+  const decide = (pathname, options = {}) => maintenanceRequestDecision({
+    pathname,
+    maintenanceEnabled: true,
+    hasSession: false,
+    platformAdmin: false,
+    ...options
+  });
+
+  assert.equal(decide("/api/manager/lineup", { hasSession: true }), "block-api");
+  assert.equal(decide("/api/table-bookings", { hasSession: true, platformAdmin: true }), "block-api");
+  assert.equal(decide("/api/admin", { hasSession: true }), "block-api");
+  assert.equal(decide("/admin", { hasSession: true }), "show-maintenance");
+  assert.equal(decide("/api/admin", { hasSession: true, platformAdmin: true }), "allow");
+  assert.equal(decide("/admin", { hasSession: true, platformAdmin: true }), "allow");
+  assert.equal(decide("/admin"), "allow");
+  assert.equal(decide("/api/login"), "allow");
+  assert.equal(decide("/api/logout"), "allow");
+  assert.equal(decide("/api/maintenance"), "allow");
+  assert.equal(decide("/auth/google"), "allow");
+  assert.equal(decide("/auth/google/callback"), "allow");
+  assert.equal(decide("/fixtures", { hasSession: true }), "show-maintenance");
+  assert.equal(maintenanceRequestDecision({ pathname: "/api/manager/lineup", maintenanceEnabled: false }), "allow");
 });
 
 test("maintenance sign-in requires both admin intent and platform operator access", () => {
@@ -39,6 +65,8 @@ test("the root layout gates normal pages and exposes a maintenance status endpoi
   const middleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
   const publicRoute = readFileSync(new URL("../app/api/maintenance/route.ts", import.meta.url), "utf8");
   assert.match(middleware, /x-interclub-pathname/);
+  assert.match(middleware, /maintenanceSessionAccess/);
+  assert.match(middleware, /decision === "block-api"/);
   assert.match(layout, /loadMaintenanceMode/);
   assert.match(layout, /MaintenanceGate/);
   assert.match(publicRoute, /loadMaintenanceMode/);

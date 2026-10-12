@@ -62,3 +62,29 @@ export async function isPlatformOperator(personId: string) {
   );
   return result.rowCount === 1;
 }
+
+export async function maintenanceSessionAccess(sessionId: string | undefined) {
+  if (!sessionId) return { hasSession: false, platformAdmin: false };
+
+  const result = await dbQuery<{ platform_admin: boolean }>(
+    `select exists (
+       select 1
+       from public.app_session s
+       join public.user_account ua on ua.id = s.user_account_id and ua.active = true
+       join public.person p on p.id = ua.person_id and p.active = true
+       join public.app_operator ao on ao.person_id = p.id and ao.active = true
+       where s.id = $1::text and s.expires_at > now()
+     ) as platform_admin
+     where exists (
+       select 1
+       from public.app_session s
+       join public.user_account ua on ua.id = s.user_account_id and ua.active = true
+       join public.person p on p.id = ua.person_id and p.active = true
+       where s.id = $1::text and s.expires_at > now()
+     )`,
+    [sessionId]
+  );
+
+  if (!result.rows[0]) return { hasSession: false, platformAdmin: false };
+  return { hasSession: true, platformAdmin: Boolean(result.rows[0].platform_admin) };
+}
