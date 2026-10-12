@@ -24,6 +24,7 @@ test("participant UI exposes deadline, primary action, and automatic replacement
   assert.match(source, /automaticReason/);
   assert.match(source, /Automatic replacement/);
   assert.match(source, /View competition/);
+  assert.match(source, /message \|\| "No competition is currently available\."/);
 });
 
 test("competition UI handles concurrent competitions, entry, privacy and noon locking", () => {

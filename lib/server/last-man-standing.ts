@@ -214,7 +214,10 @@ const summaryQuery = `
   ) own_deadline on true
   where c.audience = 'League Chair'
     and c.status <> 'Archived'
-  group by c.id, own_entry.id, current_round.id, own_deadline.deadline_at
+  group by c.id, own_entry.id, current_round.id,
+    current_round.name, current_round.status,
+    current_round.cycle_number, current_round.round_number,
+    own_deadline.deadline_at
   order by (c.status = 'Open') desc, c.created_at desc`;
 
 export async function listLastManStandingCompetitions(user: AppUser) {

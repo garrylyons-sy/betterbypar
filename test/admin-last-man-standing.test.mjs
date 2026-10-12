@@ -54,6 +54,7 @@ test("admin navigation exposes a lazy standalone Last Man Standing section only 
   assert.match(consoleSource, /"last-man-standing"/);
   assert.match(consoleSource, /Last Man Standing/);
   assert.doesNotMatch(consoleSource.match(/const clubAdminTabs[\s\S]*?\];/)?.[0] ?? "", /last-man-standing/);
+  assert.match(consoleSource, /className="grid min-w-0 self-start content-start gap-4"/);
   assert.match(panelSource, /\/api\/admin\/last-man-standing/);
   assert.match(panelSource, /expandedCompetitionId/);
   assert.match(panelSource, /firstRoundWeekId/);

@@ -57,6 +57,11 @@ test("competition summaries keep concurrent competitions separate and provide pa
   assert.equal(summaries[1].currentRound.id, "round-2");
 });
 
+test("competition summary query groups every selected current-round field", () => {
+  const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
+  assert.match(source, /group by c\.id, own_entry\.id, current_round\.id,\s*current_round\.name, current_round\.status,\s*current_round\.cycle_number, current_round\.round_number,\s*own_deadline\.deadline_at/);
+});
+
 test("current picks are private until each owner deadline but always visible to their owner", () => {
   const entries = [
     { id: "mine", personName: "Me", status: "Standing", deadlineAt: "2026-10-15T11:00:00.000Z", picks: [{ slotNumber: 1, playerName: "Mine One" }, { slotNumber: 2, playerName: "Mine Two" }] },

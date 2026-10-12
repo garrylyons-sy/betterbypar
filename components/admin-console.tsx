@@ -636,7 +636,7 @@ function AdminLayout({
             );
           })}
         </aside>
-        <div className="grid min-w-0 gap-4">
+        <div className="grid min-w-0 self-start content-start gap-4">
           {message ? <div className="rounded-xl bg-[#00ff85] px-4 py-3 text-sm font-bold text-[#25002b]">{message}</div> : null}
           {children}
         </div>

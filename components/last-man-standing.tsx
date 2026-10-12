@@ -147,7 +147,7 @@ export function LastManStandingPage() {
   }
 
   if (loading && !detail) return <Card><CardContent className="p-5 text-sm font-bold text-[#6c5a73]">Loading Last Man Standing...</CardContent></Card>;
-  if (!competitions.length) return <Card><CardHeader><CardTitle>Last Man Standing</CardTitle></CardHeader><CardContent><p className="text-sm font-bold text-[#6c5a73]">No competition is currently available.</p></CardContent></Card>;
+  if (!competitions.length) return <Card><CardHeader><CardTitle>Last Man Standing</CardTitle></CardHeader><CardContent><p className="text-sm font-bold text-[#6c5a73]">{message || "No competition is currently available."}</p></CardContent></Card>;
 
   return <section className="grid gap-4">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#10233f] p-4 text-white shadow-card"><div><p className="text-xs font-black uppercase text-white/65">League competition</p><h2 className="text-2xl font-black">Last Man Standing</h2></div>{competitions.length > 1 ? <label className="grid gap-1 text-xs font-bold uppercase text-white/70">Competition<select className="min-h-10 rounded-lg bg-white px-3 text-sm normal-case text-[#25002b]" value={selectedId} onChange={(event) => void refresh(event.target.value)}>{competitions.map((competition) => <option key={competition.id} value={competition.id}>{competition.name}</option>)}</select></label> : null}</div>
