@@ -11,10 +11,14 @@ test("League Chair access adds the Last Man Standing page and home panel", () =>
   assert.match(shell, /hasLeagueChairAccess/);
   assert.match(shell, /LastManStandingHomePanel/);
   assert.match(shell, /LastManStandingPage/);
+  assert.doesNotMatch(shell, /activePage === "Home" && activeTeam\.hasLeagueChairAccess \? <LastManStandingHomePanel/);
   const panel = read("../components/last-man-standing.tsx");
   assert.match(panel, /cache: "no-store"/);
   assert.match(panel, /interclub:refresh-panels/);
   assert.match(panel, /window\.addEventListener\("focus"/);
+  assert.match(panel, /role="progressbar"/);
+  assert.match(panel, /competitionCountLabel/);
+  assert.match(panel, /Pick \$\{index \+ 1\}/);
 });
 
 test("participant UI exposes deadline, primary action, and automatic replacement reasons", () => {
@@ -40,11 +44,21 @@ test("competition UI handles concurrent competitions, entry, privacy and noon lo
   assert.match(source, /History/);
 });
 
-test("appearance identities include Last Man Standing without adding it to ordinary defaults", () => {
+test("appearance controls the Last Man Standing home panel for every active role", () => {
   const types = read("../lib/types.ts");
   const appearance = read("../lib/appearance.ts");
   assert.match(types, /"Last Man Standing"/);
   assert.match(appearance, /id: "Last Man Standing"/);
+  assert.match(types, /"lastManStanding"/);
+  assert.match(appearance, /id: "lastManStanding"/);
+  assert.match(appearance, /roles: appearanceRoles/);
   const playerDefault = appearance.match(/Player:\s*\{[\s\S]*?\n  \},/)?.[0] ?? "";
-  assert.doesNotMatch(playerDefault, /Last Man Standing/);
+  assert.match(playerDefault, /lastManStanding/);
+});
+
+test("existing appearance rows receive the Last Man Standing panel once", () => {
+  const migration = read("../supabase/last_man_standing_home_panel.sql");
+  assert.match(migration, /jsonb_array_elements_text/);
+  assert.match(migration, /'lastManStanding'/);
+  assert.match(migration, /and not panel_config @>/);
 });

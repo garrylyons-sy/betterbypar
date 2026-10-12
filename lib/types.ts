@@ -6,6 +6,7 @@ export type AppearancePanelId =
   | "teamRecentForm"
   | "personalRecentForm"
   | "individualGames"
+  | "lastManStanding"
   | "memberActions"
   | "clubAccess"
   | "interclubLeagues"

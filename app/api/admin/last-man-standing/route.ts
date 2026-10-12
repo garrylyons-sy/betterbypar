@@ -20,6 +20,7 @@ export async function GET() {
     const [competitions, seasons, fixtureWeeks] = await Promise.all([
       dbQuery(
         `select c.id::text, c.name, c.audience, c.status, c.entry_opens_at::text, c.entry_closes_at::text,
+                c.processing_time::text,
                 s.id::text as season_id, s.name as season_name,
                 count(distinct e.id)::int as entrant_count,
                 count(distinct e.id) filter (where e.status in ('Entered', 'Standing', 'Winner'))::int as standing_count,
@@ -173,9 +174,10 @@ export async function POST(request: Request) {
     const seasonId = String(body.seasonId ?? "").trim();
     const league = String(body.league ?? "").trim();
     const firstRoundWeekId = String(body.firstRoundWeekId ?? "").trim();
+    const processingTime = String(body.processingTime ?? "19:30").trim();
     const audience = "League Chair";
     const tier = league === "A League" ? "A" : league === "B League" ? "B" : league === "C League" ? "C" : null;
-    if (!name || !seasonId || !tier || !firstRoundWeekId) {
+    if (!name || !seasonId || !tier || !firstRoundWeekId || !/^([01]\d|2[0-3]):[0-5]\d$/.test(processingTime)) {
       return NextResponse.json({ error: "Name, season, league and first round are required." }, { status: 400 });
     }
 
@@ -205,10 +207,10 @@ export async function POST(request: Request) {
       );
       if (!week.rows[0]) throw new Error(`Choose a future ${league} week with scheduled league matches.`);
       const competition = await client.query<{ id: string }>(
-        `insert into public.last_man_standing_competition (
-           season_id, name, audience, entry_opens_at, entry_closes_at, status, created_by
-         ) values ($1, $2, $3, now(), $4, 'Open', $5) returning id::text`,
-        [seasonId, name, audience, week.rows[0].deadline_at, access.user!.personId]
+         `insert into public.last_man_standing_competition (
+           season_id, name, audience, entry_opens_at, entry_closes_at, processing_time, status, created_by
+         ) values ($1, $2, $3, now(), $4, $5::time, 'Open', $6) returning id::text`,
+        [seasonId, name, audience, week.rows[0].deadline_at, processingTime, access.user!.personId]
       );
       const round = await client.query<{ id: string }>(
         `insert into public.last_man_standing_round (

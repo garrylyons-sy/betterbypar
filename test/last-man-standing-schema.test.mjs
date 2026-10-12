@@ -27,6 +27,7 @@ for (const [label, url] of [["migration", migrationUrl], ["canonical schema", sc
     }
 
     assert.match(sql, /audience text not null default 'League Chair'.*'League Chair'.*'Everyone'/is);
+    assert.match(sql, /processing_time time not null default '19:30'/i);
     assert.match(sql, /status text not null default 'Draft'.*'No Winner'.*'Archived'/is);
     assert.match(sql, /tier text not null check \(tier in \('A', 'B', 'C'\)\)/i);
     assert.match(sql, /slot_number integer not null check \(slot_number in \(1, 2\)\)/i);
@@ -58,3 +59,10 @@ for (const [label, url] of [["migration", migrationUrl], ["canonical schema", sc
     assert.match(sql, /raise exception 'Last Man Standing events are immutable'/i);
   });
 }
+
+test("Last Man Standing automation has an additive migration", () => {
+  const migration = new URL("../supabase/last_man_standing_automation.sql", import.meta.url);
+  assert.equal(existsSync(migration), true);
+  const sql = readFileSync(migration, "utf8");
+  assert.match(sql, /add column if not exists processing_time time not null default '19:30'/i);
+});

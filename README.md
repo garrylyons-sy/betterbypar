@@ -29,6 +29,7 @@ GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 GOOGLE_REDIRECT_URI=http://localhost:3500/auth/google/callback
 SESSION_SECRET=replace-with-a-long-random-string
+CRON_SECRET=replace-with-a-different-long-random-string
 ```
 
 The app owns login sessions directly and uses Supabase/Postgres as the database. Supabase Auth providers are not used for application sign-in.
@@ -53,6 +54,7 @@ GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 GOOGLE_REDIRECT_URI=https://www.interclubsnooker.com/auth/google/callback
 SESSION_SECRET
+CRON_SECRET
 DATABASE_URL
 ```
 

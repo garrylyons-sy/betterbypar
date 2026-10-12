@@ -40,10 +40,13 @@ test("processing is advisory-locked, snapshots table order, and preserves unreso
   assert.match(source, /orderedFallbackCandidates/);
   assert.match(source, /Needs Review/);
   assert.match(source, /Automatic Pick/);
+  assert.match(source, /processing_time/);
+  assert.match(source, /processingTime/);
 });
 
 test("settlement uses official game winners, stops on no winner, and supports audited reopening", () => {
   const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
+  const settle = source.slice(source.indexOf("export async function settleLastManStandingRound"), source.indexOf("export async function startNextLastManStandingCycle"));
   assert.match(source, /winner_team_id/);
   assert.match(source, /outcomeForPickedPlayer/);
   assert.match(source, /Winner Declared/);
@@ -62,11 +65,12 @@ test("settlement uses official game winners, stops on no winner, and supports au
   assert.match(source, /between mapped_week\.starts_on and mapped_week\.starts_on \+ 6/);
   assert.ok((source.match(/hashtext\('lifecycle'\)/g) ?? []).length >= 4);
   assert.match(source, /c\.status in \('Open', 'In Progress'\)/);
+  assert.match(settle, /incompleteRoundFixtures/);
+  assert.match(settle, /f\.status not in \('Completed', 'Cancelled'\)/);
   assert.match(source, /lower\(fw\.week_label\) not like '%break%'/i);
   assert.match(source, /original_fixture_date is null/i);
   assert.match(source, /currentScheduleCount/);
   assert.doesNotMatch(source, /schedules\.rows\.length !== 3/);
-  const settle = source.slice(source.indexOf("export async function settleLastManStandingRound"), source.indexOf("export async function startNextLastManStandingCycle"));
   assert.doesNotMatch(settle, /set status = 'Standing', winner = false, eliminated_round_id = null/);
   const newCycle = source.slice(source.indexOf("export async function startNextLastManStandingCycle"), source.indexOf("export async function reopenLastManStandingRound"));
   assert.match(newCycle, /set status = 'Standing', winner = false, eliminated_round_id = null/);

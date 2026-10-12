@@ -623,6 +623,7 @@ create table public.last_man_standing_competition (
   audience text not null default 'League Chair' check (audience in ('League Chair', 'Everyone')),
   entry_opens_at timestamptz not null,
   entry_closes_at timestamptz not null,
+  processing_time time not null default '19:30',
   status text not null default 'Draft' check (status in ('Draft', 'Open', 'In Progress', 'Complete', 'No Winner', 'Archived')),
   created_by uuid references public.person(id) on delete set null,
   created_at timestamptz not null default now(),

@@ -39,6 +39,8 @@ test("Last Man Standing admin APIs are platform-only and support management acti
   assert.match(createRoute, /at time zone 'Europe\/Dublin'/i);
   assert.match(createRoute, /body\.league/);
   assert.match(createRoute, /body\.firstRoundWeekId/);
+  assert.match(createRoute, /body\.processingTime/);
+  assert.match(createRoute, /processing_time/);
   assert.doesNotMatch(createRoute, /body\.entryOpensAt/);
   assert.doesNotMatch(createRoute, /body\.entryClosesAt/);
   assert.doesNotMatch(createRoute, /body\.rounds/);
@@ -46,6 +48,8 @@ test("Last Man Standing admin APIs are platform-only and support management acti
   assert.doesNotMatch(read("../components/admin-last-man-standing.tsx"), /<option>Everyone<\/option>/);
   assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /VALID_STATUS_TRANSITIONS/);
   assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /hashtext\('lifecycle'\)/);
+  assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /export async function DELETE/);
+  assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /delete from public\.last_man_standing_competition/);
 });
 
 test("admin navigation exposes a lazy standalone Last Man Standing section only to platform admins", () => {
@@ -60,7 +64,11 @@ test("admin navigation exposes a lazy standalone Last Man Standing section only 
   assert.match(panelSource, /firstRoundWeekId/);
   assert.doesNotMatch(panelSource, /firstRoundWeeks/);
   assert.match(panelSource, /Needs Review/);
+  assert.match(panelSource, /Fallback tools/);
   assert.match(panelSource, /Process now/);
+  assert.match(panelSource, /Processing time/);
+  assert.match(panelSource, /Delete competition/);
+  assert.doesNotMatch(panelSource, />Archive</);
   assert.match(panelSource, /Reopen/);
   assert.match(panelSource, /Resolve pick/);
   assert.match(panelSource, /Unresolved picks/);

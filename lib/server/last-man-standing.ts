@@ -262,10 +262,11 @@ async function competitionRow(client: Pick<PoolClient, "query">, competitionId: 
     status: string;
     entry_opens_at: string;
     entry_closes_at: string;
+    processing_time: string;
     competition_tier: "A" | "B" | "C" | null;
   }>(
     `select c.id::text, c.season_id::text, c.name, c.audience, c.status,
-            c.entry_opens_at::text, c.entry_closes_at::text,
+            c.entry_opens_at::text, c.entry_closes_at::text, c.processing_time::text,
             (select case when count(distinct rs.tier) = 1 then min(rs.tier) end
              from public.last_man_standing_round r
              join public.last_man_standing_round_schedule rs on rs.round_id = r.id
@@ -846,8 +847,10 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
       competition_id: string;
       season_id: string;
       status: string;
+      processing_time: string;
     }>(
-      `select r.id::text, r.competition_id::text, c.season_id::text, r.status
+      `select r.id::text, r.competition_id::text, c.season_id::text, r.status,
+              c.processing_time::text
        from public.last_man_standing_round r
        join public.last_man_standing_competition c on c.id = r.competition_id
        where r.id = $1 and r.competition_id = $2
@@ -901,7 +904,13 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
           defaultMatchDate: schedule.default_match_date,
           deadlineTime: schedule.deadline_time.slice(0, 5)
         });
-        if ((input.now ?? new Date()).getTime() < deadline.getTime()) continue;
+        const processingTime = round.processing_time.slice(0, 5);
+        const processingAt = deadlineForEntry({
+          ownFixtureDate: entry.own_fixture_date,
+          defaultMatchDate: schedule.default_match_date,
+          deadlineTime: processingTime
+        });
+        if ((input.now ?? new Date()).getTime() < processingAt.getTime()) continue;
 
         const picks = await client.query<{
           id: string;
@@ -1190,6 +1199,20 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
     const round = roundResult.rows[0];
     if (!round || round.status === "Settled" || round.status === "Open" || round.status === "Needs Review") {
       return { changed: false };
+    }
+
+    const incompleteRoundFixtures = await client.query<{ count: number }>(
+      `select count(distinct f.id)::int as count
+       from public.last_man_standing_round_schedule rs
+       join public.fixture_week_match fwm on fwm.week_id = rs.fixture_week_id
+       join public.match m on m.id = fwm.match_id
+       join public.fixture f on f.id = m.fixture_id
+       where rs.round_id = $1
+         and f.status not in ('Completed', 'Cancelled')`,
+      [input.roundId]
+    );
+    if (Number(incompleteRoundFixtures.rows[0]?.count ?? 0) > 0) {
+      return { changed: false, pending: true };
     }
 
     const picks = await client.query<{

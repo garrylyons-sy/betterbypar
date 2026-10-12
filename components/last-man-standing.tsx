@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Clock3, ShieldCheck, Trophy, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock3, ShieldCheck, Trophy, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -56,18 +56,49 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
     };
   }, []);
   if (!competitions.length) return null;
-  const competition = competitions.find((item) => item.isEntered) ?? competitions[0];
+  const competition = competitions.find((item) => item.isEntered && ["Open", "In Progress"].includes(item.status))
+    ?? competitions.find((item) => ["Open", "In Progress"].includes(item.status))
+    ?? competitions.find((item) => item.isEntered)
+    ?? competitions[0];
   const activeRound = competition.currentRound?.status === "Open" && ["Open", "In Progress"].includes(competition.status);
   const primaryAction = !activeRound || ["Complete", "No Winner"].includes(competition.status)
     ? "View competition"
     : !competition.isEntered
       ? "Enter now"
       : competition.panel?.picks.length ? "Change picks" : "Make picks";
+  const remaining = competition.panel?.remainingLabel.match(/(\d+)\s+of\s+(\d+)/i);
+  const remainingCount = Number(remaining?.[1] ?? 0);
+  const entrantCount = Number(remaining?.[2] ?? 0);
+  const remainingPercent = entrantCount > 0 ? Math.max(0, Math.min(100, (remainingCount / entrantCount) * 100)) : 0;
+  const competitionCountLabel = competitions.length === 1 ? "1 competition" : `${competitions.length} competitions`;
+  const picks = competition.panel?.picks ?? [];
   return (
-    <button type="button" onClick={onOpen} className="w-full rounded-lg bg-white p-4 text-left shadow-card ring-1 ring-[#eeeaf2] transition-colors hover:bg-[#fbfafd]">
-      <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase text-[#6c5a73]">Last Man Standing</p><h2 className="mt-1 text-lg font-black text-[#25002b]">{competition.name}</h2></div><Trophy className="h-6 w-6 text-[#1b8a72]" /></div>
-      {competition.panel ? <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"><PanelStat label="Round" value={competition.panel.roundLabel} /><PanelStat label="Picks" value={competition.panel.picks.join(" / ") || "Not picked"} /><PanelStat label="Status" value={competition.panel.entrantStatus} /><PanelStat label="Remaining" value={competition.panel.remainingLabel} /><PanelStat label="Deadline" value={competition.panel.deadlineAt ? new Date(competition.panel.deadlineAt).toLocaleString("en-IE", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "Not set"} /></div> : <p className="mt-2 text-sm font-bold text-[#6c5a73]">Entries are {competition.status.toLowerCase()}.</p>}
-      <span className="mt-3 inline-flex text-sm font-extrabold text-[#007d68]">{primaryAction}</span>
+    <button type="button" onClick={onOpen} className="w-full overflow-hidden rounded-lg bg-white text-left shadow-card ring-1 ring-[#e5e0e9] transition-colors hover:bg-[#fbfafd]">
+      <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 p-3">
+        <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#10233f] text-white"><Trophy className="h-5 w-5" /></span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="text-[10px] font-black uppercase text-[#6c5a73]">Last Man Standing</p>
+            {competitions.length > 1 ? <Badge variant="cyan">{competitionCountLabel}</Badge> : null}
+            {competition.panel?.entrantStatus ? <Badge variant={competition.panel.entrantStatus === "Eliminated" ? "muted" : "green"}>{competition.panel.entrantStatus}</Badge> : null}
+          </div>
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <h2 className="truncate text-base font-black text-[#25002b]">{competition.name}</h2>
+            <span className="text-xs font-bold text-[#6c5a73]">{competition.panel?.roundLabel ?? competition.status}</span>
+          </div>
+        </div>
+        <span className="flex items-center gap-1 text-xs font-extrabold text-[#007d68]">{primaryAction}<ChevronRight className="h-4 w-4" /></span>
+      </div>
+      {competition.panel ? <div className="grid gap-2 border-t border-[#eeeaf2] px-3 py-2 sm:grid-cols-[minmax(0,1fr)_160px] sm:items-center">
+        <div className="flex min-w-0 gap-2">
+          {[0, 1].map((index) => <span key={index} className="flex min-w-0 flex-1 items-center gap-2 rounded-md bg-[#f7f5fa] px-2.5 py-2 ring-1 ring-[#eeeaf2]"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#10233f] text-[10px] font-black text-white">{index + 1}</span><span className="min-w-0 truncate text-xs font-extrabold text-[#10233f]" aria-label={`Pick ${index + 1}`}>{picks[index] || `Pick ${index + 1}`}</span></span>)}
+        </div>
+        <div className="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1">
+          <div className="h-1.5 overflow-hidden rounded-full bg-[#e8e3ec]" role="progressbar" aria-label="Players still standing" aria-valuemin={0} aria-valuemax={entrantCount} aria-valuenow={remainingCount}><span className="block h-full rounded-full bg-[#1b8a72]" style={{ width: `${remainingPercent}%` }} /></div>
+          <span className="text-xs font-black text-[#10233f]">{competition.panel.remainingLabel}</span>
+          {competition.panel.deadlineAt ? <span className="col-span-2 flex items-center justify-end gap-1 text-[10px] font-bold text-[#6c5a73]"><Clock3 className="h-3 w-3" /> Picks close {new Date(competition.panel.deadlineAt).toLocaleString("en-IE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}</span> : null}
+        </div>
+      </div> : <p className="border-t border-[#eeeaf2] px-3 py-2 text-xs font-bold text-[#6c5a73]">Entries are {competition.status.toLowerCase()}.</p>}
     </button>
   );
 }

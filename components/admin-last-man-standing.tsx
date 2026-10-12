@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Plus, RefreshCw, ShieldAlert, Trophy } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock3, Plus, RefreshCw, Save, ShieldAlert, Trash2, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ type Competition = {
   standing_count: number;
   entry_opens_at: string;
   entry_closes_at: string;
+  processing_time: string;
   rounds: Round[];
   events: Array<{ id: string; eventType: string; createdAt: string; payload: Record<string, unknown> }>;
   unresolved_picks: Array<{
@@ -66,6 +67,8 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
   const [seasonId, setSeasonId] = useState("");
   const [league, setLeague] = useState<FixtureWeek["league_name"]>("A League");
   const [firstRoundWeekId, setFirstRoundWeekId] = useState("");
+  const [processingTime, setProcessingTime] = useState("19:30");
+  const [processingTimes, setProcessingTimes] = useState<Record<string, string>>({});
   const [resolutionPlayers, setResolutionPlayers] = useState<Record<string, string>>({});
 
   async function load() {
@@ -77,6 +80,10 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
       setCompetitions(data.competitions ?? []);
       setSeasons(data.seasons ?? []);
       setFixtureWeeks(data.fixtureWeeks ?? []);
+      setProcessingTimes(Object.fromEntries((data.competitions ?? []).map((competition: Competition) => [
+        competition.id,
+        competition.processing_time?.slice(0, 5) || "19:30"
+      ])));
       setSeasonId((current) => current || data.seasons?.find((season: Season) => season.active)?.id || data.seasons?.[0]?.id || "");
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not load Last Man Standing.");
@@ -99,7 +106,7 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          name, seasonId, league, firstRoundWeekId
+          name, seasonId, league, firstRoundWeekId, processingTime
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -107,6 +114,7 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
       setShowCreate(false);
       setName("");
       setFirstRoundWeekId("");
+      setProcessingTime("19:30");
       onMessage("Last Man Standing competition created.");
       await load();
     } catch (error) {
@@ -135,6 +143,29 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return onMessage(data.error || "Competition could not be processed.");
     onMessage(`${competition.name} processed.`);
+    await load();
+  }
+
+  async function saveProcessingTime(competition: Competition) {
+    const value = processingTimes[competition.id] || "19:30";
+    const response = await fetch(`/api/admin/last-man-standing/${competition.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ processingTime: value })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return onMessage(data.error || "Processing time could not be saved.");
+    onMessage(`${competition.name} will process picks from ${value} on match day.`);
+    await load();
+  }
+
+  async function deleteCompetition(competition: Competition) {
+    if (!window.confirm(`Permanently delete ${competition.name} and all of its entries, picks and rounds?`)) return;
+    const response = await fetch(`/api/admin/last-man-standing/${competition.id}`, { method: "DELETE" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return onMessage(data.error || "Competition could not be deleted.");
+    setExpandedCompetitionId(null);
+    onMessage(`${competition.name} deleted.`);
     await load();
   }
 
@@ -189,11 +220,12 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
 
       {showCreate ? (
         <div className="grid gap-2 rounded-lg bg-white p-3 shadow-card">
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.3fr_.8fr_.7fr_1fr]">
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.3fr_.8fr_.7fr_1fr_.6fr]">
             <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Name<input className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={name} onChange={(event) => setName(event.target.value)} /></label>
             <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Season<select className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={seasonId} onChange={(event) => { setSeasonId(event.target.value); setFirstRoundWeekId(""); }}>{seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}</select></label>
             <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">League<select className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={league} onChange={(event) => { setLeague(event.target.value as FixtureWeek["league_name"]); setFirstRoundWeekId(""); }}><option>A League</option><option>B League</option><option>C League</option></select></label>
             <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">First round<select className="min-h-11 rounded-lg border px-2 text-sm normal-case text-[#25002b]" value={firstRoundWeekId} onChange={(event) => setFirstRoundWeekId(event.target.value)}><option value="">Choose week</option>{availableWeeks.map((week) => <option key={week.id} value={week.id}>{week.week_label} · {new Date(`${week.match_date}T12:00:00`).toLocaleDateString("en-IE", { day: "numeric", month: "short" })}</option>)}</select></label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Processing time<input type="time" className="min-h-11 rounded-lg border px-2 text-sm normal-case text-[#25002b]" value={processingTime} onChange={(event) => setProcessingTime(event.target.value)} /></label>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold text-[#6c5a73]">Entries close at noon on the first match day. Later rounds follow the next valid {league} week.</p><Button disabled={saving || !name.trim() || !seasonId || !firstRoundWeekId} onClick={createCompetition}>{saving ? "Creating..." : "Create competition"}</Button></div>
         </div>
@@ -210,11 +242,19 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
             {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
           </button>
           {expanded ? <div className="grid gap-3 border-t p-3">
-            <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => processCompetition(competition)}><RefreshCw className="h-4 w-4" /> Process now</Button>{competition.status === "Draft" ? <Button size="sm" variant="secondary" onClick={() => changeStatus(competition, "Open")}>Open entries</Button> : null}{competition.status === "No Winner" ? <Button size="sm" variant="secondary" onClick={() => startNextCycle(competition)}>Start next cycle</Button> : null}{competition.status !== "Archived" ? <Button size="sm" variant="secondary" onClick={() => changeStatus(competition, "Archived")}>Archive</Button> : null}</div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]"><span className="flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" /> Processing time</span><input type="time" className="h-9 rounded-lg border px-2 text-sm normal-case text-[#25002b]" value={processingTimes[competition.id] || "19:30"} onChange={(event) => setProcessingTimes((current) => ({ ...current, [competition.id]: event.target.value }))} /></label>
+              <Button size="sm" variant="secondary" onClick={() => saveProcessingTime(competition)}><Save className="h-4 w-4" /> Save time</Button>
+              {competition.status === "Draft" ? <Button size="sm" variant="secondary" onClick={() => changeStatus(competition, "Open")}>Open entries</Button> : null}
+              {competition.status === "No Winner" ? <Button size="sm" variant="secondary" onClick={() => startNextCycle(competition)}>Start next cycle</Button> : null}
+              <Button size="sm" variant="secondary" className="text-red-700" onClick={() => deleteCompetition(competition)}><Trash2 className="h-4 w-4" /> Delete competition</Button>
+            </div>
+            <p className="text-xs font-semibold text-[#6c5a73]">Selections close at noon. Published lineups are checked automatically from this time on each team&apos;s match day.</p>
             <div className="grid gap-1">{competition.rounds.filter((round) => round.status !== "Settled").map((round) => <div key={round.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-[#f7f5fa] px-3 py-2"><div><p className="text-sm font-extrabold">Cycle {round.cycleNumber} · {round.name}</p><p className="text-xs font-bold text-[#6c5a73]">{round.schedules.map((schedule) => `${schedule.tier}: ${schedule.weekLabel}`).join(" · ")}</p></div><Badge variant={round.status === "Needs Review" ? "gold" : "muted"}>{round.status}</Badge></div>)}</div>
             {competition.rounds.some((round) => round.status === "Settled") ? <details className="rounded-md border px-3 py-2"><summary className="cursor-pointer text-sm font-extrabold">Completed rounds · {competition.rounds.filter((round) => round.status === "Settled").length}</summary><div className="mt-2 grid gap-1">{competition.rounds.filter((round) => round.status === "Settled").map((round) => <div key={round.id} className="flex flex-wrap items-center justify-between gap-2 border-t py-2 first:border-t-0"><div><p className="text-sm font-extrabold">Cycle {round.cycleNumber} · {round.name}</p><p className="text-xs font-bold text-[#6c5a73]">{round.schedules.map((schedule) => `${schedule.tier}: ${schedule.weekLabel}`).join(" · ")}</p></div><Button size="sm" variant="secondary" onClick={() => reopenRound(competition, round)}>Reopen</Button></div>)}</div></details> : null}
             {competition.unresolved_picks?.length ? <div className="grid gap-2"><p className="text-xs font-extrabold uppercase text-[#6c5a73]">Unresolved picks</p>{competition.unresolved_picks.map((pick) => <div key={pick.id} className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 sm:grid-cols-[1fr_minmax(220px,1fr)_auto] sm:items-end"><div><p className="text-sm font-extrabold">{pick.entrantName} · Pick {pick.slotNumber}</p><p className="text-xs font-bold text-[#6c5a73]">{pick.reason || "No eligible automatic player was found."}</p></div><label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Replacement<select className="min-h-10 rounded-lg border bg-white px-2 text-sm normal-case text-[#25002b]" value={resolutionPlayers[pick.id] ?? ""} onChange={(event) => setResolutionPlayers((current) => ({ ...current, [pick.id]: event.target.value }))}><option value="">Choose player</option>{pick.candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.teamName}</option>)}</select></label><Button size="sm" onClick={() => resolvePick(competition, pick.id)}>Resolve pick</Button></div>)}</div> : null}
             {competition.entries?.length ? <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-extrabold">Entrants and picks · {competition.entries.length}</summary><div className="mt-3 grid gap-2">{competition.entries.map((entry) => <div key={entry.id} className="rounded-lg bg-[#f7f5fa] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-extrabold">{entry.name} · {entry.teamName}</p><Badge variant={entry.status === "Eliminated" ? "muted" : "green"}>{entry.status}</Badge></div><p className="mt-1 text-xs font-bold text-[#6c5a73]">{entry.tier} pool{entry.picks.length ? ` · ${entry.picks.map((pick) => `${pick.roundName} P${pick.slotNumber}: ${pick.playerName} (${pick.state}, ${pick.outcome})`).join(" · ")}` : " · No picks"}</p></div>)}</div></details> : null}
+            <details className="rounded-lg border px-3 py-2"><summary className="cursor-pointer text-sm font-extrabold text-[#6c5a73]">Fallback tools</summary><div className="mt-2"><Button size="sm" variant="secondary" onClick={() => processCompetition(competition)}><RefreshCw className="h-4 w-4" /> Process now</Button></div></details>
             {competition.events.length ? <div><p className="mb-2 text-xs font-extrabold uppercase text-[#6c5a73]">Recent activity</p><div className="grid gap-1">{competition.events.slice(0, 8).map((event) => <p key={event.id} className="text-xs font-semibold text-[#6c5a73]">{new Date(event.createdAt).toLocaleString("en-IE")} · {event.eventType}</p>)}</div></div> : null}
           </div> : null}
         </article>;
