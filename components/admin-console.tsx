@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, Building2, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, Radio, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
+import { AdminLastManStanding } from "@/components/admin-last-man-standing";
 import { LiveScoringDashboard } from "@/components/live-scoring-dashboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "desktop" | "clubs" | "competitions" | "matches" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
+type AdminTab = "desktop" | "clubs" | "competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type MaintenanceModeState = { enabled: boolean; updatedAt: string | null };
 type TeamRole = "Player" | "Manager";
@@ -270,6 +271,7 @@ const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPan
   { id: "clubs" as const, label: "Clubs", icon: Building2 },
   { id: "competitions" as const, label: "Competitions", icon: Trophy },
   { id: "matches" as const, label: "Matches", icon: CalendarDays },
+  { id: "last-man-standing", label: "Last Man Standing", icon: Trophy },
   { id: "live-scoring", label: "Live Scoring", icon: Radio },
   { id: "people" as const, label: "People", icon: UserPlus },
   { id: "permissions" as const, label: "Permissions", icon: Users },
@@ -668,6 +670,7 @@ function AdminTabPanel(props: {
   if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
+  if (props.tab === "last-man-standing") return <AdminLastManStanding onMessage={props.onMessage} />;
   if (props.tab === "live-scoring") return <LiveScoringDashboard embedded />;
   if (props.tab === "people") return <PeoplePanel {...props} />;
   if (props.tab === "invites") return <PeoplePanel {...props} />;
