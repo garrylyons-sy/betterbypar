@@ -88,7 +88,12 @@ create table if not exists public.last_man_standing_pick (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (entry_id, round_id, slot_number),
-  check (selected_player_id is null or selected_player_id <> effective_player_id or automatic_reason is not null)
+  check (
+    selected_player_id is null
+    or effective_player_id is null
+    or selected_player_id = effective_player_id
+    or automatic_reason is not null
+  )
 );
 
 create table if not exists public.last_man_standing_event (
