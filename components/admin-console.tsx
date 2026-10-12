@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 type AdminTab = "desktop" | "clubs" | "competitions" | "matches" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
+type MaintenanceModeState = { enabled: boolean; updatedAt: string | null };
 type TeamRole = "Player" | "Manager";
 type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair";
 type TeamOption = {
@@ -410,6 +411,7 @@ export function AdminConsole() {
   const [matchStats, setMatchStats] = useState<AdminMatchStats>(emptyMatchStats);
   const [ads, setAds] = useState<AdminAdRow[]>([]);
   const [appearance, setAppearance] = useState<AppearanceConfig>(defaultAppearanceConfig);
+  const [maintenanceMode, setMaintenanceMode] = useState<MaintenanceModeState>({ enabled: false, updatedAt: null });
 
   useEffect(() => {
     refreshAdminData();
@@ -502,6 +504,10 @@ export function AdminConsole() {
           endsAt: ad.ends_at ?? null
         })));
         setAppearance(normalizeAppearanceConfig(data.appearance ?? defaultAppearanceConfig));
+        setMaintenanceMode({
+          enabled: Boolean(data.maintenance?.enabled),
+          updatedAt: data.maintenance?.updatedAt ?? null
+        });
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Admin data unavailable.");
@@ -548,7 +554,7 @@ export function AdminConsole() {
       adminMode={adminMode}
       onLogout={logout}
     >
-      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logsRefreshKey={logsRefreshKey} requests={requests} invites={invites} competitions={competitions} matchStats={matchStats} ads={ads} competitionsLoading={!adminDataLoaded} appearance={appearance} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
+      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logsRefreshKey={logsRefreshKey} requests={requests} invites={invites} competitions={competitions} matchStats={matchStats} ads={ads} competitionsLoading={!adminDataLoaded} appearance={appearance} maintenanceMode={maintenanceMode} onMaintenanceChange={setMaintenanceMode} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
     </AdminLayout>
   );
 }
@@ -650,13 +656,15 @@ function AdminTabPanel(props: {
   ads: AdminAdRow[];
   competitionsLoading: boolean;
   appearance: AppearanceConfig;
+  maintenanceMode: MaintenanceModeState;
   demo?: boolean;
   onAppearanceChange: (appearance: AppearanceConfig) => void;
+  onMaintenanceChange: (maintenance: MaintenanceModeState) => void;
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
   if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
-  if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} maintenanceMode={props.maintenanceMode} onMaintenanceChange={props.onMaintenanceChange} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
@@ -911,6 +919,8 @@ function DesktopAdminPanel({
   requests,
   competitions,
   matchStats,
+  maintenanceMode,
+  onMaintenanceChange,
   onMessage,
   onRefresh
 }: {
@@ -920,6 +930,8 @@ function DesktopAdminPanel({
   requests: InviteRequestRow[];
   competitions: AdminCompetitionRow[];
   matchStats: AdminMatchStats;
+  maintenanceMode: MaintenanceModeState;
+  onMaintenanceChange: (maintenance: MaintenanceModeState) => void;
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
@@ -960,6 +972,32 @@ function DesktopAdminPanel({
   const [resetting, setResetting] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [maintenanceDraft, setMaintenanceDraft] = useState(maintenanceMode.enabled);
+  const [savingMaintenance, setSavingMaintenance] = useState(false);
+
+  useEffect(() => {
+    setMaintenanceDraft(maintenanceMode.enabled);
+  }, [maintenanceMode.enabled]);
+
+  async function saveMaintenanceMode() {
+    setSavingMaintenance(true);
+    try {
+      const response = await fetch("/api/admin/maintenance", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: maintenanceDraft })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not update maintenance mode.");
+      onMaintenanceChange(data.maintenance);
+      onMessage(maintenanceDraft ? "Maintenance mode is now on." : "Maintenance mode is now off.");
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not update maintenance mode.");
+    } finally {
+      setSavingMaintenance(false);
+    }
+  }
 
   async function resetMatchData() {
     setResetting(true);
@@ -1019,6 +1057,37 @@ function DesktopAdminPanel({
           <AdminMetric label={adminMode === "platform" ? "Clubs" : "Managers"} value={adminMode === "platform" ? clubs : managers.length} />
         </CardContent>
       </Card>
+      {adminMode === "platform" ? (
+        <Card className={maintenanceMode.enabled ? "ring-2 ring-[#f2b84b]" : ""}>
+          <CardHeader>
+            <div>
+              <CardTitle>Maintenance mode</CardTitle>
+              <p className="mt-1 text-sm font-semibold text-[#6c5a73]">
+                Blocks the main app and all ordinary sign-ins. Platform administrators can still use this admin console.
+              </p>
+            </div>
+            <Badge variant={maintenanceMode.enabled ? "cyan" : "muted"}>{maintenanceMode.enabled ? "On" : "Off"}</Badge>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl bg-[#f7f5fa] px-4 py-3 ring-1 ring-[#eeeaf2]">
+              <input
+                type="checkbox"
+                className="h-5 w-5 accent-[#1b8a72]"
+                checked={maintenanceDraft}
+                onChange={(event) => setMaintenanceDraft(event.target.checked)}
+              />
+              <span className="font-extrabold">Show the Down for maintenance page</span>
+            </label>
+            <Button
+              onClick={saveMaintenanceMode}
+              disabled={savingMaintenance || maintenanceDraft === maintenanceMode.enabled}
+              className="justify-center sm:min-w-36"
+            >
+              {savingMaintenance ? "Saving..." : "Save setting"}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>Match Stats</CardTitle>

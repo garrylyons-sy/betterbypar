@@ -65,3 +65,17 @@ test("existing non-admin sessions are withheld while maintenance is enabled", ()
   assert.match(sessionRoute, /isPlatformOperator/);
   assert.match(sessionRoute, /status: 503/);
 });
+
+test("platform administrators receive a dedicated maintenance control", () => {
+  const endpoint = readFileSync(new URL("../app/api/admin/maintenance/route.ts", import.meta.url), "utf8");
+  const adminRoute = readFileSync(new URL("../app/api/admin/route.ts", import.meta.url), "utf8");
+  const adminConsole = readFileSync(new URL("../components/admin-console.tsx", import.meta.url), "utf8");
+
+  assert.match(endpoint, /isPlatformOperator/);
+  assert.match(endpoint, /setMaintenanceMode/);
+  assert.match(endpoint, /status: 403/);
+  assert.match(adminRoute, /maintenance/);
+  assert.match(adminConsole, /Maintenance mode/);
+  assert.match(adminConsole, /\/api\/admin\/maintenance/);
+  assert.match(adminConsole, /adminMode === "platform"/);
+});

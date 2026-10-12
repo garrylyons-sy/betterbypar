@@ -4,6 +4,7 @@ import { loadAppearanceConfig } from "@/lib/server/appearance";
 import { buildAdminMatchStats } from "@/lib/server/admin-match-stats.mjs";
 import { currentUser, loadTeamOptions } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
+import { loadMaintenanceMode } from "@/lib/server/maintenance";
 
 export const runtime = "nodejs";
 
@@ -40,7 +41,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ authenticated: false, administrator: false }, { status: 401 });
     if (!administrator) return NextResponse.json({ authenticated: true, administrator: false, user }, { status: 403 });
 
-    const [teams, peopleResult, requestsResult, invitesResult, competitionsResult, adsResult, matchFixturesResult, matchAppearancesResult, appearance] = await Promise.all([
+    const [teams, peopleResult, requestsResult, invitesResult, competitionsResult, adsResult, matchFixturesResult, matchAppearancesResult, appearance, maintenance] = await Promise.all([
       loadTeamOptions().then((rows) => platformAdmin ? rows : rows.filter((team) => clubAdminClubIds.includes(team.club_id))),
       dbQuery(
         `select distinct on (p.id)
@@ -309,7 +310,8 @@ export async function GET() {
          order by league_name, team_name`,
         [platformAdmin, clubAdminClubIds]
       ),
-      loadAppearanceConfig()
+      loadAppearanceConfig(),
+      loadMaintenanceMode()
     ]);
 
     return NextResponse.json({
@@ -327,7 +329,8 @@ export async function GET() {
         fixtures: matchFixturesResult.rows,
         appearances: matchAppearancesResult.rows
       }),
-      appearance
+      appearance,
+      maintenance: platformAdmin ? maintenance : undefined
     });
   } catch (error) {
     return NextResponse.json(
