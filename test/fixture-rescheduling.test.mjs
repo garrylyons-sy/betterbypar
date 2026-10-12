@@ -85,6 +85,31 @@ test("a team can have separate Tuesday and Thursday fixtures in the same display
   );
 });
 
+test("PostgreSQL Date values stay in their calendar week", async () => {
+  const { organizeFixtureWeeks } = await loadSchedulingModule();
+  assert.equal(typeof organizeFixtureWeeks, "function", "organizeFixtureWeeks must be implemented");
+
+  const weeks = organizeFixtureWeeks({
+    weeks: [
+      { id: "week-3", weekNumber: 3, weekLabel: "Week 3", startsOn: "2026-10-15" }
+    ],
+    fixtures: [
+      {
+        id: "week-three-match",
+        originalWeekId: "week-3",
+        originalFixtureDate: null,
+        fixtureDate: new Date("2026-10-15T19:30:00.000Z"),
+        homeTeamName: "Elm Park A",
+        awayTeamName: "Castle A"
+      }
+    ]
+  });
+
+  assert.equal(weeks.length, 1);
+  assert.equal(weeks[0].id, "week-3");
+  assert.deepEqual(weeks[0].fixtures.map((fixture) => fixture.id), ["week-three-match"]);
+});
+
 test("a rescheduled fixture outside the published calendar uses a rescheduled matches group", async () => {
   const { organizeFixtureWeeks } = await loadSchedulingModule();
   assert.equal(typeof organizeFixtureWeeks, "function", "organizeFixtureWeeks must be implemented");

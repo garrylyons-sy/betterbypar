@@ -8,8 +8,8 @@ export type FixtureScheduleWeek = {
 export type FixtureScheduleItem = {
   id: string;
   originalWeekId: string;
-  originalFixtureDate?: string | null;
-  fixtureDate: string;
+  originalFixtureDate?: string | Date | null;
+  fixtureDate: string | Date;
   homeTeamName: string;
   awayTeamName: string;
   [key: string]: unknown;
