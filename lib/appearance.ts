@@ -36,7 +36,8 @@ export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string;
   { id: "Players", label: "Players", description: "Players and squad views.", roles: ["Player", "Manager"] },
   { id: "Stats", label: "Stats", description: "Stats dashboard.", roles: ["Player", "Manager"] },
   { id: "Messages", label: "Messages", description: "Messages and account access.", roles: [] },
-  { id: "Interclub Leagues", label: "Leagues", description: "All interclub tables/results.", roles: ["Player", "Manager", "Club Member", "Club Admin", "League Chair"] }
+  { id: "Interclub Leagues", label: "Leagues", description: "All interclub tables/results.", roles: ["Player", "Manager", "Club Member", "Club Admin", "League Chair"] },
+  { id: "Last Man Standing", label: "Last Man Standing", description: "Pick two players and stay in the competition.", roles: ["League Chair"] }
 ];
 
 export const defaultAppearanceConfig: AppearanceConfig = {

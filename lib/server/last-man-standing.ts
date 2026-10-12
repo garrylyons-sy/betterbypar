@@ -295,6 +295,130 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
     )
   ]);
   const row = detail.rows[0];
+  const [candidateRows, pickRows, entryRows, historyRows] = row?.entry_id && row.round_id && row.tier
+    ? await Promise.all([
+        dbQuery<{
+          id: string;
+          name: string;
+          team_name: string;
+          used: boolean;
+          has_fixture: boolean;
+        }>(
+          `select distinct p.id::text, concat_ws(' ', p.first_name, p.last_name) as name, ptr.team_name,
+                  exists (
+                    select 1 from public.last_man_standing_pick used_pick
+                    join public.last_man_standing_round used_round on used_round.id = used_pick.round_id
+                    where used_pick.entry_id = $1 and used_round.cycle_number = $5
+                      and used_pick.round_id <> $2
+                      and coalesce(used_pick.effective_player_id, used_pick.selected_player_id) = p.id
+                  ) as used,
+                  exists (
+                    select 1 from public.last_man_standing_round_schedule rs
+                    join public.fixture_week_match fwm on fwm.week_id = rs.fixture_week_id
+                    join public.match m on m.id = fwm.match_id
+                    join public.fixture f on f.id = m.fixture_id
+                    join public.team lineup_team on lineup_team.id in (f.home_team_id, f.away_team_id)
+                    where rs.round_id = $2 and rs.tier = $3
+                      and lower(lineup_team.name) = lower(ptr.team_name)
+                      and lineup_team.club_id = ptr.club_id
+                  ) as has_fixture
+           from public.person p
+           join public.person_team_role ptr on ptr.person_id = p.id and ptr.active = true and ptr.role = 'Player'
+           join public.league l on l.id = ptr.league_id
+           where p.active = true
+             and case when l.name = 'A League' then 'A' when l.name = 'B League' then 'B' else 'C' end = $3
+             and exists (select 1 from public.team t where t.season_id = $4 and t.league_id = ptr.league_id and t.club_id = ptr.club_id and lower(t.name) = lower(ptr.team_name) and t.active = true)
+           order by ptr.team_name, name`,
+          [row.entry_id, row.round_id, row.tier, competition.season_id, row.cycle_number]
+        ),
+        dbQuery<{
+          id: string;
+          slot_number: number;
+          player_id: string | null;
+          player_name: string | null;
+          state: string;
+          automatic_reason: string | null;
+          outcome: string;
+          deadline_at: string | null;
+          version: number;
+        }>(
+          `select p.id::text, p.slot_number,
+                  coalesce(p.effective_player_id, p.selected_player_id)::text as player_id,
+                  concat_ws(' ', person.first_name, person.last_name) as player_name,
+                  p.state, p.automatic_reason, p.outcome, p.deadline_at::text, p.version
+           from public.last_man_standing_pick p
+           left join public.person person on person.id = coalesce(p.effective_player_id, p.selected_player_id)
+           where p.entry_id = $1 and p.round_id = $2 order by p.slot_number`,
+          [row.entry_id, row.round_id]
+        ),
+        dbQuery<{
+          id: string;
+          person_name: string;
+          status: string;
+          source_team_name: string;
+          default_match_date: string;
+          deadline_time: string;
+          own_fixture_date: string | null;
+          picks: Array<{ slotNumber: number; playerName: string; state: string; outcome: string }>;
+        }>(
+          `select e.id::text, concat_ws(' ', person.first_name, person.last_name) as person_name,
+                  e.status, source_team.name as source_team_name,
+                  rs.default_match_date::text, rs.deadline_time::text,
+                  (select (f.fixture_date at time zone 'Europe/Dublin')::date::text
+                   from public.fixture_week_match fwm
+                   join public.match m on m.id = fwm.match_id
+                   join public.fixture f on f.id = m.fixture_id
+                   where fwm.week_id = rs.fixture_week_id and (f.home_team_id = e.source_team_id or f.away_team_id = e.source_team_id)
+                   order by f.fixture_date limit 1) as own_fixture_date,
+                  coalesce(jsonb_agg(jsonb_build_object(
+                    'slotNumber', pick.slot_number,
+                    'playerName', concat_ws(' ', picked.first_name, picked.last_name),
+                    'state', pick.state,
+                    'outcome', pick.outcome
+                  ) order by pick.slot_number) filter (where pick.id is not null), '[]'::jsonb) as picks
+           from public.last_man_standing_entry e
+           join public.person person on person.id = e.person_id
+           join public.team source_team on source_team.id = e.source_team_id
+           join public.last_man_standing_round_schedule rs on rs.round_id = $2 and rs.tier = e.tier
+           left join public.last_man_standing_pick pick on pick.entry_id = e.id and pick.round_id = $2
+           left join public.person picked on picked.id = coalesce(pick.effective_player_id, pick.selected_player_id)
+           where e.competition_id = $1 and e.status <> 'Withdrawn'
+           group by e.id, person.id, source_team.id, rs.id order by e.status, person.last_name, person.first_name`,
+          [competitionId, row.round_id]
+        ),
+        dbQuery<{
+          round_name: string;
+          round_number: number;
+          slot_number: number;
+          player_name: string;
+          state: string;
+          outcome: string;
+          automatic_reason: string | null;
+        }>(
+          `select r.name as round_name, r.round_number, p.slot_number,
+                  concat_ws(' ', person.first_name, person.last_name) as player_name,
+                  p.state, p.outcome, p.automatic_reason
+           from public.last_man_standing_pick p
+           join public.last_man_standing_round r on r.id = p.round_id
+           join public.person person on person.id = coalesce(p.effective_player_id, p.selected_player_id)
+           where p.entry_id = $1 and p.round_id <> $2
+           order by r.cycle_number desc, r.round_number desc, p.slot_number`,
+          [row.entry_id, row.round_id]
+        )
+      ])
+    : [{ rows: [] }, { rows: [] }, { rows: [] }, { rows: [] }];
+  const entries = presentLastManStandingEntries(entryRows.rows.map((entry) => ({
+    id: entry.id,
+    personName: entry.person_name,
+    status: entry.status,
+    sourceTeamName: entry.source_team_name,
+    deadlineAt: deadlineForEntry({
+      ownFixtureDate: entry.own_fixture_date,
+      defaultMatchDate: entry.default_match_date,
+      deadlineTime: entry.deadline_time.slice(0, 5)
+    }).toISOString(),
+    picks: entry.picks
+  })), { viewerEntryId: row?.entry_id ?? null });
   return {
     competition: {
       id: competition.id,
@@ -317,7 +441,35 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
       cycleNumber: row.cycle_number,
       roundNumber: row.round_number,
       status: row.round_status
-    } : null
+    } : null,
+    candidates: candidateRows.rows.map((candidate) => ({
+      id: candidate.id,
+      name: candidate.name,
+      teamName: candidate.team_name,
+      used: candidate.used,
+      hasFixture: candidate.has_fixture
+    })),
+    picks: pickRows.rows.map((pick) => ({
+      id: pick.id,
+      slotNumber: Number(pick.slot_number),
+      playerId: pick.player_id,
+      playerName: pick.player_name,
+      state: pick.state,
+      automaticReason: pick.automatic_reason,
+      outcome: pick.outcome,
+      deadlineAt: pick.deadline_at,
+      version: Number(pick.version)
+    })),
+    entries,
+    history: historyRows.rows.map((pick) => ({
+      roundName: pick.round_name,
+      roundNumber: Number(pick.round_number),
+      slotNumber: Number(pick.slot_number),
+      playerName: pick.player_name,
+      state: pick.state,
+      outcome: pick.outcome,
+      automaticReason: pick.automatic_reason
+    }))
   };
 }
 

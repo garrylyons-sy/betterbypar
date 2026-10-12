@@ -20,6 +20,7 @@ import {
   Phone,
   PlusCircle,
   Share2,
+  ShieldCheck,
   ShoppingBag,
   Swords,
   Trophy,
@@ -33,10 +34,11 @@ import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, MatchResult
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LeagueChairLiveIndicator, LeagueChairLiveStatusList, useLiveScoringStatuses } from "@/components/live-scoring-dashboard";
+import { LastManStandingHomePanel, LastManStandingPage } from "@/components/last-man-standing";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Shop";
+type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 type ShopProduct = {
   id: string;
@@ -133,6 +135,7 @@ const menuIconMap: Record<AppearanceMenuId | "Menu", typeof Home> = {
   Stats: BarChart3,
   Messages: Mail,
   "Interclub Leagues": Trophy,
+  "Last Man Standing": ShieldCheck,
   Menu: MenuIcon
 };
 
@@ -174,7 +177,7 @@ function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): App
 
 function applyLeagueChairAccess(menuItems: AppearanceMenuId[], activeTeam: TeamContext) {
   if (!activeTeam.hasLeagueChairAccess) return menuItems;
-  const extras: AppearanceMenuId[] = ["Contacts"];
+  const extras: AppearanceMenuId[] = ["Contacts", "Last Man Standing"];
   return Array.from(new Set([...menuItems, ...extras]));
 }
 
@@ -231,7 +234,7 @@ export function AppShell({
   const [activePage, setActivePage] = useState<AppPage>(() => {
     if (typeof window === "undefined") return "Home";
     const requestedPage = new URLSearchParams(window.location.search).get("page");
-    return requestedPage === "Competitions" ? "Competitions" : "Home";
+    return requestedPage === "Competitions" || requestedPage === "Last Man Standing" ? requestedPage : "Home";
   });
   const [selectedFixtureId, setSelectedFixtureId] = useState("");
   const [simulatedRole, setSimulatedRole] = useState<Role>(contexts[0]?.role ?? teamContexts[0].role);
@@ -425,6 +428,7 @@ export function AppShell({
               <MatchdayHero activeTeam={activeTeam} userLabel={userLabel} leagueTeamCount={activeStandings.length} activeMatchCount={activeMatchCount} />
             )
           ) : null}
+          {activePage === "Home" && activeTeam.hasLeagueChairAccess ? <LastManStandingHomePanel onOpen={() => navigateToPage("Last Man Standing")} /> : null}
           <PageContent
             activePage={activePage}
             activeTeam={activeTeam}
@@ -614,6 +618,7 @@ function PageContent({
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Shop") return <ShopPage activeTeam={activeTeam} />;
+  if (activePage === "Last Man Standing") return activeTeam.hasLeagueChairAccess ? <LastManStandingPage /> : <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} userCanShare={userCanShare} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} userCanShare={userCanShare} />;

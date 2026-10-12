@@ -19,7 +19,7 @@ export type AppearancePanelId =
   | "seasonComplete"
   | "squadManagement"
   | "managerSnapshot";
-export type AppearanceMenuId = "Home" | "Fixtures" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Interclub Leagues";
+export type AppearanceMenuId = "Home" | "Fixtures" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Interclub Leagues" | "Last Man Standing";
 export type RoleAppearance = {
   role: Role;
   panels: AppearancePanelId[];
