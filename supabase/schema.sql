@@ -444,12 +444,15 @@ create table public.fixture (
   season_id uuid not null references public.season(id) on delete cascade,
   league_id uuid not null references public.league(id) on delete restrict,
   fixture_date timestamptz not null,
+  original_fixture_date timestamptz,
   home_team_id uuid not null references public.team(id) on delete restrict,
   away_team_id uuid not null references public.team(id) on delete restrict,
   status fixture_status not null default 'Scheduled',
   fixture_type text not null default 'League' check (fixture_type in ('League', 'Friendly')),
   check (home_team_id <> away_team_id)
 );
+
+comment on column public.fixture.original_fixture_date is 'The first scheduled date, retained when fixture_date changes after a postponement.';
 
 create table public.match (
   id uuid primary key default gen_random_uuid(),

@@ -1387,12 +1387,32 @@ async function shareSvgVisual(filename: string, title: string, svg: string) {
 function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
   const width = shareVisualWidth;
   const rowHeight = 126;
-  const height = 286 + Math.max(week.fixtures.length, 1) * rowHeight;
-  const rows = week.fixtures.map((fixture, index) => {
+  const shareRows = [
+    ...week.postponedFixtures.map((fixture) => ({
+      homeTeamName: fixture.homeTeamName,
+      awayTeamName: fixture.awayTeamName,
+      homeTeamScore: null,
+      awayTeamScore: null,
+      completedGames: 0,
+      status: "Postponed",
+      postponed: true
+    })),
+    ...week.fixtures.map((fixture) => ({
+      homeTeamName: fixture.homeTeamName,
+      awayTeamName: fixture.awayTeamName,
+      homeTeamScore: fixture.homeTeamScore,
+      awayTeamScore: fixture.awayTeamScore,
+      completedGames: fixture.completedGames,
+      status: fixture.status,
+      postponed: false
+    }))
+  ];
+  const height = 286 + Math.max(shareRows.length, 1) * rowHeight;
+  const rows = shareRows.map((fixture, index) => {
     const y = 222 + index * rowHeight;
     const home = teamColors(fixture.homeTeamName);
     const away = teamColors(fixture.awayTeamName);
-    const postponed = Boolean(postponedFixtureLabel(fixture, week.startsOn)) && fixture.status !== "Completed";
+    const postponed = fixture.postponed;
     const hasScore = !postponed && fixture.homeTeamScore !== null && fixture.awayTeamScore !== null && (fixture.status === "Completed" || fixture.completedGames > 0);
     const score = postponed ? "POSTPONED" : hasScore ? `${fixture.homeTeamScore}-${fixture.awayTeamScore}` : "v";
     const scoreBoxWidth = postponed ? 128 : 98;
@@ -5166,6 +5186,7 @@ function lineupSlotDisplayName(slot: ManagerLineupSlot, key: "player1Id" | "play
 type FixtureWeekFixture = {
   id: string;
   fixtureDate: string;
+  rescheduled: boolean;
   status: string;
   homeTeamId: string;
   awayTeamId: string;
@@ -5198,10 +5219,16 @@ type FixtureWeekFixture = {
 
 type FixtureWeek = {
   id: string;
-  weekNumber: number;
+  weekNumber: number | null;
   weekLabel: string;
   startsOn: string;
   fixtures: FixtureWeekFixture[];
+  postponedFixtures: Array<{
+    fixtureId: string;
+    homeTeamName: string;
+    awayTeamName: string;
+    postponedTo: string;
+  }>;
 };
 
 function fixtureWeekVisibleFromDate(week: FixtureWeek, league: TeamContext["league"]) {
@@ -5258,13 +5285,6 @@ function fixtureOwnLineupPublished(fixture: FixtureWeekFixture, teamId?: string 
   if (!teamId || !fixture.isOwnFixture) return false;
   const ownStatus = fixture.homeTeamId === teamId ? fixture.homeLineupStatus : fixture.awayLineupStatus;
   return ownStatus === "Published";
-}
-
-function postponedFixtureLabel(fixture: FixtureWeekFixture, weekStartsOn: string) {
-  const fixtureDate = fixture.fixtureDate?.slice(0, 10);
-  const originalWeekDate = weekStartsOn?.slice(0, 10);
-  if (!fixtureDate || !originalWeekDate || fixtureDate === originalWeekDate || fixture.status === "Completed") return "";
-  return `Postponed until ${formatFixtureDate(fixture.fixtureDate)}`;
 }
 
 function FixtureWeekCarouselCard({
@@ -5405,6 +5425,18 @@ function FixtureWeekCarouselCard({
               </Button>
             </div>
             <div className="overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]">
+              {week.postponedFixtures.map((fixture) => (
+                <div key={`postponed-${fixture.fixtureId}`} className="grid gap-2 border-b border-[#eeeaf2] bg-[#fffaf0] p-3">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                    <span className="min-w-0 truncate text-sm font-extrabold text-[#10233f]">{fixture.homeTeamName}</span>
+                    <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
+                    <span className="min-w-0 truncate text-right text-sm font-extrabold text-[#10233f]">{fixture.awayTeamName}</span>
+                  </div>
+                  <span className="justify-self-start rounded-md bg-[#fff1d6] px-2 py-1 text-[11px] font-extrabold uppercase text-[#8a5a00] ring-1 ring-[#ffb00055]">
+                    Postponed to {formatFixtureDate(fixture.postponedTo)}
+                  </span>
+                </div>
+              ))}
               {week.fixtures.map((fixture) => {
                 const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
                 const expanded = expandedFixtureId === fixture.id || selectedFixtureId === fixture.id;
@@ -5419,7 +5451,6 @@ function FixtureWeekCarouselCard({
                 const homeLineupStatus = visibleLineupStatus(fixture.homeLineupStatus, fixture.fixtureDate);
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
                 const lineupsPublished = fixtureHasPublishedLineups(fixture) && fixture.status !== "Completed" && fixture.completedGames === 0;
-                const postponedLabel = postponedFixtureLabel(fixture, week.startsOn);
                 return (
                   <article
                     key={fixture.id}
@@ -5443,6 +5474,12 @@ function FixtureWeekCarouselCard({
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                       }}
                     >
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-extrabold uppercase text-[#6c5a73]">
+                        <span>{formatFixtureDate(fixture.fixtureDate)}</span>
+                        {fixture.rescheduled ? (
+                          <span className="rounded-md bg-[#fff1d6] px-2 py-1 text-[#8a5a00] ring-1 ring-[#ffb00055]">Rescheduled</span>
+                        ) : null}
+                      </div>
                       <div className="grid gap-2 md:hidden">
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
                           <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={fixtureHasStarted(fixture) ? undefined : homeLineupStatus} />
@@ -5482,11 +5519,6 @@ function FixtureWeekCarouselCard({
                       {lineupsPublished ? (
                         <span className="justify-self-start rounded-lg bg-[#e9fff4] px-3 py-1.5 text-xs font-extrabold uppercase text-[#007a45] ring-1 ring-[#00a85a33]">
                           Lineups published
-                        </span>
-                      ) : null}
-                      {postponedLabel ? (
-                        <span className="justify-self-start rounded-lg bg-[#fff8eb] px-3 py-1.5 text-xs font-extrabold uppercase text-[#8a5a00] ring-1 ring-[#ffb00055]">
-                          {postponedLabel}
                         </span>
                       ) : null}
                       {activeTeam.hasLiveScoringAccess ? (

@@ -162,20 +162,33 @@ export async function PATCH(request: NextRequest) {
       const existing = await client.query<{
         season_id: string;
         league_id: string;
+        fixture_date: string;
         home_team_id: string;
         away_team_id: string;
         match_id: string | null;
         lineup_count: number;
         game_count: number;
+        scoring_activity_count: number;
       }>(
         `select
            f.season_id,
            f.league_id,
+           f.fixture_date::text,
            f.home_team_id,
            f.away_team_id,
            m.id as match_id,
            coalesce(fl.lineup_count, 0) as lineup_count,
-           coalesce(g.game_count, 0) as game_count
+           coalesce(g.game_count, 0) as game_count,
+           (
+             coalesce(g.scoring_activity_count, 0)
+             + case
+                 when m.home_team_score <> 0
+                   or m.away_team_score <> 0
+                   or f.status = 'Completed'
+                 then 1
+                 else 0
+               end
+           )::int as scoring_activity_count
          from public.fixture f
          left join public.match m on m.fixture_id = f.id
          left join lateral (
@@ -184,7 +197,15 @@ export async function PATCH(request: NextRequest) {
            where fl.fixture_id = f.id
          ) fl on true
          left join lateral (
-           select count(*)::int as game_count
+           select
+             count(*)::int as game_count,
+             count(*) filter (
+               where g.winner_team_id is not null
+                  or g.home_score <> 0
+                  or g.away_score <> 0
+                  or exists (select 1 from public.break b where b.game_id = g.id)
+                  or exists (select 1 from public.live_frame_session lfs where lfs.game_id = g.id)
+             )::int as scoring_activity_count
            from public.game g
            where g.match_id = m.id
          ) g on true
@@ -198,10 +219,14 @@ export async function PATCH(request: NextRequest) {
       const nextHomeTeamId = homeTeamId || fixture.home_team_id;
       const nextAwayTeamId = awayTeamId || fixture.away_team_id;
       const teamsChanged = nextHomeTeamId !== fixture.home_team_id || nextAwayTeamId !== fixture.away_team_id;
+      const dateChanged = Boolean(fixtureDate && fixture.fixture_date.slice(0, 10) !== fixtureDate.slice(0, 10));
       if (nextHomeTeamId === nextAwayTeamId) throw new Error("Home and away teams must be different.");
 
       if (teamsChanged && (fixture.lineup_count > 0 || fixture.game_count > 0)) {
         throw new Error("Teams cannot be changed after lineups or frame details have been created.");
+      }
+      if (dateChanged && fixture.scoring_activity_count > 0) {
+        throw new Error("A match cannot be rescheduled after frame scoring has started.");
       }
 
       if (teamsChanged) {
@@ -219,13 +244,32 @@ export async function PATCH(request: NextRequest) {
 
       await client.query(
         `update public.fixture
-         set fixture_date = coalesce($2::timestamptz, fixture_date),
+         set original_fixture_date = case
+               when $2::timestamptz is not null and fixture_date::date is distinct from $2::date
+                 then coalesce(original_fixture_date, fixture_date)
+               else original_fixture_date
+             end,
+             fixture_date = coalesce($2::timestamptz, fixture_date),
              home_team_id = $3,
              away_team_id = $4,
              status = coalesce($5::fixture_status, status)
          where id = $1`,
         [fixtureId, fixtureDate || null, nextHomeTeamId, nextAwayTeamId, status || null]
       );
+
+      if (dateChanged) {
+        await client.query(
+          `update public.fixture_lineup
+           set status = 'Draft',
+               published_at = null,
+               updated_at = now()
+           where fixture_id = $1`,
+          [fixtureId]
+        );
+        if (fixture.match_id) {
+          await client.query("delete from public.game where match_id = $1", [fixture.match_id]);
+        }
+      }
 
       let matchId = fixture.match_id;
       if (homeScore != null && awayScore != null) {

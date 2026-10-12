@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
+import { organizeFixtureWeeks } from "@/lib/fixture-scheduling.mjs";
 import { fixturePlayerWinPercentage, loadFixturePlayerWinPercentages } from "@/lib/server/player-win-percentages";
 
 export const runtime = "nodejs";
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
       starts_on: string;
       fixture_id: string;
       fixture_date: string;
+      original_fixture_date: string | null;
       status: string;
       home_team_id: string;
       away_team_id: string;
@@ -41,6 +43,7 @@ export async function GET(request: NextRequest) {
          fw.starts_on::text,
          f.id as fixture_id,
          f.fixture_date,
+         f.original_fixture_date,
          f.status::text,
          f.home_team_id,
          f.away_team_id,
@@ -74,6 +77,7 @@ export async function GET(request: NextRequest) {
          fw.starts_on,
          f.id,
          f.fixture_date,
+         f.original_fixture_date,
          f.status,
          f.home_team_id,
          f.away_team_id,
@@ -87,6 +91,25 @@ export async function GET(request: NextRequest) {
        order by fw.week_number, f.fixture_date, ht.name`,
       [leagueName, seasonName]
     );
+    const weekCatalog = (await dbQuery<{
+      id: string;
+      week_number: number;
+      week_label: string;
+      starts_on: string;
+    }>(
+      `select
+         fw.id,
+         fw.week_number,
+         fw.week_label,
+         fw.starts_on::text
+       from public.fixture_week fw
+       join public.league l on l.id = fw.league_id
+       join public.season s on s.id = fw.season_id
+       where l.name = $1
+         and s.name = $2
+       order by fw.starts_on, fw.week_number`,
+      [leagueName, seasonName]
+    )).rows;
     const fixtureIds = rows.rows.map((row) => row.fixture_id);
     const gameRows = fixtureIds.length ? (await dbQuery<{
       fixture_id: string;
@@ -387,59 +410,7 @@ export async function GET(request: NextRequest) {
       return Array.from(lineups.values());
     };
 
-    const weeks = new Map<string, {
-      id: string;
-      weekNumber: number;
-      weekLabel: string;
-      startsOn: string;
-      fixtures: Array<{
-        id: string;
-        fixtureDate: string;
-        status: string;
-        homeTeamId: string;
-        awayTeamId: string;
-        homeTeamName: string;
-        awayTeamName: string;
-        matchId: string | null;
-        homeTeamScore: number | null;
-        awayTeamScore: number | null;
-        homeLineupStatus: "Draft" | "Published" | null;
-        awayLineupStatus: "Draft" | "Published" | null;
-        completedGames: number;
-        totalGames: number;
-        isOwnFixture: boolean;
-        lineups: Array<{
-          teamId: string;
-          teamName: string;
-          slots: Array<{
-            slotNumber: number;
-            gameType: "Singles" | "Doubles";
-            player1Name: string;
-            player2Name: string | null;
-            player1IsGuest: boolean;
-            player2IsGuest: boolean;
-          }>;
-        }>;
-        games: Array<{
-          id: string;
-          game_number: number;
-          game_type: "Singles" | "Doubles";
-          points_awarded: number;
-          winner_team_id: string | null;
-          home_player_1_id: string | null;
-          home_player_1_name: string;
-          home_player_2_id: string | null;
-          home_player_2_name: string | null;
-          away_player_1_id: string | null;
-          away_player_1_name: string;
-          away_player_2_id: string | null;
-          away_player_2_name: string | null;
-          breaks: Array<{ id: string; playerId: string; playerName: string; breakValue: number; recordedAt: string }>;
-        }>;
-      }>;
-    }>();
-
-    for (const row of rows.rows) {
+    const fixtureEntries = rows.rows.map((row) => {
       const isOwnFixture = Boolean(teamId && (row.home_team_id === teamId || row.away_team_id === teamId));
       const bothPublished = row.home_lineup_status === "Published" && row.away_lineup_status === "Published";
       const ownPublished = isOwnFixture && (
@@ -452,15 +423,10 @@ export async function GET(request: NextRequest) {
         : ownPublished && teamId
           ? [teamId]
           : [];
-      const week = weeks.get(row.week_id) ?? {
-        id: row.week_id,
-        weekNumber: row.week_number,
-        weekLabel: row.week_label,
-        startsOn: row.starts_on,
-        fixtures: []
-      };
-      week.fixtures.push({
+      return {
         id: row.fixture_id,
+        originalWeekId: row.week_id,
+        originalFixtureDate: row.original_fixture_date ?? row.starts_on,
         fixtureDate: row.fixture_date,
         status: row.status,
         homeTeamId: row.home_team_id,
@@ -506,11 +472,20 @@ export async function GET(request: NextRequest) {
             away_player_2_guest_team_name: game.away_player_2_guest_team_name,
             breaks: breaksForGame(game.id)
           }))
-      });
-      weeks.set(row.week_id, week);
-    }
+      };
+    });
 
-    return NextResponse.json({ weeks: Array.from(weeks.values()) });
+    const weeks = organizeFixtureWeeks({
+      weeks: weekCatalog.map((week) => ({
+        id: week.id,
+        weekNumber: week.week_number,
+        weekLabel: week.week_label,
+        startsOn: week.starts_on
+      })),
+      fixtures: fixtureEntries
+    });
+
+    return NextResponse.json({ weeks });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Fixtures unavailable." },
