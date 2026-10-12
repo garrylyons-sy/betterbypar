@@ -20,11 +20,13 @@ export async function authJsonFetch<T>(url: string, init?: RequestInit) {
 export function AuthSignInForm({
   onSignedIn,
   googleNext,
+  adminIntent = false,
   identifierLabel = "User ID or email",
   onForgotPassword
 }: {
   onSignedIn: () => void;
   googleNext?: string;
+  adminIntent?: boolean;
   identifierLabel?: string;
   onForgotPassword?: () => void;
 }) {
@@ -46,7 +48,7 @@ export function AuthSignInForm({
     try {
       await authJsonFetch("/api/login", {
         method: "POST",
-        body: JSON.stringify({ identifier, password })
+        body: JSON.stringify({ identifier, password, adminIntent })
       });
       await onSignedIn();
     } catch (error) {

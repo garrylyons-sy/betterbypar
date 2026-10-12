@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 
 import { accountByLoginIdentifier, recordLogin, setSessionCookie, verifyPassword } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
+import { canSignInDuringMaintenance } from "@/lib/maintenance-policy.mjs";
+import { isPlatformOperator, loadMaintenanceMode } from "@/lib/server/maintenance";
 
 export const runtime = "nodejs";
 
@@ -11,6 +13,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const identifier = String(body.identifier ?? "").trim();
     const password = String(body.password ?? "");
+    const adminIntent = body.adminIntent === true;
 
     if (!identifier || !password) {
       return NextResponse.json({ error: "User ID/email and password are required." }, { status: 400 });
@@ -19,6 +22,15 @@ export async function POST(request: Request) {
     const account = await accountByLoginIdentifier(identifier);
     if (!account || !verifyPassword(password, account.password_hash)) {
       return NextResponse.json({ error: "Invalid login details." }, { status: 401 });
+    }
+
+    const maintenance = await loadMaintenanceMode();
+    const platformAdmin = maintenance.enabled ? await isPlatformOperator(account.person_id) : false;
+    if (!canSignInDuringMaintenance({ maintenanceEnabled: maintenance.enabled, adminIntent, platformAdmin })) {
+      return NextResponse.json(
+        { error: "Interclub Snooker is down for maintenance. Administrator access only." },
+        { status: 503 }
+      );
     }
 
     await dbQuery("update public.user_account set last_login = now() where id = $1", [account.id]);

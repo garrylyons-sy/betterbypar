@@ -11,6 +11,7 @@ import {
   signInExistingGoogleUser
 } from "@/lib/server/auth";
 import { sendWelcomeEmail } from "@/lib/server/welcome-email";
+import { isPlatformOperator, loadMaintenanceMode } from "@/lib/server/maintenance";
 
 export const runtime = "nodejs";
 
@@ -31,6 +32,13 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const returnedState = request.nextUrl.searchParams.get("state");
   const oauthCookies = await readOAuthCookies();
+  const maintenance = await loadMaintenanceMode();
+  const adminIntent = oauthCookies.next === "/admin";
+
+  if (maintenance.enabled && !adminIntent) {
+    await clearOAuthCookies();
+    return NextResponse.redirect(new URL("/maintenance", origin));
+  }
 
   if (!code) return NextResponse.redirect(new URL("/?auth=missing-code", origin));
   if (!oauthCookies.state || oauthCookies.state !== returnedState) {
@@ -74,7 +82,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const user = oauthCookies.invitationCode
+    const user = !maintenance.enabled && oauthCookies.invitationCode
       ? await claimInvitationForAccount({
         email: googleUser.email,
         username: googleUser.email.split("@")[0],
@@ -86,6 +94,11 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       throw new Error("No account exists for this Google email. Please use your invitation link first.");
+    }
+
+    if (maintenance.enabled && !await isPlatformOperator(user.personId)) {
+      await clearOAuthCookies();
+      return NextResponse.redirect(new URL("/maintenance", origin));
     }
 
     await setSessionCookie(user.accountId);

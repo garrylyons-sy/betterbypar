@@ -4871,7 +4871,7 @@ function LogsPanel({ refreshKey }: { refreshKey: number }) {
 function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   return (
     <AdminShell title="Admin sign in" subtitle="Use an account that has been granted administrator access.">
-      <AuthSignInForm onSignedIn={onSignedIn} googleNext="/admin" />
+      <AuthSignInForm onSignedIn={onSignedIn} googleNext="/admin" adminIntent />
     </AdminShell>
   );
 }

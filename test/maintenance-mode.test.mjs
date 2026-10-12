@@ -27,9 +27,41 @@ test("maintenance sign-in requires both admin intent and platform operator acces
 });
 
 test("maintenance migration creates one off-by-default global setting", () => {
-  const sql = readFileSync(new URL("../supabase/maintenance_mode.sql", import.meta.url), "utf8");
+const sql = readFileSync(new URL("../supabase/maintenance_mode.sql", import.meta.url), "utf8");
   assert.match(sql, /create table if not exists public\.maintenance_mode/i);
   assert.match(sql, /enabled boolean not null default false/i);
   assert.match(sql, /check \(singleton = true\)/i);
   assert.match(sql, /on conflict \(singleton\) do nothing/i);
+});
+
+test("the root layout gates normal pages and exposes a maintenance status endpoint", () => {
+  const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const middleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
+  const publicRoute = readFileSync(new URL("../app/api/maintenance/route.ts", import.meta.url), "utf8");
+  assert.match(middleware, /x-interclub-pathname/);
+  assert.match(layout, /loadMaintenanceMode/);
+  assert.match(layout, /MaintenanceGate/);
+  assert.match(publicRoute, /loadMaintenanceMode/);
+});
+
+test("password and Google sign-in independently enforce maintenance access", () => {
+  const passwordRoute = readFileSync(new URL("../app/api/login/route.ts", import.meta.url), "utf8");
+  const googleRoute = readFileSync(new URL("../app/auth/google/route.ts", import.meta.url), "utf8");
+  const googleCallback = readFileSync(new URL("../app/auth/google/callback/route.ts", import.meta.url), "utf8");
+  const authControls = readFileSync(new URL("../components/auth-controls.tsx", import.meta.url), "utf8");
+  const adminConsole = readFileSync(new URL("../components/admin-console.tsx", import.meta.url), "utf8");
+
+  assert.match(passwordRoute, /canSignInDuringMaintenance/);
+  assert.match(passwordRoute, /isPlatformOperator/);
+  assert.match(googleRoute, /nextPath !== "\/admin"/);
+  assert.match(googleCallback, /isPlatformOperator/);
+  assert.match(authControls, /adminIntent/);
+  assert.match(adminConsole, /adminIntent/);
+});
+
+test("existing non-admin sessions are withheld while maintenance is enabled", () => {
+  const sessionRoute = readFileSync(new URL("../app/api/session/route.ts", import.meta.url), "utf8");
+  assert.match(sessionRoute, /maintenance/);
+  assert.match(sessionRoute, /isPlatformOperator/);
+  assert.match(sessionRoute, /status: 503/);
 });

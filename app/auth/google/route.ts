@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createToken, googleRedirectUri, setOAuthCookies } from "@/lib/server/auth";
+import { loadMaintenanceMode } from "@/lib/server/maintenance";
 
 export const runtime = "nodejs";
 
@@ -12,6 +13,10 @@ export async function GET(request: NextRequest) {
 
   const state = createToken(24);
   const nextPath = request.nextUrl.searchParams.get("next") || "/";
+  const maintenance = await loadMaintenanceMode();
+  if (maintenance.enabled && nextPath !== "/admin") {
+    return NextResponse.redirect(new URL("/maintenance", request.url));
+  }
   const inviteFromNext = nextPath.startsWith("/")
     ? new URL(nextPath, request.url).searchParams.get("invite")
     : null;
