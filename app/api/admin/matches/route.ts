@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
+import { processDueLastManStandingWork } from "@/lib/server/last-man-standing";
 
 export const runtime = "nodejs";
 
@@ -315,6 +316,10 @@ export async function PATCH(request: NextRequest) {
       );
 
       return { matchId };
+    });
+
+    await processDueLastManStandingWork({ actorPersonId: user.personId }).catch((error) => {
+      console.error("last-man-standing:admin-match", error);
     });
 
     return NextResponse.json({ ok: true, ...result });

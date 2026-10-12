@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { applyLiveFrameAction, createLiveFrameState } from "@/lib/live-scoring.mjs";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import { GameResultError, recordOfficialGameResult } from "@/lib/server/game-results";
+import { processDueLastManStandingWork } from "@/lib/server/last-man-standing";
 
 const LEASE_SECONDS = 45;
 
@@ -803,5 +804,10 @@ export async function performLiveScoringAction(personId: string, input: LiveScor
     await appendEvent(client, session, input.action, personId, before, after, input);
   });
 
+  if (input.action === "recordResult" || input.action === "complete") {
+    await processDueLastManStandingWork({ actorPersonId: personId }).catch((error) => {
+      console.error("last-man-standing:live-result", error);
+    });
+  }
   return loadLiveScoringFixture(input.fixtureId, personId);
 }

@@ -4,6 +4,7 @@ import { PoolClient } from "pg";
 import { currentUser, testUserFromEmail } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import { recordOfficialGameResult } from "@/lib/server/game-results";
+import { processDueLastManStandingWork } from "@/lib/server/last-man-standing";
 import { fixturePlayerWinPercentage, loadFixturePlayerWinPercentages } from "@/lib/server/player-win-percentages";
 
 export const runtime = "nodejs";
@@ -221,6 +222,10 @@ export async function POST(request: NextRequest) {
         await ensureFixtureTeam(client, fixtureId, teamId);
         await recordOfficialGameResult(client, { fixtureId, gameId, winnerTeamId, actorPersonId: user.personId });
         await recordLineupActivity(client, user.personId, fixtureId, teamId, winnerTeamId ? "Recorded game result" : "Reset game result", { gameId, winnerTeamId });
+      });
+
+      await processDueLastManStandingWork({ actorPersonId: user.personId }).catch((error) => {
+        console.error("last-man-standing:manager-result", error);
       });
 
       const payload = await loadLineupPayload(teamId, fixtureId);
