@@ -133,15 +133,14 @@ export function deriveEntrySettlement(outcomes: string[]) {
 }
 
 export function deriveRoundSettlement(
-  entries: Array<{ entryId: string; status: "Standing" | "Eliminated" }>,
-  options: { decidingRound: boolean }
+  entries: Array<{ entryId: string; status: "Standing" | "Eliminated" }>
 ) {
   const standingEntryIds = entries.filter((entry) => entry.status === "Standing").map((entry) => entry.entryId);
   if (standingEntryIds.length === 1) {
     return { state: "Winner", winnerEntryId: standingEntryIds[0] } as const;
   }
-  if (options.decidingRound && standingEntryIds.length === 0) {
-    return { state: "Restart", reinstateEntryIds: entries.map((entry) => entry.entryId) } as const;
+  if (standingEntryIds.length === 0) {
+    return { state: "No Winner", eliminatedEntryIds: entries.map((entry) => entry.entryId) } as const;
   }
   return { state: "Continue", standingEntryIds } as const;
 }
@@ -1036,33 +1035,33 @@ async function createFollowingLastManStandingRound(
     fixture_week_id: string;
     default_match_date: string;
     deadline_time: string;
-    has_following_week: boolean;
   }>(
     `select current_schedule.tier, current_schedule.league_id::text,
             next_week.id::text as fixture_week_id,
-            coalesce(min((next_fixture.fixture_date at time zone 'Europe/Dublin')::date), next_week.starts_on)::text as default_match_date,
-            current_schedule.deadline_time::text,
-            exists (
-              select 1 from public.fixture_week later_week
-              where later_week.season_id = next_week.season_id
-                and later_week.league_id = next_week.league_id
-                and later_week.starts_on > next_week.starts_on
-            ) as has_following_week
+            next_week.default_match_date,
+            current_schedule.deadline_time::text
      from public.last_man_standing_round_schedule current_schedule
      join public.fixture_week current_week on current_week.id = current_schedule.fixture_week_id
      join lateral (
-       select fw.* from public.fixture_week fw
+       select fw.id, fw.starts_on,
+              min((f.fixture_date at time zone 'Europe/Dublin')::date)::text as default_match_date
+       from public.fixture_week fw
+       join public.fixture_week_match fwm on fwm.week_id = fw.id
+       join public.match m on m.id = fwm.match_id
+       join public.fixture f on f.id = m.fixture_id
        where fw.season_id = $2 and fw.league_id = current_schedule.league_id
          and fw.starts_on > current_week.starts_on
+         and lower(fw.week_label) not like '%break%'
+         and f.fixture_type = 'League'
+         and f.status not in ('Cancelled', 'Completed')
+         and f.original_fixture_date is null
+         and (f.fixture_date at time zone 'Europe/Dublin')::date
+           between fw.starts_on and fw.starts_on + 6
+       group by fw.id
        order by fw.starts_on limit 1
      ) next_week on true
-     left join public.fixture_week_match next_map on next_map.week_id = next_week.id
-     left join public.match next_match on next_match.id = next_map.match_id
-     left join public.fixture next_fixture on next_fixture.id = next_match.fixture_id
      where current_schedule.round_id = $1
-     group by current_schedule.id, current_schedule.tier, current_schedule.league_id,
-              current_schedule.deadline_time, next_week.id, next_week.starts_on,
-              next_week.season_id, next_week.league_id`,
+     order by current_schedule.tier`,
     [input.roundId, current.rows[0].season_id]
   );
   if (schedules.rows.length !== 3) return null;
@@ -1088,12 +1087,11 @@ async function createFollowingLastManStandingRound(
     );
     return existing.rows[0].id;
   }
-  const decidingRound = schedules.rows.some((schedule) => !schedule.has_following_week);
   const created = await client.query<{ id: string }>(
     `insert into public.last_man_standing_round (
        competition_id, cycle_number, round_number, name, status, deciding_round, opened_at
      ) values ($1, $2, $3, $4, 'Open', $5, now()) returning id::text`,
-    [input.competitionId, cycleNumber, roundNumber, `Round ${roundNumber}`, decidingRound]
+    [input.competitionId, cycleNumber, roundNumber, `Round ${roundNumber}`, false]
   );
   for (const schedule of schedules.rows) {
     await client.query(
@@ -1268,7 +1266,7 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
       entryStates.push({ entryId, status: decision.status });
     }
 
-    const roundDecision = deriveRoundSettlement(entryStates, { decidingRound: round.deciding_round });
+    const roundDecision = deriveRoundSettlement(entryStates);
     if (roundDecision.state === "Winner") {
       await client.query(
         `update public.last_man_standing_entry set status = 'Winner', winner = true, updated_at = now() where id = $1`,
@@ -1285,28 +1283,27 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
         actorPersonId: input.actorPersonId,
         eventType: "Winner Declared"
       });
-    } else if (roundDecision.state === "Restart") {
+    } else if (roundDecision.state === "No Winner") {
       await client.query(
         `update public.last_man_standing_competition set status = 'No Winner', updated_at = now() where id = $1`,
         [input.competitionId]
       );
-      await appendLastManStandingEvent(client, {
-        competitionId: input.competitionId,
-        roundId: input.roundId,
-        actorPersonId: input.actorPersonId,
-        eventType: "Entrants Reinstated",
-        payload: { entryIds: roundDecision.reinstateEntryIds, nextCycle: "Awaiting administrator" }
-      });
     }
     await client.query(
       `update public.last_man_standing_round set status = 'Settled', settled_at = now(), updated_at = now() where id = $1`,
       [input.roundId]
     );
     if (roundDecision.state === "Continue") {
-      await openNextLastManStandingRound(client, {
+      const nextRoundId = await openNextLastManStandingRound(client, {
         competitionId: input.competitionId,
         roundId: input.roundId
       });
+      if (!nextRoundId) {
+        await client.query(
+          `update public.last_man_standing_competition set status = 'No Winner', updated_at = now() where id = $1`,
+          [input.competitionId]
+        );
+      }
     }
     return { changed: true, decision: roundDecision };
   });

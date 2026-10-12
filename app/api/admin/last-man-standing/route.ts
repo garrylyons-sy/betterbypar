@@ -138,13 +138,23 @@ export async function GET() {
       dbQuery(
         `select fw.id::text, fw.season_id::text, fw.league_id::text, l.name as league_name,
                 fw.week_number, fw.week_label, fw.starts_on::text,
-                coalesce(min((f.fixture_date at time zone 'Europe/Dublin')::date)::text, fw.starts_on::text) as match_date
+                min((f.fixture_date at time zone 'Europe/Dublin')::date)::text as match_date
          from public.fixture_week fw
          join public.league l on l.id = fw.league_id
-         left join public.fixture_week_match fwm on fwm.week_id = fw.id
-         left join public.match m on m.id = fwm.match_id
-         left join public.fixture f on f.id = m.fixture_id
-         group by fw.id, l.id order by fw.season_id, l.name, fw.week_number`
+         join public.fixture_week_match fwm on fwm.week_id = fw.id
+         join public.match m on m.id = fwm.match_id
+         join public.fixture f on f.id = m.fixture_id
+         where fw.starts_on is not null
+           and lower(fw.week_label) not like '%break%'
+           and f.fixture_type = 'League'
+           and f.status not in ('Cancelled', 'Completed')
+           and f.original_fixture_date is null
+           and (f.fixture_date at time zone 'Europe/Dublin')::date
+             between fw.starts_on and fw.starts_on + 6
+         group by fw.id, l.id
+         having ((min((f.fixture_date at time zone 'Europe/Dublin')::date) + time '12:00')
+           at time zone 'Europe/Dublin') > now()
+         order by fw.season_id, l.name, fw.week_number`
       )
     ]);
     return NextResponse.json({ competitions: competitions.rows, seasons: seasons.rows, fixtureWeeks: fixtureWeeks.rows });
@@ -152,9 +162,6 @@ export async function GET() {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Last Man Standing admin could not be loaded." }, { status: 500 });
   }
 }
-
-type ScheduleInput = { tier?: unknown; fixtureWeekId?: unknown };
-type RoundInput = { name?: unknown; decidingRound?: unknown; schedules?: ScheduleInput[] };
 
 export async function POST(request: Request) {
   try {
@@ -165,66 +172,81 @@ export async function POST(request: Request) {
     const name = String(body.name ?? "").trim();
     const seasonId = String(body.seasonId ?? "").trim();
     const audience = "League Chair";
-    const entryOpensAt = String(body.entryOpensAt ?? "");
-    const entryClosesAt = String(body.entryClosesAt ?? "");
-    const rounds: RoundInput[] = Array.isArray(body.rounds) ? body.rounds : [];
-    if (!name || !seasonId || !entryOpensAt || !entryClosesAt || new Date(entryClosesAt) <= new Date(entryOpensAt)) {
-      return NextResponse.json({ error: "Name, season, and a valid entry window are required." }, { status: 400 });
-    }
-    if (!rounds.length) return NextResponse.json({ error: "Add at least one round." }, { status: 400 });
-    const decidingRounds = rounds.flatMap((round, index) => round.decidingRound ? [index] : []);
-    if (decidingRounds.length !== 1 || decidingRounds[0] !== rounds.length - 1) {
-      return NextResponse.json({ error: "The deciding round must be the final configured round." }, { status: 400 });
-    }
+    const firstRoundWeeks = body.firstRoundWeeks && typeof body.firstRoundWeeks === "object"
+      ? body.firstRoundWeeks as Record<string, unknown>
+      : {};
+    if (!name || !seasonId) return NextResponse.json({ error: "Name and season are required." }, { status: 400 });
 
     const id = await withTransaction(async (client) => {
+      const schedules: Array<{
+        tier: "A" | "B" | "C";
+        leagueId: string;
+        fixtureWeekId: string;
+        matchDate: string;
+        deadlineAt: string;
+      }> = [];
+      for (const tier of ["A", "B", "C"] as const) {
+        const weekId = String(firstRoundWeeks[tier] ?? "");
+        const week = await client.query<{ league_id: string; match_date: string; deadline_at: string }>(
+          `select fw.league_id::text,
+                  min((f.fixture_date at time zone 'Europe/Dublin')::date)::text as match_date,
+                  (((min((f.fixture_date at time zone 'Europe/Dublin')::date) + time '12:00')
+                    at time zone 'Europe/Dublin'))::text as deadline_at
+           from public.fixture_week fw
+           join public.league l on l.id = fw.league_id
+           join public.fixture_week_match fwm on fwm.week_id = fw.id
+           join public.match m on m.id = fwm.match_id
+           join public.fixture f on f.id = m.fixture_id
+           where fw.id = $1 and fw.season_id = $2 and l.name = $3
+             and fw.starts_on is not null
+             and lower(fw.week_label) not like '%break%'
+             and f.fixture_type = 'League'
+             and f.status not in ('Cancelled', 'Completed')
+             and f.original_fixture_date is null
+             and (f.fixture_date at time zone 'Europe/Dublin')::date
+               between fw.starts_on and fw.starts_on + 6
+           group by fw.id
+           having ((min((f.fixture_date at time zone 'Europe/Dublin')::date) + time '12:00')
+             at time zone 'Europe/Dublin') > now()`,
+          [weekId, seasonId, `${tier} League`]
+        );
+        if (!week.rows[0]) throw new Error(`Choose a future ${tier} League week with scheduled league matches.`);
+        schedules.push({
+          tier,
+          leagueId: week.rows[0].league_id,
+          fixtureWeekId: weekId,
+          matchDate: week.rows[0].match_date,
+          deadlineAt: week.rows[0].deadline_at
+        });
+      }
+      const entryClosesAt = schedules
+        .map((schedule) => schedule.deadlineAt)
+        .sort((left, right) => new Date(left).getTime() - new Date(right).getTime())[0];
       const competition = await client.query<{ id: string }>(
         `insert into public.last_man_standing_competition (
            season_id, name, audience, entry_opens_at, entry_closes_at, status, created_by
-         ) values ($1, $2, $3, $4, $5, 'Draft', $6) returning id::text`,
-        [seasonId, name, audience, entryOpensAt, entryClosesAt, access.user!.personId]
+         ) values ($1, $2, $3, now(), $4, 'Open', $5) returning id::text`,
+        [seasonId, name, audience, entryClosesAt, access.user!.personId]
       );
-      for (const [index, roundInput] of rounds.entries()) {
-        const schedules = Array.isArray(roundInput.schedules) ? roundInput.schedules : [];
-        const tiers = schedules.map((schedule) => String(schedule.tier));
-        if (tiers.length !== 3 || !["A", "B", "C"].every((tier) => tiers.includes(tier))) {
-          throw new Error(`Round ${index + 1} needs A, B and C fixture weeks.`);
-        }
-        const round = await client.query<{ id: string }>(
-          `insert into public.last_man_standing_round (
-             competition_id, round_number, name, deciding_round, status
-           ) values ($1, $2, $3, $4, 'Planned') returning id::text`,
-          [competition.rows[0].id, index + 1, String(roundInput.name ?? `Round ${index + 1}`).trim() || `Round ${index + 1}`, Boolean(roundInput.decidingRound)]
+      const round = await client.query<{ id: string }>(
+        `insert into public.last_man_standing_round (
+           competition_id, round_number, name, deciding_round, status, opened_at
+         ) values ($1, 1, 'Round 1', false, 'Open', now()) returning id::text`,
+        [competition.rows[0].id]
+      );
+      for (const schedule of schedules) {
+        await client.query(
+          `insert into public.last_man_standing_round_schedule (
+             round_id, tier, league_id, fixture_week_id, default_match_date
+           ) values ($1, $2, $3, $4, $5)`,
+          [round.rows[0].id, schedule.tier, schedule.leagueId, schedule.fixtureWeekId, schedule.matchDate]
         );
-        for (const schedule of schedules) {
-          const tier = String(schedule.tier);
-          const weekId = String(schedule.fixtureWeekId ?? "");
-          const expectedLeagueName = `${tier} League`;
-          const week = await client.query<{ league_id: string; match_date: string }>(
-            `select fw.league_id::text,
-                    coalesce(min((f.fixture_date at time zone 'Europe/Dublin')::date), fw.starts_on)::text as match_date
-             from public.fixture_week fw
-             join public.league l on l.id = fw.league_id
-             left join public.fixture_week_match fwm on fwm.week_id = fw.id
-             left join public.match m on m.id = fwm.match_id
-             left join public.fixture f on f.id = m.fixture_id
-             where fw.id = $1 and fw.season_id = $2 and l.name = $3 group by fw.id`,
-            [weekId, seasonId, expectedLeagueName]
-          );
-          if (!week.rows[0]?.match_date) throw new Error(`Choose a valid ${tier} League fixture week.`);
-          await client.query(
-            `insert into public.last_man_standing_round_schedule (
-               round_id, tier, league_id, fixture_week_id, default_match_date
-             ) values ($1, $2, $3, $4, $5)`,
-            [round.rows[0].id, tier, week.rows[0].league_id, weekId, week.rows[0].match_date]
-          );
-        }
       }
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
          values ($1, 'Page Visit', '/admin/last-man-standing', 'Created Last Man Standing competition',
            jsonb_build_object('action', 'Created competition', 'competition_id', $2::text, 'competition_name', $3::text, 'round_count', $4::int))`,
-        [access.user!.personId, competition.rows[0].id, name, rounds.length]
+        [access.user!.personId, competition.rows[0].id, name, 1]
       );
       return competition.rows[0].id;
     });

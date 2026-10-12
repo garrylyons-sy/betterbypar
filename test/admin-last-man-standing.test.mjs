@@ -31,7 +31,15 @@ test("Last Man Standing admin APIs are platform-only and support management acti
   assert.match(override, /then 'Needs Review' else 'Locked'/);
   assert.match(read("../app/api/admin/last-man-standing/route.ts"), /candidate_lineup\.status = 'Published'/);
   assert.match(read("../app/api/admin/last-man-standing/route.ts"), /l\.name = \$3/);
-  assert.match(read("../app/api/admin/last-man-standing/route.ts"), /deciding round must be the final configured round/i);
+  const createRoute = read("../app/api/admin/last-man-standing/route.ts");
+  assert.match(createRoute, /'Open'/);
+  assert.match(createRoute, /now\(\)/);
+  assert.match(createRoute, /lower\(fw\.week_label\) not like '%break%'/i);
+  assert.match(createRoute, /original_fixture_date is null/i);
+  assert.match(createRoute, /at time zone 'Europe\/Dublin'/i);
+  assert.doesNotMatch(createRoute, /body\.entryOpensAt/);
+  assert.doesNotMatch(createRoute, /body\.entryClosesAt/);
+  assert.doesNotMatch(createRoute, /body\.rounds/);
   assert.doesNotMatch(read("../components/admin-last-man-standing.tsx"), /<option>Everyone<\/option>/);
   assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /VALID_STATUS_TRANSITIONS/);
   assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /hashtext\('lifecycle'\)/);
@@ -55,4 +63,8 @@ test("admin navigation exposes a lazy standalone Last Man Standing section only 
   assert.match(panelSource, /Unresolved picks/);
   assert.match(panelSource, /Start next cycle/);
   assert.match(panelSource, /Entrants and picks/);
+  assert.doesNotMatch(panelSource, /Entries open/);
+  assert.doesNotMatch(panelSource, /Add round/);
+  assert.match(panelSource, /First round/);
+  assert.match(panelSource, /Entries close automatically/);
 });

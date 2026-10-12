@@ -15,22 +15,22 @@ test("an entrant stands only when both picks win", () => {
   assert.deepEqual(deriveEntrySettlement(["Won", "No Eligible Pick"]), { ready: false, status: null });
 });
 
-test("round settlement handles survivors, a winner, and a deciding-round washout", () => {
+test("round settlement continues with survivors and ends with either a winner or nobody standing", () => {
   assert.deepEqual(deriveRoundSettlement([
     { entryId: "one", status: "Standing" },
     { entryId: "two", status: "Eliminated" },
     { entryId: "three", status: "Standing" }
-  ], { decidingRound: false }), { state: "Continue", standingEntryIds: ["one", "three"] });
+  ]), { state: "Continue", standingEntryIds: ["one", "three"] });
 
   assert.deepEqual(deriveRoundSettlement([
     { entryId: "one", status: "Standing" },
     { entryId: "two", status: "Eliminated" }
-  ], { decidingRound: false }), { state: "Winner", winnerEntryId: "one" });
+  ]), { state: "Winner", winnerEntryId: "one" });
 
   assert.deepEqual(deriveRoundSettlement([
     { entryId: "one", status: "Eliminated" },
     { entryId: "two", status: "Eliminated" }
-  ], { decidingRound: true }), { state: "Restart", reinstateEntryIds: ["one", "two"] });
+  ]), { state: "No Winner", eliminatedEntryIds: ["one", "two"] });
 });
 
 test("processing is advisory-locked, snapshots table order, and preserves unresolved picks", () => {
@@ -42,17 +42,16 @@ test("processing is advisory-locked, snapshots table order, and preserves unreso
   assert.match(source, /Automatic Pick/);
 });
 
-test("settlement uses official game winners and supports explicit audited reopening", () => {
+test("settlement uses official game winners, stops on no winner, and supports audited reopening", () => {
   const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
   assert.match(source, /winner_team_id/);
   assert.match(source, /outcomeForPickedPlayer/);
   assert.match(source, /Winner Declared/);
-  assert.match(source, /Entrants Reinstated/);
+  assert.match(source, /roundDecision\.state === "No Winner"/);
   assert.match(source, /Round Reopened/);
   assert.match(source, /openNextLastManStandingRound/);
   assert.match(source, /createNextLastManStandingCycle/);
   assert.match(source, /startNextLastManStandingCycle/);
-  assert.match(source, /nextCycle: "Awaiting administrator"/);
   assert.match(source, /eliminated_round_id = \$1/);
   assert.match(source, /join public\.person_team_role ptr/);
   assert.doesNotMatch(source, /where round_id = \$1;\s*update public\.last_man_standing_entry/);
@@ -63,6 +62,8 @@ test("settlement uses official game winners and supports explicit audited reopen
   assert.match(source, /between mapped_week\.starts_on and mapped_week\.starts_on \+ 6/);
   assert.ok((source.match(/hashtext\('lifecycle'\)/g) ?? []).length >= 4);
   assert.match(source, /c\.status in \('Open', 'In Progress'\)/);
+  assert.match(source, /lower\(fw\.week_label\) not like '%break%'/i);
+  assert.match(source, /original_fixture_date is null/i);
   const settle = source.slice(source.indexOf("export async function settleLastManStandingRound"), source.indexOf("export async function startNextLastManStandingCycle"));
   assert.doesNotMatch(settle, /set status = 'Standing', winner = false, eliminated_round_id = null/);
   const newCycle = source.slice(source.indexOf("export async function startNextLastManStandingCycle"), source.indexOf("export async function reopenLastManStandingRound"));
