@@ -26,6 +26,7 @@ type CompetitionSummaryRow = {
   entryStatus: string | null;
   roundId: string | null;
   roundName: string | null;
+  roundStatus: string | null;
   cycleNumber: number | string | null;
   roundNumber: number | string | null;
   deadlineAt: string | null;
@@ -84,6 +85,7 @@ export function summarizeLastManStandingCompetitions(rows: CompetitionSummaryRow
       ? {
           id: row.roundId,
           name: row.roundName,
+          status: row.roundStatus,
           cycleNumber: Number(row.cycleNumber),
           roundNumber: Number(row.roundNumber),
           deadlineAt: row.deadlineAt
@@ -135,7 +137,7 @@ export function deriveRoundSettlement(
   options: { decidingRound: boolean }
 ) {
   const standingEntryIds = entries.filter((entry) => entry.status === "Standing").map((entry) => entry.entryId);
-  if (options.decidingRound && standingEntryIds.length === 1) {
+  if (standingEntryIds.length === 1) {
     return { state: "Winner", winnerEntryId: standingEntryIds[0] } as const;
   }
   if (options.decidingRound && standingEntryIds.length === 0) {
@@ -179,6 +181,7 @@ const summaryQuery = `
     own_entry.status as "entryStatus",
     current_round.id::text as "roundId",
     current_round.name as "roundName",
+    current_round.status as "roundStatus",
     current_round.cycle_number as "cycleNumber",
     current_round.round_number as "roundNumber",
     own_deadline.deadline_at::text as "deadlineAt",
@@ -366,9 +369,12 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
                   rs.default_match_date::text, rs.deadline_time::text,
                   (select (f.fixture_date at time zone 'Europe/Dublin')::date::text
                    from public.fixture_week_match fwm
+                   join public.fixture_week mapped_week on mapped_week.id = fwm.week_id
                    join public.match m on m.id = fwm.match_id
                    join public.fixture f on f.id = m.fixture_id
                    where fwm.week_id = rs.fixture_week_id and (f.home_team_id = e.source_team_id or f.away_team_id = e.source_team_id)
+                     and (f.fixture_date at time zone 'Europe/Dublin')::date
+                       between mapped_week.starts_on and mapped_week.starts_on + 6
                    order by f.fixture_date limit 1) as own_fixture_date,
                   coalesce(jsonb_agg(jsonb_build_object(
                     'slotNumber', pick.slot_number,
@@ -549,10 +555,13 @@ export async function saveLastManStandingPicks(user: AppUser, input: SavePicksIn
               s.default_match_date::text, s.deadline_time::text,
               (select (f.fixture_date at time zone 'Europe/Dublin')::date::text
                from public.fixture_week_match fwm
+               join public.fixture_week mapped_week on mapped_week.id = fwm.week_id
                join public.match m on m.id = fwm.match_id
                join public.fixture f on f.id = m.fixture_id
                where fwm.week_id = s.fixture_week_id
                  and (f.home_team_id = e.source_team_id or f.away_team_id = e.source_team_id)
+                 and (f.fixture_date at time zone 'Europe/Dublin')::date
+                   between mapped_week.starts_on and mapped_week.starts_on + 6
                order by f.fixture_date limit 1) as own_fixture_date
        from public.last_man_standing_entry e
        join public.last_man_standing_round r on r.id = $3 and r.competition_id = e.competition_id
@@ -621,6 +630,9 @@ export async function saveLastManStandingPicks(user: AppUser, input: SavePicksIn
     for (const slotNumber of [1, 2] as const) {
       const current = currentBySlot.get(slotNumber);
       const expectedVersion = input.versions?.[slotNumber - 1] ?? null;
+      if (current && expectedVersion === null) {
+        throw new LastManStandingError("Refresh your picks before changing them.", 409, "VERSIONS_REQUIRED");
+      }
       if (current && expectedVersion !== null && current.version !== expectedVersion) {
         throw new LastManStandingError("Your picks changed in another session. Refresh and try again.", 409, "VERSION_CONFLICT");
       }
@@ -767,6 +779,12 @@ async function fallbackData(client: PoolClient, schedule: {
      join public.fixture_lineup_slot fls on fls.lineup_id = fl.id
      cross join lateral (values (fls.player_1_id, 1), (fls.player_2_id, 2)) player(person_id, player_order)
      join public.person p on p.id = player.person_id
+     join public.team lineup_team on lineup_team.id = fl.team_id
+     join public.person_team_role ptr on ptr.person_id = player.person_id
+       and ptr.club_id = lineup_team.club_id
+       and ptr.league_id = lineup_team.league_id
+       and lower(ptr.team_name) = lower(lineup_team.name)
+       and ptr.role = 'Player' and ptr.active = true
      where fwm.week_id = $1 and player.person_id is not null`,
     [schedule.fixture_week_id]
   );
@@ -799,6 +817,7 @@ async function fallbackData(client: PoolClient, schedule: {
 export async function lockLastManStandingRound(input: ProcessInput & { competitionId: string; roundId: string }) {
   const { withTransaction } = await import("./db");
   return withTransaction(async (client) => {
+    await client.query("select pg_advisory_xact_lock(hashtext($1), hashtext('lifecycle'))", [input.competitionId]);
     await client.query("select pg_advisory_xact_lock(hashtext($1), hashtext($2))", [input.competitionId, input.roundId]);
     const roundResult = await client.query<{
       id: string;
@@ -809,7 +828,8 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
       `select r.id::text, r.competition_id::text, c.season_id::text, r.status
        from public.last_man_standing_round r
        join public.last_man_standing_competition c on c.id = r.competition_id
-       where r.id = $1 and r.competition_id = $2 for update of r`,
+       where r.id = $1 and r.competition_id = $2
+         and c.status in ('Open', 'In Progress') for update of r`,
       [input.roundId, input.competitionId]
     );
     const round = roundResult.rows[0];
@@ -841,9 +861,12 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
         `select e.id::text, e.source_team_id::text,
                 (select (f.fixture_date at time zone 'Europe/Dublin')::date::text
                  from public.fixture_week_match fwm
+                 join public.fixture_week mapped_week on mapped_week.id = fwm.week_id
                  join public.match m on m.id = fwm.match_id
                  join public.fixture f on f.id = m.fixture_id
                  where fwm.week_id = $3 and (f.home_team_id = e.source_team_id or f.away_team_id = e.source_team_id)
+                   and (f.fixture_date at time zone 'Europe/Dublin')::date
+                     between mapped_week.starts_on and mapped_week.starts_on + 6
                  order by f.fixture_date limit 1) as own_fixture_date
          from public.last_man_standing_entry e
          where e.competition_id = $1 and e.tier = $2 and e.status in ('Entered', 'Standing')
@@ -864,8 +887,11 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
           selected_player_id: string | null;
           effective_player_id: string | null;
           state: string;
+          source_fixture_id: string | null;
+          table_order_snapshot: unknown;
         }>(
-          `select id::text, slot_number, selected_player_id::text, effective_player_id::text, state
+          `select id::text, slot_number, selected_player_id::text, effective_player_id::text, state,
+                  source_fixture_id::text, table_order_snapshot
            from public.last_man_standing_pick where entry_id = $1 and round_id = $2
            order by slot_number for update`,
           [entry.id, input.roundId]
@@ -883,7 +909,11 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
         const selectedThisRound: string[] = [];
         for (const slotNumber of [1, 2]) {
           const current = picks.rows.find((pick) => pick.slot_number === slotNumber);
-          if (current?.state === "Locked" || current?.state === "Automatic" || current?.state === "Settled") {
+          const sourceFixture = current?.source_fixture_id
+            ? data.fixtures.find((fixture) => fixture.id === current.source_fixture_id)
+            : null;
+          const sourceFixtureInvalid = Boolean(sourceFixture?.rescheduledOutsideRound || sourceFixture?.status === "Cancelled");
+          if (current?.state === "Settled" || ((current?.state === "Locked" || current?.state === "Automatic") && !sourceFixtureInvalid)) {
             if (current.effective_player_id) selectedThisRound.push(current.effective_player_id);
             continue;
           }
@@ -891,7 +921,7 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
           const manualLineup = manualPlayer
             ? data.lineupPlayers.find((player) => player.playerId === manualPlayer)
             : null;
-          const candidates = orderedFallbackCandidates({
+          const calculatedCandidates = orderedFallbackCandidates({
             sourceTeamId: entry.source_team_id,
             tier: schedule.tier,
             teamOrder,
@@ -900,6 +930,23 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
             consumedPlayerIds: used,
             excludedPlayerIds: selectedThisRound
           });
+          const preservedCandidates = Array.isArray(current?.table_order_snapshot)
+            ? current.table_order_snapshot.filter((candidate): candidate is {
+                playerId: string;
+                sourceTeamId: string;
+                sourceFixtureId: string;
+                sourceLineupSlotId: string;
+                automaticReason: string;
+              } => Boolean(candidate && typeof candidate === "object" && "playerId" in candidate && "sourceFixtureId" in candidate))
+            : [];
+          const candidates = sourceFixtureInvalid && preservedCandidates.length
+            ? preservedCandidates.filter((candidate) => (
+                !used.includes(candidate.playerId)
+                && !selectedThisRound.includes(candidate.playerId)
+                && !data.fixtures.some((fixture) => fixture.id === candidate.sourceFixtureId
+                  && (fixture.rescheduledOutsideRound || fixture.status === "Cancelled"))
+              ))
+            : calculatedCandidates;
           const chosen = manualLineup
             ? {
                 playerId: manualPlayer,
@@ -918,8 +965,9 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
           const saved = await client.query<{ id: string }>(
             `insert into public.last_man_standing_pick (
                entry_id, round_id, slot_number, selected_player_id, effective_player_id,
-               source_fixture_id, source_lineup_slot_id, state, automatic_reason, deadline_at, locked_at
-             ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+               source_fixture_id, source_lineup_slot_id, state, automatic_reason, deadline_at, locked_at,
+               table_order_snapshot
+             ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), $11::jsonb)
              on conflict (entry_id, round_id, slot_number) do update set
                effective_player_id = excluded.effective_player_id,
                source_fixture_id = excluded.source_fixture_id,
@@ -927,11 +975,16 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
                state = excluded.state,
                automatic_reason = excluded.automatic_reason,
                deadline_at = excluded.deadline_at,
+               table_order_snapshot = case
+                 when jsonb_array_length(public.last_man_standing_pick.table_order_snapshot) > 0
+                   then public.last_man_standing_pick.table_order_snapshot
+                 else excluded.table_order_snapshot
+               end,
                locked_at = now(), version = public.last_man_standing_pick.version + 1, updated_at = now()
              returning id::text`,
             [entry.id, input.roundId, slotNumber, manualPlayer, chosen?.playerId ?? null,
               chosen?.sourceFixtureId ?? null, chosen?.sourceLineupSlotId ?? null, state,
-              automaticReason, deadline.toISOString()]
+              automaticReason, deadline.toISOString(), JSON.stringify(calculatedCandidates)]
           );
           await appendLastManStandingEvent(client, {
             competitionId: input.competitionId,
@@ -960,13 +1013,154 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
   });
 }
 
+async function createFollowingLastManStandingRound(
+  client: PoolClient,
+  input: { competitionId: string; roundId: string; nextCycle: boolean }
+) {
+  const current = await client.query<{
+    cycle_number: number;
+    round_number: number;
+    season_id: string;
+  }>(
+    `select r.cycle_number, r.round_number, c.season_id::text
+     from public.last_man_standing_round r
+     join public.last_man_standing_competition c on c.id = r.competition_id
+     where r.id = $1 and r.competition_id = $2`,
+    [input.roundId, input.competitionId]
+  );
+  if (!current.rows[0]) return null;
+
+  const schedules = await client.query<{
+    tier: "A" | "B" | "C";
+    league_id: string;
+    fixture_week_id: string;
+    default_match_date: string;
+    deadline_time: string;
+    has_following_week: boolean;
+  }>(
+    `select current_schedule.tier, current_schedule.league_id::text,
+            next_week.id::text as fixture_week_id,
+            coalesce(min((next_fixture.fixture_date at time zone 'Europe/Dublin')::date), next_week.starts_on)::text as default_match_date,
+            current_schedule.deadline_time::text,
+            exists (
+              select 1 from public.fixture_week later_week
+              where later_week.season_id = next_week.season_id
+                and later_week.league_id = next_week.league_id
+                and later_week.starts_on > next_week.starts_on
+            ) as has_following_week
+     from public.last_man_standing_round_schedule current_schedule
+     join public.fixture_week current_week on current_week.id = current_schedule.fixture_week_id
+     join lateral (
+       select fw.* from public.fixture_week fw
+       where fw.season_id = $2 and fw.league_id = current_schedule.league_id
+         and fw.starts_on > current_week.starts_on
+       order by fw.starts_on limit 1
+     ) next_week on true
+     left join public.fixture_week_match next_map on next_map.week_id = next_week.id
+     left join public.match next_match on next_match.id = next_map.match_id
+     left join public.fixture next_fixture on next_fixture.id = next_match.fixture_id
+     where current_schedule.round_id = $1
+     group by current_schedule.id, current_schedule.tier, current_schedule.league_id,
+              current_schedule.deadline_time, next_week.id, next_week.starts_on,
+              next_week.season_id, next_week.league_id`,
+    [input.roundId, current.rows[0].season_id]
+  );
+  if (schedules.rows.length !== 3) return null;
+
+  const cycleNumber = input.nextCycle ? Number(current.rows[0].cycle_number) + 1 : Number(current.rows[0].cycle_number);
+  const roundNumber = input.nextCycle ? 1 : Number(current.rows[0].round_number) + 1;
+  const existing = await client.query<{ id: string }>(
+    `select id::text from public.last_man_standing_round
+     where competition_id = $1 and cycle_number = $2 and round_number = $3
+     for update`,
+    [input.competitionId, cycleNumber, roundNumber]
+  );
+  if (existing.rows[0]) {
+    await client.query(
+      `update public.last_man_standing_round
+       set status = 'Open', opened_at = coalesce(opened_at, now()), updated_at = now()
+       where id = $1 and status = 'Planned'`,
+      [existing.rows[0].id]
+    );
+    await client.query(
+      `update public.last_man_standing_competition set status = 'In Progress', updated_at = now() where id = $1`,
+      [input.competitionId]
+    );
+    return existing.rows[0].id;
+  }
+  const decidingRound = schedules.rows.some((schedule) => !schedule.has_following_week);
+  const created = await client.query<{ id: string }>(
+    `insert into public.last_man_standing_round (
+       competition_id, cycle_number, round_number, name, status, deciding_round, opened_at
+     ) values ($1, $2, $3, $4, 'Open', $5, now()) returning id::text`,
+    [input.competitionId, cycleNumber, roundNumber, `Round ${roundNumber}`, decidingRound]
+  );
+  for (const schedule of schedules.rows) {
+    await client.query(
+      `insert into public.last_man_standing_round_schedule (
+         round_id, tier, league_id, fixture_week_id, default_match_date, deadline_time
+       ) values ($1, $2, $3, $4, $5, $6)`,
+      [created.rows[0].id, schedule.tier, schedule.league_id, schedule.fixture_week_id,
+        schedule.default_match_date, schedule.deadline_time]
+    );
+  }
+  await client.query(
+    `update public.last_man_standing_competition set status = 'In Progress', updated_at = now() where id = $1`,
+    [input.competitionId]
+  );
+  return created.rows[0].id;
+}
+
+async function openNextLastManStandingRound(
+  client: PoolClient,
+  input: { competitionId: string; roundId: string }
+) {
+  const next = await client.query<{ id: string }>(
+    `select next_round.id::text
+     from public.last_man_standing_round current_round
+     join public.last_man_standing_round next_round
+       on next_round.competition_id = current_round.competition_id
+      and next_round.cycle_number = current_round.cycle_number
+      and next_round.round_number > current_round.round_number
+      and next_round.status = 'Planned'
+     where current_round.id = $1 and current_round.competition_id = $2
+     order by next_round.round_number limit 1
+     for update of next_round`,
+    [input.roundId, input.competitionId]
+  );
+  if (!next.rows[0]) {
+    return createFollowingLastManStandingRound(client, { ...input, nextCycle: false });
+  }
+  await client.query(
+    `update public.last_man_standing_round
+     set status = 'Open', opened_at = coalesce(opened_at, now()), updated_at = now()
+     where id = $1`,
+    [next.rows[0].id]
+  );
+  await client.query(
+    `update public.last_man_standing_competition set status = 'In Progress', updated_at = now() where id = $1`,
+    [input.competitionId]
+  );
+  return next.rows[0].id;
+}
+
+async function createNextLastManStandingCycle(
+  client: PoolClient,
+  input: { competitionId: string; roundId: string }
+) {
+  return createFollowingLastManStandingRound(client, { ...input, nextCycle: true });
+}
+
 export async function settleLastManStandingRound(input: ProcessInput & { competitionId: string; roundId: string }) {
   const { withTransaction } = await import("./db");
   return withTransaction(async (client) => {
+    await client.query("select pg_advisory_xact_lock(hashtext($1), hashtext('lifecycle'))", [input.competitionId]);
     await client.query("select pg_advisory_xact_lock(hashtext($1), hashtext($2))", [input.competitionId, input.roundId]);
     const roundResult = await client.query<{ deciding_round: boolean; status: string }>(
-      `select deciding_round, status from public.last_man_standing_round
-       where id = $1 and competition_id = $2 for update`,
+      `select r.deciding_round, r.status from public.last_man_standing_round r
+       join public.last_man_standing_competition c on c.id = r.competition_id
+       where r.id = $1 and r.competition_id = $2
+         and c.status in ('Open', 'In Progress') for update of r`,
       [input.roundId, input.competitionId]
     );
     const round = roundResult.rows[0];
@@ -985,7 +1179,11 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
        from public.last_man_standing_pick where round_id = $1 order by entry_id, slot_number for update`,
       [input.roundId]
     );
-    const outcomes = new Map<string, string[]>();
+    const calculatedPicks: Array<{
+      pick: (typeof picks.rows)[number];
+      outcome: "Won" | "Lost" | "Pending";
+      gameId: string | null;
+    }> = [];
     for (const pick of picks.rows) {
       if (!pick.effective_player_id) return { changed: false, pending: true };
       const gameResult = await client.query<{
@@ -1020,12 +1218,20 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
           awayPlayerIds: [game.away_player_1_id, game.away_player_2_id].filter(Boolean)
         } : null
       });
-      if (outcome === "Pending") return { changed: false, pending: true };
+      calculatedPicks.push({ pick, outcome, gameId: game?.id ?? null });
+    }
+    if (calculatedPicks.some((item) => item.outcome === "Pending")) {
+      return { changed: false, pending: true };
+    }
+
+    const outcomes = new Map<string, string[]>();
+    for (const calculated of calculatedPicks) {
+      const { pick, outcome, gameId } = calculated;
       await client.query(
         `update public.last_man_standing_pick
          set source_game_id = $2, outcome = $3, state = 'Settled', settled_at = now(), updated_at = now()
          where id = $1`,
-        [pick.id, game?.id ?? null, outcome]
+        [pick.id, gameId, outcome]
       );
       await appendLastManStandingEvent(client, {
         competitionId: input.competitionId,
@@ -1034,7 +1240,7 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
         pickId: pick.id,
         actorPersonId: input.actorPersonId,
         eventType: "Pick Settled",
-        payload: { playerId: pick.effective_player_id, outcome, gameId: game?.id ?? null }
+        payload: { playerId: pick.effective_player_id, outcome, gameId }
       });
       outcomes.set(pick.entry_id, [...(outcomes.get(pick.entry_id) ?? []), outcome]);
     }
@@ -1065,9 +1271,12 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
     const roundDecision = deriveRoundSettlement(entryStates, { decidingRound: round.deciding_round });
     if (roundDecision.state === "Winner") {
       await client.query(
-        `update public.last_man_standing_entry set status = 'Winner', winner = true, updated_at = now() where id = $1;
-         update public.last_man_standing_competition set status = 'Complete', updated_at = now() where id = $2`,
-        [roundDecision.winnerEntryId, input.competitionId]
+        `update public.last_man_standing_entry set status = 'Winner', winner = true, updated_at = now() where id = $1`,
+        [roundDecision.winnerEntryId]
+      );
+      await client.query(
+        `update public.last_man_standing_competition set status = 'Complete', updated_at = now() where id = $1`,
+        [input.competitionId]
       );
       await appendLastManStandingEvent(client, {
         competitionId: input.competitionId,
@@ -1078,10 +1287,7 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
       });
     } else if (roundDecision.state === "Restart") {
       await client.query(
-        `update public.last_man_standing_entry
-         set status = 'Standing', winner = false, eliminated_round_id = null, updated_at = now()
-         where competition_id = $1 and status <> 'Withdrawn';
-         update public.last_man_standing_competition set status = 'No Winner', updated_at = now() where id = $1`,
+        `update public.last_man_standing_competition set status = 'No Winner', updated_at = now() where id = $1`,
         [input.competitionId]
       );
       await appendLastManStandingEvent(client, {
@@ -1089,14 +1295,65 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
         roundId: input.roundId,
         actorPersonId: input.actorPersonId,
         eventType: "Entrants Reinstated",
-        payload: { entryIds: roundDecision.reinstateEntryIds, nextCycleNumber: "admin-scheduled" }
+        payload: { entryIds: roundDecision.reinstateEntryIds, nextCycle: "Awaiting administrator" }
       });
     }
     await client.query(
       `update public.last_man_standing_round set status = 'Settled', settled_at = now(), updated_at = now() where id = $1`,
       [input.roundId]
     );
+    if (roundDecision.state === "Continue") {
+      await openNextLastManStandingRound(client, {
+        competitionId: input.competitionId,
+        roundId: input.roundId
+      });
+    }
     return { changed: true, decision: roundDecision };
+  });
+}
+
+export async function startNextLastManStandingCycle(input: {
+  competitionId: string;
+  actorPersonId: string;
+}) {
+  const { withTransaction } = await import("./db");
+  return withTransaction(async (client) => {
+    await client.query("select pg_advisory_xact_lock(hashtext($1), hashtext('lifecycle'))", [input.competitionId]);
+    const competition = await client.query<{ status: string }>(
+      `select status from public.last_man_standing_competition where id = $1 for update`,
+      [input.competitionId]
+    );
+    if (competition.rows[0]?.status !== "No Winner") {
+      throw new LastManStandingError("A new cycle can only start after a no-winner round.", 409, "CYCLE_NOT_READY");
+    }
+    const latestRound = await client.query<{ id: string }>(
+      `select id::text from public.last_man_standing_round
+       where competition_id = $1 and status = 'Settled'
+       order by cycle_number desc, round_number desc limit 1`,
+      [input.competitionId]
+    );
+    if (!latestRound.rows[0]) throw new LastManStandingError("No settled round is available.", 409, "ROUND_NOT_SETTLED");
+    const nextRoundId = await createNextLastManStandingCycle(client, {
+      competitionId: input.competitionId,
+      roundId: latestRound.rows[0].id
+    });
+    if (!nextRoundId) {
+      throw new LastManStandingError("There is no later fixture week available for all three leagues.", 409, "NO_FUTURE_WEEK");
+    }
+    await client.query(
+      `update public.last_man_standing_entry
+       set status = 'Standing', winner = false, eliminated_round_id = null, updated_at = now()
+       where competition_id = $1 and status <> 'Withdrawn'`,
+      [input.competitionId]
+    );
+    await appendLastManStandingEvent(client, {
+      competitionId: input.competitionId,
+      roundId: nextRoundId,
+      actorPersonId: input.actorPersonId,
+      eventType: "Admin Override",
+      payload: { action: "Started next cycle" }
+    });
+    return { nextRoundId };
   });
 }
 
@@ -1109,7 +1366,32 @@ export async function reopenLastManStandingRound(input: {
   if (!input.reason.trim()) throw new LastManStandingError("A reason is required to reopen a round.", 400, "REASON_REQUIRED");
   const { withTransaction } = await import("./db");
   return withTransaction(async (client) => {
+    await client.query("select pg_advisory_xact_lock(hashtext($1), hashtext('lifecycle'))", [input.competitionId]);
     await client.query("select pg_advisory_xact_lock(hashtext($1), hashtext($2))", [input.competitionId, input.roundId]);
+    const later = await client.query<{ id: string; status: string; pick_count: number }>(
+      `select later_round.id::text, later_round.status, count(later_pick.id)::int as pick_count
+       from public.last_man_standing_round current_round
+       join public.last_man_standing_round later_round
+         on later_round.competition_id = current_round.competition_id
+        and (later_round.cycle_number, later_round.round_number) > (current_round.cycle_number, current_round.round_number)
+       left join public.last_man_standing_pick later_pick on later_pick.round_id = later_round.id
+       where current_round.id = $1 and current_round.competition_id = $2
+         and later_round.status <> 'Planned'
+       group by later_round.id
+       order by later_round.cycle_number, later_round.round_number`,
+      [input.roundId, input.competitionId]
+    );
+    if (later.rows.some((round) => Number(round.pick_count) > 0 || round.status === "Settled")) {
+      throw new LastManStandingError("Reopen the latest active round first.", 409, "LATER_ROUND_ACTIVE");
+    }
+    for (const round of later.rows) {
+      await client.query(
+        `update public.last_man_standing_round
+         set status = 'Planned', opened_at = null, locked_at = null, updated_at = now()
+         where id = $1`,
+        [round.id]
+      );
+    }
     const result = await client.query(
       `update public.last_man_standing_round
        set status = 'Locked', settled_at = null, updated_at = now()
@@ -1121,12 +1403,20 @@ export async function reopenLastManStandingRound(input: {
       `update public.last_man_standing_pick
        set state = case when automatic_reason is null then 'Locked' else 'Automatic' end,
            outcome = 'Pending', source_game_id = null, settled_at = null, updated_at = now()
-       where round_id = $1;
-       update public.last_man_standing_entry
+       where round_id = $1`,
+      [input.roundId]
+    );
+    await client.query(
+      `update public.last_man_standing_entry
        set status = 'Standing', winner = false, eliminated_round_id = null, updated_at = now()
-       where competition_id = $2 and status <> 'Withdrawn';
-       update public.last_man_standing_competition set status = 'In Progress', updated_at = now() where id = $2`,
+       where competition_id = $2
+         and status <> 'Withdrawn'
+         and (eliminated_round_id = $1 or winner = true)`,
       [input.roundId, input.competitionId]
+    );
+    await client.query(
+      `update public.last_man_standing_competition set status = 'In Progress', updated_at = now() where id = $1`,
+      [input.competitionId]
     );
     await appendLastManStandingEvent(client, {
       competitionId: input.competitionId,
@@ -1153,9 +1443,7 @@ export async function processDueLastManStandingWork(input: ProcessInput = {}) {
   );
   const results = [];
   for (const round of rounds.rows) {
-    if (round.status === "Open" || round.status === "Needs Review") {
-      results.push(await lockLastManStandingRound({ ...input, competitionId: round.competition_id, roundId: round.id }));
-    }
+    results.push(await lockLastManStandingRound({ ...input, competitionId: round.competition_id, roundId: round.id }));
     results.push(await settleLastManStandingRound({ ...input, competitionId: round.competition_id, roundId: round.id }));
   }
   return results;

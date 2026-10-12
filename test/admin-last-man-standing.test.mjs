@@ -8,6 +8,8 @@ test("Last Man Standing admin APIs are platform-only and support management acti
   const routes = [
     "../app/api/admin/last-man-standing/route.ts",
     "../app/api/admin/last-man-standing/[competitionId]/route.ts",
+    "../app/api/admin/last-man-standing/[competitionId]/override/route.ts",
+    "../app/api/admin/last-man-standing/[competitionId]/new-cycle/route.ts",
     "../app/api/admin/last-man-standing/[competitionId]/process/route.ts",
     "../app/api/admin/last-man-standing/[competitionId]/reopen/route.ts"
   ];
@@ -19,6 +21,20 @@ test("Last Man Standing admin APIs are platform-only and support management acti
   assert.match(source, /processDueLastManStandingWork/);
   assert.match(source, /reopenLastManStandingRound/);
   assert.match(source, /user_activity_log/);
+  assert.doesNotMatch(read("../app/api/admin/last-man-standing/[competitionId]/route.ts"), /group by c\.id for update/);
+  assert.match(source, /Admin Override/);
+  assert.match(source, /startNextLastManStandingCycle/);
+  const override = read("../app/api/admin/last-man-standing/[competitionId]/override/route.ts");
+  assert.match(override, /p\.state = 'Needs Review'/);
+  assert.match(override, /r\.status = 'Needs Review'/);
+  assert.match(override, /already used by this entrant/);
+  assert.match(override, /then 'Needs Review' else 'Locked'/);
+  assert.match(read("../app/api/admin/last-man-standing/route.ts"), /candidate_lineup\.status = 'Published'/);
+  assert.match(read("../app/api/admin/last-man-standing/route.ts"), /l\.name = \$3/);
+  assert.match(read("../app/api/admin/last-man-standing/route.ts"), /deciding round must be the final configured round/i);
+  assert.doesNotMatch(read("../components/admin-last-man-standing.tsx"), /<option>Everyone<\/option>/);
+  assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /VALID_STATUS_TRANSITIONS/);
+  assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /hashtext\('lifecycle'\)/);
 });
 
 test("admin navigation exposes a lazy standalone Last Man Standing section only to platform admins", () => {
@@ -35,4 +51,8 @@ test("admin navigation exposes a lazy standalone Last Man Standing section only 
   assert.match(panelSource, /Needs Review/);
   assert.match(panelSource, /Process now/);
   assert.match(panelSource, /Reopen/);
+  assert.match(panelSource, /Resolve pick/);
+  assert.match(panelSource, /Unresolved picks/);
+  assert.match(panelSource, /Start next cycle/);
+  assert.match(panelSource, /Entrants and picks/);
 });

@@ -13,6 +13,15 @@ test("League Chair access adds the Last Man Standing page and home panel", () =>
   assert.match(shell, /LastManStandingPage/);
 });
 
+test("participant UI exposes deadline, primary action, and automatic replacement reasons", () => {
+  const source = readFileSync(new URL("../components/last-man-standing.tsx", import.meta.url), "utf8");
+  assert.match(source, /Deadline/);
+  assert.match(source, /Enter now|Make picks|Change picks/);
+  assert.match(source, /automaticReason/);
+  assert.match(source, /Automatic replacement/);
+  assert.match(source, /View competition/);
+});
+
 test("competition UI handles concurrent competitions, entry, privacy and noon locking", () => {
   const source = read("../components/last-man-standing.tsx");
   assert.match(source, /competitions\.map/);

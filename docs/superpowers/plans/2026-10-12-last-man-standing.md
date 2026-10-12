@@ -51,7 +51,7 @@ Assert that the migration and canonical schema define all seven tables, status/a
 
 - [ ] **Step 2: Run the schema test and verify RED**
 
-Run: `node --test test/last-man-standing-schema.test.mjs`  
+Run: `node --test test/last-man-standing-schema.test.mjs`
 Expected: FAIL because the migration and table definitions do not exist.
 
 - [ ] **Step 3: Implement the additive migration and canonical schema**
@@ -60,7 +60,7 @@ Use text checks rather than new PostgreSQL enum types so future states can be mi
 
 - [ ] **Step 4: Run schema tests and the full suite**
 
-Run: `node --test test/last-man-standing-schema.test.mjs && node --test test/*.test.mjs`  
+Run: `node --test test/last-man-standing-schema.test.mjs && node --test test/*.test.mjs`
 Expected: PASS with zero failures.
 
 - [ ] **Step 5: Commit**
@@ -87,7 +87,7 @@ Cover player-over-manager precedence, A/B/C/D mapping, multiple player-tier choi
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
-Run: `node --test test/last-man-standing-rules.test.mjs`  
+Run: `node --test test/last-man-standing-rules.test.mjs`
 Expected: FAIL because the rules module does not exist.
 
 - [ ] **Step 3: Implement tier and deadline functions**
@@ -100,7 +100,7 @@ Cover duplicate picks, consumed players, inactive/typed-guest/out-of-tier player
 
 - [ ] **Step 5: Run focused tests and verify RED for the new cases**
 
-Run: `node --test test/last-man-standing-rules.test.mjs`  
+Run: `node --test test/last-man-standing-rules.test.mjs`
 Expected: FAIL on unimplemented validation, fallback, and outcome functions.
 
 - [ ] **Step 6: Implement validation, fallback, and outcome functions**
@@ -109,7 +109,7 @@ Keep every function deterministic and side-effect free. Return the chosen candid
 
 - [ ] **Step 7: Run focused tests and full suite**
 
-Run: `node --test test/last-man-standing-rules.test.mjs && node --test test/*.test.mjs`  
+Run: `node --test test/last-man-standing-rules.test.mjs && node --test test/*.test.mjs`
 Expected: PASS with zero failures.
 
 - [ ] **Step 8: Commit**
@@ -139,7 +139,7 @@ Assert that unauthenticated and ordinary roles receive 401/403, League Chairs ca
 
 - [ ] **Step 2: Run API tests and verify RED**
 
-Run: `node --test test/last-man-standing-api.test.mjs`  
+Run: `node --test test/last-man-standing-api.test.mjs`
 Expected: FAIL because participant service and routes do not exist.
 
 - [ ] **Step 3: Implement read service and GET routes**
@@ -152,7 +152,7 @@ Cover role-derived tier options, default highest player tier, fixed source team,
 
 - [ ] **Step 5: Run API tests and verify RED for mutations**
 
-Run: `node --test test/last-man-standing-api.test.mjs`  
+Run: `node --test test/last-man-standing-api.test.mjs`
 Expected: FAIL on missing entry and pick mutations.
 
 - [ ] **Step 6: Implement transactional entry and pick mutations**
@@ -161,7 +161,7 @@ Lock the entry/pick rows during mutation. Store pick revisions through immutable
 
 - [ ] **Step 7: Run API tests, typecheck, and full suite**
 
-Run: `node --test test/last-man-standing-api.test.mjs && pnpm typecheck && node --test test/*.test.mjs`  
+Run: `node --test test/last-man-standing-api.test.mjs && pnpm typecheck && node --test test/*.test.mjs`
 Expected: PASS with zero failures.
 
 - [ ] **Step 8: Commit**
@@ -190,7 +190,7 @@ Cover two empty slots, selected player absent from a published lineup, fixture r
 
 - [ ] **Step 2: Run processing tests and verify RED**
 
-Run: `node --test test/last-man-standing-processing.test.mjs`  
+Run: `node --test test/last-man-standing-processing.test.mjs`
 Expected: FAIL because processing functions do not exist.
 
 - [ ] **Step 3: Implement transactional locking and automatic replacement**
@@ -203,7 +203,7 @@ Cover two wins, one loss, doubles loss, pending result, single winner, multiple 
 
 - [ ] **Step 5: Run processing tests and verify RED for settlement**
 
-Run: `node --test test/last-man-standing-processing.test.mjs`  
+Run: `node --test test/last-man-standing-processing.test.mjs`
 Expected: FAIL on missing settlement/reopening behavior.
 
 - [ ] **Step 6: Implement settlement, reopening, and result-save triggers**
@@ -212,7 +212,7 @@ Invoke due processing after manager, admin, and live-scoring result commits. Pro
 
 - [ ] **Step 7: Run processing tests and full suite**
 
-Run: `node --test test/last-man-standing-processing.test.mjs && node --test test/*.test.mjs`  
+Run: `node --test test/last-man-standing-processing.test.mjs && node --test test/*.test.mjs`
 Expected: PASS with zero failures.
 
 - [ ] **Step 8: Commit**
@@ -243,7 +243,7 @@ Assert platform-only access; club admins and League Chairs receive 403; create/u
 
 - [ ] **Step 2: Run admin tests and verify RED**
 
-Run: `node --test test/admin-last-man-standing.test.mjs`  
+Run: `node --test test/admin-last-man-standing.test.mjs`
 Expected: FAIL because admin routes and navigation do not exist.
 
 - [ ] **Step 3: Implement admin APIs and meaningful logs**
@@ -256,7 +256,7 @@ Assert the menu item is visible only to platform admins, the section loads only 
 
 - [ ] **Step 5: Run admin tests and verify RED for UI**
 
-Run: `node --test test/admin-last-man-standing.test.mjs`  
+Run: `node --test test/admin-last-man-standing.test.mjs`
 Expected: FAIL on missing admin component and menu integration.
 
 - [ ] **Step 6: Implement the compact admin section**
@@ -265,7 +265,7 @@ Follow existing admin typography and controls. Keep competition rows collapsed b
 
 - [ ] **Step 7: Run admin tests, typecheck, and full suite**
 
-Run: `node --test test/admin-last-man-standing.test.mjs && pnpm typecheck && node --test test/*.test.mjs`  
+Run: `node --test test/admin-last-man-standing.test.mjs && pnpm typecheck && node --test test/*.test.mjs`
 Expected: PASS with zero failures.
 
 - [ ] **Step 8: Commit**
@@ -294,7 +294,7 @@ Assert the standalone menu option and page exist only with League Chair access; 
 
 - [ ] **Step 2: Run UI tests and verify RED**
 
-Run: `node --test test/last-man-standing-ui.test.mjs`  
+Run: `node --test test/last-man-standing-ui.test.mjs`
 Expected: FAIL because the page and panel do not exist.
 
 - [ ] **Step 3: Implement page identity, access gating, menu item, and home panel**
@@ -307,7 +307,7 @@ Assert two grouped selectors, previously used players disabled with small explan
 
 - [ ] **Step 5: Run UI tests and verify RED for interactions**
 
-Run: `node --test test/last-man-standing-ui.test.mjs`  
+Run: `node --test test/last-man-standing-ui.test.mjs`
 Expected: FAIL on missing interactive states.
 
 - [ ] **Step 6: Implement responsive competition screen**
@@ -316,7 +316,7 @@ Use one compact unframed page section with 8px-or-less cards only for repeated e
 
 - [ ] **Step 7: Run UI tests, typecheck, and full suite**
 
-Run: `node --test test/last-man-standing-ui.test.mjs && pnpm typecheck && node --test test/*.test.mjs`  
+Run: `node --test test/last-man-standing-ui.test.mjs && pnpm typecheck && node --test test/*.test.mjs`
 Expected: PASS with zero failures.
 
 - [ ] **Step 8: Commit**
@@ -338,12 +338,12 @@ git commit -m "Add Last Man Standing experience"
 
 - [ ] **Step 1: Run final static verification**
 
-Run: `git diff --check && node --test test/*.test.mjs && pnpm typecheck && pnpm build`  
+Run: `git diff --check && node --test test/*.test.mjs && pnpm typecheck && pnpm build`
 Expected: zero diff errors, zero test failures, successful typecheck, successful production build.
 
 - [ ] **Step 2: Apply the additive migration**
 
-Run: `pnpm db:apply supabase/last_man_standing.sql`  
+Run: `pnpm db:apply supabase/last_man_standing.sql`
 Expected: `Applied supabase/last_man_standing.sql`.
 
 - [ ] **Step 3: Verify database defaults without creating a live competition**
@@ -356,7 +356,7 @@ Verify mobile and desktop layouts for League Chair home, standalone competition 
 
 - [ ] **Step 5: Run final verification again after QA fixes**
 
-Run: `git diff --check && node --test test/*.test.mjs && pnpm typecheck && pnpm build`  
+Run: `git diff --check && node --test test/*.test.mjs && pnpm typecheck && pnpm build`
 Expected: all checks pass.
 
 - [ ] **Step 6: Commit**

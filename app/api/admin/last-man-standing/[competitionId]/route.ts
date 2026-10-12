@@ -5,6 +5,15 @@ import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
+const VALID_STATUS_TRANSITIONS: Record<string, Set<string>> = {
+  Draft: new Set(["Open", "Archived"]),
+  Open: new Set(["Archived"]),
+  "In Progress": new Set(["Archived"]),
+  Complete: new Set(["Archived"]),
+  "No Winner": new Set(["Archived"]),
+  Archived: new Set()
+};
+
 async function operator() {
   const user = await currentUser();
   if (!user) return null;
@@ -19,23 +28,30 @@ export async function PATCH(request: Request, context: { params: Promise<{ compe
     const { competitionId } = await context.params;
     const body = await request.json().catch(() => ({}));
     const status = String(body.status ?? "");
-    const allowed = new Set(["Draft", "Open", "In Progress", "Complete", "No Winner", "Archived"]);
-    if (!allowed.has(status)) return NextResponse.json({ error: "Choose a valid competition status." }, { status: 400 });
+    if (!new Set(["Open", "Archived"]).has(status)) {
+      return NextResponse.json({ error: "That competition status is managed by round processing." }, { status: 400 });
+    }
     await withTransaction(async (client) => {
-      const locked = await client.query<{ name: string; locked_rounds: number }>(
-        `select c.name,
-                count(r.id) filter (where r.status in ('Locked', 'Needs Review', 'Settled'))::int as locked_rounds
+      await client.query("select pg_advisory_xact_lock(hashtext($1), hashtext('lifecycle'))", [competitionId]);
+      const locked = await client.query<{ name: string; status: string }>(
+        `select c.name, c.status
          from public.last_man_standing_competition c
-         left join public.last_man_standing_round r on r.competition_id = c.id
-         where c.id = $1 group by c.id for update of c`,
+         where c.id = $1 for update`,
         [competitionId]
       );
       if (!locked.rows[0]) throw new Error("Competition not found.");
+      if (!VALID_STATUS_TRANSITIONS[locked.rows[0].status]?.has(status)) {
+        throw new Error(`A ${locked.rows[0].status} competition cannot be changed to ${status}.`);
+      }
       await client.query("update public.last_man_standing_competition set status = $2, updated_at = now() where id = $1", [competitionId, status]);
       if (status === "Open") {
         await client.query(
           `update public.last_man_standing_round set status = 'Open', opened_at = coalesce(opened_at, now()), updated_at = now()
-           where competition_id = $1 and cycle_number = 1 and round_number = 1 and status = 'Planned'`,
+           where id = (
+             select id from public.last_man_standing_round
+             where competition_id = $1 and status = 'Planned'
+             order by cycle_number, round_number limit 1
+           )`,
           [competitionId]
         );
       }

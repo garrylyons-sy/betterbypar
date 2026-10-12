@@ -1,6 +1,6 @@
 # Last Man Standing Competition Design
 
-**Date:** 12 October 2026  
+**Date:** 12 October 2026
 **Status:** Approved design, pending implementation plan
 
 ## Purpose
@@ -154,7 +154,7 @@ If an official result is corrected after settlement, a platform administrator ma
 ## Winner And No-Winner Rule
 
 - One remaining entrant after a settled round becomes the winner and the competition becomes `Complete`.
-- More than one remaining entrant advances to the next configured round.
+- More than one remaining entrant advances to the next configured round. If the configured sequence is exhausted while multiple entrants still stand, the system creates the next round from the next available fixture week for all three tiers so the competition is not stranded.
 - If every remaining entrant is eliminated in the deciding round, no winner is declared.
 - In that case the competition is marked `No Winner`, and a new cycle may be started in the same competition.
 - Starting a new cycle reinstates every original non-withdrawn entrant and clears used-player history for the new cycle while retaining the complete history of the prior cycle.

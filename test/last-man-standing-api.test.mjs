@@ -104,6 +104,7 @@ test("pick saves lock rows and enforce deadline, versions, distinct picks, and c
   assert.match(source, /validateManualPicks/);
   assert.match(source, /cycle_number = \$2 and p\.round_id <> \$3/);
   assert.match(source, /VERSION_CONFLICT/);
+  assert.match(source, /VERSIONS_REQUIRED/);
   assert.match(source, /version = public\.last_man_standing_pick\.version \+ 1/);
   assert.match(source, /'Pick Saved'/);
   assert.match(source, /previousPlayerId/);

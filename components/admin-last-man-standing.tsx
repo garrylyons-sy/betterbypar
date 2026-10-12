@@ -35,12 +35,30 @@ type Competition = {
   entry_closes_at: string;
   rounds: Round[];
   events: Array<{ id: string; eventType: string; createdAt: string; payload: Record<string, unknown> }>;
+  unresolved_picks: Array<{
+    id: string;
+    entryId: string;
+    roundId: string;
+    slotNumber: number;
+    entrantName: string;
+    tier: string;
+    reason: string | null;
+    candidates: Array<{ id: string; name: string; teamName: string }>;
+  }>;
+  entries: Array<{
+    id: string;
+    name: string;
+    status: string;
+    tier: string;
+    teamName: string;
+    picks: Array<{ roundName: string; slotNumber: number; playerName: string; state: string; outcome: string; reason: string | null }>;
+  }>;
 };
 type DraftRound = { name: string; decidingRound: boolean; weeks: Record<"A" | "B" | "C", string> };
 
 const blankRound = (number: number): DraftRound => ({
   name: `Round ${number}`,
-  decidingRound: false,
+  decidingRound: true,
   weeks: { A: "", B: "", C: "" }
 });
 
@@ -58,6 +76,7 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
   const [entryClosesAt, setEntryClosesAt] = useState("");
   const [audience, setAudience] = useState<"League Chair" | "Everyone">("League Chair");
   const [rounds, setRounds] = useState<DraftRound[]>([blankRound(1)]);
+  const [resolutionPlayers, setResolutionPlayers] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true);
@@ -138,6 +157,15 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
     await load();
   }
 
+  async function startNextCycle(competition: Competition) {
+    if (!window.confirm(`Start a fresh cycle for ${competition.name} using the next fixture week?`)) return;
+    const response = await fetch(`/api/admin/last-man-standing/${competition.id}/new-cycle`, { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return onMessage(data.error || "The next cycle could not be started.");
+    onMessage(`A fresh cycle has started for ${competition.name}.`);
+    await load();
+  }
+
   async function reopenRound(competition: Competition, round: Round) {
     const reason = window.prompt(`Why are you reopening ${round.name}?`)?.trim();
     if (!reason) return;
@@ -149,6 +177,22 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return onMessage(data.error || "Round could not be reopened.");
     onMessage(`${round.name} reopened.`);
+    await load();
+  }
+
+  async function resolvePick(competition: Competition, pickId: string) {
+    const playerId = resolutionPlayers[pickId];
+    if (!playerId) return onMessage("Choose a published player for the unresolved pick.");
+    const reason = window.prompt("Why are you overriding this pick?")?.trim();
+    if (!reason) return;
+    const response = await fetch(`/api/admin/last-man-standing/${competition.id}/override`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ pickId, playerId, reason })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return onMessage(data.error || "Pick could not be resolved.");
+    onMessage("Last Man Standing pick resolved.");
     await load();
   }
 
@@ -169,17 +213,17 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
             <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Season<select className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={seasonId} onChange={(event) => setSeasonId(event.target.value)}>{seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}</select></label>
             <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Entries open<input type="datetime-local" className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={entryOpensAt} onChange={(event) => setEntryOpensAt(event.target.value)} /></label>
             <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Entries close<input type="datetime-local" className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={entryClosesAt} onChange={(event) => setEntryClosesAt(event.target.value)} /></label>
-            <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Audience<select className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={audience} onChange={(event) => setAudience(event.target.value as typeof audience)}><option>League Chair</option><option>Everyone</option></select></label>
+            <label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Audience<select disabled className="min-h-11 rounded-lg border px-3 text-sm normal-case text-[#25002b]" value={audience} onChange={(event) => setAudience(event.target.value as typeof audience)}><option>League Chair</option></select></label>
           </div>
           <div className="grid gap-3">
             {rounds.map((round, index) => (
               <div key={index} className="grid gap-3 rounded-lg border p-3">
-                <div className="flex items-center gap-3"><input className="min-h-10 flex-1 rounded-lg border px-3 text-sm font-bold" value={round.name} onChange={(event) => updateRound(index, { name: event.target.value })} /><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={round.decidingRound} onChange={(event) => updateRound(index, { decidingRound: event.target.checked })} /> Deciding round</label></div>
+                <div className="flex items-center gap-3"><input className="min-h-10 flex-1 rounded-lg border px-3 text-sm font-bold" value={round.name} onChange={(event) => updateRound(index, { name: event.target.value })} />{round.decidingRound ? <Badge variant="gold">Final round</Badge> : null}</div>
                 <div className="grid gap-2 lg:grid-cols-3">{(["A", "B", "C"] as const).map((tier) => <label key={tier} className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">{tier} League<select className="min-h-10 rounded-lg border px-2 text-sm normal-case text-[#25002b]" value={round.weeks[tier]} onChange={(event) => updateRound(index, { weeks: { ...round.weeks, [tier]: event.target.value } })}><option value="">Choose week</option>{weeksByTier[tier].map((week) => <option key={week.id} value={week.id}>{week.week_label} · {week.match_date}</option>)}</select></label>)}</div>
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setRounds((current) => [...current, blankRound(current.length + 1)])}><Plus className="h-4 w-4" /> Add round</Button><Button disabled={saving} onClick={createCompetition}>{saving ? "Creating..." : "Create competition"}</Button></div>
+          <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setRounds((current) => [...current.map((round) => ({ ...round, decidingRound: false })), blankRound(current.length + 1)])}><Plus className="h-4 w-4" /> Add round</Button><Button disabled={saving} onClick={createCompetition}>{saving ? "Creating..." : "Create competition"}</Button></div>
         </div>
       ) : null}
 
@@ -194,8 +238,10 @@ export function AdminLastManStanding({ onMessage }: { onMessage: (message: strin
             {expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
           </button>
           {expanded ? <div className="grid gap-4 border-t p-4">
-            <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => processCompetition(competition)}><RefreshCw className="h-4 w-4" /> Process now</Button>{competition.status === "Draft" ? <Button size="sm" variant="secondary" onClick={() => changeStatus(competition, "Open")}>Open entries</Button> : null}{competition.status !== "Archived" ? <Button size="sm" variant="secondary" onClick={() => changeStatus(competition, "Archived")}>Archive</Button> : null}</div>
+            <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => processCompetition(competition)}><RefreshCw className="h-4 w-4" /> Process now</Button>{competition.status === "Draft" ? <Button size="sm" variant="secondary" onClick={() => changeStatus(competition, "Open")}>Open entries</Button> : null}{competition.status === "No Winner" ? <Button size="sm" variant="secondary" onClick={() => startNextCycle(competition)}>Start next cycle</Button> : null}{competition.status !== "Archived" ? <Button size="sm" variant="secondary" onClick={() => changeStatus(competition, "Archived")}>Archive</Button> : null}</div>
             <div className="grid gap-2">{competition.rounds.map((round) => <div key={round.id} className="rounded-lg bg-[#f7f5fa] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-extrabold">Cycle {round.cycleNumber} · {round.name}</p><p className="text-xs font-bold text-[#6c5a73]">{round.schedules.map((schedule) => `${schedule.tier}: ${schedule.weekLabel}`).join(" · ")}</p></div><div className="flex items-center gap-2"><Badge variant={round.status === "Needs Review" ? "gold" : "muted"}>{round.status}</Badge>{round.status === "Settled" ? <Button size="sm" variant="secondary" onClick={() => reopenRound(competition, round)}>Reopen</Button> : null}</div></div></div>)}</div>
+            {competition.unresolved_picks?.length ? <div className="grid gap-2"><p className="text-xs font-extrabold uppercase text-[#6c5a73]">Unresolved picks</p>{competition.unresolved_picks.map((pick) => <div key={pick.id} className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 sm:grid-cols-[1fr_minmax(220px,1fr)_auto] sm:items-end"><div><p className="text-sm font-extrabold">{pick.entrantName} · Pick {pick.slotNumber}</p><p className="text-xs font-bold text-[#6c5a73]">{pick.reason || "No eligible automatic player was found."}</p></div><label className="grid gap-1 text-xs font-bold uppercase text-[#6c5a73]">Replacement<select className="min-h-10 rounded-lg border bg-white px-2 text-sm normal-case text-[#25002b]" value={resolutionPlayers[pick.id] ?? ""} onChange={(event) => setResolutionPlayers((current) => ({ ...current, [pick.id]: event.target.value }))}><option value="">Choose player</option>{pick.candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.teamName}</option>)}</select></label><Button size="sm" onClick={() => resolvePick(competition, pick.id)}>Resolve pick</Button></div>)}</div> : null}
+            {competition.entries?.length ? <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm font-extrabold">Entrants and picks · {competition.entries.length}</summary><div className="mt-3 grid gap-2">{competition.entries.map((entry) => <div key={entry.id} className="rounded-lg bg-[#f7f5fa] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-extrabold">{entry.name} · {entry.teamName}</p><Badge variant={entry.status === "Eliminated" ? "muted" : "green"}>{entry.status}</Badge></div><p className="mt-1 text-xs font-bold text-[#6c5a73]">{entry.tier} pool{entry.picks.length ? ` · ${entry.picks.map((pick) => `${pick.roundName} P${pick.slotNumber}: ${pick.playerName} (${pick.state}, ${pick.outcome})`).join(" · ")}` : " · No picks"}</p></div>)}</div></details> : null}
             {competition.events.length ? <div><p className="mb-2 text-xs font-extrabold uppercase text-[#6c5a73]">Recent activity</p><div className="grid gap-1">{competition.events.slice(0, 8).map((event) => <p key={event.id} className="text-xs font-semibold text-[#6c5a73]">{new Date(event.createdAt).toLocaleString("en-IE")} · {event.eventType}</p>)}</div></div> : null}
           </div> : null}
         </article>;

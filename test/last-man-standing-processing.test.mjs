@@ -25,7 +25,7 @@ test("round settlement handles survivors, a winner, and a deciding-round washout
   assert.deepEqual(deriveRoundSettlement([
     { entryId: "one", status: "Standing" },
     { entryId: "two", status: "Eliminated" }
-  ], { decidingRound: true }), { state: "Winner", winnerEntryId: "one" });
+  ], { decidingRound: false }), { state: "Winner", winnerEntryId: "one" });
 
   assert.deepEqual(deriveRoundSettlement([
     { entryId: "one", status: "Eliminated" },
@@ -49,4 +49,32 @@ test("settlement uses official game winners and supports explicit audited reopen
   assert.match(source, /Winner Declared/);
   assert.match(source, /Entrants Reinstated/);
   assert.match(source, /Round Reopened/);
+  assert.match(source, /openNextLastManStandingRound/);
+  assert.match(source, /createNextLastManStandingCycle/);
+  assert.match(source, /startNextLastManStandingCycle/);
+  assert.match(source, /nextCycle: "Awaiting administrator"/);
+  assert.match(source, /eliminated_round_id = \$1/);
+  assert.match(source, /join public\.person_team_role ptr/);
+  assert.doesNotMatch(source, /where round_id = \$1;\s*update public\.last_man_standing_entry/);
+  assert.doesNotMatch(source, /where id = \$1;\s*update public\.last_man_standing_competition/);
+  assert.match(source, /sourceFixture.*status === "Cancelled"/s);
+  assert.match(source, /table_order_snapshot/);
+  assert.match(source, /LATER_ROUND_ACTIVE/);
+  assert.match(source, /between mapped_week\.starts_on and mapped_week\.starts_on \+ 6/);
+  assert.ok((source.match(/hashtext\('lifecycle'\)/g) ?? []).length >= 4);
+  assert.match(source, /c\.status in \('Open', 'In Progress'\)/);
+  const settle = source.slice(source.indexOf("export async function settleLastManStandingRound"), source.indexOf("export async function startNextLastManStandingCycle"));
+  assert.doesNotMatch(settle, /set status = 'Standing', winner = false, eliminated_round_id = null/);
+  const newCycle = source.slice(source.indexOf("export async function startNextLastManStandingCycle"), source.indexOf("export async function reopenLastManStandingRound"));
+  assert.match(newCycle, /set status = 'Standing', winner = false, eliminated_round_id = null/);
+  const followingRound = source.slice(source.indexOf("async function createFollowingLastManStandingRound"), source.indexOf("async function openNextLastManStandingRound"));
+  const scheduleLookup = followingRound.slice(followingRound.indexOf("const schedules"), followingRound.indexOf("if (schedules.rows.length"));
+  assert.doesNotMatch(scheduleLookup, /\$3/);
+});
+
+test("settlement calculates every result before mutating picks", () => {
+  const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
+  const settle = source.slice(source.indexOf("export async function settleLastManStandingRound"), source.indexOf("export async function reopenLastManStandingRound"));
+  assert.ok(settle.indexOf("const calculatedPicks") < settle.indexOf("set source_game_id"));
+  assert.ok(settle.indexOf("if (calculatedPicks.some") < settle.indexOf("set source_game_id"));
 });
