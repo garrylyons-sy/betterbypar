@@ -1,0 +1,64 @@
+import { dbQuery } from "@/lib/server/db";
+
+export type MaintenanceMode = {
+  enabled: boolean;
+  updatedAt: string | null;
+};
+
+const defaultMaintenanceMode: MaintenanceMode = {
+  enabled: false,
+  updatedAt: null
+};
+
+function isMissingMaintenanceTable(error: unknown) {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "42P01");
+}
+
+export async function loadMaintenanceMode(): Promise<MaintenanceMode> {
+  try {
+    const result = await dbQuery<{ enabled: boolean; updated_at: Date | string }>(
+      `select enabled, updated_at
+       from public.maintenance_mode
+       where singleton = true
+       limit 1`
+    );
+    const row = result.rows[0];
+    if (!row) return defaultMaintenanceMode;
+    return {
+      enabled: Boolean(row.enabled),
+      updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at)
+    };
+  } catch (error) {
+    if (isMissingMaintenanceTable(error)) return defaultMaintenanceMode;
+    throw error;
+  }
+}
+
+export async function setMaintenanceMode(enabled: boolean, personId: string): Promise<MaintenanceMode> {
+  const result = await dbQuery<{ enabled: boolean; updated_at: Date | string }>(
+    `insert into public.maintenance_mode (singleton, enabled, updated_by, updated_at)
+     values (true, $1::boolean, $2::uuid, now())
+     on conflict (singleton) do update
+       set enabled = excluded.enabled,
+           updated_by = excluded.updated_by,
+           updated_at = excluded.updated_at
+     returning enabled, updated_at`,
+    [enabled, personId]
+  );
+  const row = result.rows[0];
+  return {
+    enabled: Boolean(row.enabled),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at)
+  };
+}
+
+export async function isPlatformOperator(personId: string) {
+  const result = await dbQuery(
+    `select 1
+     from public.app_operator
+     where person_id = $1::uuid and active = true
+     limit 1`,
+    [personId]
+  );
+  return result.rowCount === 1;
+}

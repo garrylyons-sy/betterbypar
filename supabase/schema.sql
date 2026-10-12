@@ -52,6 +52,19 @@ create table public.app_operator (
 
 comment on table public.app_operator is 'Private backend/operator access for league operations such as invitations, permissions and audit logs. This is not a player or manager role.';
 
+create table public.maintenance_mode (
+  singleton boolean primary key default true check (singleton = true),
+  enabled boolean not null default false,
+  updated_by uuid references public.person(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+comment on table public.maintenance_mode is 'Singleton global switch used to show the maintenance page and restrict sign-in to platform administrators.';
+
+insert into public.maintenance_mode (singleton, enabled)
+values (true, false)
+on conflict (singleton) do nothing;
+
 create table public.club_admin (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null references public.club(id) on delete cascade,
