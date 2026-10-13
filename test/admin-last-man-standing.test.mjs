@@ -36,6 +36,8 @@ test("Last Man Standing admin APIs are platform-only and support management acti
   assert.match(createRoute, /now\(\)/);
   assert.match(createRoute, /lower\(fw\.week_label\) not like '%break%'/i);
   assert.match(createRoute, /original_fixture_date is null/i);
+  assert.ok((createRoute.match(/f\.original_fixture_date is null/gi) ?? []).length >= 2, "both the week picker and competition creation must exclude rescheduled-only weeks");
+  assert.ok((createRoute.match(/between fw\.starts_on and fw\.starts_on \+ 6/gi) ?? []).length >= 2, "eligible fixtures must still be played inside their mapped week");
   assert.match(createRoute, /at time zone 'Europe\/Dublin'/i);
   assert.match(createRoute, /body\.league/);
   assert.match(createRoute, /body\.firstRoundWeekId/);

@@ -32,6 +32,8 @@ type CompetitionSummaryRow = {
   deadlineAt: string | null;
   pickOneName: string | null;
   pickTwoName: string | null;
+  pickOneOutcome: string | null;
+  pickTwoOutcome: string | null;
 };
 
 type PresentedEntry = {
@@ -101,6 +103,8 @@ export function summarizeLastManStandingCompetitions(rows: CompetitionSummaryRow
         }
       : null;
     const picks = [row.pickOneName, row.pickTwoName].filter((name): name is string => Boolean(name));
+    const pickOutcomes = [row.pickOneOutcome, row.pickTwoOutcome].filter((outcome): outcome is string => Boolean(outcome));
+    const terminalEntry = row.entryStatus === "Eliminated" || row.entryStatus === "Winner";
     return {
       id: row.id,
       name: row.name,
@@ -112,9 +116,10 @@ export function summarizeLastManStandingCompetitions(rows: CompetitionSummaryRow
         ? {
             roundLabel: `Cycle ${currentRound.cycleNumber} · Round ${currentRound.roundNumber}`,
             picks,
+            pickOutcomes,
             entrantStatus: row.entryStatus,
             remainingLabel: `${Number(row.standingCount)} of ${Number(row.entrantCount)} standing`,
-            deadlineAt: row.deadlineAt
+            deadlineAt: terminalEntry ? null : row.deadlineAt
           }
         : null
     };
@@ -194,15 +199,28 @@ const summaryQuery = `
     current_round.round_number as "roundNumber",
     own_deadline.deadline_at::text as "deadlineAt",
     max(case when own_pick.slot_number = 1 then concat_ws(' ', pick_person.first_name, pick_person.last_name) end) as "pickOneName",
-    max(case when own_pick.slot_number = 2 then concat_ws(' ', pick_person.first_name, pick_person.last_name) end) as "pickTwoName"
+    max(case when own_pick.slot_number = 2 then concat_ws(' ', pick_person.first_name, pick_person.last_name) end) as "pickTwoName",
+    max(case when own_pick.slot_number = 1 then own_pick.outcome end) as "pickOneOutcome",
+    max(case when own_pick.slot_number = 2 then own_pick.outcome end) as "pickTwoOutcome"
   from public.last_man_standing_competition c
   left join public.last_man_standing_entry all_entries on all_entries.competition_id = c.id and all_entries.status <> 'Withdrawn'
   left join public.last_man_standing_entry own_entry on own_entry.competition_id = c.id and own_entry.person_id = $1
   left join lateral (
     select r.*
     from public.last_man_standing_round r
-    where r.competition_id = c.id and r.status in ('Open', 'Locked', 'Needs Review')
-    order by r.cycle_number desc, r.round_number desc
+    where r.competition_id = c.id
+      and (
+        r.id = own_entry.eliminated_round_id
+        or (own_entry.eliminated_round_id is null and r.status in ('Open', 'Locked', 'Needs Review'))
+        or (own_entry.status = 'Winner' and r.status = 'Settled')
+      )
+    order by
+      case
+        when r.id = own_entry.eliminated_round_id then 0
+        when own_entry.status = 'Winner' and r.status = 'Settled' then 1
+        else 2
+      end,
+      r.cycle_number desc, r.round_number desc
     limit 1
   ) current_round on true
   left join public.last_man_standing_pick own_pick on own_pick.entry_id = own_entry.id and own_pick.round_id = current_round.id

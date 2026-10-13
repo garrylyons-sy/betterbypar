@@ -41,14 +41,15 @@ test("participant access distinguishes authentication, League Chair pilot access
 
 test("competition summaries keep concurrent competitions separate and provide panel state", () => {
   const summaries = summarizeLastManStandingCompetitions([
-    { id: "one", name: "Autumn LMS", status: "Open", entrantCount: 12, standingCount: 9, entryId: "entry-1", entryStatus: "Standing", roundId: "round-1", roundName: "Round 2", cycleNumber: 1, roundNumber: 2, deadlineAt: "2026-10-15T11:00:00.000Z", pickOneName: "A Player", pickTwoName: "B Player" },
-    { id: "two", name: "Christmas LMS", status: "Open", entrantCount: 8, standingCount: 8, entryId: null, entryStatus: null, roundId: "round-2", roundName: "Round 1", cycleNumber: 1, roundNumber: 1, deadlineAt: "2026-12-03T12:00:00.000Z", pickOneName: null, pickTwoName: null }
+    { id: "one", name: "Autumn LMS", status: "Open", entrantCount: 12, standingCount: 9, entryId: "entry-1", entryStatus: "Standing", roundId: "round-1", roundName: "Round 2", cycleNumber: 1, roundNumber: 2, deadlineAt: "2026-10-15T11:00:00.000Z", pickOneName: "A Player", pickTwoName: "B Player", pickOneOutcome: "Won", pickTwoOutcome: "Pending" },
+    { id: "two", name: "Christmas LMS", status: "Open", entrantCount: 8, standingCount: 8, entryId: null, entryStatus: null, roundId: "round-2", roundName: "Round 1", cycleNumber: 1, roundNumber: 1, deadlineAt: "2026-12-03T12:00:00.000Z", pickOneName: null, pickTwoName: null, pickOneOutcome: null, pickTwoOutcome: null }
   ]);
 
   assert.equal(summaries.length, 2);
   assert.deepEqual(summaries[0].panel, {
     roundLabel: "Cycle 1 · Round 2",
     picks: ["A Player", "B Player"],
+    pickOutcomes: ["Won", "Pending"],
     entrantStatus: "Standing",
     remainingLabel: "9 of 12 standing",
     deadlineAt: "2026-10-15T11:00:00.000Z"
@@ -57,9 +58,27 @@ test("competition summaries keep concurrent competitions separate and provide pa
   assert.equal(summaries[1].currentRound.id, "round-2");
 });
 
+test("eliminated summaries preserve the deciding round and settled pick outcomes", () => {
+  const summaries = summarizeLastManStandingCompetitions([
+    { id: "one", name: "Autumn LMS", status: "In Progress", entrantCount: 12, standingCount: 8, entryId: "entry-1", entryStatus: "Eliminated", roundId: "elimination-round", roundName: "Round 2", roundStatus: "Settled", cycleNumber: 1, roundNumber: 2, deadlineAt: "2026-10-15T11:00:00.000Z", pickOneName: "A Player", pickTwoName: "B Player", pickOneOutcome: "Won", pickTwoOutcome: "Lost" }
+  ]);
+
+  assert.deepEqual(summaries[0].panel, {
+    roundLabel: "Cycle 1 · Round 2",
+    picks: ["A Player", "B Player"],
+    pickOutcomes: ["Won", "Lost"],
+    entrantStatus: "Eliminated",
+    remainingLabel: "8 of 12 standing",
+    deadlineAt: null
+  });
+});
+
 test("competition summary query groups every selected current-round field", () => {
   const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
   assert.match(source, /group by c\.id, own_entry\.id, current_round\.id,\s*current_round\.name, current_round\.status,\s*current_round\.cycle_number, current_round\.round_number,\s*own_deadline\.deadline_at/);
+  assert.match(source, /r\.id = own_entry\.eliminated_round_id/);
+  assert.match(source, /own_entry\.status = 'Winner'/);
+  assert.match(source, /own_pick\.slot_number = 1 then own_pick\.outcome/);
 });
 
 test("current picks are private until each owner deadline but always visible to their owner", () => {

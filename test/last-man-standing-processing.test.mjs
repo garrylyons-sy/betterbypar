@@ -77,6 +77,8 @@ test("settlement uses official game winners, stops on no winner, and supports au
   const followingRound = source.slice(source.indexOf("async function createFollowingLastManStandingRound"), source.indexOf("async function openNextLastManStandingRound"));
   const scheduleLookup = followingRound.slice(followingRound.indexOf("const schedules"), followingRound.indexOf("if (!currentScheduleCount"));
   assert.doesNotMatch(scheduleLookup, /\$3/);
+  assert.match(scheduleLookup, /f\.original_fixture_date is null/i);
+  assert.match(scheduleLookup, /between fw\.starts_on and fw\.starts_on \+ 6/i);
 });
 
 test("settlement calculates every result before mutating picks", () => {

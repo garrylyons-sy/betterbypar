@@ -17,8 +17,17 @@ test("League Chair access adds the Last Man Standing page and home panel", () =>
   assert.match(panel, /interclub:refresh-panels/);
   assert.match(panel, /window\.addEventListener\("focus"/);
   assert.match(panel, /role="progressbar"/);
-  assert.match(panel, /competitionCountLabel/);
+  assert.match(panel, /const displayedCompetitions = enteredCompetitions\.length > 0/);
+  assert.match(panel, /displayedCompetitions\.map/);
+  assert.match(panel, /availableCompetitionCount/);
+  assert.match(panel, /enteredCompetitionCountLabel/);
+  assert.doesNotMatch(panel, /const competition = competitions\.find/);
   assert.match(panel, /Pick \$\{index \+ 1\}/);
+  assert.match(panel, /pickOutcomes/);
+  assert.match(panel, /outcome === "Won"/);
+  assert.match(panel, /outcome === "Lost"/);
+  assert.match(panel, /const isEliminated = competition\.panel\?\.entrantStatus === "Eliminated"/);
+  assert.match(panel, /isEliminated \? "bg-\[#faf9fb\]"/);
 });
 
 test("participant UI exposes deadline, primary action, and automatic replacement reasons", () => {
@@ -27,7 +36,7 @@ test("participant UI exposes deadline, primary action, and automatic replacement
   assert.match(source, /Enter now|Make picks|Change picks/);
   assert.match(source, /automaticReason/);
   assert.match(source, /Automatic replacement/);
-  assert.match(source, /View competition/);
+  assert.match(source, /View all/);
   assert.match(source, /message \|\| "No competition is currently available\."/);
 });
 
