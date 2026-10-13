@@ -239,12 +239,11 @@ const summaryQuery = `
   order by (c.status = 'Open') desc, c.created_at desc`;
 
 export async function listLastManStandingCompetitions(user: AppUser) {
-  await requirePilotAccess(user);
-  await processDueLastManStandingWork({ actorPersonId: user.personId }).catch((error) => {
-    console.error("last-man-standing:process-list", error);
-  });
   const { dbQuery } = await import("./db");
-  const result = await dbQuery<CompetitionSummaryRow>(summaryQuery, [user.personId]);
+  const [, result] = await Promise.all([
+    requirePilotAccess(user),
+    dbQuery<CompetitionSummaryRow>(summaryQuery, [user.personId])
+  ]);
   return summarizeLastManStandingCompetitions(result.rows);
 }
 
@@ -300,13 +299,12 @@ async function competitionRow(client: Pick<PoolClient, "query">, competitionId: 
 }
 
 export async function loadLastManStandingCompetition(user: AppUser, competitionId: string) {
-  await requirePilotAccess(user);
-  await processDueLastManStandingWork({ competitionId, actorPersonId: user.personId }).catch((error) => {
-    console.error("last-man-standing:process-detail", error);
-  });
   const { dbQuery } = await import("./db");
   const queryClient = { query: dbQuery } as unknown as Pick<PoolClient, "query">;
-  const competition = await competitionRow(queryClient, competitionId);
+  const [, competition] = await Promise.all([
+    requirePilotAccess(user),
+    competitionRow(queryClient, competitionId)
+  ]);
   const [roles, detail] = await Promise.all([
     loadRoleOptions(queryClient, user, competition.season_id).then((options) => (
       filterEntryOptionsForCompetitionTier(options, competition.competition_tier)

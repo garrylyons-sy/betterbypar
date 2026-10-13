@@ -16,11 +16,14 @@ test("League Chair access adds the Last Man Standing page and home panel", () =>
   assert.match(panel, /cache: "no-store"/);
   assert.match(panel, /interclub:refresh-panels/);
   assert.match(panel, /window\.addEventListener\("focus"/);
+  assert.match(panel, /summariesCache/);
+  assert.match(panel, /summariesRequest/);
   assert.match(panel, /role="progressbar"/);
   assert.match(panel, /const displayedCompetitions = enteredCompetitions\.length > 0/);
   assert.match(panel, /displayedCompetitions\.map/);
   assert.match(panel, /availableCompetitionCount/);
-  assert.match(panel, /enteredCompetitionCountLabel/);
+  assert.doesNotMatch(panel, /enteredCompetitionCountLabel/);
+  assert.doesNotMatch(panel, />\{enteredCompetitionCountLabel\}<\/Badge>/);
   assert.doesNotMatch(panel, /const competition = competitions\.find/);
   assert.match(panel, /Pick \$\{index \+ 1\}/);
   assert.match(panel, /pickOutcomes/);
@@ -28,6 +31,7 @@ test("League Chair access adds the Last Man Standing page and home panel", () =>
   assert.match(panel, /outcome === "Lost"/);
   assert.match(panel, /const isEliminated = competition\.panel\?\.entrantStatus === "Eliminated"/);
   assert.match(panel, /isEliminated \? "bg-\[#faf9fb\]"/);
+  assert.match(panel, /competition\.panel\.entrantStatus !== "Entered"/);
 });
 
 test("participant UI exposes deadline, primary action, and automatic replacement reasons", () => {
@@ -42,7 +46,12 @@ test("participant UI exposes deadline, primary action, and automatic replacement
 
 test("competition UI handles concurrent competitions, entry, privacy and noon locking", () => {
   const source = read("../components/last-man-standing.tsx");
-  assert.match(source, /competitions\.map/);
+  assert.match(source, /enteredCompetitions\.map/);
+  assert.match(source, /Available competitions/);
+  assert.match(source, /availableCompetitions\.length/);
+  assert.match(source, /toggleCompetition/);
+  assert.match(source, /loadCompetitionDetail/);
+  assert.doesNotMatch(source, />Competition<select/);
   assert.match(source, /Enter competition/);
   assert.match(source, /Choose first player/);
   assert.match(source, /Choose second player/);
@@ -51,6 +60,9 @@ test("competition UI handles concurrent competitions, entry, privacy and noon lo
   assert.match(source, /picksHidden/);
   assert.match(source, /Automatic/);
   assert.match(source, /History/);
+  assert.match(source, /Contestants/);
+  assert.match(source, /entry\.status === "Eliminated"/);
+  assert.match(source, /entry\.status !== "Entered"/);
 });
 
 test("appearance controls the Last Man Standing home panel for every active role", () => {

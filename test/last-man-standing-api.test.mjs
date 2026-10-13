@@ -97,7 +97,7 @@ test("current picks are private until each owner deadline but always visible to 
   assert.equal(atDeadline[1].picksHidden, false);
 });
 
-test("participant routes authenticate and delegate to the Last Man Standing service", () => {
+test("participant routes authenticate and delegate authorization to the Last Man Standing service", () => {
   const routeFiles = [
     "../app/api/last-man-standing/route.ts",
     "../app/api/last-man-standing/[competitionId]/route.ts"
@@ -107,7 +107,34 @@ test("participant routes authenticate and delegate to the Last Man Standing serv
     assert.equal(existsSync(url), true, `${path} should exist`);
     const source = readFileSync(url, "utf8");
     assert.match(source, /currentUserFromRequest/);
-    assert.match(source, /hasLastManStandingPilotAccess/);
+    assert.match(source, /LastManStandingError/);
+  }
+});
+
+test("participant reads do not run the round processor", () => {
+  const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
+  const listSource = source.slice(
+    source.indexOf("export async function listLastManStandingCompetitions"),
+    source.indexOf("async function loadRoleOptions")
+  );
+  const detailSource = source.slice(
+    source.indexOf("export async function loadLastManStandingCompetition"),
+    source.indexOf("export type EnterCompetitionInput")
+  );
+
+  assert.doesNotMatch(listSource, /processDueLastManStandingWork/);
+  assert.doesNotMatch(detailSource, /processDueLastManStandingWork/);
+  assert.match(listSource, /Promise\.all/);
+  assert.match(detailSource, /Promise\.all/);
+});
+
+test("participant routes do not duplicate service authorization queries", () => {
+  for (const path of [
+    "../app/api/last-man-standing/route.ts",
+    "../app/api/last-man-standing/[competitionId]/route.ts"
+  ]) {
+    const source = readFileSync(new URL(path, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /hasLastManStandingPilotAccess/);
   }
 });
 

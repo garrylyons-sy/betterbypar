@@ -618,7 +618,7 @@ function PageContent({
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Shop") return <ShopPage activeTeam={activeTeam} />;
   if (activePage === "Last Man Standing") return activeTeam.hasLeagueChairAccess ? <LastManStandingPage /> : <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
-  if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} onSignOut={onSignOut} userLabel={userLabel} />;
+  if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} userCanShare={userCanShare} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} userCanShare={userCanShare} />;
   if (isClubOnlyRole(activeTeam.role)) return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
@@ -3730,15 +3730,11 @@ function MessagesPage({ activeTeam, compact = false, onSignOut, userLabel }: { a
 function MoreMenu({
   activeTeam,
   menuItems,
-  onNavigate,
-  onSignOut,
-  userLabel
+  onNavigate
 }: {
   activeTeam: TeamContext;
   menuItems: AppearanceMenuId[];
   onNavigate: (page: AppPage) => void;
-  onSignOut?: () => void;
-  userLabel?: string;
 }) {
   const configured = menuItems.map(menuEntry);
   const overflowItems = configured.length > 5 ? configured.slice(4) : configured;
@@ -3746,20 +3742,6 @@ function MoreMenu({
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
-      {onSignOut ? (
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Account</CardTitle>
-            <Badge variant="muted">{userLabel ?? "Signed in"}</Badge>
-          </CardHeader>
-          <CardContent>
-            <Button variant="dark" className="w-full" onClick={onSignOut}>
-              <LogOut className="h-4 w-4" />
-              Log out
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
       <Card className="md:col-span-2">
         <CardHeader>
           <CardTitle>More</CardTitle>

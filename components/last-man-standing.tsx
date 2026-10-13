@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, ChevronRight, Clock3, ShieldCheck, Trophy, Users, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Clock3, Trophy, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -35,31 +35,50 @@ function apiPath(path: string) {
   return testUser ? `${path}${path.includes("?") ? "&" : "?"}testUser=${encodeURIComponent(testUser)}` : path;
 }
 
-async function loadSummaries() {
-  const response = await fetch(apiPath("/api/last-man-standing"), { credentials: "same-origin", cache: "no-store" });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Last Man Standing could not be loaded.");
-  return (data.competitions ?? []) as Summary[];
+const summaryCacheLifetimeMs = 30_000;
+let summariesCache: { path: string; rows: Summary[]; loadedAt: number } | null = null;
+let summariesRequest: { path: string; promise: Promise<Summary[]> } | null = null;
+
+async function loadSummaries(force = false) {
+  const path = apiPath("/api/last-man-standing");
+  if (!force && summariesCache?.path === path && Date.now() - summariesCache.loadedAt < summaryCacheLifetimeMs) {
+    return summariesCache.rows;
+  }
+  if (!force && summariesRequest?.path === path) return summariesRequest.promise;
+
+  const promise = fetch(path, { credentials: "same-origin", cache: "no-store" })
+    .then(async (response) => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Last Man Standing could not be loaded.");
+      const rows = (data.competitions ?? []) as Summary[];
+      summariesCache = { path, rows, loadedAt: Date.now() };
+      return rows;
+    })
+    .finally(() => {
+      if (summariesRequest?.promise === promise) summariesRequest = null;
+    });
+  summariesRequest = { path, promise };
+  return promise;
 }
 
 export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
   const [competitions, setCompetitions] = useState<Summary[]>([]);
   useEffect(() => {
     let active = true;
-    const refresh = () => loadSummaries().then((rows) => { if (active) setCompetitions(rows); }).catch(() => {});
+    const refresh = (force = false) => loadSummaries(force).then((rows) => { if (active) setCompetitions(rows); }).catch(() => {});
     void refresh();
-    window.addEventListener("focus", refresh);
-    window.addEventListener("interclub:refresh-panels", refresh);
+    const forceRefresh = () => refresh(true);
+    window.addEventListener("focus", forceRefresh);
+    window.addEventListener("interclub:refresh-panels", forceRefresh);
     return () => {
       active = false;
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("interclub:refresh-panels", refresh);
+      window.removeEventListener("focus", forceRefresh);
+      window.removeEventListener("interclub:refresh-panels", forceRefresh);
     };
   }, []);
   if (!competitions.length) return null;
   const enteredCompetitions = competitions.filter((competition) => competition.isEntered);
   const availableCompetitionCount = competitions.filter((competition) => !competition.isEntered && competition.status === "Open").length;
-  const enteredCompetitionCountLabel = enteredCompetitions.length === 1 ? "1 entered" : `${enteredCompetitions.length} entered`;
   const displayedCompetitions = enteredCompetitions.length > 0
     ? enteredCompetitions
     : competitions.filter((competition) => ["Open", "In Progress"].includes(competition.status)).slice(0, 1);
@@ -70,8 +89,7 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
             <p className="text-[10px] font-black uppercase text-[#6c5a73]">Last Man Standing</p>
-            {enteredCompetitions.length > 0 ? <Badge variant="cyan">{enteredCompetitionCountLabel}</Badge> : null}
-            {availableCompetitionCount > 0 ? <Badge variant="muted">{availableCompetitionCount} available</Badge> : null}
+            {availableCompetitionCount > 0 ? <Badge variant="cyan">{availableCompetitionCount} open to enter</Badge> : null}
           </div>
           <h2 className="mt-0.5 truncate text-base font-black text-[#25002b]">{enteredCompetitions.length > 0 ? "Your competitions" : "Competitions are open"}</h2>
         </div>
@@ -93,7 +111,7 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-1.5">
                 <h3 className="truncate text-sm font-black text-[#25002b]">{competition.name}</h3>
-                {competition.panel?.entrantStatus ? <Badge variant={competition.panel.entrantStatus === "Eliminated" ? "muted" : "green"}>{competition.panel.entrantStatus}</Badge> : null}
+                {competition.panel?.entrantStatus && competition.panel.entrantStatus !== "Entered" ? <Badge variant={competition.panel.entrantStatus === "Eliminated" ? "muted" : "green"}>{competition.panel.entrantStatus}</Badge> : null}
               </div>
               <p className="mt-0.5 text-[10px] font-bold text-[#6c5a73]">{competition.panel?.roundLabel ?? competition.status}</p>
             </div>
@@ -127,40 +145,68 @@ function PanelStat({ label, value }: { label: string; value: string }) {
 
 export function LastManStandingPage() {
   const [competitions, setCompetitions] = useState<Summary[]>([]);
-  const [selectedId, setSelectedId] = useState("");
+  const [expandedId, setExpandedId] = useState("");
+  const [availableOpen, setAvailableOpen] = useState(false);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [selectedOption, setSelectedOption] = useState("");
   const [playerIds, setPlayerIds] = useState<[string, string]>(["", ""]);
-  const [loading, setLoading] = useState(true);
+  const [loadingSummaries, setLoadingSummaries] = useState(true);
+  const [detailLoadingId, setDetailLoadingId] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function refresh(preferredId?: string) {
-    setLoading(true);
+  async function refreshSummaries(force = false) {
+    if (!competitions.length) setLoadingSummaries(true);
     try {
-      const rows = await loadSummaries();
+      const rows = await loadSummaries(force);
       setCompetitions(rows);
-      const nextId = preferredId || selectedId || rows[0]?.id || "";
-      setSelectedId(nextId);
-      if (!nextId) return setDetail(null);
-      const response = await fetch(apiPath(`/api/last-man-standing/${nextId}`), { credentials: "same-origin", cache: "no-store" });
+      return rows;
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Last Man Standing could not be loaded.");
+      return [];
+    } finally {
+      setLoadingSummaries(false);
+    }
+  }
+
+  async function loadCompetitionDetail(competitionId: string, force = false) {
+    if (!force && detail?.competition.id === competitionId) return detail;
+    setDetailLoadingId(competitionId);
+    try {
+      const response = await fetch(apiPath(`/api/last-man-standing/${competitionId}`), { credentials: "same-origin", cache: "no-store" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Competition could not be loaded.");
-      setDetail(data);
+      const nextDetail = data as Detail;
+      setDetail(nextDetail);
       const option = data.entry ? `${data.entry.tier}:${data.entry.sourceTeamId}` : data.defaultEntryOption ? `${data.defaultEntryOption.tier}:${data.defaultEntryOption.teamId}` : "";
       setSelectedOption(option);
       setPlayerIds([
         data.picks?.find((pick: Detail["picks"][number]) => pick.slotNumber === 1)?.playerId ?? "",
         data.picks?.find((pick: Detail["picks"][number]) => pick.slotNumber === 2)?.playerId ?? ""
       ]);
+      return nextDetail;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Last Man Standing could not be loaded.");
+      setMessage(error instanceof Error ? error.message : "Competition could not be loaded.");
+      return null;
     } finally {
-      setLoading(false);
+      setDetailLoadingId("");
     }
   }
 
-  useEffect(() => { void refresh(); }, []);
+  async function toggleCompetition(competitionId: string) {
+    if (expandedId === competitionId) {
+      setExpandedId("");
+      return;
+    }
+    setExpandedId(competitionId);
+    setMessage("");
+    await loadCompetitionDetail(competitionId);
+  }
+
+  useEffect(() => { void refreshSummaries(); }, []);
+
+  const enteredCompetitions = competitions.filter((competition) => competition.isEntered);
+  const availableCompetitions = competitions.filter((competition) => !competition.isEntered && competition.status === "Open");
 
   const ownStanding = detail?.entries.find((entry) => entry.id === detail.entry?.id);
   const deadline = ownStanding?.deadlineAt ? new Date(ownStanding.deadlineAt) : null;
@@ -180,7 +226,14 @@ export function LastManStandingPage() {
     setSaving(false);
     if (!response.ok) return setMessage(data.error || "Entry could not be created.");
     setMessage("You are entered.");
-    await refresh(detail.competition.id);
+    const competitionId = detail.competition.id;
+    const [rows] = await Promise.all([
+      loadSummaries(true),
+      loadCompetitionDetail(competitionId, true)
+    ]);
+    setCompetitions(rows);
+    setAvailableOpen(false);
+    setExpandedId(competitionId);
   }
 
   async function savePicks() {
@@ -192,22 +245,52 @@ export function LastManStandingPage() {
     setSaving(false);
     if (!response.ok) return setMessage(data.error || "Picks could not be saved.");
     setMessage("Your picks are saved. You can change them until noon on match day.");
-    await refresh(detail.competition.id);
+    const competitionId = detail.competition.id;
+    const [rows] = await Promise.all([
+      loadSummaries(true),
+      loadCompetitionDetail(competitionId, true)
+    ]);
+    setCompetitions(rows);
   }
 
-  if (loading && !detail) return <Card><CardContent className="p-5 text-sm font-bold text-[#6c5a73]">Loading Last Man Standing...</CardContent></Card>;
+  if (loadingSummaries && !competitions.length) return <Card><CardContent className="p-5 text-sm font-bold text-[#6c5a73]">Loading Last Man Standing...</CardContent></Card>;
   if (!competitions.length) return <Card><CardHeader><CardTitle>Last Man Standing</CardTitle></CardHeader><CardContent><p className="text-sm font-bold text-[#6c5a73]">{message || "No competition is currently available."}</p></CardContent></Card>;
 
-  return <section className="grid gap-4">
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#10233f] p-4 text-white shadow-card"><div><p className="text-xs font-black uppercase text-white/65">League competition</p><h2 className="text-2xl font-black">Last Man Standing</h2></div>{competitions.length > 1 ? <label className="grid gap-1 text-xs font-bold uppercase text-white/70">Competition<select className="min-h-10 rounded-lg bg-white px-3 text-sm normal-case text-[#25002b]" value={selectedId} onChange={(event) => void refresh(event.target.value)}>{competitions.map((competition) => <option key={competition.id} value={competition.id}>{competition.name}</option>)}</select></label> : null}</div>
-    {message ? <p className="rounded-lg bg-[#00ff85]/20 p-3 text-sm font-bold text-[#174936]">{message}</p> : null}
-    {detail ? <>
+  const detailContent = detail ? <div className="grid gap-3 border-t border-[#eeeaf2] bg-[#fbfafd] p-3 sm:p-4">
       <div className="grid gap-3 rounded-lg bg-white p-4 shadow-card sm:grid-cols-3"><PanelStat label="Round" value={detail.currentRound ? `Cycle ${detail.currentRound.cycleNumber} · Round ${detail.currentRound.roundNumber}` : "Not started"} /><PanelStat label="Your status" value={detail.entry?.status ?? "Not entered"} /><PanelStat label="Players left" value={`${detail.entries.filter((entry) => ["Entered", "Standing", "Winner"].includes(entry.status)).length} of ${detail.entries.length}`} /></div>
       {!detail.entry ? <div className="grid gap-3 rounded-lg bg-white p-4 shadow-card"><div><h3 className="font-black text-[#25002b]">Enter competition</h3><p className="text-sm font-semibold text-[#6c5a73]">Your player role is used before any manager role.</p></div>{detail.entryOptions.length ? <><select className="min-h-11 rounded-lg border px-3 text-sm font-bold" value={selectedOption} onChange={(event) => setSelectedOption(event.target.value)}>{detail.entryOptions.map((option) => <option key={`${option.tier}:${option.teamId}`} value={`${option.tier}:${option.teamId}`}>{option.tier} pool · {option.teamName} · {option.sourceRole}</option>)}</select><Button disabled={saving} onClick={enter}>Enter competition</Button></> : <p className="text-sm font-bold text-[#6c5a73]">You need an active player or manager team role to enter.</p>}</div> : null}
       {detail.entry && detail.currentRound ? <div className="grid gap-4 rounded-lg bg-white p-4 shadow-card"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black text-[#25002b]">Your picks</h3><p className="text-sm font-semibold text-[#6c5a73]">Choose two different players you have not used in this cycle.</p></div>{deadline ? <Badge variant={locked ? "muted" : "cyan"}><Clock3 className="mr-1 h-3 w-3" />{locked ? "Selections closed" : `Deadline ${deadline.toLocaleString("en-IE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`}</Badge> : null}</div><div className="grid gap-3 lg:grid-cols-2"><PlayerSelect label="Choose first player" value={playerIds[0]} otherValue={playerIds[1]} groups={candidatesByTeam} disabled={locked} onChange={(value) => setPlayerIds([value, playerIds[1]])} /><PlayerSelect label="Choose second player" value={playerIds[1]} otherValue={playerIds[0]} groups={candidatesByTeam} disabled={locked} onChange={(value) => setPlayerIds([playerIds[0], value])} /></div>{detail.picks.filter((pick) => pick.state === "Automatic").map((pick) => <p key={pick.id} className="rounded-lg bg-[#eaf8f4] p-2 text-xs font-bold text-[#246050]">Automatic replacement · Pick {pick.slotNumber}: {pick.playerName}{pick.automaticReason ? ` · ${pick.automaticReason}` : ""}</p>)}<Button disabled={locked || saving || !playerIds[0] || !playerIds[1] || playerIds[0] === playerIds[1]} onClick={savePicks}>{saving ? "Saving..." : detail.picks.length ? "Change picks" : "Save picks"}</Button></div> : null}
-      <div className="rounded-lg bg-white p-4 shadow-card"><h3 className="flex items-center gap-2 font-black text-[#25002b]"><Users className="h-5 w-5" /> Still standing</h3><div className="mt-3 divide-y">{detail.entries.map((entry) => <div key={entry.id} className="flex items-center justify-between gap-3 py-3"><div><p className="text-sm font-extrabold">{entry.personName}</p><p className="text-xs font-bold text-[#6c5a73]">{entry.sourceTeamName}{entry.picksHidden ? " · Picks hidden until deadline" : entry.picks.length ? ` · ${entry.picks.map((pick) => pick.playerName).join(" / ")}` : " · No picks yet"}</p></div><Badge variant={["Eliminated", "Withdrawn"].includes(entry.status) ? "muted" : "green"}>{entry.status}</Badge></div>)}</div></div>
+      <div className="rounded-lg bg-white p-4 shadow-card"><h3 className="flex items-center gap-2 font-black text-[#25002b]"><Users className="h-5 w-5" /> Contestants</h3><div className="mt-3 divide-y">{detail.entries.map((entry) => <div key={entry.id} className={cn("flex items-center justify-between gap-3 py-3", entry.status === "Eliminated" ? "opacity-60" : "")}><div><p className="text-sm font-extrabold">{entry.personName}</p><p className="text-xs font-bold text-[#6c5a73]">{entry.sourceTeamName}{entry.picksHidden ? " · Picks hidden until deadline" : entry.picks.length ? ` · ${entry.picks.map((pick) => pick.playerName).join(" / ")}` : " · No picks yet"}</p></div>{entry.status !== "Entered" ? <Badge variant={entry.status === "Eliminated" || entry.status === "Withdrawn" ? "muted" : "green"}>{entry.status}</Badge> : null}</div>)}</div></div>
       {detail.history.length ? <details className="rounded-lg bg-white p-4 shadow-card"><summary className="flex cursor-pointer list-none items-center justify-between font-black text-[#25002b]">History <ChevronDown className="h-5 w-5" /></summary><div className="mt-3 grid gap-2">{detail.history.map((pick, index) => <div key={`${pick.roundName}-${pick.slotNumber}-${index}`} className="rounded-lg bg-[#f7f5fa] p-3 text-sm"><p className="font-extrabold">{pick.roundName} · Pick {pick.slotNumber}: {pick.playerName}</p><p className="text-xs font-bold text-[#6c5a73]">{pick.state}{pick.automaticReason ? ` · Automatic: ${pick.automaticReason}` : ""} · {pick.outcome}</p></div>)}</div></details> : null}
-    </> : null}
+    </div> : null;
+
+  return <section className="grid gap-3">
+    <div className="rounded-lg bg-[#10233f] p-4 text-white shadow-card"><p className="text-xs font-black uppercase text-white/65">League competition</p><h2 className="text-2xl font-black">Last Man Standing</h2></div>
+    {message ? <p className="rounded-lg bg-[#00ff85]/20 p-3 text-sm font-bold text-[#174936]">{message}</p> : null}
+    {enteredCompetitions.map((competition) => {
+      const expanded = expandedId === competition.id;
+      return <div key={competition.id} className="overflow-hidden rounded-lg bg-white shadow-card ring-1 ring-[#e5e0e9]">
+        <button type="button" className="flex w-full items-center justify-between gap-3 p-4 text-left" aria-expanded={expanded} onClick={() => void toggleCompetition(competition.id)}>
+          <span className="min-w-0"><span className="flex items-center gap-2"><span className="truncate font-black text-[#25002b]">{competition.name}</span>{competition.panel?.entrantStatus && competition.panel.entrantStatus !== "Entered" ? <Badge variant={competition.panel.entrantStatus === "Eliminated" ? "muted" : "green"}>{competition.panel.entrantStatus}</Badge> : null}</span><span className="mt-1 block text-xs font-bold text-[#6c5a73]">{competition.panel?.roundLabel ?? competition.status}{competition.panel?.picks.length ? ` · ${competition.panel.picks.join(" / ")}` : " · Picks not selected"}</span></span>
+          <ChevronDown className={cn("h-5 w-5 shrink-0 text-[#6c5a73] transition-transform", expanded ? "rotate-180" : "")} />
+        </button>
+        {expanded ? detailLoadingId === competition.id ? <p className="border-t border-[#eeeaf2] p-4 text-sm font-bold text-[#6c5a73]">Loading competition...</p> : detail?.competition.id === competition.id ? detailContent : null : null}
+      </div>;
+    })}
+    {availableCompetitions.length ? <div className="overflow-hidden rounded-lg bg-white shadow-card ring-1 ring-[#a7ead1]">
+      <button type="button" className="flex w-full items-center justify-between gap-3 bg-[#effbf5] p-4 text-left" aria-expanded={availableOpen} onClick={() => setAvailableOpen((open) => !open)}>
+        <span><span className="flex items-center gap-2 font-black text-[#174936]">Available competitions <Badge variant="cyan">{availableCompetitions.length}</Badge></span><span className="mt-1 block text-xs font-bold text-[#39705e]">Choose another competition to enter</span></span>
+        <ChevronDown className={cn("h-5 w-5 shrink-0 text-[#087d4f] transition-transform", availableOpen ? "rotate-180" : "")} />
+      </button>
+      {availableOpen ? <div className="divide-y divide-[#eeeaf2] border-t border-[#ccefe1]">{availableCompetitions.map((competition) => {
+        const expanded = expandedId === competition.id;
+        return <div key={competition.id}>
+          <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={expanded} onClick={() => void toggleCompetition(competition.id)}><span><span className="block text-sm font-black text-[#25002b]">{competition.name}</span><span className="mt-0.5 block text-xs font-bold text-[#6c5a73]">Open for entry</span></span><span className="flex items-center gap-1 text-xs font-black text-[#007d68]">Enter <ChevronRight className={cn("h-4 w-4 transition-transform", expanded ? "rotate-90" : "")} /></span></button>
+          {expanded ? detailLoadingId === competition.id ? <p className="border-t border-[#eeeaf2] p-4 text-sm font-bold text-[#6c5a73]">Loading competition...</p> : detail?.competition.id === competition.id ? detailContent : null : null}
+        </div>;
+      })}</div> : null}
+    </div> : null}
+    {!enteredCompetitions.length && !availableCompetitions.length ? <Card><CardContent className="p-5 text-sm font-bold text-[#6c5a73]">No competition is currently available.</CardContent></Card> : null}
   </section>;
 }
 
