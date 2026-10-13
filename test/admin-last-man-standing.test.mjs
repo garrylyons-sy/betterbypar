@@ -91,6 +91,7 @@ test("admin navigation exposes a lazy standalone Last Man Standing section only 
   assert.match(panelSource, /Unresolved picks/);
   assert.match(panelSource, /Start next cycle/);
   assert.match(panelSource, /Entrants and picks/);
+  assert.doesNotMatch(panelSource, /Recent activity/i);
   assert.doesNotMatch(panelSource, /Entries open/);
   assert.doesNotMatch(panelSource, /Add round/);
   assert.match(panelSource, /First round/);
