@@ -26,7 +26,8 @@ for (const [label, url] of [["migration", migrationUrl], ["canonical schema", sc
       assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security`, "i"), `${table} must deny direct Data API access`);
     }
 
-    assert.match(sql, /audience text not null default 'League Chair'.*'League Chair'.*'Everyone'/is);
+    assert.match(sql, /audience text not null default 'League Chair'.*'League Chair'.*'Team'.*'Everyone'/is);
+    assert.match(sql, /audience_team_id uuid references public\.team\(id\) on delete restrict/i);
     assert.match(sql, /processing_time time not null default '19:30'/i);
     assert.match(sql, /status text not null default 'Draft'.*'No Winner'.*'Archived'/is);
     assert.match(sql, /tier text not null check \(tier in \('A', 'B', 'C'\)\)/i);
@@ -65,4 +66,12 @@ test("Last Man Standing automation has an additive migration", () => {
   assert.equal(existsSync(migration), true);
   const sql = readFileSync(migration, "utf8");
   assert.match(sql, /add column if not exists processing_time time not null default '19:30'/i);
+});
+
+test("Last Man Standing audience controls have an additive migration", () => {
+  const migration = new URL("../supabase/last_man_standing_audience.sql", import.meta.url);
+  assert.equal(existsSync(migration), true);
+  const sql = readFileSync(migration, "utf8");
+  assert.match(sql, /add column if not exists audience_team_id uuid/i);
+  assert.match(sql, /audience in \('League Chair', 'Team', 'Everyone'\)/i);
 });

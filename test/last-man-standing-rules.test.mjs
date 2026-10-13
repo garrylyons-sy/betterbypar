@@ -172,13 +172,20 @@ test("fallback continues for a second pick, skips used players, and wraps from b
   assert.deepEqual(candidates.map((candidate) => candidate.playerId), ["source-2", "next-1"]);
 });
 
-test("fallback ignores cancelled and out-of-round rescheduled fixtures", () => {
+test("fallback ignores postponed, cancelled and out-of-round rescheduled fixtures", () => {
   assert.deepEqual(orderedFallbackCandidates({
     sourceTeamId: "source",
     tier: "A",
-    teamOrder: [{ teamId: "source", position: 1 }, { teamId: "next", position: 2 }],
-    fixtures: fixtures.map((fixture) => fixture.id === "fixture-source" ? { ...fixture, rescheduledOutsideRound: true } : { ...fixture, status: "Cancelled" }),
-    lineupPlayers,
+    teamOrder: [{ teamId: "source", position: 1 }, { teamId: "next", position: 2 }, { teamId: "postponed", position: 3 }],
+    fixtures: [
+      { ...fixtures[0], rescheduledOutsideRound: true },
+      { ...fixtures[1], status: "Cancelled" },
+      { id: "fixture-postponed", homeTeamId: "postponed", awayTeamId: "other-postponed", status: "Postponed", rescheduledOutsideRound: false }
+    ],
+    lineupPlayers: [
+      ...lineupPlayers,
+      { playerId: "postponed-1", teamId: "postponed", fixtureId: "fixture-postponed", lineupSlotId: "p1", slotNumber: 1, playerOrder: 1, active: true, registered: true, typedGuest: false, tier: "A" }
+    ],
     consumedPlayerIds: [],
     excludedPlayerIds: []
   }), []);

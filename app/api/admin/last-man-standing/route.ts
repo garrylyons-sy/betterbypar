@@ -17,9 +17,11 @@ export async function GET() {
     const access = await requirePlatformAdmin();
     if (!access.user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
     if (!access.allowed) return NextResponse.json({ error: "Platform administrator access required." }, { status: 403 });
-    const [competitions, seasons, fixtureWeeks] = await Promise.all([
+    const [competitions, seasons, fixtureWeeks, teams] = await Promise.all([
       dbQuery(
-        `select c.id::text, c.name, c.audience, c.status, c.entry_opens_at::text, c.entry_closes_at::text,
+        `select c.id::text, c.name, c.audience, c.audience_team_id::text,
+                audience_team.name as audience_team_name,
+                c.status, c.entry_opens_at::text, c.entry_closes_at::text,
                 c.processing_time::text,
                 s.id::text as season_id, s.name as season_name,
                 count(distinct e.id)::int as entrant_count,
@@ -80,7 +82,7 @@ export async function GET() {
                        and candidate_role.active = true and candidate_role.role = 'Player'
                       where candidate_schedule.round_id = unresolved.round_id
                         and candidate_schedule.tier = unresolved_entry.tier
-                        and candidate_fixture.status <> 'Cancelled'
+                        and candidate_fixture.status not in ('Cancelled', 'Postponed')
                         and (candidate_fixture.fixture_date at time zone 'Europe/Dublin')::date
                           between candidate_week.starts_on and candidate_week.starts_on + 6
                         and not exists (
@@ -131,8 +133,9 @@ export async function GET() {
                 ), '[]'::jsonb) as entries
          from public.last_man_standing_competition c
          join public.season s on s.id = c.season_id
+         left join public.team audience_team on audience_team.id = c.audience_team_id
          left join public.last_man_standing_entry e on e.competition_id = c.id and e.status <> 'Withdrawn'
-         group by c.id, s.id
+         group by c.id, s.id, audience_team.id
          order by c.created_at desc`
       ),
       dbQuery("select id::text, name, active from public.season order by active desc, starts_on desc nulls last, name desc"),
@@ -148,7 +151,7 @@ export async function GET() {
          where fw.starts_on is not null
            and lower(fw.week_label) not like '%break%'
            and f.fixture_type = 'League'
-           and f.status not in ('Cancelled', 'Completed')
+           and f.status not in ('Cancelled', 'Completed', 'Postponed')
            and f.original_fixture_date is null
            and (f.fixture_date at time zone 'Europe/Dublin')::date
              between fw.starts_on and fw.starts_on + 6
@@ -156,9 +159,16 @@ export async function GET() {
          having ((min((f.fixture_date at time zone 'Europe/Dublin')::date) + time '12:00')
            at time zone 'Europe/Dublin') > now()
          order by fw.season_id, l.name, fw.week_number`
+      ),
+      dbQuery(
+        `select t.id::text, t.name, t.season_id::text, l.name as league_name
+         from public.team t
+         join public.league l on l.id = t.league_id
+         where t.active = true
+         order by l.name, t.name`
       )
     ]);
-    return NextResponse.json({ competitions: competitions.rows, seasons: seasons.rows, fixtureWeeks: fixtureWeeks.rows });
+    return NextResponse.json({ competitions: competitions.rows, seasons: seasons.rows, fixtureWeeks: fixtureWeeks.rows, teams: teams.rows });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Last Man Standing admin could not be loaded." }, { status: 500 });
   }
@@ -175,9 +185,11 @@ export async function POST(request: Request) {
     const league = String(body.league ?? "").trim();
     const firstRoundWeekId = String(body.firstRoundWeekId ?? "").trim();
     const processingTime = String(body.processingTime ?? "19:30").trim();
-    const audience = "League Chair";
+    const audience = String(body.audience ?? "Team").trim();
+    const audienceTeamId = String(body.audienceTeamId ?? "").trim() || null;
     const tier = league === "A League" ? "A" : league === "B League" ? "B" : league === "C League" ? "C" : null;
-    if (!name || !seasonId || !tier || !firstRoundWeekId || !/^([01]\d|2[0-3]):[0-5]\d$/.test(processingTime)) {
+    if (!name || !seasonId || !tier || !firstRoundWeekId || !["League Chair", "Team", "Everyone"].includes(audience)
+      || (audience === "Team" && !audienceTeamId) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(processingTime)) {
       return NextResponse.json({ error: "Name, season, league and first round are required." }, { status: 400 });
     }
 
@@ -196,7 +208,7 @@ export async function POST(request: Request) {
            and fw.starts_on is not null
            and lower(fw.week_label) not like '%break%'
            and f.fixture_type = 'League'
-           and f.status not in ('Cancelled', 'Completed')
+           and f.status not in ('Cancelled', 'Completed', 'Postponed')
            and f.original_fixture_date is null
            and (f.fixture_date at time zone 'Europe/Dublin')::date
              between fw.starts_on and fw.starts_on + 6
@@ -206,11 +218,21 @@ export async function POST(request: Request) {
         [firstRoundWeekId, seasonId, league]
       );
       if (!week.rows[0]) throw new Error(`Choose a future ${league} week with scheduled league matches.`);
+      if (audience === "Team") {
+        const audienceTeam = await client.query(
+          `select 1
+           from public.team t
+           join public.league l on l.id = t.league_id
+           where t.id = $1 and t.season_id = $2 and l.name = $3 and t.active = true`,
+          [audienceTeamId, seasonId, league]
+        );
+        if (!audienceTeam.rowCount) throw new Error(`Choose an active ${league} team for this competition.`);
+      }
       const competition = await client.query<{ id: string }>(
          `insert into public.last_man_standing_competition (
-           season_id, name, audience, entry_opens_at, entry_closes_at, processing_time, status, created_by
-         ) values ($1, $2, $3, now(), $4, $5::time, 'Open', $6) returning id::text`,
-        [seasonId, name, audience, week.rows[0].deadline_at, processingTime, access.user!.personId]
+           season_id, name, audience, audience_team_id, entry_opens_at, entry_closes_at, processing_time, status, created_by
+         ) values ($1, $2, $3, $4, now(), $5, $6::time, 'Open', $7) returning id::text`,
+        [seasonId, name, audience, audience === "Team" ? audienceTeamId : null, week.rows[0].deadline_at, processingTime, access.user!.personId]
       );
       const round = await client.query<{ id: string }>(
         `insert into public.last_man_standing_round (
@@ -227,8 +249,9 @@ export async function POST(request: Request) {
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
          values ($1, 'Page Visit', '/admin/last-man-standing', 'Created Last Man Standing competition',
-           jsonb_build_object('action', 'Created competition', 'competition_id', $2::text, 'competition_name', $3::text, 'round_count', $4::int))`,
-        [access.user!.personId, competition.rows[0].id, name, 1]
+           jsonb_build_object('action', 'Created competition', 'competition_id', $2::text, 'competition_name', $3::text,
+             'round_count', $4::int, 'audience', $5::text, 'audience_team_id', $6::text))`,
+        [access.user!.personId, competition.rows[0].id, name, 1, audience, audienceTeamId]
       );
       return competition.rows[0].id;
     });

@@ -165,12 +165,12 @@ function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): App
   }
 
   const base: AppearanceMenuId[] = role === "Manager"
-    ? ["Home", "Fixtures", "Table", "Results", "Contacts", "Friendlies", "Club"]
-    : ["Home", "Fixtures", "Table", "Results", "Friendlies", "Club"];
+    ? ["Home", "Fixtures", "Table", "Results", "Contacts", "Friendlies", "Last Man Standing", "Club"]
+    : ["Home", "Fixtures", "Table", "Results", "Friendlies", "Last Man Standing", "Club"];
   if (enteredCompetitionCount > 0) {
     return withMyClubLast(role === "Manager"
-      ? ["Home", "Fixtures", "Table", "Results", "Contacts", "Friendlies", "Competitions", "Club"]
-      : ["Home", "Fixtures", "Table", "Results", "Friendlies", "Competitions", "Club"]);
+      ? ["Home", "Fixtures", "Table", "Results", "Contacts", "Friendlies", "Competitions", "Last Man Standing", "Club"]
+      : ["Home", "Fixtures", "Table", "Results", "Friendlies", "Competitions", "Last Man Standing", "Club"]);
   }
   return withMyClubLast(base);
 }
@@ -617,7 +617,7 @@ function PageContent({
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
   if (activePage === "Shop") return <ShopPage activeTeam={activeTeam} />;
-  if (activePage === "Last Man Standing") return activeTeam.hasLeagueChairAccess ? <LastManStandingPage /> : <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
+  if (activePage === "Last Man Standing") return <LastManStandingPage />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} userCanShare={userCanShare} />;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} userCanShare={userCanShare} />;
@@ -2659,7 +2659,7 @@ function PlayerHome({
     if (panel === "teamRecentForm") return <TeamRecentFormCard key={panel} activeTeam={activeTeam} matchResults={matchResults} />;
     if (panel === "personalRecentForm") return <PersonalRecentFormCard key={panel} playerGameResults={playerGameResults} />;
     if (panel === "individualGames") return <PlayerGameResultsCard key={panel} activeTeam={activeTeam} results={playerGameResults} userCanShare={userCanShare} />;
-    if (panel === "lastManStanding" && activeTeam.hasLeagueChairAccess) return <div key={panel} className="md:col-span-2"><LastManStandingHomePanel onOpen={() => onNavigate("Last Man Standing")} /></div>;
+    if (panel === "lastManStanding") return <div key={panel} className="md:col-span-2"><LastManStandingHomePanel onOpen={() => onNavigate("Last Man Standing")} /></div>;
     if (panel === "openCompetitions") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />;
     if (panel === "myCompetitionMatches") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="mine" onNavigate={onNavigate} />;
     if (panel === "competitionDraws") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="draws" onNavigate={onNavigate} />;
@@ -2917,7 +2917,7 @@ function AttackSnookerGameCard() {
 
 function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; panels: AppearancePanelId[] }) {
   const renderPanel = (panel: AppearancePanelId) => {
-    if (panel === "lastManStanding" && activeTeam.hasLeagueChairAccess) return <div key={panel} className="md:col-span-2"><LastManStandingHomePanel onOpen={() => onNavigate("Last Man Standing")} /></div>;
+    if (panel === "lastManStanding") return <div key={panel} className="md:col-span-2"><LastManStandingHomePanel onOpen={() => onNavigate("Last Man Standing")} /></div>;
     if (panel === "clubAccess") {
       return (
         <Card key={panel}>
@@ -4081,7 +4081,7 @@ function ManagerHome({
     if (panel === "clubCompetitionAdmin") return null;
     if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
     if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
-    if (panel === "lastManStanding" && activeTeam.hasLeagueChairAccess) return <div key={panel} className="md:col-span-2"><LastManStandingHomePanel onOpen={() => onNavigate("Last Man Standing")} /></div>;
+    if (panel === "lastManStanding") return <div key={panel} className="md:col-span-2"><LastManStandingHomePanel onOpen={() => onNavigate("Last Man Standing")} /></div>;
     return null;
   };
 

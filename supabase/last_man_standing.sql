@@ -2,7 +2,8 @@ create table if not exists public.last_man_standing_competition (
   id uuid primary key default gen_random_uuid(),
   season_id uuid not null references public.season(id) on delete restrict,
   name text not null,
-  audience text not null default 'League Chair' check (audience in ('League Chair', 'Everyone')),
+  audience text not null default 'League Chair' check (audience in ('League Chair', 'Team', 'Everyone')),
+  audience_team_id uuid references public.team(id) on delete restrict,
   entry_opens_at timestamptz not null,
   entry_closes_at timestamptz not null,
   processing_time time not null default '19:30',
@@ -10,6 +11,7 @@ create table if not exists public.last_man_standing_competition (
   created_by uuid references public.person(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  check ((audience = 'Team' and audience_team_id is not null) or (audience <> 'Team' and audience_team_id is null)),
   check (entry_closes_at > entry_opens_at),
   unique (season_id, name)
 );
@@ -111,6 +113,9 @@ create table if not exists public.last_man_standing_event (
 
 create index if not exists last_man_standing_competition_status_idx
   on public.last_man_standing_competition (status, season_id);
+create index if not exists last_man_standing_competition_audience_team_idx
+  on public.last_man_standing_competition (audience_team_id)
+  where audience_team_id is not null;
 create index if not exists last_man_standing_round_status_idx
   on public.last_man_standing_round (competition_id, status, cycle_number, round_number);
 create index if not exists last_man_standing_entry_active_idx

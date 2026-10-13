@@ -47,11 +47,25 @@ test("Last Man Standing admin APIs are platform-only and support management acti
   assert.doesNotMatch(createRoute, /body\.entryClosesAt/);
   assert.doesNotMatch(createRoute, /body\.rounds/);
   assert.doesNotMatch(createRoute, /for \(const tier of \["A", "B", "C"\]/);
-  assert.doesNotMatch(read("../components/admin-last-man-standing.tsx"), /<option>Everyone<\/option>/);
+  const adminPanel = read("../components/admin-last-man-standing.tsx");
+  assert.match(adminPanel, /Audience/);
+  assert.match(adminPanel, /Selected team/);
+  assert.match(adminPanel, /Everyone/);
+  assert.match(adminPanel, /audienceTeamId/);
+  assert.match(createRoute, /body\.audience/);
+  assert.match(createRoute, /body\.audienceTeamId/);
+  assert.match(createRoute, /audience_team_id/);
+  assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /Changed audience/);
   assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /VALID_STATUS_TRANSITIONS/);
   assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /hashtext\('lifecycle'\)/);
   assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /export async function DELETE/);
   assert.match(read("../app/api/admin/last-man-standing/\[competitionId\]/route.ts"), /delete from public\.last_man_standing_competition/);
+});
+
+test("Last Man Standing admin ignores postponed fixtures and their lineups", () => {
+  const route = read("../app/api/admin/last-man-standing/route.ts");
+  assert.match(route, /candidate_fixture\.status not in \('Cancelled', 'Postponed'\)/);
+  assert.ok((route.match(/f\.status not in \('Cancelled', 'Completed', 'Postponed'\)/g) ?? []).length >= 2);
 });
 
 test("admin navigation exposes a lazy standalone Last Man Standing section only to platform admins", () => {

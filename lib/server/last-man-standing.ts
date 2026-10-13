@@ -13,7 +13,9 @@ import {
 type AccessInput = {
   authenticated: boolean;
   hasLeagueChairAccess: boolean;
-  audience: "League Chair" | "Everyone";
+  audience: "League Chair" | "Team" | "Everyone";
+  hasTeamAccess?: boolean;
+  isEntered?: boolean;
 };
 
 type CompetitionSummaryRow = {
@@ -62,10 +64,13 @@ type EntryOption = {
 
 export function filterEntryOptionsForCompetitionTier(
   roles: { options: EntryOption[]; defaultOption: EntryOption | null },
-  competitionTier: "A" | "B" | "C" | null
+  competitionTier: "A" | "B" | "C" | null,
+  audienceTeamId?: string | null
 ) {
-  if (!competitionTier) return roles;
-  const options = roles.options.filter((option) => option.tier === competitionTier);
+  const options = roles.options.filter((option) => (
+    (!competitionTier || option.tier === competitionTier)
+    && (!audienceTeamId || option.teamId === audienceTeamId)
+  ));
   return { options, defaultOption: options[0] ?? null };
 }
 
@@ -84,10 +89,17 @@ export function participantAccessDecision(input: AccessInput) {
   if (!input.authenticated) {
     return { allowed: false, status: 401, error: "Sign in required." } as const;
   }
-  if (!input.hasLeagueChairAccess) {
-    return { allowed: false, status: 403, error: "League Chair access required." } as const;
+  if (input.hasLeagueChairAccess || input.isEntered || input.audience === "Everyone") {
+    return { allowed: true, status: 200, error: null } as const;
   }
-  return { allowed: true, status: 200, error: null } as const;
+  if (input.audience === "Team" && input.hasTeamAccess) {
+    return { allowed: true, status: 200, error: null } as const;
+  }
+  return {
+    allowed: false,
+    status: 403,
+    error: input.audience === "Team" ? "This competition is not available to your team." : "League Chair access required."
+  } as const;
 }
 
 export function summarizeLastManStandingCompetitions(rows: CompetitionSummaryRow[]) {
@@ -177,12 +189,6 @@ export async function hasLastManStandingPilotAccess(personId: string) {
   return Boolean(rows[0]?.allowed);
 }
 
-async function requirePilotAccess(user: AppUser) {
-  if (!await hasLastManStandingPilotAccess(user.personId)) {
-    throw new LastManStandingError("League Chair access required.", 403, "FORBIDDEN");
-  }
-}
-
 const summaryQuery = `
   select
     c.id::text,
@@ -230,8 +236,35 @@ const summaryQuery = `
     from public.last_man_standing_pick p
     where p.entry_id = own_entry.id and p.round_id = current_round.id
   ) own_deadline on true
-  where c.audience = 'League Chair'
-    and c.status <> 'Archived'
+  where c.status <> 'Archived'
+    and (
+      own_entry.id is not null
+      or c.audience = 'Everyone'
+      or exists (
+        select 1 from public.club_membership chair_membership
+        where chair_membership.person_id = $1 and chair_membership.active = true
+          and chair_membership.role = 'League Chair'
+      )
+      or exists (
+        select 1 from public.app_operator operator_access
+        where operator_access.person_id = $1 and operator_access.active = true
+      )
+      or (
+        c.audience = 'Team'
+        and exists (
+          select 1
+          from public.team audience_team
+          join public.person_team_role audience_role
+            on audience_role.person_id = $1
+           and audience_role.club_id = audience_team.club_id
+           and audience_role.league_id = audience_team.league_id
+           and lower(audience_role.team_name) = lower(audience_team.name)
+           and audience_role.active = true
+           and audience_role.role in ('Player', 'Manager')
+          where audience_team.id = c.audience_team_id
+        )
+      )
+    )
   group by c.id, own_entry.id, current_round.id,
     current_round.name, current_round.status,
     current_round.cycle_number, current_round.round_number,
@@ -240,10 +273,7 @@ const summaryQuery = `
 
 export async function listLastManStandingCompetitions(user: AppUser) {
   const { dbQuery } = await import("./db");
-  const [, result] = await Promise.all([
-    requirePilotAccess(user),
-    dbQuery<CompetitionSummaryRow>(summaryQuery, [user.personId])
-  ]);
+  const [result] = await Promise.all([dbQuery<CompetitionSummaryRow>(summaryQuery, [user.personId])]);
   return summarizeLastManStandingCompetitions(result.rows);
 }
 
@@ -275,14 +305,15 @@ async function competitionRow(client: Pick<PoolClient, "query">, competitionId: 
     id: string;
     season_id: string;
     name: string;
-    audience: "League Chair" | "Everyone";
+    audience: "League Chair" | "Team" | "Everyone";
+    audience_team_id: string | null;
     status: string;
     entry_opens_at: string;
     entry_closes_at: string;
     processing_time: string;
     competition_tier: "A" | "B" | "C" | null;
   }>(
-    `select c.id::text, c.season_id::text, c.name, c.audience, c.status,
+    `select c.id::text, c.season_id::text, c.name, c.audience, c.audience_team_id::text, c.status,
             c.entry_opens_at::text, c.entry_closes_at::text, c.processing_time::text,
             (select case when count(distinct rs.tier) = 1 then min(rs.tier) end
              from public.last_man_standing_round r
@@ -292,22 +323,59 @@ async function competitionRow(client: Pick<PoolClient, "query">, competitionId: 
     [competitionId]
   );
   const row = result.rows[0];
-  if (!row || row.audience !== "League Chair" || row.status === "Archived") {
+  if (!row || row.status === "Archived") {
     throw new LastManStandingError("Competition not found.", 404, "NOT_FOUND");
   }
   return row;
 }
 
+async function requireCompetitionAccess(
+  client: Pick<PoolClient, "query">,
+  user: AppUser,
+  competition: { id: string; audience: "League Chair" | "Team" | "Everyone"; audience_team_id: string | null }
+) {
+  const result = await client.query<{ has_league_chair_access: boolean; has_team_access: boolean; is_entered: boolean }>(
+    `select
+       (
+         exists (select 1 from public.club_membership where person_id = $1 and active = true and role = 'League Chair')
+         or exists (select 1 from public.app_operator where person_id = $1 and active = true)
+       ) as has_league_chair_access,
+       exists (
+         select 1
+         from public.team audience_team
+         join public.person_team_role audience_role
+           on audience_role.person_id = $1
+          and audience_role.club_id = audience_team.club_id
+          and audience_role.league_id = audience_team.league_id
+          and lower(audience_role.team_name) = lower(audience_team.name)
+          and audience_role.active = true
+          and audience_role.role in ('Player', 'Manager')
+         where audience_team.id = $3
+       ) as has_team_access,
+       exists (
+         select 1 from public.last_man_standing_entry
+         where competition_id = $2 and person_id = $1 and status <> 'Withdrawn'
+       ) as is_entered`,
+    [user.personId, competition.id, competition.audience_team_id]
+  );
+  const access = participantAccessDecision({
+    authenticated: true,
+    hasLeagueChairAccess: Boolean(result.rows[0]?.has_league_chair_access),
+    hasTeamAccess: Boolean(result.rows[0]?.has_team_access),
+    isEntered: Boolean(result.rows[0]?.is_entered),
+    audience: competition.audience
+  });
+  if (!access.allowed) throw new LastManStandingError(access.error, access.status, "FORBIDDEN");
+}
+
 export async function loadLastManStandingCompetition(user: AppUser, competitionId: string) {
   const { dbQuery } = await import("./db");
   const queryClient = { query: dbQuery } as unknown as Pick<PoolClient, "query">;
-  const [, competition] = await Promise.all([
-    requirePilotAccess(user),
-    competitionRow(queryClient, competitionId)
-  ]);
-  const [roles, detail] = await Promise.all([
+  const competition = await competitionRow(queryClient, competitionId);
+  const [, roles, detail] = await Promise.all([
+    requireCompetitionAccess(queryClient, user, competition),
     loadRoleOptions(queryClient, user, competition.season_id).then((options) => (
-      filterEntryOptionsForCompetitionTier(options, competition.competition_tier)
+      filterEntryOptionsForCompetitionTier(options, competition.competition_tier, competition.audience_team_id)
     )),
     dbQuery<{
       entry_id: string | null;
@@ -522,17 +590,18 @@ export type EnterCompetitionInput = {
 };
 
 export async function enterLastManStandingCompetition(user: AppUser, input: EnterCompetitionInput) {
-  await requirePilotAccess(user);
   const { withTransaction } = await import("./db");
   return withTransaction(async (client) => {
     const competition = await competitionRow(client, input.competitionId, true);
+    await requireCompetitionAccess(client, user, competition);
     const now = new Date();
     if (competition.status !== "Open" || now < new Date(competition.entry_opens_at) || now >= new Date(competition.entry_closes_at)) {
       throw new LastManStandingError("Entries are not open for this competition.", 409, "ENTRY_CLOSED");
     }
     const roleOptions = filterEntryOptionsForCompetitionTier(
       await loadRoleOptions(client, user, competition.season_id),
-      competition.competition_tier
+      competition.competition_tier,
+      competition.audience_team_id
     );
     const chosen = roleOptions.options.find((option) => (
       (!input.tier || option.tier === input.tier)
@@ -578,10 +647,10 @@ export type SavePicksInput = {
 };
 
 export async function saveLastManStandingPicks(user: AppUser, input: SavePicksInput) {
-  await requirePilotAccess(user);
   const { withTransaction } = await import("./db");
   return withTransaction(async (client) => {
-    await competitionRow(client, input.competitionId, true);
+    const competition = await competitionRow(client, input.competitionId, true);
+    await requireCompetitionAccess(client, user, competition);
     const entryResult = await client.query<{
       id: string;
       tier: "A" | "B" | "C";
@@ -837,7 +906,7 @@ async function fallbackData(client: PoolClient, schedule: {
     })),
     lineupPlayers: lineupPlayers.rows.filter((player) => {
       const fixture = fixtures.rows.find((item) => item.id === player.fixture_id);
-      return fixture && !fixture.rescheduled_outside_round && fixture.status !== "Cancelled";
+      return fixture && !fixture.rescheduled_outside_round && !["Cancelled", "Postponed"].includes(fixture.status);
     }).map((player) => ({
       playerId: player.player_id,
       teamId: player.team_id,
@@ -906,6 +975,7 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
                  join public.match m on m.id = fwm.match_id
                  join public.fixture f on f.id = m.fixture_id
                  where fwm.week_id = $3 and (f.home_team_id = e.source_team_id or f.away_team_id = e.source_team_id)
+                   and f.status not in ('Cancelled', 'Postponed')
                    and (f.fixture_date at time zone 'Europe/Dublin')::date
                      between mapped_week.starts_on and mapped_week.starts_on + 6
                  order by f.fixture_date limit 1) as own_fixture_date
@@ -959,7 +1029,11 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
           const sourceFixture = current?.source_fixture_id
             ? data.fixtures.find((fixture) => fixture.id === current.source_fixture_id)
             : null;
-          const sourceFixtureInvalid = Boolean(sourceFixture?.rescheduledOutsideRound || sourceFixture?.status === "Cancelled");
+          const sourceFixtureInvalid = Boolean(
+            sourceFixture?.rescheduledOutsideRound
+            || sourceFixture?.status === "Cancelled"
+            || sourceFixture?.status === "Postponed"
+          );
           if (current?.state === "Settled" || ((current?.state === "Locked" || current?.state === "Automatic") && !sourceFixtureInvalid)) {
             if (current.effective_player_id) selectedThisRound.push(current.effective_player_id);
             continue;
@@ -991,7 +1065,7 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
                 !used.includes(candidate.playerId)
                 && !selectedThisRound.includes(candidate.playerId)
                 && !data.fixtures.some((fixture) => fixture.id === candidate.sourceFixtureId
-                  && (fixture.rescheduledOutsideRound || fixture.status === "Cancelled"))
+                  && (fixture.rescheduledOutsideRound || fixture.status === "Cancelled" || fixture.status === "Postponed"))
               ))
             : calculatedCandidates;
           const chosen = manualLineup
@@ -1104,7 +1178,7 @@ async function createFollowingLastManStandingRound(
          and fw.starts_on > current_week.starts_on
          and lower(fw.week_label) not like '%break%'
          and f.fixture_type = 'League'
-         and f.status not in ('Cancelled', 'Completed')
+         and f.status not in ('Cancelled', 'Completed', 'Postponed')
          and f.original_fixture_date is null
          and (f.fixture_date at time zone 'Europe/Dublin')::date
            between fw.starts_on and fw.starts_on + 6
@@ -1224,7 +1298,7 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
        join public.match m on m.id = fwm.match_id
        join public.fixture f on f.id = m.fixture_id
        where rs.round_id = $1
-         and f.status not in ('Completed', 'Cancelled')`,
+         and f.status not in ('Completed', 'Cancelled', 'Postponed')`,
       [input.roundId]
     );
     if (Number(incompleteRoundFixtures.rows[0]?.count ?? 0) > 0) {

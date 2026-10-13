@@ -24,7 +24,7 @@ test("a league-specific competition only offers roles from its league", () => {
   assert.deepEqual(filterEntryOptionsForCompetitionTier(roles, null), roles);
 });
 
-test("participant access distinguishes authentication, League Chair pilot access, and audience", () => {
+test("participant access distinguishes authentication, oversight, team access, entry and audience", () => {
   assert.deepEqual(participantAccessDecision({ authenticated: false, hasLeagueChairAccess: false, audience: "League Chair" }), {
     allowed: false,
     status: 401,
@@ -36,7 +36,10 @@ test("participant access distinguishes authentication, League Chair pilot access
     error: "League Chair access required."
   });
   assert.equal(participantAccessDecision({ authenticated: true, hasLeagueChairAccess: true, audience: "League Chair" }).allowed, true);
-  assert.equal(participantAccessDecision({ authenticated: true, hasLeagueChairAccess: false, audience: "Everyone" }).allowed, false, "Everyone is stored but not enabled during the pilot");
+  assert.equal(participantAccessDecision({ authenticated: true, hasLeagueChairAccess: false, audience: "Everyone" }).allowed, true);
+  assert.equal(participantAccessDecision({ authenticated: true, hasLeagueChairAccess: false, audience: "Team", hasTeamAccess: true }).allowed, true);
+  assert.equal(participantAccessDecision({ authenticated: true, hasLeagueChairAccess: false, audience: "Team", hasTeamAccess: false }).allowed, false);
+  assert.equal(participantAccessDecision({ authenticated: true, hasLeagueChairAccess: false, audience: "Team", isEntered: true }).allowed, true);
 });
 
 test("competition summaries keep concurrent competitions separate and provide panel state", () => {
@@ -138,7 +141,7 @@ test("participant routes do not duplicate service authorization queries", () => 
   }
 });
 
-test("entry and pick routes keep pilot authorization at the HTTP boundary", () => {
+test("entry and pick routes delegate audience authorization to the service", () => {
   const routes = [
     ["../app/api/last-man-standing/[competitionId]/entries/route.ts", /enterLastManStandingCompetition/],
     ["../app/api/last-man-standing/[competitionId]/picks/route.ts", /saveLastManStandingPicks/]
@@ -148,9 +151,19 @@ test("entry and pick routes keep pilot authorization at the HTTP boundary", () =
     assert.equal(existsSync(url), true, `${path} should exist`);
     const source = readFileSync(url, "utf8");
     assert.match(source, /currentUserFromRequest/);
-    assert.match(source, /hasLastManStandingPilotAccess/);
+    assert.doesNotMatch(source, /hasLastManStandingPilotAccess/);
     assert.match(source, delegate);
   }
+});
+
+test("participant service enforces team and everyone audiences server-side", () => {
+  const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
+  assert.match(source, /audience_team_id/);
+  assert.match(source, /c\.audience = 'Everyone'/);
+  assert.match(source, /c\.audience = 'Team'/);
+  assert.match(source, /own_entry\.id is not null/i);
+  assert.match(source, /requireCompetitionAccess/);
+  assert.match(source, /competition\.audience_team_id/);
 });
 
 test("entry derives its tier and fixed source team from active roles", () => {

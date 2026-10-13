@@ -4,13 +4,14 @@ import test from "node:test";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("League Chair access adds the Last Man Standing page and home panel", () => {
+test("audience-filtered Last Man Standing is available from the page and home panel", () => {
   assert.equal(existsSync(new URL("../components/last-man-standing.tsx", import.meta.url)), true);
   const shell = read("../components/app-shell.tsx");
   assert.match(shell, /Last Man Standing/);
-  assert.match(shell, /hasLeagueChairAccess/);
   assert.match(shell, /LastManStandingHomePanel/);
   assert.match(shell, /LastManStandingPage/);
+  assert.match(shell, /if \(activePage === "Last Man Standing"\) return <LastManStandingPage/);
+  assert.doesNotMatch(shell, /panel === "lastManStanding" && activeTeam\.hasLeagueChairAccess/);
   assert.doesNotMatch(shell, /activePage === "Home" && activeTeam\.hasLeagueChairAccess \? <LastManStandingHomePanel/);
   const panel = read("../components/last-man-standing.tsx");
   assert.match(panel, /cache: "no-store"/);

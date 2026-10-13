@@ -59,14 +59,15 @@ test("settlement uses official game winners, stops on no winner, and supports au
   assert.match(source, /join public\.person_team_role ptr/);
   assert.doesNotMatch(source, /where round_id = \$1;\s*update public\.last_man_standing_entry/);
   assert.doesNotMatch(source, /where id = \$1;\s*update public\.last_man_standing_competition/);
-  assert.match(source, /sourceFixture.*status === "Cancelled"/s);
+  assert.match(source, /sourceFixture.*status === "Postponed"/s);
+  assert.match(source, /fixture\.status === "Postponed"/);
   assert.match(source, /table_order_snapshot/);
   assert.match(source, /LATER_ROUND_ACTIVE/);
   assert.match(source, /between mapped_week\.starts_on and mapped_week\.starts_on \+ 6/);
   assert.ok((source.match(/hashtext\('lifecycle'\)/g) ?? []).length >= 4);
   assert.match(source, /c\.status in \('Open', 'In Progress'\)/);
   assert.match(settle, /incompleteRoundFixtures/);
-  assert.match(settle, /f\.status not in \('Completed', 'Cancelled'\)/);
+  assert.match(settle, /f\.status not in \('Completed', 'Cancelled', 'Postponed'\)/);
   assert.match(source, /lower\(fw\.week_label\) not like '%break%'/i);
   assert.match(source, /original_fixture_date is null/i);
   assert.match(source, /currentScheduleCount/);

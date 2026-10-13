@@ -38,7 +38,7 @@ export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string;
   { id: "Stats", label: "Stats", description: "Stats dashboard.", roles: ["Player", "Manager"] },
   { id: "Messages", label: "Messages", description: "Messages and account access.", roles: [] },
   { id: "Interclub Leagues", label: "Leagues", description: "All interclub tables/results.", roles: ["Player", "Manager", "Club Member", "Club Admin", "League Chair"] },
-  { id: "Last Man Standing", label: "Last Man Standing", description: "Pick two players and stay in the competition.", roles: ["League Chair"] }
+  { id: "Last Man Standing", label: "Last Man Standing", description: "Pick two players and stay in the competition.", roles: ["Player", "Manager", "League Chair"] }
 ];
 
 export const defaultAppearanceConfig: AppearanceConfig = {
