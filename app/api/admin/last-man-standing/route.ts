@@ -82,7 +82,8 @@ export async function GET() {
                        and candidate_role.active = true and candidate_role.role = 'Player'
                       where candidate_schedule.round_id = unresolved.round_id
                         and candidate_schedule.tier = unresolved_entry.tier
-                        and candidate_fixture.status not in ('Cancelled', 'Postponed')
+                        and candidate_fixture.status <> 'Cancelled'
+                        and candidate_fixture.original_fixture_date is null
                         and (candidate_fixture.fixture_date at time zone 'Europe/Dublin')::date
                           between candidate_week.starts_on and candidate_week.starts_on + 6
                         and not exists (
@@ -151,7 +152,7 @@ export async function GET() {
          where fw.starts_on is not null
            and lower(fw.week_label) not like '%break%'
            and f.fixture_type = 'League'
-           and f.status not in ('Cancelled', 'Completed', 'Postponed')
+           and f.status not in ('Cancelled', 'Completed')
            and f.original_fixture_date is null
            and (f.fixture_date at time zone 'Europe/Dublin')::date
              between fw.starts_on and fw.starts_on + 6
@@ -208,7 +209,7 @@ export async function POST(request: Request) {
            and fw.starts_on is not null
            and lower(fw.week_label) not like '%break%'
            and f.fixture_type = 'League'
-           and f.status not in ('Cancelled', 'Completed', 'Postponed')
+           and f.status not in ('Cancelled', 'Completed')
            and f.original_fixture_date is null
            and (f.fixture_date at time zone 'Europe/Dublin')::date
              between fw.starts_on and fw.starts_on + 6

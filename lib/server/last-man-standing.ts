@@ -861,8 +861,9 @@ async function fallbackData(client: PoolClient, schedule: {
     rescheduled_outside_round: boolean;
   }>(
     `select f.id::text, f.home_team_id::text, f.away_team_id::text, f.status::text,
-            ((f.fixture_date at time zone 'Europe/Dublin')::date
-              not between fw.starts_on and fw.starts_on + 6) as rescheduled_outside_round
+            (f.original_fixture_date is not null
+              or (f.fixture_date at time zone 'Europe/Dublin')::date
+                not between fw.starts_on and fw.starts_on + 6) as rescheduled_outside_round
      from public.fixture_week_match fwm
      join public.fixture_week fw on fw.id = fwm.week_id
      join public.match m on m.id = fwm.match_id
@@ -906,7 +907,7 @@ async function fallbackData(client: PoolClient, schedule: {
     })),
     lineupPlayers: lineupPlayers.rows.filter((player) => {
       const fixture = fixtures.rows.find((item) => item.id === player.fixture_id);
-      return fixture && !fixture.rescheduled_outside_round && !["Cancelled", "Postponed"].includes(fixture.status);
+      return fixture && !fixture.rescheduled_outside_round && fixture.status !== "Cancelled";
     }).map((player) => ({
       playerId: player.player_id,
       teamId: player.team_id,
@@ -975,7 +976,8 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
                  join public.match m on m.id = fwm.match_id
                  join public.fixture f on f.id = m.fixture_id
                  where fwm.week_id = $3 and (f.home_team_id = e.source_team_id or f.away_team_id = e.source_team_id)
-                   and f.status not in ('Cancelled', 'Postponed')
+                   and f.status <> 'Cancelled'
+                   and f.original_fixture_date is null
                    and (f.fixture_date at time zone 'Europe/Dublin')::date
                      between mapped_week.starts_on and mapped_week.starts_on + 6
                  order by f.fixture_date limit 1) as own_fixture_date
@@ -1032,7 +1034,6 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
           const sourceFixtureInvalid = Boolean(
             sourceFixture?.rescheduledOutsideRound
             || sourceFixture?.status === "Cancelled"
-            || sourceFixture?.status === "Postponed"
           );
           if (current?.state === "Settled" || ((current?.state === "Locked" || current?.state === "Automatic") && !sourceFixtureInvalid)) {
             if (current.effective_player_id) selectedThisRound.push(current.effective_player_id);
@@ -1065,7 +1066,7 @@ export async function lockLastManStandingRound(input: ProcessInput & { competiti
                 !used.includes(candidate.playerId)
                 && !selectedThisRound.includes(candidate.playerId)
                 && !data.fixtures.some((fixture) => fixture.id === candidate.sourceFixtureId
-                  && (fixture.rescheduledOutsideRound || fixture.status === "Cancelled" || fixture.status === "Postponed"))
+                  && (fixture.rescheduledOutsideRound || fixture.status === "Cancelled"))
               ))
             : calculatedCandidates;
           const chosen = manualLineup
@@ -1178,7 +1179,7 @@ async function createFollowingLastManStandingRound(
          and fw.starts_on > current_week.starts_on
          and lower(fw.week_label) not like '%break%'
          and f.fixture_type = 'League'
-         and f.status not in ('Cancelled', 'Completed', 'Postponed')
+         and f.status not in ('Cancelled', 'Completed')
          and f.original_fixture_date is null
          and (f.fixture_date at time zone 'Europe/Dublin')::date
            between fw.starts_on and fw.starts_on + 6
@@ -1298,7 +1299,8 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
        join public.match m on m.id = fwm.match_id
        join public.fixture f on f.id = m.fixture_id
        where rs.round_id = $1
-         and f.status not in ('Completed', 'Cancelled', 'Postponed')`,
+         and f.status not in ('Completed', 'Cancelled')
+         and f.original_fixture_date is null`,
       [input.roundId]
     );
     if (Number(incompleteRoundFixtures.rows[0]?.count ?? 0) > 0) {

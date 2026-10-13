@@ -64,8 +64,9 @@ test("Last Man Standing admin APIs are platform-only and support management acti
 
 test("Last Man Standing admin ignores postponed fixtures and their lineups", () => {
   const route = read("../app/api/admin/last-man-standing/route.ts");
-  assert.match(route, /candidate_fixture\.status not in \('Cancelled', 'Postponed'\)/);
-  assert.ok((route.match(/f\.status not in \('Cancelled', 'Completed', 'Postponed'\)/g) ?? []).length >= 2);
+  assert.match(route, /candidate_fixture\.original_fixture_date is null/);
+  assert.ok((route.match(/f\.original_fixture_date is null/g) ?? []).length >= 2);
+  assert.doesNotMatch(route, /status not in \([^)]*'Postponed'/);
 });
 
 test("admin navigation exposes a lazy standalone Last Man Standing section only to platform admins", () => {
