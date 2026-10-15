@@ -72,7 +72,7 @@ test("competition UI handles concurrent competitions, entry, privacy and noon lo
   assert.match(source, /entry\.status !== "Entered"/);
   assert.match(source, /label="Your run"/);
   assert.match(source, /roundsPlayed/);
-  assert.match(source, /Reached round/);
+  assert.doesNotMatch(source, /Reached round/);
   assert.match(source, /label="Winner"/);
   assert.match(source, /winnerName/);
   assert.match(source, /No winner/);

@@ -36,11 +36,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LeagueChairLiveIndicator, LeagueChairLiveStatusList, useLiveScoringStatuses } from "@/components/live-scoring-dashboard";
 import { LastManStandingHomePanel, LastManStandingPage } from "@/components/last-man-standing";
+import { ClubLadderPage } from "@/components/club-ladder";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { shouldShowFixtureDates } from "@/lib/fixture-scheduling.mjs";
 import { cn } from "@/lib/utils";
 
-type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop";
+type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Ladder" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 type ShopProduct = {
   id: string;
@@ -580,6 +581,7 @@ function PageContent({
   }
 
   if (activePage === "Club") return <ClubHubPage activeTeam={activeTeam} onNavigate={onNavigate} />;
+  if (activePage === "Ladder") return <ClubLadderPage activeTeam={activeTeam} />;
   if (activePage === "Bookings") return <TableBookings activeTeam={activeTeam} />;
   if (activePage === "Competitions") return <CompetitionsPage activeTeam={activeTeam} />;
   if (activePage === "Contacts") return <ContactsPage activeTeam={activeTeam} />;
@@ -2692,26 +2694,78 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
           </div>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="md:col-span-2">
         <CardHeader>
-          <CardTitle>Club Actions</CardTitle>
+          <div>
+            <CardTitle>At Your Club</CardTitle>
+            <p className="mt-1 text-sm font-semibold text-[#6c5a73]">Choose what you want to do.</p>
+          </div>
           <Badge variant="cyan">{activeTeam.club.replace(" Golf Club", "")}</Badge>
         </CardHeader>
-        <CardContent className="grid gap-2">
-          <Button className="w-full" onClick={() => onNavigate("Bookings")} style={{ backgroundColor: activeTeam.primaryColor }}>
-            <CalendarPlus className="h-4 w-4" />
-            Book table
-          </Button>
-          <Button variant="secondary" className="w-full" onClick={() => onNavigate("Competitions")}>
-            <Trophy className="h-4 w-4" />
-            Enter competitions
-          </Button>
+        <CardContent className="grid gap-3 sm:grid-cols-3">
+          <ClubActionTile
+            icon={CalendarPlus}
+            eyebrow="Tables"
+            title="Book a table"
+            description="Find a time and reserve your table."
+            colors={[activeTeam.primaryColor, activeTeam.accentColor]}
+            onClick={() => onNavigate("Bookings")}
+          />
+          <ClubActionTile
+            icon={Trophy}
+            eyebrow="Competitions"
+            title="Club competitions"
+            description="Enter events and follow draws."
+            colors={["#25002b", "#6d2c78"]}
+            onClick={() => onNavigate("Competitions")}
+          />
+          <ClubActionTile
+            icon={Swords}
+            eyebrow="Challenge"
+            title="Club ladder"
+            description="See the order, challenge and climb."
+            colors={["#10233f", "#1b8a72"]}
+            onClick={() => onNavigate("Ladder")}
+          />
         </CardContent>
       </Card>
       <ClubTeamsOverview activeTeam={activeTeam} />
       <AttackSnookerGameCard />
       <CompetitionPanel activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />
     </section>
+  );
+}
+
+function ClubActionTile({
+  icon: Icon,
+  eyebrow,
+  title,
+  description,
+  colors,
+  onClick
+}: {
+  icon: typeof Trophy;
+  eyebrow: string;
+  title: string;
+  description: string;
+  colors: [string, string];
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group grid min-h-[138px] grid-cols-[48px_1fr] items-start gap-3 overflow-hidden rounded-xl p-4 text-left text-white shadow-card transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6]"
+      style={{ background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})` }}
+    >
+      <span className="grid h-12 w-12 place-items-center rounded-xl bg-white/15 ring-1 ring-white/25"><Icon className="h-6 w-6" /></span>
+      <span className="min-w-0">
+        <span className="block text-[10px] font-black uppercase text-white/60">{eyebrow}</span>
+        <span className="mt-1 block text-lg font-black leading-tight">{title}</span>
+        <span className="mt-2 block text-xs font-semibold leading-relaxed text-white/75">{description}</span>
+        <span className="mt-3 inline-flex items-center gap-1 text-xs font-black">Open <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" /></span>
+      </span>
+    </button>
   );
 }
 
@@ -7756,7 +7810,9 @@ function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePa
       <div className={cn("mx-auto grid max-w-md gap-1", items.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
         {items.map((item) => {
           const Icon = item.icon;
-          const active = item.page === "Menu" ? morePages.includes(activePage) : activePage === item.page;
+          const active = item.page === "Menu"
+            ? morePages.includes(activePage)
+            : activePage === item.page || (item.page === "Club" && activePage === "Ladder");
 
           return (
             <button

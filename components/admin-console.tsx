@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowDown, ArrowUp, Building2, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, Radio, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, Building2, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, Radio, ShieldCheck, Smartphone, Swords, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { AdminLastManStanding } from "@/components/admin-last-man-standing";
 import { AdminCupCompetitions } from "@/components/admin-cup-competitions";
+import { AdminClubLadders } from "@/components/admin-club-ladders";
 import { LiveScoringDashboard } from "@/components/live-scoring-dashboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "desktop" | "clubs" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
+type AdminTab = "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type MaintenanceModeState = { enabled: boolean; updatedAt: string | null };
 type TeamRole = "Player" | "Manager";
@@ -189,6 +190,9 @@ type AdminMatchRow = {
   season_name: string;
   league_id: string;
   league_name: string;
+  cup_competition_id: string | null;
+  cup_competition_name: string | null;
+  cup_round_name: string | null;
   home_team_id: string;
   home_team_name: string;
   away_team_id: string;
@@ -221,6 +225,7 @@ type AdminMatchFrame = {
 };
 type AdminMatchSeason = { id: string; name: string };
 type AdminMatchLeague = { id: string; name: string };
+type AdminMatchCup = { id: string; name: string };
 type AdminMatchDraft = {
   fixtureDate: string;
   homeTeamId: string;
@@ -272,10 +277,11 @@ const roles: TeamRole[] = ["Player", "Manager"];
 const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
 const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
 const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin", "League Chair"];
-const clubAdminTabs: AdminTab[] = ["clubs", "people", "competitions", "matches"];
+const clubAdminTabs: AdminTab[] = ["clubs", "ladders", "people", "competitions", "matches"];
 const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPanelTop }> = [
   { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
   { id: "clubs" as const, label: "Clubs", icon: Building2 },
+  { id: "ladders" as const, label: "Ladders", icon: Swords },
   { id: "competitions" as const, label: "Competitions", icon: Trophy },
   { id: "cup-competitions" as const, label: "Cup Competitions", icon: Trophy },
   { id: "matches" as const, label: "Matches", icon: CalendarDays },
@@ -676,6 +682,7 @@ function AdminTabPanel(props: {
   if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
   if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} maintenanceMode={props.maintenanceMode} onMaintenanceChange={props.onMaintenanceChange} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;
+  if (props.tab === "ladders") return <AdminClubLadders onMessage={props.onMessage} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "cup-competitions") return <AdminCupCompetitions onMessage={props.onMessage} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
@@ -1321,10 +1328,10 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
   const [matches, setMatches] = useState<AdminMatchRow[]>([]);
   const [seasons, setSeasons] = useState<AdminMatchSeason[]>([]);
   const [leagues, setLeagues] = useState<AdminMatchLeague[]>([]);
+  const [cups, setCups] = useState<AdminMatchCup[]>([]);
   const [season, setSeason] = useState("2026/27");
-  const [league, setLeague] = useState("all");
+  const [competitionFilter, setCompetitionFilter] = useState("all");
   const [status, setStatus] = useState("Scheduled");
-  const [fixtureType, setFixtureType] = useState("League");
   const [month, setMonth] = useState(currentAdminMonth());
   const [loading, setLoading] = useState(false);
   const [savingFixtureId, setSavingFixtureId] = useState("");
@@ -1334,12 +1341,12 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
 
   useEffect(() => {
     loadMatches();
-  }, [season, league, status, fixtureType, month]);
+  }, [season, competitionFilter, status, month]);
 
   async function loadMatches(options?: { preserveExpanded?: boolean }) {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ season, league, status, type: fixtureType, month: month || "all" });
+      const params = new URLSearchParams({ season, competition: competitionFilter, status, month: month || "all" });
       const response = await fetch(`/api/admin/matches?${params.toString()}`, { credentials: "same-origin" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not load matches.");
@@ -1347,6 +1354,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
       setMatches(nextMatches);
       setSeasons((data.seasons ?? []) as AdminMatchSeason[]);
       setLeagues((data.leagues ?? []) as AdminMatchLeague[]);
+      setCups((data.cups ?? []) as AdminMatchCup[]);
       setDrafts(Object.fromEntries(nextMatches.map((match) => [match.fixture_id, matchDraft(match)])));
       if (!options?.preserveExpanded) setExpandedFixtureId("");
     } catch (error) {
@@ -1423,11 +1431,12 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
     { value: "Completed", label: "Completed" },
     { value: "Cancelled", label: "Cancelled" }
   ];
-  const typeOptions = [
-    { value: "League", label: "League" },
-    { value: "Friendly", label: "Friendly" },
-    { value: "Cup", label: "Cup" },
-    { value: "all", label: "All match types" }
+  const competitionOptions = [
+    { value: "all", label: "All matches" },
+    { value: "leagues", label: "All leagues" },
+    ...leagues.map((item) => ({ value: `league:${item.id}`, label: item.name })),
+    { value: "cups", label: "All cups" },
+    ...cups.map((item) => ({ value: `cup:${item.id}`, label: item.name }))
   ];
 
   return (
@@ -1437,21 +1446,20 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
         <Badge variant="cyan">{matches.length}</Badge>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="grid gap-3 rounded-2xl bg-[#f7f5fa] p-3 md:grid-cols-5">
+        <div className="grid gap-3 rounded-2xl bg-[#f7f5fa] p-3 md:grid-cols-4">
           <AdminSelect
             label="Season"
             value={season}
-            onChange={setSeason}
+            onChange={(value) => { setSeason(value); setCompetitionFilter("all"); }}
             options={(seasons.length ? seasons : [{ id: "2026/27", name: "2026/27" }]).map((item) => ({ value: item.name, label: item.name }))}
           />
           <AdminSelect
-            label="League"
-            value={league}
-            onChange={setLeague}
-            options={[{ value: "all", label: "All leagues" }, ...leagues.map((item) => ({ value: item.name, label: item.name }))]}
+            label="Competition"
+            value={competitionFilter}
+            onChange={setCompetitionFilter}
+            options={competitionOptions}
           />
           <AdminSelect label="Status" value={status} onChange={setStatus} options={statusOptions} />
-          <AdminSelect label="Type" value={fixtureType} onChange={setFixtureType} options={typeOptions} />
           <AdminInput label="Month" value={month} onChange={setMonth} type="month" />
         </div>
 
@@ -1473,7 +1481,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                 <div className="min-w-0 cursor-pointer xl:self-center">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={completeStatus as "green" | "muted" | "cyan"}>{match.status}</Badge>
-                    <Badge variant="muted">{match.league_name}</Badge>
+                    <Badge variant="muted">{match.cup_competition_name ?? match.league_name}</Badge>
                     <Badge variant="muted">{match.fixture_type}</Badge>
                     <Badge variant={expanded ? "green" : "muted"}>{expanded ? "Teams open" : "Click for teams"}</Badge>
                   </div>

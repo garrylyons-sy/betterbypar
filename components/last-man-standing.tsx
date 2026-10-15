@@ -275,7 +275,7 @@ export function LastManStandingPage() {
 
   const detailContent = detail ? <div className="grid gap-3 border-t border-[#eeeaf2] bg-[#fbfafd] p-3 sm:p-4">
       <div className="grid gap-2 rounded-lg bg-white p-3 shadow-card sm:grid-cols-3">
-        <PanelStat label="Your run" value={detail.entry ? `${detail.progress.roundsPlayed} ${detail.progress.roundsPlayed === 1 ? "round" : "rounds"}${detail.currentRound ? ` · Reached round ${detail.currentRound.roundNumber}` : ""}` : "Not entered"} />
+        <PanelStat label="Your run" value={detail.entry ? `${detail.progress.roundsPlayed} ${detail.progress.roundsPlayed === 1 ? "round" : "rounds"}` : "Not entered"} />
         <PanelStat label="Players left" value={`${detail.progress.standingCount} of ${detail.progress.entrantCount}`} />
         <PanelStat label="Winner" value={detail.progress.winnerName ?? (detail.competition.status === "No Winner" ? "No winner" : "Not decided")} />
       </div>

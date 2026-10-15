@@ -136,6 +136,55 @@ test("a rescheduled fixture outside the published calendar uses a rescheduled ma
   assert.equal(rescheduledWeek?.fixtures[0]?.id, "christmas-match");
 });
 
+test("cup postponements can use competition-specific rescheduled groups", async () => {
+  const { organizeFixtureWeeks } = await loadSchedulingModule();
+  const weeks = organizeFixtureWeeks({
+    weeks: [
+      { id: "cup-round-1", weekNumber: null, weekLabel: "Club Cup · Quarter Final", startsOn: "2026-11-05", competitionType: "Cup" }
+    ],
+    fixtures: [
+      {
+        id: "cup-tie",
+        originalWeekId: "cup-round-1",
+        originalFixtureDate: "2026-11-05T19:30:00.000Z",
+        fixtureDate: "2026-11-17T19:30:00.000Z",
+        homeTeamName: "Castle A",
+        awayTeamName: "Milltown A"
+      }
+    ],
+    rescheduledIdPrefix: "cup-club-cup-rescheduled-",
+    rescheduledWeekLabel: "Club Cup · Rescheduled matches",
+    rescheduledIntoExistingWeeks: false
+  });
+
+  const originalRound = weeks.find((week) => week.id === "cup-round-1");
+  const rescheduledRound = weeks.find((week) => week.id.startsWith("cup-club-cup-rescheduled-"));
+  assert.equal(originalRound?.postponedFixtures[0]?.fixtureId, "cup-tie");
+  assert.equal(rescheduledRound?.weekLabel, "Club Cup · Rescheduled matches");
+  assert.equal(rescheduledRound?.competitionType, "Cup");
+  assert.equal(rescheduledRound?.fixtures[0]?.id, "cup-tie");
+});
+
+test("cup rounds on different days in the same week retain their own headings", async () => {
+  const { organizeFixtureWeeks } = await loadSchedulingModule();
+  const weeks = organizeFixtureWeeks({
+    weeks: [
+      { id: "quarter-final", weekNumber: null, weekLabel: "Quarter Final", startsOn: "2026-11-03", competitionType: "Cup" },
+      { id: "semi-final", weekNumber: null, weekLabel: "Semi Final", startsOn: "2026-11-05", competitionType: "Cup" }
+    ],
+    fixtures: [
+      { id: "qf", originalWeekId: "quarter-final", originalFixtureDate: "2026-11-03", fixtureDate: "2026-11-03", homeTeamName: "A", awayTeamName: "B" },
+      { id: "sf", originalWeekId: "semi-final", originalFixtureDate: "2026-11-05", fixtureDate: "2026-11-05", homeTeamName: "C", awayTeamName: "D" }
+    ],
+    rescheduledIntoExistingWeeks: false
+  });
+
+  assert.deepEqual(weeks.map((week) => [week.weekLabel, week.fixtures.map((fixture) => fixture.id)]), [
+    ["Quarter Final", ["qf"]],
+    ["Semi Final", ["sf"]]
+  ]);
+});
+
 test("fixture APIs preserve the original date and organize rows by effective week", () => {
   const schema = source("../supabase/schema.sql");
   const migration = source("../supabase/fixture_rescheduling.sql");

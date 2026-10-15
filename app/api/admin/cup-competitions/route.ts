@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
+import { cupRoundDateError } from "@/lib/cup-round-dates.mjs";
 import { cupRoundName } from "@/lib/server/cup-competitions";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
@@ -113,12 +114,8 @@ export async function POST(request: NextRequest) {
     if (!format.length || format.length > 15 || format.length % 2 === 0) {
       return NextResponse.json({ error: "Cup format must contain an odd number of 1 to 15 matches." }, { status: 400 });
     }
-    if (roundDates.length !== roundCount || roundDates.some((date: string) => !date)) {
-      return NextResponse.json({ error: "Choose a valid date for every round." }, { status: 400 });
-    }
-    if (roundDates.some((date: string, index: number) => index > 0 && date <= roundDates[index - 1])) {
-      return NextResponse.json({ error: "Each round date must be after the previous round." }, { status: 400 });
-    }
+    const roundDateError = cupRoundDateError(roundDates, roundCount);
+    if (roundDateError) return NextResponse.json({ error: roundDateError }, { status: 400 });
     const gameTypes = format.map((slot: Record<string, unknown>) => String(slot.gameType ?? ""));
     if (gameTypes.some((type: string) => type !== "Singles" && type !== "Doubles")) {
       return NextResponse.json({ error: "Every format row must be Singles or Doubles." }, { status: 400 });

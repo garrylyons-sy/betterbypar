@@ -123,6 +123,7 @@ export async function GET(request: NextRequest) {
       away_source_match_number: number | null;
       fixture_id: string | null;
       fixture_date: string | null;
+      original_fixture_date: string | null;
       status: string;
       home_team_id: string | null;
       away_team_id: string | null;
@@ -149,6 +150,7 @@ export async function GET(request: NextRequest) {
          aws.match_number as away_source_match_number,
          f.id as fixture_id,
          f.fixture_date::text,
+         f.original_fixture_date::text,
          coalesce(f.status::text, ct.status) as status,
          ct.home_team_id,
          ct.away_team_id,
@@ -177,7 +179,7 @@ export async function GET(request: NextRequest) {
        where s.name = $1
          and public.can_person_view_cup(cc.id, $2::uuid)
        group by cc.id, cc.name, cr.id, cr.round_number, cr.name, cr.fixture_date,
-         ct.id, ct.match_number, hs.match_number, aws.match_number, f.id, f.fixture_date,
+         ct.id, ct.match_number, hs.match_number, aws.match_number, f.id, f.fixture_date, f.original_fixture_date,
          f.status, ct.status, ct.home_team_id, ct.away_team_id, ht.name, at.name,
          m.id, m.home_team_score, m.away_team_score, hfl.status, afl.status
        order by cr.fixture_date, cc.name, cr.round_number, ct.match_number`,
@@ -581,50 +583,85 @@ export async function GET(request: NextRequest) {
       fixtures: fixtureEntries
     });
 
-    const cupRoundMap = new Map<string, {
+    type CupDisplayWeek = {
       id: string;
       weekNumber: null;
       weekLabel: string;
       startsOn: string;
       competitionType: "Cup";
       fixtures: ReturnType<typeof mapFixtureEntry>[];
-      postponedFixtures: never[];
+      postponedFixtures: Array<{ fixtureId: string; homeTeamName: string; awayTeamName: string; postponedTo: string }>;
       cupPlaceholders: Array<{ tieId: string; homeLabel: string; awayLabel: string }>;
-    }>();
-    for (const row of cupRows) {
-      const roundKey = `${row.competition_id}:${row.round_id}`;
-      const cupRound = cupRoundMap.get(roundKey) ?? {
-        id: `cup-${roundKey}`,
+    };
+    const cupWeeks: CupDisplayWeek[] = [];
+    for (const competitionId of Array.from(new Set(cupRows.map((row) => row.competition_id)))) {
+      const competitionRows = cupRows.filter((row) => row.competition_id === competitionId);
+      const competitionName = competitionRows[0]?.competition_name ?? "Cup";
+      const rounds = Array.from(new Map(competitionRows.map((row) => [row.round_id, {
+        id: `cup-${competitionId}:${row.round_id}`,
+        roundId: row.round_id,
         weekNumber: null,
-        weekLabel: `${row.competition_name} · ${row.round_name}`,
+        weekLabel: `${competitionName} · ${row.round_name}`,
         startsOn: row.round_date,
-        competitionType: "Cup" as const,
-        fixtures: [],
-        postponedFixtures: [],
-        cupPlaceholders: []
-      };
-      if (row.fixture_id && row.fixture_date && row.home_team_id && row.away_team_id && row.home_team_name && row.away_team_name) {
-        cupRound.fixtures.push(mapFixtureEntry({
-          ...row,
-          fixture_id: row.fixture_id,
-          fixture_date: row.fixture_date,
-          home_team_id: row.home_team_id,
-          away_team_id: row.away_team_id,
-          home_team_name: row.home_team_name,
-          away_team_name: row.away_team_name
-        }, "Cup"));
-      } else {
-        const previousRound = row.round_number > 1 ? cupRows.find((candidate) => candidate.competition_id === row.competition_id && candidate.round_number === row.round_number - 1)?.round_name ?? "previous round" : "draw";
-        cupRound.cupPlaceholders.push({
-          tieId: row.tie_id,
-          homeLabel: row.home_team_name ?? (row.home_source_match_number ? `Winner of ${previousRound} match ${row.home_source_match_number}` : "Bye"),
-          awayLabel: row.away_team_name ?? (row.away_source_match_number ? `Winner of ${previousRound} match ${row.away_source_match_number}` : "Bye")
+        competitionType: "Cup" as const
+      }])).values());
+      const resolvedFixtures = competitionRows.flatMap((row) => {
+        if (!row.fixture_id || !row.fixture_date || !row.home_team_id || !row.away_team_id || !row.home_team_name || !row.away_team_name) return [];
+        return [{
+          ...mapFixtureEntry({
+            ...row,
+            fixture_id: row.fixture_id,
+            fixture_date: row.fixture_date,
+            home_team_id: row.home_team_id,
+            away_team_id: row.away_team_id,
+            home_team_name: row.home_team_name,
+            away_team_name: row.away_team_name
+          }, "Cup"),
+          originalWeekId: `cup-${competitionId}:${row.round_id}`,
+          originalFixtureDate: row.original_fixture_date ?? row.round_date
+        }];
+      });
+      const organized = organizeFixtureWeeks({
+        weeks: rounds,
+        fixtures: resolvedFixtures,
+        rescheduledIdPrefix: `cup-${competitionId}-rescheduled-`,
+        rescheduledWeekLabel: `${competitionName} · Rescheduled matches`,
+        rescheduledIntoExistingWeeks: false
+      }) as Array<Omit<CupDisplayWeek, "cupPlaceholders">>;
+      const organizedById = new Map<string, CupDisplayWeek>(organized.map((week) => [week.id, { ...week, cupPlaceholders: [] }]));
+
+      for (const round of rounds) {
+        const placeholders = competitionRows.filter((row) => row.round_id === round.roundId && !row.fixture_id).map((row) => {
+          const previousRound = row.round_number > 1
+            ? competitionRows.find((candidate) => candidate.round_number === row.round_number - 1)?.round_name ?? "previous round"
+            : "draw";
+          return {
+            tieId: row.tie_id,
+            homeLabel: row.home_team_name ?? (row.home_source_match_number ? `Winner of ${previousRound} match ${row.home_source_match_number}` : "Bye"),
+            awayLabel: row.away_team_name ?? (row.away_source_match_number ? `Winner of ${previousRound} match ${row.away_source_match_number}` : "Bye")
+          };
         });
+        if (!placeholders.length) continue;
+        const existing = organizedById.get(round.id);
+        if (existing) {
+          existing.cupPlaceholders = placeholders;
+        } else {
+          organizedById.set(round.id, {
+            id: round.id,
+            weekNumber: null,
+            weekLabel: round.weekLabel,
+            startsOn: round.startsOn,
+            competitionType: "Cup",
+            fixtures: [],
+            postponedFixtures: [],
+            cupPlaceholders: placeholders
+          });
+        }
       }
-      cupRoundMap.set(roundKey, cupRound);
+      cupWeeks.push(...organizedById.values());
     }
 
-    const weeks = [...leagueWeeks, ...cupRoundMap.values()].sort((left, right) => left.startsOn.localeCompare(right.startsOn));
+    const weeks = [...leagueWeeks, ...cupWeeks].sort((left, right) => left.startsOn.localeCompare(right.startsOn));
 
     return NextResponse.json({ weeks });
   } catch (error) {

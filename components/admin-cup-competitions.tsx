@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp, Plus, Shuffle, Trash2, Trophy } from "lucide-re
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cupRoundDateError } from "@/lib/cup-round-dates.mjs";
 
 type CupAudience = "All Players" | "All Managers" | "Specific Leagues" | "League Chairs";
 type CupTeam = { id: string; name: string; season_id: string; season_name: string; league_id: string; league_name: string; club_name: string };
@@ -107,9 +108,14 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
   const availableTeams = useMemo(() => data.teams.filter((team) => team.season_id === seasonId), [data.teams, seasonId]);
   const capacity = 2 ** roundCount;
   const validTeamCount = teamIds.length >= 2 && teamIds.length <= capacity && (roundCount === 1 || teamIds.length > capacity / 2);
+  const roundDatesError = cupRoundDateError(roundDates, roundCount);
 
   async function createCompetition() {
-    if (!name.trim() || !validTeamCount || format.length % 2 === 0 || !roundDates.every(Boolean)) {
+    if (roundDatesError) {
+      onMessage(roundDatesError);
+      return;
+    }
+    if (!name.trim() || !validTeamCount || format.length % 2 === 0) {
       onMessage("Add a name, an odd match format, valid round dates and enough teams for the selected number of rounds.");
       return;
     }
@@ -220,8 +226,9 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
             <section>
               <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-black text-[#25002b]">Round dates</h3><Badge variant="muted">19:30 start</Badge></div>
               <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                {roundDates.map((date, index) => <label key={index} className="grid grid-cols-[auto_1fr] items-center gap-2 rounded-lg bg-[#f7f5fa] p-2 text-xs font-extrabold text-[#6c5a73]"><span>{roundName(index + 1, roundCount)}</span><input type="date" className="min-w-0 rounded-md border border-[#ded7e5] bg-white px-2 py-1.5 text-[#10233f]" value={date} onChange={(event) => setRoundDates((dates) => dates.map((item, rowIndex) => rowIndex === index ? event.target.value : item))} /></label>)}
+                {roundDates.map((date, index) => <label key={index} className="grid grid-cols-[auto_1fr] items-center gap-2 rounded-lg bg-[#f7f5fa] p-2 text-xs font-extrabold text-[#6c5a73]"><span>{roundName(index + 1, roundCount)}</span><input type="date" min={index > 0 ? roundDates[index - 1] : undefined} aria-invalid={Boolean(roundDatesError)} className="min-w-0 rounded-md border border-[#ded7e5] bg-white px-2 py-1.5 text-[#10233f]" value={date} onChange={(event) => setRoundDates((dates) => dates.map((item, rowIndex) => rowIndex === index ? event.target.value : item))} /></label>)}
               </div>
+              {roundDatesError ? <p className="mt-2 text-xs font-bold text-[#b42318]">{roundDatesError}</p> : null}
             </section>
 
             <section>

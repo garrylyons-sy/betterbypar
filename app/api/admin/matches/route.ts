@@ -26,13 +26,23 @@ export async function GET(request: NextRequest) {
     if (!administrator) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
 
     const season = request.nextUrl.searchParams.get("season")?.trim() || "2026/27";
-    const league = request.nextUrl.searchParams.get("league")?.trim() || "all";
+    const competitionFilter = request.nextUrl.searchParams.get("competition")?.trim() || "all";
     const status = request.nextUrl.searchParams.get("status")?.trim() || "all";
-    const type = request.nextUrl.searchParams.get("type")?.trim() || "League";
     const month = request.nextUrl.searchParams.get("month")?.trim() || "all";
     const monthStart = /^\d{4}-\d{2}$/.test(month) ? `${month}-01` : null;
+    const filterId = competitionFilter.includes(":") ? competitionFilter.slice(competitionFilter.indexOf(":") + 1) : "";
+    const validFilterId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(filterId) ? filterId : null;
+    const competitionMode = competitionFilter === "leagues"
+      ? "leagues"
+      : competitionFilter === "cups"
+        ? "cups"
+        : competitionFilter.startsWith("league:") && validFilterId
+          ? "league"
+          : competitionFilter.startsWith("cup:") && validFilterId
+            ? "cup"
+            : "all";
 
-    const [matches, teams, seasons, leagues] = await Promise.all([
+    const [matches, teams, seasons, leagues, cups] = await Promise.all([
       dbQuery(
         `select
            f.id as fixture_id,
@@ -43,6 +53,9 @@ export async function GET(request: NextRequest) {
            s.name as season_name,
            f.league_id,
            l.name as league_name,
+           cc.id as cup_competition_id,
+           cc.name as cup_competition_name,
+           cr.name as cup_round_name,
            f.home_team_id,
            ht.name as home_team_name,
            f.away_team_id,
@@ -62,6 +75,9 @@ export async function GET(request: NextRequest) {
          join public.team ht on ht.id = f.home_team_id
          join public.team at on at.id = f.away_team_id
          left join public.match m on m.fixture_id = f.id
+         left join public.cup_competition_tie ct on ct.fixture_id = f.id
+         left join public.cup_competition_round cr on cr.id = ct.competition_round_id
+         left join public.cup_competition cc on cc.id = cr.competition_id
          left join public.fixture_lineup hfl on hfl.fixture_id = f.id and hfl.team_id = f.home_team_id
          left join public.fixture_lineup afl on afl.fixture_id = f.id and afl.team_id = f.away_team_id
          left join lateral (
@@ -107,13 +123,18 @@ export async function GET(request: NextRequest) {
            where g.match_id = m.id
          ) frame_details on true
          where s.name = $1
-           and ($2 = 'all' or l.name = $2)
-           and ($3 = 'all' or f.status::text = $3)
-           and ($4 = 'all' or coalesce(f.fixture_type, 'League') = $4)
+           and (
+             $2 = 'all'
+             or ($2 = 'leagues' and coalesce(f.fixture_type, 'League') = 'League')
+             or ($2 = 'cups' and coalesce(f.fixture_type, 'League') = 'Cup')
+             or ($2 = 'league' and coalesce(f.fixture_type, 'League') = 'League' and f.league_id = $3::uuid)
+             or ($2 = 'cup' and coalesce(f.fixture_type, 'League') = 'Cup' and cc.id = $3::uuid)
+           )
+           and ($4 = 'all' or f.status::text = $4)
            and ($5::date is null or (f.fixture_date at time zone 'Europe/Dublin')::date >= $5::date)
            and ($5::date is null or (f.fixture_date at time zone 'Europe/Dublin')::date < ($5::date + interval '1 month')::date)
          order by f.fixture_date, l.name, ht.name`,
-        [season, league, status, type, monthStart]
+        [season, competitionMode, validFilterId, status, monthStart]
       ),
       dbQuery(
         `select
@@ -133,14 +154,23 @@ export async function GET(request: NextRequest) {
          order by s.name desc, l.name, t.name`
       ),
       dbQuery("select id, name from public.season order by name desc"),
-      dbQuery("select id, name from public.league order by name")
+      dbQuery("select id, name from public.league order by name"),
+      dbQuery(
+        `select cc.id, cc.name
+         from public.cup_competition cc
+         join public.season s on s.id = cc.season_id
+         where s.name = $1
+         order by cc.name`,
+        [season]
+      )
     ]);
 
     return NextResponse.json({
       matches: matches.rows,
       teams: teams.rows,
       seasons: seasons.rows,
-      leagues: leagues.rows
+      leagues: leagues.rows,
+      cups: cups.rows
     });
   } catch (error) {
     return NextResponse.json(
