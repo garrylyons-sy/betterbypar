@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, Building2, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, Radio, ShieldCheck, Smartphone, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { AdminLastManStanding } from "@/components/admin-last-man-standing";
+import { AdminCupCompetitions } from "@/components/admin-cup-competitions";
 import { LiveScoringDashboard } from "@/components/live-scoring-dashboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "desktop" | "clubs" | "competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
+type AdminTab = "desktop" | "clubs" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type MaintenanceModeState = { enabled: boolean; updatedAt: string | null };
 type TeamRole = "Player" | "Manager";
@@ -276,6 +277,7 @@ const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPan
   { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
   { id: "clubs" as const, label: "Clubs", icon: Building2 },
   { id: "competitions" as const, label: "Competitions", icon: Trophy },
+  { id: "cup-competitions" as const, label: "Cup Competitions", icon: Trophy },
   { id: "matches" as const, label: "Matches", icon: CalendarDays },
   { id: "last-man-standing", label: "Last Man Standing", icon: Trophy },
   { id: "live-scoring", label: "Live Scoring", icon: Radio },
@@ -675,6 +677,7 @@ function AdminTabPanel(props: {
   if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} maintenanceMode={props.maintenanceMode} onMaintenanceChange={props.onMaintenanceChange} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "cup-competitions") return <AdminCupCompetitions onMessage={props.onMessage} />;
   if (props.tab === "matches") return <MatchesAdminPanel onMessage={props.onMessage} />;
   if (props.tab === "last-man-standing") return <AdminLastManStanding onMessage={props.onMessage} />;
   if (props.tab === "live-scoring") return <LiveScoringDashboard embedded />;
@@ -1423,6 +1426,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
   const typeOptions = [
     { value: "League", label: "League" },
     { value: "Friendly", label: "Friendly" },
+    { value: "Cup", label: "Cup" },
     { value: "all", label: "All match types" }
   ];
 

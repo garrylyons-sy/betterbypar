@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
+import { advanceCupFixture } from "@/lib/server/cup-competitions";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import { processDueLastManStandingWork } from "@/lib/server/last-man-standing";
 
@@ -169,8 +170,8 @@ export async function PATCH(request: NextRequest) {
     if ((homeScore != null || awayScore != null) && (!Number.isInteger(homeScore) || !Number.isInteger(awayScore))) {
       return NextResponse.json({ error: "Both scores must be whole numbers." }, { status: 400 });
     }
-    if (homeScore != null && awayScore != null && (homeScore < 0 || awayScore < 0 || homeScore + awayScore > 7)) {
-      return NextResponse.json({ error: "Scores must be between 0 and 7 and total no more than 7." }, { status: 400 });
+    if (homeScore != null && awayScore != null && (homeScore < 0 || awayScore < 0 || homeScore + awayScore > 99)) {
+      return NextResponse.json({ error: "Scores must be positive and total no more than 99." }, { status: 400 });
     }
 
     const result = await withTransaction(async (client) => {
@@ -184,6 +185,8 @@ export async function PATCH(request: NextRequest) {
         lineup_count: number;
         game_count: number;
         scoring_activity_count: number;
+        fixture_type: "League" | "Friendly" | "Cup";
+        cup_match_count: number | null;
       }>(
         `select
            f.season_id,
@@ -194,6 +197,8 @@ export async function PATCH(request: NextRequest) {
            m.id as match_id,
            coalesce(fl.lineup_count, 0) as lineup_count,
            coalesce(g.game_count, 0) as game_count,
+           coalesce(f.fixture_type, 'League') as fixture_type,
+           cfmt.cup_match_count,
            (
              coalesce(g.scoring_activity_count, 0)
              + case
@@ -224,12 +229,28 @@ export async function PATCH(request: NextRequest) {
            from public.game g
            where g.match_id = m.id
          ) g on true
+         left join lateral (
+           select count(*)::int as cup_match_count
+           from public.cup_competition_tie ct
+           join public.cup_competition_round cr on cr.id = ct.competition_round_id
+           join public.cup_competition_format_slot cfs on cfs.competition_id = cr.competition_id
+           where ct.fixture_id = f.id
+         ) cfmt on true
          where f.id = $1
          for update of f`,
         [fixtureId]
       );
       const fixture = existing.rows[0];
       if (!fixture) throw new Error("Fixture not found.");
+      if (homeScore != null && awayScore != null) {
+        const maximumTotal = fixture.fixture_type === "Cup" ? Number(fixture.cup_match_count ?? 0) : 7;
+        if (!maximumTotal || homeScore + awayScore > maximumTotal) {
+          throw new Error(`The total score cannot exceed ${maximumTotal || "the configured cup format"}.`);
+        }
+        if (fixture.fixture_type === "Cup" && status === "Completed" && homeScore === awayScore) {
+          throw new Error("A cup tie cannot finish level.");
+        }
+      }
 
       const nextHomeTeamId = homeTeamId || fixture.home_team_id;
       const nextAwayTeamId = awayTeamId || fixture.away_team_id;
@@ -300,6 +321,10 @@ export async function PATCH(request: NextRequest) {
           [fixtureId, homeScore, awayScore, user.personId]
         );
         matchId = matchResult.rows[0].id;
+      }
+
+      if (status === "Completed") {
+        await advanceCupFixture(client, fixtureId, user.personId);
       }
 
       await client.query(

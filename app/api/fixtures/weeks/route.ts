@@ -110,7 +110,83 @@ export async function GET(request: NextRequest) {
        order by fw.starts_on, fw.week_number`,
       [leagueName, seasonName]
     )).rows;
-    const fixtureIds = rows.rows.map((row) => row.fixture_id);
+    const cupRows = (await dbQuery<{
+      competition_id: string;
+      competition_name: string;
+      round_id: string;
+      round_number: number;
+      round_name: string;
+      round_date: string;
+      tie_id: string;
+      match_number: number;
+      home_source_match_number: number | null;
+      away_source_match_number: number | null;
+      fixture_id: string | null;
+      fixture_date: string | null;
+      status: string;
+      home_team_id: string | null;
+      away_team_id: string | null;
+      home_team_name: string | null;
+      away_team_name: string | null;
+      match_id: string | null;
+      home_team_score: number | null;
+      away_team_score: number | null;
+      home_lineup_status: "Draft" | "Published" | null;
+      away_lineup_status: "Draft" | "Published" | null;
+      completed_games: string;
+      total_games: string;
+    }>(
+      `select
+         cc.id as competition_id,
+         cc.name as competition_name,
+         cr.id as round_id,
+         cr.round_number,
+         cr.name as round_name,
+         cr.fixture_date::text as round_date,
+         ct.id as tie_id,
+         ct.match_number,
+         hs.match_number as home_source_match_number,
+         aws.match_number as away_source_match_number,
+         f.id as fixture_id,
+         f.fixture_date::text,
+         coalesce(f.status::text, ct.status) as status,
+         ct.home_team_id,
+         ct.away_team_id,
+         ht.name as home_team_name,
+         at.name as away_team_name,
+         m.id as match_id,
+         m.home_team_score,
+         m.away_team_score,
+         hfl.status as home_lineup_status,
+         afl.status as away_lineup_status,
+         count(g.id) filter (where g.winner_team_id is not null)::text as completed_games,
+         count(g.id)::text as total_games
+       from public.cup_competition cc
+       join public.season s on s.id = cc.season_id
+       join public.cup_competition_round cr on cr.competition_id = cc.id
+       join public.cup_competition_tie ct on ct.competition_round_id = cr.id
+       left join public.cup_competition_tie hs on hs.id = ct.home_source_tie_id
+       left join public.cup_competition_tie aws on aws.id = ct.away_source_tie_id
+       left join public.team ht on ht.id = ct.home_team_id
+       left join public.team at on at.id = ct.away_team_id
+       left join public.fixture f on f.id = ct.fixture_id
+       left join public.match m on m.fixture_id = f.id
+       left join public.fixture_lineup hfl on hfl.fixture_id = f.id and hfl.team_id = f.home_team_id
+       left join public.fixture_lineup afl on afl.fixture_id = f.id and afl.team_id = f.away_team_id
+       left join public.game g on g.match_id = m.id
+       where s.name = $1
+         and public.can_person_view_cup(cc.id, $2::uuid)
+       group by cc.id, cc.name, cr.id, cr.round_number, cr.name, cr.fixture_date,
+         ct.id, ct.match_number, hs.match_number, aws.match_number, f.id, f.fixture_date,
+         f.status, ct.status, ct.home_team_id, ct.away_team_id, ht.name, at.name,
+         m.id, m.home_team_score, m.away_team_score, hfl.status, afl.status
+       order by cr.fixture_date, cc.name, cr.round_number, ct.match_number`,
+      [seasonName, user.personId]
+    )).rows;
+    const fixtureIds = Array.from(new Set([
+      ...rows.rows.map((row) => row.fixture_id),
+      ...cupRows.map((row) => row.fixture_id).filter((id): id is string => Boolean(id))
+    ]));
     const gameRows = fixtureIds.length ? (await dbQuery<{
       fixture_id: string;
       id: string;
@@ -410,7 +486,23 @@ export async function GET(request: NextRequest) {
       return Array.from(lineups.values());
     };
 
-    const fixtureEntries = rows.rows.map((row) => {
+    type ResolvedFixtureRow = {
+      fixture_id: string;
+      fixture_date: string;
+      status: string;
+      home_team_id: string;
+      away_team_id: string;
+      home_team_name: string;
+      away_team_name: string;
+      match_id: string | null;
+      home_team_score: number | null;
+      away_team_score: number | null;
+      home_lineup_status: "Draft" | "Published" | null;
+      away_lineup_status: "Draft" | "Published" | null;
+      completed_games: string;
+      total_games: string;
+    };
+    const mapFixtureEntry = (row: ResolvedFixtureRow, fixtureType: "League" | "Cup") => {
       const isOwnFixture = Boolean(teamId && (row.home_team_id === teamId || row.away_team_id === teamId));
       const bothPublished = row.home_lineup_status === "Published" && row.away_lineup_status === "Published";
       const ownPublished = isOwnFixture && (
@@ -425,9 +517,8 @@ export async function GET(request: NextRequest) {
           : [];
       return {
         id: row.fixture_id,
-        originalWeekId: row.week_id,
-        originalFixtureDate: row.original_fixture_date ?? row.starts_on,
         fixtureDate: row.fixture_date,
+        fixtureType,
         status: row.status,
         homeTeamId: row.home_team_id,
         awayTeamId: row.away_team_id,
@@ -473,9 +564,14 @@ export async function GET(request: NextRequest) {
             breaks: breaksForGame(game.id)
           }))
       };
-    });
+    };
+    const fixtureEntries = rows.rows.map((row) => ({
+      ...mapFixtureEntry(row, "League"),
+      originalWeekId: row.week_id,
+      originalFixtureDate: row.original_fixture_date ?? row.starts_on
+    }));
 
-    const weeks = organizeFixtureWeeks({
+    const leagueWeeks = organizeFixtureWeeks({
       weeks: weekCatalog.map((week) => ({
         id: week.id,
         weekNumber: week.week_number,
@@ -484,6 +580,51 @@ export async function GET(request: NextRequest) {
       })),
       fixtures: fixtureEntries
     });
+
+    const cupRoundMap = new Map<string, {
+      id: string;
+      weekNumber: null;
+      weekLabel: string;
+      startsOn: string;
+      competitionType: "Cup";
+      fixtures: ReturnType<typeof mapFixtureEntry>[];
+      postponedFixtures: never[];
+      cupPlaceholders: Array<{ tieId: string; homeLabel: string; awayLabel: string }>;
+    }>();
+    for (const row of cupRows) {
+      const roundKey = `${row.competition_id}:${row.round_id}`;
+      const cupRound = cupRoundMap.get(roundKey) ?? {
+        id: `cup-${roundKey}`,
+        weekNumber: null,
+        weekLabel: `${row.competition_name} · ${row.round_name}`,
+        startsOn: row.round_date,
+        competitionType: "Cup" as const,
+        fixtures: [],
+        postponedFixtures: [],
+        cupPlaceholders: []
+      };
+      if (row.fixture_id && row.fixture_date && row.home_team_id && row.away_team_id && row.home_team_name && row.away_team_name) {
+        cupRound.fixtures.push(mapFixtureEntry({
+          ...row,
+          fixture_id: row.fixture_id,
+          fixture_date: row.fixture_date,
+          home_team_id: row.home_team_id,
+          away_team_id: row.away_team_id,
+          home_team_name: row.home_team_name,
+          away_team_name: row.away_team_name
+        }, "Cup"));
+      } else {
+        const previousRound = row.round_number > 1 ? cupRows.find((candidate) => candidate.competition_id === row.competition_id && candidate.round_number === row.round_number - 1)?.round_name ?? "previous round" : "draw";
+        cupRound.cupPlaceholders.push({
+          tieId: row.tie_id,
+          homeLabel: row.home_team_name ?? (row.home_source_match_number ? `Winner of ${previousRound} match ${row.home_source_match_number}` : "Bye"),
+          awayLabel: row.away_team_name ?? (row.away_source_match_number ? `Winner of ${previousRound} match ${row.away_source_match_number}` : "Bye")
+        });
+      }
+      cupRoundMap.set(roundKey, cupRound);
+    }
+
+    const weeks = [...leagueWeeks, ...cupRoundMap.values()].sort((left, right) => left.startsOn.localeCompare(right.startsOn));
 
     return NextResponse.json({ weeks });
   } catch (error) {

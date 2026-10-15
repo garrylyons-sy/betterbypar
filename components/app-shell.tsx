@@ -5095,7 +5095,7 @@ type ManagerLineupPayload = {
     league: string;
     season: string;
     status: string;
-    fixtureType?: "League" | "Friendly";
+    fixtureType?: "League" | "Friendly" | "Cup";
   } | null;
   players: LineupPlayerOption[];
   guestPlayers?: LineupPlayerOption[];
@@ -5205,6 +5205,7 @@ type FixtureWeekFixture = {
     }>;
   }>;
   games: ManagerLineupGame[];
+  fixtureType?: "League" | "Friendly" | "Cup";
 };
 
 type FixtureWeek = {
@@ -5218,6 +5219,12 @@ type FixtureWeek = {
     homeTeamName: string;
     awayTeamName: string;
     postponedTo: string;
+  }>;
+  competitionType?: "League" | "Cup";
+  cupPlaceholders?: Array<{
+    tieId: string;
+    homeLabel: string;
+    awayLabel: string;
   }>;
 };
 
@@ -5393,7 +5400,7 @@ function FixtureWeekCarouselCard({
               Share
             </Button>
           ) : null}
-          <Badge variant="muted">{activeTeam.league}</Badge>
+          <Badge variant="muted">{week?.competitionType === "Cup" ? "Cup" : activeTeam.league}</Badge>
         </div>
       </CardHeader>
       <CardContent className="grid gap-3">
@@ -5415,6 +5422,16 @@ function FixtureWeekCarouselCard({
               </Button>
             </div>
             <div className="overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]">
+              {(week.cupPlaceholders ?? []).map((tie) => (
+                <div key={tie.tieId} className="grid gap-2 border-b border-[#eeeaf2] bg-[#f7f5fa] p-3">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                    <span className="min-w-0 text-sm font-extrabold text-[#6c5a73]">{tie.homeLabel}</span>
+                    <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
+                    <span className="min-w-0 text-right text-sm font-extrabold text-[#6c5a73]">{tie.awayLabel}</span>
+                  </div>
+                  <span className="justify-self-start rounded-md bg-white px-2 py-1 text-[11px] font-extrabold uppercase text-[#6c5a73] ring-1 ring-[#ded7e5]">Awaiting previous result</span>
+                </div>
+              ))}
               {week.postponedFixtures.map((fixture) => (
                 <div key={`postponed-${fixture.fixtureId}`} className="grid gap-2 border-b border-[#eeeaf2] bg-[#fffaf0] p-3">
                   <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
@@ -5792,7 +5809,7 @@ function ManagerLineupCard({
     <Card className={inlineFixtureOnly ? "border-0 bg-transparent shadow-none" : undefined}>
       {!inlineFixtureOnly ? (
         <CardHeader>
-          <CardTitle>{payload?.fixture?.fixtureType === "Friendly" ? "Friendly Match" : "Next Matches"}</CardTitle>
+          <CardTitle>{payload?.fixture?.fixtureType === "Friendly" ? "Friendly Match" : payload?.fixture?.fixtureType === "Cup" ? "Cup Match" : "Next Matches"}</CardTitle>
           {matchLocked && fixtureDateHasPassed(payload?.fixture?.fixtureDate) ? null : (
             <Badge variant={matchLocked ? "green" : matchReady ? "cyan" : ownStatus === "Published" ? "cyan" : payload?.lineup?.id ? "muted" : "muted"}>
               {matchLocked ? "Completed" : matchReady ? "Score ready" : ownStatus === "Published" ? "Published" : payload?.lineup?.id ? "Picked" : "Plan"}

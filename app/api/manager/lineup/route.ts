@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PoolClient } from "pg";
 
 import { currentUser, testUserFromEmail } from "@/lib/server/auth";
+import { advanceCupFixture } from "@/lib/server/cup-competitions";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import { recordOfficialGameResult } from "@/lib/server/game-results";
 import { processDueLastManStandingWork } from "@/lib/server/last-man-standing";
@@ -13,23 +14,24 @@ type LineupSlotDefinition = {
   slotNumber: number;
   gameType: "Singles" | "Doubles";
   label: string;
+  pointsAwarded: number;
 };
 
 const standardLineupSlots: LineupSlotDefinition[] = [
-  { slotNumber: 1, gameType: "Singles", label: "Singles 1" },
-  { slotNumber: 2, gameType: "Singles", label: "Singles 2" },
-  { slotNumber: 3, gameType: "Doubles", label: "Doubles" },
-  { slotNumber: 4, gameType: "Singles", label: "Singles 4" },
-  { slotNumber: 5, gameType: "Singles", label: "Singles 5" },
-  { slotNumber: 6, gameType: "Singles", label: "Singles 6" }
+  { slotNumber: 1, gameType: "Singles", label: "Singles 1", pointsAwarded: 1 },
+  { slotNumber: 2, gameType: "Singles", label: "Singles 2", pointsAwarded: 1 },
+  { slotNumber: 3, gameType: "Doubles", label: "Doubles", pointsAwarded: 2 },
+  { slotNumber: 4, gameType: "Singles", label: "Singles 4", pointsAwarded: 1 },
+  { slotNumber: 5, gameType: "Singles", label: "Singles 5", pointsAwarded: 1 },
+  { slotNumber: 6, gameType: "Singles", label: "Singles 6", pointsAwarded: 1 }
 ];
 
 const cLeagueLineupSlots: LineupSlotDefinition[] = [
-  { slotNumber: 1, gameType: "Singles", label: "Singles 1" },
-  { slotNumber: 2, gameType: "Doubles", label: "Doubles 2" },
-  { slotNumber: 3, gameType: "Singles", label: "Singles 3" },
-  { slotNumber: 4, gameType: "Doubles", label: "Doubles 4" },
-  { slotNumber: 5, gameType: "Singles", label: "Singles 5" }
+  { slotNumber: 1, gameType: "Singles", label: "Singles 1", pointsAwarded: 1 },
+  { slotNumber: 2, gameType: "Doubles", label: "Doubles 2", pointsAwarded: 2 },
+  { slotNumber: 3, gameType: "Singles", label: "Singles 3", pointsAwarded: 1 },
+  { slotNumber: 4, gameType: "Doubles", label: "Doubles 4", pointsAwarded: 2 },
+  { slotNumber: 5, gameType: "Singles", label: "Singles 5", pointsAwarded: 1 }
 ];
 
 function lineupSlotsForLeague(leagueName?: string | null): LineupSlotDefinition[] {
@@ -236,6 +238,7 @@ export async function POST(request: NextRequest) {
       await withTransaction(async (client) => {
         await ensureFixtureTeam(client, fixtureId, teamId);
         await completeMatch(client, fixtureId);
+        await advanceCupFixture(client, fixtureId, user.personId);
         await recordLineupActivity(client, user.personId, fixtureId, teamId, "Completed match");
       });
 
@@ -370,7 +373,7 @@ async function loadLineupPayload(
     league_name: string;
     season_name: string;
     status: string;
-    fixture_type: "League" | "Friendly";
+    fixture_type: "League" | "Friendly" | "Cup";
   }>(
     `${fixtureSelectSql}
      where (
@@ -441,7 +444,7 @@ async function loadLineupPayload(
     lineupQuerySql,
     [fixture.fixture_id]
   )).rows;
-  const slotDefinitions = lineupSlotsForLeague(fixture.league_name);
+  const slotDefinitions = await loadFixtureSlotDefinitions(fixture.fixture_id, fixture.league_name);
   const own = buildLineup(lineupRows.filter((row) => row.team_id === teamId), fixture, slotDefinitions);
   const opponentTeamId = fixture.home_team_id === teamId ? fixture.away_team_id : fixture.home_team_id;
   const opponentRaw = lineupRows.filter((row) => row.team_id === opponentTeamId);
@@ -587,7 +590,7 @@ async function loadLineupPayload(
      left join public.fixture_lineup afl on afl.fixture_id = wf.id and afl.team_id = wf.away_team_id
      where (
        (
-         (select coalesce(fixture_type, 'League') from public.fixture where id = $1) = 'Friendly'
+         (select coalesce(fixture_type, 'League') from public.fixture where id = $1) <> 'League'
          and wf.id = $1
        )
        or (
@@ -737,7 +740,7 @@ async function loadLineupPayload(
      ) ap2_guest_team on true
      where (
        (
-         (select coalesce(fixture_type, 'League') from public.fixture where id = $1) = 'Friendly'
+         (select coalesce(fixture_type, 'League') from public.fixture where id = $1) <> 'League'
          and wf.id = $1
        )
        or (
@@ -1297,7 +1300,7 @@ async function upsertLineup(client: PoolClient, fixtureId: string, teamId: strin
 }
 
 async function loadFixtureLineupMeta(client: PoolClient, fixtureId: string) {
-  const result = await client.query<{ league_name: string; fixture_type: "League" | "Friendly" }>(
+  const result = await client.query<{ league_name: string; fixture_type: "League" | "Friendly" | "Cup" }>(
     `select l.name as league_name, coalesce(f.fixture_type, 'League') as fixture_type
      from public.fixture f
      join public.league l on l.id = f.league_id
@@ -1305,10 +1308,43 @@ async function loadFixtureLineupMeta(client: PoolClient, fixtureId: string) {
      limit 1`,
     [fixtureId]
   );
+  const fixtureType = result.rows[0]?.fixture_type ?? "League";
+  const cupSlots = fixtureType === "Cup" ? (await client.query<{ slot_number: number; game_type: "Singles" | "Doubles"; points_awarded: number }>(
+    `select cfs.slot_number, cfs.game_type::text as game_type, cfs.points_awarded
+     from public.cup_competition_tie ct
+     join public.cup_competition_round cr on cr.id = ct.competition_round_id
+     join public.cup_competition_format_slot cfs on cfs.competition_id = cr.competition_id
+     where ct.fixture_id = $1
+     order by cfs.slot_number`,
+    [fixtureId]
+  )).rows : [];
   return {
-    slotDefinitions: lineupSlotsForLeague(result.rows[0]?.league_name),
-    fixtureType: result.rows[0]?.fixture_type ?? "League"
+    slotDefinitions: cupSlots.length ? cupSlots.map((slot) => ({
+      slotNumber: slot.slot_number,
+      gameType: slot.game_type,
+      label: `${slot.game_type} ${slot.slot_number}`,
+      pointsAwarded: Number(slot.points_awarded)
+    })) : lineupSlotsForLeague(result.rows[0]?.league_name),
+    fixtureType
   };
+}
+
+async function loadFixtureSlotDefinitions(fixtureId: string, leagueName: string) {
+  const cupSlots = (await dbQuery<{ slot_number: number; game_type: "Singles" | "Doubles"; points_awarded: number }>(
+    `select cfs.slot_number, cfs.game_type::text as game_type, cfs.points_awarded
+     from public.cup_competition_tie ct
+     join public.cup_competition_round cr on cr.id = ct.competition_round_id
+     join public.cup_competition_format_slot cfs on cfs.competition_id = cr.competition_id
+     where ct.fixture_id = $1
+     order by cfs.slot_number`,
+    [fixtureId]
+  )).rows;
+  return cupSlots.length ? cupSlots.map((slot) => ({
+    slotNumber: slot.slot_number,
+    gameType: slot.game_type,
+    label: `${slot.game_type} ${slot.slot_number}`,
+    pointsAwarded: Number(slot.points_awarded)
+  })) : lineupSlotsForLeague(leagueName);
 }
 
 async function generateGamesIfBothPublished(client: PoolClient, fixtureId: string, personId: string) {
@@ -1326,7 +1362,8 @@ async function generateGamesIfBothPublished(client: PoolClient, fixtureId: strin
   );
   const fixture = fixtureResult.rows[0];
   if (!fixture) throw new Error("Fixture not found.");
-  const slotDefinitions = lineupSlotsForLeague(fixture.league_name);
+  const fixtureMeta = await loadFixtureLineupMeta(client, fixtureId);
+  const slotDefinitions = fixtureMeta.slotDefinitions;
 
   const lineupResult = await client.query<LineupRow>(lineupQuerySql, [fixtureId]);
   const home = buildLineup(lineupResult.rows.filter((row) => row.team_id === fixture.home_team_id), { fixture_id: fixtureId }, slotDefinitions);
@@ -1398,7 +1435,7 @@ async function generateGamesIfBothPublished(client: PoolClient, fixtureId: strin
         slot.gameType === "Doubles" ? homeSlot?.player2CountsForStats ?? true : true,
         awaySlot?.player1CountsForStats ?? true,
         slot.gameType === "Doubles" ? awaySlot?.player2CountsForStats ?? true : true,
-        slot.gameType === "Doubles" ? 2 : 1
+        slot.pointsAwarded
       ]
     );
   }
