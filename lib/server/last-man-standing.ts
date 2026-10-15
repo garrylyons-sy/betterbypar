@@ -393,15 +393,42 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
       round_number: number | null;
       round_name: string | null;
       round_status: string | null;
+      rounds_played: number;
+      entrant_count: number;
+      standing_count: number;
+      winner_name: string | null;
     }>(
       `select e.id::text as entry_id, e.status as entry_status, e.tier, e.source_team_id::text,
-              r.id::text as round_id, r.cycle_number, r.round_number, r.name as round_name, r.status as round_status
+              r.id::text as round_id, r.cycle_number, r.round_number, r.name as round_name, r.status as round_status,
+              coalesce((
+                select count(distinct played_pick.round_id)
+                from public.last_man_standing_pick played_pick
+                where played_pick.entry_id = e.id
+              ), 0)::int as rounds_played,
+              (select count(*) from public.last_man_standing_entry all_entry
+               where all_entry.competition_id = c.id and all_entry.status <> 'Withdrawn')::int as entrant_count,
+              (select count(*) from public.last_man_standing_entry standing_entry
+               where standing_entry.competition_id = c.id
+                 and standing_entry.status in ('Entered', 'Standing', 'Winner'))::int as standing_count,
+              (select concat_ws(' ', winner_person.first_name, winner_person.last_name)
+               from public.last_man_standing_entry winner_entry
+               join public.person winner_person on winner_person.id = winner_entry.person_id
+               where winner_entry.competition_id = c.id and winner_entry.winner = true
+               limit 1) as winner_name
        from public.last_man_standing_competition c
        left join public.last_man_standing_entry e on e.competition_id = c.id and e.person_id = $2
        left join lateral (
-         select * from public.last_man_standing_round
-         where competition_id = c.id and status in ('Open', 'Locked', 'Needs Review')
-         order by cycle_number desc, round_number desc limit 1
+         select r.* from public.last_man_standing_round r
+         where r.competition_id = c.id
+           and (
+             r.id = e.eliminated_round_id
+             or (e.status = 'Winner' and r.status = 'Settled')
+             or (coalesce(e.status, '') not in ('Eliminated', 'Winner') and r.status in ('Open', 'Locked', 'Needs Review'))
+           )
+         order by
+           case when r.id = e.eliminated_round_id then 0 when e.status = 'Winner' and r.status = 'Settled' then 1 else 2 end,
+           r.cycle_number desc, r.round_number desc
+         limit 1
        ) r on true
        where c.id = $1`,
       [competitionId, user.personId]
@@ -572,6 +599,12 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
       roundNumber: row.round_number,
       status: row.round_status
     } : null,
+    progress: {
+      roundsPlayed: Number(row?.rounds_played ?? 0),
+      entrantCount: Number(row?.entrant_count ?? 0),
+      standingCount: Number(row?.standing_count ?? 0),
+      winnerName: row?.winner_name ?? null
+    },
     candidates: candidateRows.rows.map((candidate) => ({
       id: candidate.id,
       name: candidate.name,

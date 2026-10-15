@@ -78,6 +78,19 @@ test("eliminated summaries preserve the deciding round and settled pick outcomes
   });
 });
 
+test("competition detail preserves an eliminated entrant's run and overall result", () => {
+  const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
+  const detail = source.slice(source.indexOf("export async function loadLastManStandingCompetition"), source.indexOf("export type EnterCompetitionInput"));
+
+  assert.match(detail, /r\.id = e\.eliminated_round_id/);
+  assert.match(detail, /count\(distinct played_pick\.round_id\).*as rounds_played/s);
+  assert.match(detail, /status in \('Entered', 'Standing', 'Winner'\).*as standing_count/s);
+  assert.match(detail, /winner_entry\.winner = true.*as winner_name/s);
+  assert.match(detail, /progress:\s*\{/);
+  assert.match(detail, /roundsPlayed: Number\(row\?\.rounds_played/);
+  assert.match(detail, /winnerName: row\?\.winner_name/);
+});
+
 test("competition summary query groups every selected current-round field", () => {
   const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
   assert.match(source, /group by c\.id, own_entry\.id, current_round\.id,\s*current_round\.name, current_round\.status,\s*current_round\.cycle_number, current_round\.round_number,\s*own_deadline\.deadline_at/);

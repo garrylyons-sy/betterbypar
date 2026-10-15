@@ -70,6 +70,12 @@ test("competition UI handles concurrent competitions, entry, privacy and noon lo
   assert.match(source, /Contestants/);
   assert.match(source, /entry\.status === "Eliminated"/);
   assert.match(source, /entry\.status !== "Entered"/);
+  assert.match(source, /label="Your run"/);
+  assert.match(source, /roundsPlayed/);
+  assert.match(source, /Reached round/);
+  assert.match(source, /label="Winner"/);
+  assert.match(source, /winnerName/);
+  assert.match(source, /No winner/);
 });
 
 test("appearance controls the Last Man Standing home panel for every active role", () => {
