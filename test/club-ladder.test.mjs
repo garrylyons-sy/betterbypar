@@ -15,6 +15,8 @@ const appShell = readFileSync(new URL("../components/app-shell.tsx", import.meta
 const ladderPage = readFileSync(new URL("../components/club-ladder.tsx", import.meta.url), "utf8");
 const adminConsole = readFileSync(new URL("../components/admin-console.tsx", import.meta.url), "utf8");
 const adminLadders = readFileSync(new URL("../components/admin-club-ladders.tsx", import.meta.url), "utf8");
+const ladderApi = readFileSync(new URL("../app/api/club/ladder/route.ts", import.meta.url), "utf8");
+const adminLadderApi = readFileSync(new URL("../app/api/admin/ladders/route.ts", import.meta.url), "utf8");
 
 test("ladder settings support one frame, best of three and best of five", () => {
   assert.equal(requiredFrameWins("1 Frame"), 1);
@@ -73,4 +75,19 @@ test("admin and My Club expose the ladder without adding it to the main navigati
 test("admin ladder settings constrain controls inside responsive grid columns", () => {
   assert.match(adminLadders, /2xl:grid-cols-\[minmax\(15rem,1\.2fr\)_repeat\(4,minmax\(0,1fr\)\)\]/);
   assert.match(adminLadders, /min-h-11 w-full min-w-0 rounded-lg/);
+});
+
+test("club ladders show handicaps and allow players to leave safely", () => {
+  assert.match(ladderApi, /membership\.handicap::text/);
+  assert.match(ladderApi, /if \(action === "leave"\)/);
+  assert.match(ladderApi, /Finish or cancel your active challenge before leaving/);
+  assert.match(ladderPage, /<Handicap value=\{entry\.handicap\}/);
+  assert.match(ladderPage, /Leave ladder/);
+});
+
+test("ladder administrators can permanently delete a ladder and its cascading data", () => {
+  assert.match(adminLadderApi, /export async function DELETE/);
+  assert.match(adminLadderApi, /delete from public\.club_ladder where id = \$1/);
+  assert.match(adminLadders, /Permanently delete/);
+  assert.match(adminLadders, /Delete ladder/);
 });

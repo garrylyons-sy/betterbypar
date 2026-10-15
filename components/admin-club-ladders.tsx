@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Clock3, Save, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
+import { ChevronDown, Clock3, Save, ShieldCheck, Swords, Trash2, Trophy, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +93,27 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
     }
   }
 
+  async function deleteLadder(club: AdminLadderClub) {
+    if (!club.ladder || !window.confirm(`Permanently delete ${club.ladder.name} and all of its entries and challenges?`)) return;
+    setSaving(true);
+    try {
+      const response = await fetch(testAwarePath("/api/admin/ladders"), {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clubId: club.clubId })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Club ladder could not be deleted.");
+      onMessage("Club ladder deleted.");
+      setOpenClubId(null);
+      await load();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Club ladder could not be deleted.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -153,10 +174,17 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                       <input type="checkbox" checked={draft.active} onChange={(event) => setDraft((current) => ({ ...current, active: event.target.checked }))} />
                       Available in My Club
                     </label>
-                    <Button onClick={() => void save(club.clubId)} disabled={saving}>
-                      <Save className="h-4 w-4" />
-                      {saving ? "Saving..." : club.ladder ? "Save settings" : "Create ladder"}
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {club.ladder ? (
+                        <Button variant="secondary" onClick={() => void deleteLadder(club)} disabled={saving} className="text-[#b42318]">
+                          <Trash2 className="h-4 w-4" />Delete ladder
+                        </Button>
+                      ) : null}
+                      <Button onClick={() => void save(club.clubId)} disabled={saving}>
+                        <Save className="h-4 w-4" />
+                        {saving ? "Saving..." : club.ladder ? "Save settings" : "Create ladder"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : null}

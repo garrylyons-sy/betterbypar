@@ -99,13 +99,23 @@ export async function GET(request: Request) {
       status: string;
       first_name: string;
       last_name: string;
+      handicap: string | null;
     }>(
-      `select cle.id::text, cle.person_id::text, cle.position, cle.status, p.first_name, p.last_name
+      `select cle.id::text, cle.person_id::text, cle.position, cle.status, p.first_name, p.last_name,
+              membership.handicap::text
        from public.club_ladder_entry cle
        join public.person p on p.id = cle.person_id and p.active = true
+       left join lateral (
+         select cm.handicap
+         from public.club_membership cm
+         where cm.club_id = $2 and cm.person_id = cle.person_id and cm.active = true
+           and cm.handicap is not null
+         order by cm.joined_date desc, cm.id
+         limit 1
+       ) membership on true
        where cle.ladder_id = $1 and cle.status in ('Active', 'Paused')
        order by cle.position`,
-      [ladder.id]
+      [ladder.id, ladder.club_id]
     );
     const myEntry = entries.rows.find((row) => row.person_id === user.personId) ?? null;
     const challenges = myEntry ? await dbQuery<Record<string, unknown>>(
@@ -156,6 +166,7 @@ export async function GET(request: Request) {
         id: row.id,
         personId: row.person_id,
         name: `${row.first_name} ${row.last_name}`.trim(),
+        handicap: row.handicap === null ? null : Number(row.handicap),
         position: row.position,
         status: row.status,
         canChallenge: Boolean(myEntry && !hasActiveChallenge && row.status === "Active" && canChallengePosition(myEntry.position, row.position, ladder.challenge_range))
@@ -182,17 +193,39 @@ export async function POST(request: Request) {
     const result = await withTransaction(async (client) => {
       if (action === "join") {
         await client.query("select pg_advisory_xact_lock(hashtext($1))", [`ladder:${ladder.id}`]);
+        const existing = await client.query<{ id: string; status: string }>(
+          `select id::text, status from public.club_ladder_entry
+           where ladder_id = $1 and person_id = $2 for update`,
+          [ladder.id, user.personId]
+        );
+        if (existing.rows[0]?.status === "Active") return { entryId: existing.rows[0].id };
+        const nextActivePosition = await client.query<{ position: number }>(
+          `select count(*)::integer + 1 as position
+           from public.club_ladder_entry
+           where ladder_id = $1 and status in ('Active', 'Paused')`,
+          [ladder.id]
+        );
+        const position = nextActivePosition.rows[0].position;
+        await client.query("set constraints all deferred");
+        await client.query(
+          `update public.club_ladder_entry
+           set position = position + 1, updated_at = now()
+           where ladder_id = $1 and position >= $2 and ($3::uuid is null or id <> $3::uuid)`,
+          [ladder.id, position, existing.rows[0]?.id ?? null]
+        );
+        if (existing.rowCount) {
+          await client.query(
+            `update public.club_ladder_entry
+             set status = 'Active', position = $2, updated_at = now()
+             where id = $1`,
+            [existing.rows[0].id, position]
+          );
+          return { entryId: existing.rows[0].id };
+        }
         const saved = await client.query<{ id: string }>(
           `insert into public.club_ladder_entry (ladder_id, person_id, position, status, updated_at)
-           values ($1, $2, (select coalesce(max(position), 0) + 1 from public.club_ladder_entry where ladder_id = $1), 'Active', now())
-           on conflict (ladder_id, person_id) do update
-           set status = 'Active',
-               position = case when public.club_ladder_entry.status = 'Withdrawn'
-                 then (select coalesce(max(position), 0) + 1 from public.club_ladder_entry where ladder_id = $1)
-                 else public.club_ladder_entry.position end,
-               updated_at = now()
-           returning id::text`,
-          [ladder.id, user.personId]
+           values ($1, $2, $3, 'Active', now()) returning id::text`,
+          [ladder.id, user.personId, position]
         );
         return { entryId: saved.rows[0].id };
       }
@@ -204,6 +237,36 @@ export async function POST(request: Request) {
       );
       if (!mine.rowCount || mine.rows[0].status !== "Active") throw new Error("Join the ladder before using challenges.");
       const myEntry = mine.rows[0];
+
+      if (action === "leave") {
+        const activeChallenge = await client.query(
+          `select 1 from public.club_ladder_challenge
+           where ladder_id = $1 and status = any($2::text[])
+             and (challenger_entry_id = $3 or challenged_entry_id = $3)
+           limit 1`,
+          [ladder.id, activeChallengeStatuses, myEntry.id]
+        );
+        if (activeChallenge.rowCount) throw new Error("Finish or cancel your active challenge before leaving the ladder.");
+        const lastPosition = await client.query<{ position: number }>(
+          `select coalesce(max(position), $2)::integer as position
+           from public.club_ladder_entry where ladder_id = $1`,
+          [ladder.id, myEntry.position]
+        );
+        await client.query("set constraints all deferred");
+        await client.query(
+          `update public.club_ladder_entry
+           set position = position - 1, updated_at = now()
+           where ladder_id = $1 and position > $2`,
+          [ladder.id, myEntry.position]
+        );
+        await client.query(
+          `update public.club_ladder_entry
+           set status = 'Withdrawn', position = $2, updated_at = now()
+           where id = $1`,
+          [myEntry.id, lastPosition.rows[0].position]
+        );
+        return { status: "Withdrawn" };
+      }
 
       if (action === "challenge") {
         const challengedEntryId = String(body.challengedEntryId ?? "").trim();

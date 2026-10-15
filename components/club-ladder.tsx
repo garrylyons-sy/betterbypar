@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, ChevronDown, Clock3, Medal, RotateCcw, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
+import { CalendarClock, Check, ChevronDown, Clock3, LogOut, Medal, RotateCcw, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import type { TeamContext } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type LadderMatchFormat = "1 Frame" | "Best of 3" | "Best of 5";
-type LadderEntry = { id: string; personId: string; name: string; position: number; status: string; canChallenge: boolean };
+type LadderEntry = { id: string; personId: string; name: string; handicap: number | null; position: number; status: string; canChallenge: boolean };
 type LadderChallenge = {
   id: string;
   status: string;
@@ -106,7 +106,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Ladder action failed.");
-      setMessage(action === "join" ? "You have joined the ladder." : "Ladder updated.");
+      setMessage(action === "join" ? "You have joined the ladder." : action === "leave" ? "You have left the ladder." : "Ladder updated.");
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Ladder action failed.");
@@ -141,6 +141,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
   const ladder = data.ladder!;
   const entries = data.entries ?? [];
   const winsRequired = requiredFrameWins(ladder.matchFormat);
+  const handicapFor = (personId: string) => entries.find((entry) => entry.personId === personId)?.handicap ?? null;
 
   return (
     <section className="grid gap-4">
@@ -203,9 +204,9 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
             </CardHeader>
             <CardContent className="grid gap-3 pt-4">
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-center">
-                <div><p className="text-[10px] font-black uppercase text-[#6c5a73]">Challenger</p><p className="mt-1 font-black">#{challenge.challenger.position} {challenge.challenger.name}</p></div>
+                <div><p className="text-[10px] font-black uppercase text-[#6c5a73]">Challenger</p><p className="mt-1 font-black">#{challenge.challenger.position} {challenge.challenger.name} <Handicap value={handicapFor(challenge.challenger.personId)} /></p></div>
                 <Swords className="h-5 w-5 text-[#1b8a72]" />
-                <div><p className="text-[10px] font-black uppercase text-[#6c5a73]">Challenged</p><p className="mt-1 font-black">#{challenge.challenged.position} {challenge.challenged.name}</p></div>
+                <div><p className="text-[10px] font-black uppercase text-[#6c5a73]">Challenged</p><p className="mt-1 font-black">#{challenge.challenged.position} {challenge.challenged.name} <Handicap value={handicapFor(challenge.challenged.personId)} /></p></div>
               </div>
 
               {challenge.status === "Pending" && challenge.isChallenged ? (
@@ -253,7 +254,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
             return (
               <div key={entry.id} className={cn("grid min-h-14 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2 ring-1", mine ? "bg-[#eef9f5] ring-[#bfe9dc]" : "bg-white ring-[#eeeaf2]")}>
                 <span className={cn("grid h-9 w-9 place-items-center rounded-lg text-sm font-black", entry.position <= 3 ? "bg-[#10233f] text-white" : "bg-[#f0edf4] text-[#10233f]")}>{entry.position}</span>
-                <div className="min-w-0"><p className="truncate font-black text-[#10233f]">{entry.name}</p><p className="text-[10px] font-black uppercase text-[#6c5a73]">{mine ? "Your position" : entry.status}</p></div>
+                <div className="min-w-0"><p className="truncate font-black text-[#10233f]">{entry.name} <Handicap value={entry.handicap} /></p><p className="text-[10px] font-black uppercase text-[#6c5a73]">{mine ? "Your position" : entry.status}</p></div>
                 {entry.canChallenge && data.available ? <Button size="sm" onClick={() => void act("challenge", { challengedEntryId: entry.id })} disabled={busy}><Swords className="h-4 w-4" />Challenge</Button> : mine ? <Badge variant="green">You</Badge> : null}
               </div>
             );
@@ -261,6 +262,16 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
           {!entries.length ? <p className="rounded-xl bg-[#f7f5fa] p-4 text-sm font-semibold text-[#6c5a73]">No one has joined yet. The first member will take position 1.</p> : null}
         </CardContent>
       </Card>
+
+      {data.me ? (
+        <div className="flex justify-end">
+          <Button variant="ghost" className="text-[#6c5a73]" disabled={busy || activeChallenges.length > 0} onClick={() => {
+            if (window.confirm("Leave this ladder? You will rejoin at the bottom if you enter again.")) void act("leave");
+          }}>
+            <LogOut className="h-4 w-4" />Leave ladder
+          </Button>
+        </div>
+      ) : null}
 
       {(data.challenges ?? []).some((challenge) => ["Completed", "Rejected", "Expired", "Cancelled"].includes(challenge.status)) ? (
         <Card>
@@ -282,4 +293,8 @@ function Rule({ icon: Icon, number, title, text }: { icon: typeof Users; number:
 
 function ScoreInput({ label, value, max, onChange }: { label: string; value: number; max: number; onChange: (value: number) => void }) {
   return <label className="grid gap-1"><span className="truncate text-[11px] font-black uppercase text-[#6c5a73]">{label}</span><select className="min-h-11 rounded-xl border border-[#e3ddea] bg-white px-3 text-lg font-black" value={value} onChange={(event) => onChange(Number(event.target.value))}>{Array.from({ length: max + 1 }, (_, index) => <option key={index} value={index}>{index}</option>)}</select></label>;
+}
+
+function Handicap({ value }: { value: number | null }) {
+  return value === null ? null : <span className="whitespace-nowrap text-[10px] font-black uppercase text-[#6c5a73]">(Hcp {value})</span>;
 }

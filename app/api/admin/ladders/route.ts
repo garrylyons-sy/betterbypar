@@ -146,3 +146,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ladder settings could not be saved." }, { status: 400 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const access = await ladderAdminAccess(request);
+    if (!access) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    if (!access.platform && !access.clubIds.length) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+    const body = await request.json() as Record<string, unknown>;
+    const clubId = String(body.clubId ?? "").trim();
+    if (!clubId) throw new Error("Club is required.");
+    if (!access.platform && !access.clubIds.includes(clubId)) {
+      return NextResponse.json({ error: "Club administrator access is required for this club." }, { status: 403 });
+    }
+
+    await withTransaction(async (client) => {
+      const ladder = await client.query<{ id: string; name: string; club_name: string }>(
+        `select cl.id::text, cl.name, c.name as club_name
+         from public.club_ladder cl
+         join public.club c on c.id = cl.club_id
+         where cl.club_id = $1
+         for update of cl`,
+        [clubId]
+      );
+      if (!ladder.rowCount) throw new Error("Club ladder was not found.");
+      await client.query(
+        `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
+         values ($1, 'Page Visit', '/admin/ladders', 'Club ladder deleted',
+           jsonb_build_object('club_id', $2::text, 'club_name', $3::text, 'ladder_name', $4::text))`,
+        [access.personId, clubId, ladder.rows[0].club_name, ladder.rows[0].name]
+      );
+      await client.query("delete from public.club_ladder where id = $1", [ladder.rows[0].id]);
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Club ladder could not be deleted." }, { status: 400 });
+  }
+}
