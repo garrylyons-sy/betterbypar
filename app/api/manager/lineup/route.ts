@@ -261,6 +261,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, ...payload, canManage: true });
     }
 
+    if (action === "deleteBreak") {
+      const gameId = String(body.gameId ?? "").trim();
+      const breakId = String(body.breakId ?? "").trim();
+      if (!gameId || !breakId) {
+        return NextResponse.json({ error: "gameId and breakId are required." }, { status: 400 });
+      }
+
+      await withTransaction(async (client) => {
+        await ensureFixtureTeam(client, fixtureId, teamId);
+        const removed = await deletePlayerBreak(client, fixtureId, gameId, breakId);
+        await recordLineupActivity(client, user.personId, fixtureId, teamId, "Deleted break", {
+          gameId,
+          breakId,
+          playerId: removed.player_id,
+          playerName: removed.player_name,
+          breakValue: removed.break_value
+        });
+      });
+
+      const payload = await loadLineupPayload(teamId, fixtureId);
+      return NextResponse.json({ ok: true, ...payload, canManage: true });
+    }
+
     await withTransaction(async (client) => {
       await ensureFixtureTeam(client, fixtureId, teamId, { allowCompleted: adminOverride });
       const existingStatus = await loadLineupStatus(client, fixtureId, teamId);
@@ -1446,4 +1469,41 @@ async function recordPlayerBreak(client: PoolClient, fixtureId: string, gameId: 
      values ($1, $2, $3, 'live-match-entry')`,
     [gameId, playerId, breakValue]
   );
+}
+
+async function deletePlayerBreak(client: PoolClient, fixtureId: string, gameId: string, breakId: string) {
+  const result = await client.query<{
+    id: string;
+    player_id: string;
+    player_name: string;
+    break_value: number;
+    source_key: string | null;
+  }>(
+    `select
+       b.id,
+       b.player_id,
+       concat_ws(' ', p.first_name, p.last_name) as player_name,
+       b.break_value,
+       b.source_key
+     from public.break b
+     join public.person p on p.id = b.player_id
+     join public.game g on g.id = b.game_id
+     join public.match m on m.id = g.match_id
+     join public.fixture f on f.id = m.fixture_id
+     where b.id = $1
+       and b.game_id = $2
+       and f.id = $3
+       and f.status <> 'Completed'
+     limit 1
+     for update of b`,
+    [breakId, gameId, fixtureId]
+  );
+  const recordedBreak = result.rows[0];
+  if (!recordedBreak) throw new Error("Editable break not found.");
+  if (recordedBreak.source_key?.startsWith("live-session:")) {
+    throw new Error("Live-scoring breaks must be corrected in live scoring.");
+  }
+
+  await client.query("delete from public.break where id = $1", [breakId]);
+  return recordedBreak;
 }

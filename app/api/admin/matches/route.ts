@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
          left join lateral (
            select jsonb_agg(
              jsonb_build_object(
+               'id', g.id,
                'game_number', g.game_number,
                'game_type', g.game_type::text,
                'points_awarded', g.points_awarded,
@@ -80,7 +81,20 @@ export async function GET(request: NextRequest) {
                'home_player_1_name', coalesce(nullif(g.home_player_1_guest_name, ''), nullif(concat_ws(' ', hp1.first_name, hp1.last_name), '')),
                'home_player_2_name', coalesce(nullif(g.home_player_2_guest_name, ''), nullif(concat_ws(' ', hp2.first_name, hp2.last_name), '')),
                'away_player_1_name', coalesce(nullif(g.away_player_1_guest_name, ''), nullif(concat_ws(' ', ap1.first_name, ap1.last_name), '')),
-               'away_player_2_name', coalesce(nullif(g.away_player_2_guest_name, ''), nullif(concat_ws(' ', ap2.first_name, ap2.last_name), ''))
+               'away_player_2_name', coalesce(nullif(g.away_player_2_guest_name, ''), nullif(concat_ws(' ', ap2.first_name, ap2.last_name), '')),
+               'breaks', coalesce((
+                 select jsonb_agg(
+                   jsonb_build_object(
+                     'id', b.id,
+                     'player_name', concat_ws(' ', bp.first_name, bp.last_name),
+                     'break_value', b.break_value
+                   )
+                   order by b.break_value desc, b.recorded_at asc
+                 )
+                 from public.break b
+                 join public.person bp on bp.id = b.player_id
+                 where b.game_id = g.id
+               ), '[]'::jsonb)
              )
              order by g.game_number
            ) as frame_details
@@ -326,6 +340,82 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not update match." },
+      { status: 400 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { user, administrator } = await requireAdministrator();
+    if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+    if (!administrator) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+
+    const body = await request.json();
+    const fixtureId = String(body.fixtureId ?? "").trim();
+    const breakId = String(body.breakId ?? "").trim();
+    if (!fixtureId || !breakId) {
+      return NextResponse.json({ error: "fixtureId and breakId are required." }, { status: 400 });
+    }
+
+    await withTransaction(async (client) => {
+      const result = await client.query<{
+        break_id: string;
+        break_value: number;
+        player_id: string;
+        player_name: string;
+        game_id: string;
+        game_number: number;
+        home_team_name: string;
+        away_team_name: string;
+      }>(
+        `select
+           b.id as break_id,
+           b.break_value,
+           b.player_id,
+           concat_ws(' ', p.first_name, p.last_name) as player_name,
+           g.id as game_id,
+           g.game_number,
+           ht.name as home_team_name,
+           at.name as away_team_name
+         from public.break b
+         join public.person p on p.id = b.player_id
+         join public.game g on g.id = b.game_id
+         join public.match m on m.id = g.match_id
+         join public.fixture f on f.id = m.fixture_id
+         join public.team ht on ht.id = f.home_team_id
+         join public.team at on at.id = f.away_team_id
+         where b.id = $1
+           and f.id = $2
+         limit 1
+         for update of b`,
+        [breakId, fixtureId]
+      );
+      const recordedBreak = result.rows[0];
+      if (!recordedBreak) throw new Error("Break not found for this match.");
+
+      await client.query("delete from public.break b where b.id = $1", [breakId]);
+      await client.query(
+        `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
+         values ($1, 'Page Visit', '/admin/matches', 'Deleted match break', $2::jsonb)`,
+        [user.personId, JSON.stringify({
+          fixture_id: fixtureId,
+          break_id: recordedBreak.break_id,
+          break_value: recordedBreak.break_value,
+          player_id: recordedBreak.player_id,
+          player_name: recordedBreak.player_name,
+          game_id: recordedBreak.game_id,
+          game_number: recordedBreak.game_number,
+          home_team_name: recordedBreak.home_team_name,
+          away_team_name: recordedBreak.away_team_name
+        })]
+      );
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not delete break." },
       { status: 400 }
     );
   }

@@ -203,6 +203,7 @@ type AdminMatchRow = {
   frame_details?: AdminMatchFrame[];
 };
 type AdminMatchFrame = {
+  id: string;
   game_number: number;
   game_type: string;
   points_awarded: number;
@@ -211,6 +212,11 @@ type AdminMatchFrame = {
   home_player_2_name: string | null;
   away_player_1_name: string | null;
   away_player_2_name: string | null;
+  breaks: Array<{
+    id: string;
+    player_name: string;
+    break_value: number;
+  }>;
 };
 type AdminMatchSeason = { id: string; name: string };
 type AdminMatchLeague = { id: string; name: string };
@@ -1319,6 +1325,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
   const [month, setMonth] = useState(currentAdminMonth());
   const [loading, setLoading] = useState(false);
   const [savingFixtureId, setSavingFixtureId] = useState("");
+  const [deletingBreakId, setDeletingBreakId] = useState("");
   const [drafts, setDrafts] = useState<Record<string, AdminMatchDraft>>({});
   const [expandedFixtureId, setExpandedFixtureId] = useState("");
 
@@ -1326,7 +1333,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
     loadMatches();
   }, [season, league, status, fixtureType, month]);
 
-  async function loadMatches() {
+  async function loadMatches(options?: { preserveExpanded?: boolean }) {
     setLoading(true);
     try {
       const params = new URLSearchParams({ season, league, status, type: fixtureType, month: month || "all" });
@@ -1338,7 +1345,7 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
       setSeasons((data.seasons ?? []) as AdminMatchSeason[]);
       setLeagues((data.leagues ?? []) as AdminMatchLeague[]);
       setDrafts(Object.fromEntries(nextMatches.map((match) => [match.fixture_id, matchDraft(match)])));
-      setExpandedFixtureId("");
+      if (!options?.preserveExpanded) setExpandedFixtureId("");
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not load matches.");
     } finally {
@@ -1383,6 +1390,27 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
       onMessage(error instanceof Error ? error.message : "Could not update match.");
     } finally {
       setSavingFixtureId("");
+    }
+  }
+
+  async function deleteAdminBreak(fixtureId: string, breakId: string) {
+    if (deletingBreakId) return;
+    setDeletingBreakId(breakId);
+    try {
+      const response = await fetch("/api/admin/matches", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fixtureId, breakId })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not delete break.");
+      onMessage("Break deleted.");
+      await loadMatches({ preserveExpanded: true });
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Could not delete break.");
+    } finally {
+      setDeletingBreakId("");
     }
   }
 
@@ -1498,7 +1526,11 @@ function MatchesAdminPanel({ onMessage }: { onMessage: (message: string) => void
                   <div className="grid gap-2 xl:col-span-4 xl:grid-cols-2" onClick={(event) => event.stopPropagation()}>
                     {match.frame_details?.length ? (
                       <div className="xl:col-span-2">
-                        <AdminMatchFrameDetails match={match} />
+                        <AdminMatchFrameDetails
+                          match={match}
+                          deletingBreakId={deletingBreakId}
+                          onDeleteBreak={deleteAdminBreak}
+                        />
                       </div>
                     ) : null}
                     <AdminLineupEditor
@@ -1810,7 +1842,15 @@ function AdminMatchTeamScoreRow({
   );
 }
 
-function AdminMatchFrameDetails({ match }: { match: AdminMatchRow }) {
+function AdminMatchFrameDetails({
+  match,
+  deletingBreakId,
+  onDeleteBreak
+}: {
+  match: AdminMatchRow;
+  deletingBreakId: string;
+  onDeleteBreak: (fixtureId: string, breakId: string) => void;
+}) {
   const frames = match.frame_details ?? [];
   if (!frames.length) return null;
 
@@ -1845,6 +1885,25 @@ function AdminMatchFrameDetails({ match }: { match: AdminMatchRow }) {
                   {awayPlayers}
                 </span>
               </div>
+              {frame.breaks?.length ? (
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {frame.breaks.map((item) => (
+                    <span key={item.id} className="inline-flex items-center gap-1 rounded-md bg-[#eefbff] py-0.5 pl-2 pr-0.5 text-[11px] font-extrabold text-[#10233f] ring-1 ring-[#04f5ff55]">
+                      <span>{item.player_name} {item.break_value}</span>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteBreak(match.fixture_id, item.id)}
+                        disabled={Boolean(deletingBreakId)}
+                        className="grid h-6 w-6 place-items-center rounded text-[#b42318] transition-colors hover:bg-[#fff0f0] disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label={`Delete ${item.player_name} break of ${item.break_value}`}
+                        title="Delete break"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           );
         })}

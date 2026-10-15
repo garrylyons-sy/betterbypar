@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   Swords,
+  Trash2,
   Trophy,
   UserCircle,
   Users,
@@ -5575,6 +5576,7 @@ function ManagerLineupCard({
   const [busy, setBusy] = useState(false);
   const [pendingGameIds, setPendingGameIds] = useState<Set<string>>(new Set());
   const [pendingBreak, setPendingBreak] = useState(false);
+  const [pendingBreakIds, setPendingBreakIds] = useState<Set<string>>(new Set());
   const [completingMatch, setCompletingMatch] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<LineupPickerTarget>(null);
   const [breakTarget, setBreakTarget] = useState<BreakEntryTarget>(null);
@@ -5935,7 +5937,9 @@ function ManagerLineupCard({
                               payload={payload}
                               onRecord={recordGameWinner}
                               onBreak={(game) => setBreakTarget({ game, fixture: payload.fixture! })}
+                              onDeleteBreak={deleteBreak}
                               pendingGameIds={pendingGameIds}
+                              pendingBreakIds={pendingBreakIds}
                               locked={matchLocked || !payload.canManage}
                               showWinPercentages={Boolean(activeTeam.hasLeagueChairAccess)}
                             />
@@ -6158,6 +6162,43 @@ function ManagerLineupCard({
       setMessage(error instanceof Error ? error.message : "Could not record break.");
     } finally {
       setPendingBreak(false);
+    }
+  }
+
+  async function deleteBreak(gameId: string, breakId: string) {
+    if (!activeTeam.teamId || !payload?.fixture || payload.fixture.status === "Completed") return;
+    if (pendingBreakIds.has(breakId)) return;
+    setPendingBreakIds((current) => new Set(current).add(breakId));
+    setMessage("");
+    try {
+      const response = await fetch("/api/manager/lineup", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          teamId: activeTeam.teamId,
+          fixtureId: payload.fixture.id,
+          action: "deleteBreak",
+          gameId,
+          breakId,
+          testManager: testManagerMode,
+          testUser: testUserEmail
+        })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not delete break.");
+      setPayload(data);
+      setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
+      setMessage("Break deleted.");
+      onDataRefresh?.();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete break.");
+    } finally {
+      setPendingBreakIds((current) => {
+        const next = new Set(current);
+        next.delete(breakId);
+        return next;
+      });
     }
   }
 }
@@ -6766,14 +6807,18 @@ function GeneratedMatchCard({
   payload,
   onRecord,
   onBreak,
+  onDeleteBreak,
   pendingGameIds,
+  pendingBreakIds,
   locked = false,
   showWinPercentages = false
 }: {
   payload: ManagerLineupPayload;
   onRecord: (gameId: string, winnerTeamId: string | null) => void;
   onBreak: (game: ManagerLineupGame) => void;
+  onDeleteBreak: (gameId: string, breakId: string) => void;
   pendingGameIds: Set<string>;
+  pendingBreakIds: Set<string>;
   locked?: boolean;
   showWinPercentages?: boolean;
 }) {
@@ -6825,6 +6870,16 @@ function GeneratedMatchCard({
                         <span className="h-1.5 w-1.5 rounded-full bg-[#7bc7d6]" />
                         <span className="break-words">{item.playerName}</span>
                         <span className="rounded bg-white/15 px-1.5 py-0.5">{item.breakValue}</span>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteBreak(game.id, item.id)}
+                          disabled={locked || pendingBreakIds.has(item.id)}
+                          className="ml-0.5 grid h-6 w-6 shrink-0 place-items-center rounded text-white/65 transition-colors hover:bg-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label={`Delete ${item.playerName} break of ${item.breakValue}`}
+                          title="Delete break"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </span>
                     ))}
                     {!breaks.length ? <span className="text-xs font-semibold text-white/45">None</span> : null}
