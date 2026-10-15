@@ -242,6 +242,10 @@ export async function POST(request: NextRequest) {
         await recordLineupActivity(client, user.personId, fixtureId, teamId, "Completed match");
       });
 
+      await processDueLastManStandingWork({ actorPersonId: user.personId }).catch((error) => {
+        console.error("last-man-standing:manager-complete", error);
+      });
+
       const payload = await loadLineupPayload(teamId, fixtureId);
       return NextResponse.json({ ok: true, ...payload, canManage: true });
     }

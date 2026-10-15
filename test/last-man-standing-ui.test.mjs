@@ -33,6 +33,8 @@ test("audience-filtered Last Man Standing is available from the page and home pa
   assert.match(panel, /const isEliminated = competition\.panel\?\.entrantStatus === "Eliminated"/);
   assert.match(panel, /isEliminated \? "bg-\[#faf9fb\]"/);
   assert.match(panel, /competition\.panel\.entrantStatus !== "Entered"/);
+  assert.match(panel, /const deadlineClosed = competition\.currentRound\?\.status !== "Open" \|\| Boolean\(deadline && Date\.now\(\) >= deadline\.getTime\(\)\)/);
+  assert.match(panel, /deadlineClosed \? "Selections closed"/);
 });
 
 test("participant UI exposes deadline, primary action, and automatic replacement reasons", () => {

@@ -67,6 +67,7 @@ test("settlement uses official game winners, stops on no winner, and supports au
   assert.ok((source.match(/hashtext\('lifecycle'\)/g) ?? []).length >= 4);
   assert.match(source, /c\.status in \('Open', 'In Progress'\)/);
   assert.match(settle, /incompleteRoundFixtures/);
+  assert.match(settle, /eliminated_round_id = case when \$2 = 'Eliminated' then \$3::uuid else null end/);
   assert.match(settle, /f\.original_fixture_date is null/);
   assert.doesNotMatch(source, /status not in \([^)]*'Postponed'/);
   assert.match(source, /lower\(fw\.week_label\) not like '%break%'/i);
@@ -81,6 +82,13 @@ test("settlement uses official game winners, stops on no winner, and supports au
   assert.doesNotMatch(scheduleLookup, /\$3/);
   assert.match(scheduleLookup, /f\.original_fixture_date is null/i);
   assert.match(scheduleLookup, /between fw\.starts_on and fw\.starts_on \+ 6/i);
+});
+
+test("completing a match immediately asks Last Man Standing to settle due rounds", () => {
+  const route = readFileSync(new URL("../app/api/manager/lineup/route.ts", import.meta.url), "utf8");
+  const completion = route.slice(route.indexOf('if (action === "completeMatch")'), route.indexOf('if (action === "recordBreak")'));
+  assert.match(completion, /processDueLastManStandingWork/);
+  assert.ok(completion.indexOf("completeMatch") < completion.indexOf("processDueLastManStandingWork"));
 });
 
 test("settlement calculates every result before mutating picks", () => {

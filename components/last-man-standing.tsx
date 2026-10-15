@@ -102,6 +102,8 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
           const pickOutcomes = competition.panel?.pickOutcomes ?? [];
           const pickChanged = competition.panel?.pickChanged ?? [];
           const isEliminated = competition.panel?.entrantStatus === "Eliminated";
+          const deadline = competition.panel?.deadlineAt ? new Date(competition.panel.deadlineAt) : null;
+          const deadlineClosed = competition.currentRound?.status !== "Open" || Boolean(deadline && Date.now() >= deadline.getTime());
           const remaining = competition.panel?.remainingLabel.match(/(\d+)\s+of\s+(\d+)/i);
           const remainingCount = Number(remaining?.[1] ?? 0);
           const entrantCount = Number(remaining?.[2] ?? 0);
@@ -134,7 +136,7 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
             </div>
             <div className="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1">
               {competition.panel ? <><div className="h-1.5 overflow-hidden rounded-full bg-[#e8e3ec]" role="progressbar" aria-label={`${competition.name} players still standing`} aria-valuemin={0} aria-valuemax={entrantCount} aria-valuenow={remainingCount}><span className="block h-full rounded-full bg-[#1b8a72]" style={{ width: `${remainingPercent}%` }} /></div><span className="text-[11px] font-black text-[#10233f]">{competition.panel.remainingLabel}</span></> : <span className="col-span-2 text-right text-[11px] font-extrabold text-[#007d68]">{action}</span>}
-              {!isEliminated && competition.panel?.deadlineAt ? <span className="col-span-2 flex items-center justify-end gap-1 text-[9px] font-bold text-[#6c5a73]"><Clock3 className="h-3 w-3" /> Closes {new Date(competition.panel.deadlineAt).toLocaleString("en-IE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}</span> : null}
+              {!isEliminated && deadline ? <span className="col-span-2 flex items-center justify-end gap-1 text-[9px] font-bold text-[#6c5a73]"><Clock3 className="h-3 w-3" /> {deadlineClosed ? "Selections closed" : `Closes ${deadline.toLocaleString("en-IE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`}</span> : null}
             </div>
           </div>;
         })}

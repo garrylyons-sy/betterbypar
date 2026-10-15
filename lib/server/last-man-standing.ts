@@ -1414,7 +1414,7 @@ export async function settleLastManStandingRound(input: ProcessInput & { competi
       if (!decision.ready) return { changed: false, pending: true };
       await client.query(
         `update public.last_man_standing_entry
-         set status = $2, eliminated_round_id = case when $2 = 'Eliminated' then $3 else null end, updated_at = now()
+         set status = $2, eliminated_round_id = case when $2 = 'Eliminated' then $3::uuid else null end, updated_at = now()
          where id = $1`,
         [entryId, decision.status, input.roundId]
       );

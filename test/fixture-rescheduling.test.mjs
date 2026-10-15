@@ -157,5 +157,30 @@ test("the fixtures UI separates actionable rescheduled matches from old-week not
   assert.match(appShell, /postponedFixtures/);
   assert.match(appShell, /Postponed to/);
   assert.match(appShell, /fixture\.rescheduled[\s\S]*Rescheduled/);
-  assert.match(appShell, /formatFixtureDate\(fixture\.fixtureDate\)/);
+  assert.match(appShell, /const showFixtureDates = week[\s\S]*shouldShowFixtureDates\(week\.startsOn, week\.fixtures\.map\(\(fixture\) => fixture\.fixtureDate\)\)/);
+  assert.match(appShell, /showFixtureDates \? \([\s\S]*formatFixtureDate\(fixture\.fixtureDate\)/);
+});
+
+test("fixture dates are only repeated when a displayed week contains another match day", async () => {
+  const { shouldShowFixtureDates } = await import("../lib/fixture-scheduling.mjs");
+
+  assert.equal(shouldShowFixtureDates("2026-10-15", [
+    "2026-10-15T19:30:00.000Z",
+    "2026-10-15T19:30:00.000Z"
+  ]), false);
+  assert.equal(shouldShowFixtureDates("2026-10-15", [
+    "2026-10-13T19:30:00.000Z",
+    "2026-10-15T19:30:00.000Z"
+  ]), true);
+});
+
+test("the mobile navigation is outside the scrolling app main", () => {
+  const appShell = source("../components/app-shell.tsx");
+  const shellStart = appShell.indexOf('return (\n    <>');
+  const mainClose = appShell.indexOf("</main>", shellStart);
+  const nav = appShell.indexOf("<BottomNav", shellStart);
+  const fragmentClose = appShell.indexOf("</>", shellStart);
+
+  assert.ok(shellStart >= 0, "the app shell should use a fragment around its viewport layers");
+  assert.ok(mainClose >= 0 && nav > mainClose && fragmentClose > nav, "the fixed mobile navigation should be a sibling after main");
 });

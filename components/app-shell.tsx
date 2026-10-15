@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { LeagueChairLiveIndicator, LeagueChairLiveStatusList, useLiveScoringStatuses } from "@/components/live-scoring-dashboard";
 import { LastManStandingHomePanel, LastManStandingPage } from "@/components/last-man-standing";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { shouldShowFixtureDates } from "@/lib/fixture-scheduling.mjs";
 import { cn } from "@/lib/utils";
 
 type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop";
@@ -397,7 +398,8 @@ export function AppShell({
   }, [activePage, activeTeam.id, activeTeam.name, activeTeam.role, onPageVisit]);
 
   return (
-    <main className="min-h-screen overflow-x-hidden app-bg pb-24 text-[#10233f]">
+    <>
+      <main className="min-h-screen app-bg pb-24 text-[#10233f]">
       <PwaPullToRefresh
         onRefresh={() => {
           onDataRefresh?.();
@@ -456,8 +458,9 @@ export function AppShell({
           </aside>
         ) : null}
       </section>
+      </main>
       <BottomNav activePage={activePage} activeTeam={activeTeam} onNavigate={navigateToPage} menuItems={activeMenuItems} />
-    </main>
+    </>
   );
 }
 
@@ -5369,6 +5372,9 @@ function FixtureWeekCarouselCard({
   }, [activeTeam.league, activeTeam.season, activeTeam.teamId, embeddedDemoMode]);
 
   const week = weeks[activeIndex];
+  const showFixtureDates = week
+    ? shouldShowFixtureDates(week.startsOn, week.fixtures.map((fixture) => fixture.fixtureDate))
+    : false;
   const liveFixtureIds = useMemo(() => week?.fixtures.map((fixture) => fixture.id) ?? [], [week]);
   const liveStatuses = useLiveScoringStatuses(liveFixtureIds, Boolean(activeTeam.hasLiveScoringAccess));
   const managerCanShare = userCanShare;
@@ -5481,12 +5487,16 @@ function FixtureWeekCarouselCard({
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                       }}
                     >
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-extrabold uppercase text-[#6c5a73]">
-                        <span>{formatFixtureDate(fixture.fixtureDate)}</span>
-                        {fixture.rescheduled ? (
-                          <span className="rounded-md bg-[#fff1d6] px-2 py-1 text-[#8a5a00] ring-1 ring-[#ffb00055]">Rescheduled</span>
-                        ) : null}
-                      </div>
+                      {showFixtureDates ? (
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-extrabold uppercase text-[#6c5a73]">
+                          <span>{formatFixtureDate(fixture.fixtureDate)}</span>
+                          {fixture.rescheduled ? (
+                            <span className="rounded-md bg-[#fff1d6] px-2 py-1 text-[#8a5a00] ring-1 ring-[#ffb00055]">Rescheduled</span>
+                          ) : null}
+                        </div>
+                      ) : fixture.rescheduled ? (
+                        <span className="justify-self-start rounded-md bg-[#fff1d6] px-2 py-1 text-[11px] font-extrabold uppercase text-[#8a5a00] ring-1 ring-[#ffb00055]">Rescheduled</span>
+                      ) : null}
                       <div className="grid gap-2 md:hidden">
                         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
                           <FixtureTeamLabel teamName={fixture.homeTeamName} lineupStatus={fixtureHasStarted(fixture) ? undefined : homeLineupStatus} />

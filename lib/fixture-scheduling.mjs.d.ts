@@ -24,6 +24,8 @@ export type PostponedFixtureNotice = {
 
 export function calendarWeekKey(value: unknown): string;
 
+export function shouldShowFixtureDates(weekDate: unknown, fixtureDates: unknown[]): boolean;
+
 export function organizeFixtureWeeks<T extends FixtureScheduleItem>(input: {
   weeks: FixtureScheduleWeek[];
   fixtures: T[];
