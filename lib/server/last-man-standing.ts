@@ -36,6 +36,8 @@ type CompetitionSummaryRow = {
   pickTwoName: string | null;
   pickOneOutcome: string | null;
   pickTwoOutcome: string | null;
+  pickOneChanged: boolean;
+  pickTwoChanged: boolean;
 };
 
 type PresentedEntry = {
@@ -116,6 +118,7 @@ export function summarizeLastManStandingCompetitions(rows: CompetitionSummaryRow
       : null;
     const picks = [row.pickOneName, row.pickTwoName].filter((name): name is string => Boolean(name));
     const pickOutcomes = [row.pickOneOutcome, row.pickTwoOutcome].filter((outcome): outcome is string => Boolean(outcome));
+    const pickChanged = [Boolean(row.pickOneChanged), Boolean(row.pickTwoChanged)];
     const terminalEntry = row.entryStatus === "Eliminated" || row.entryStatus === "Winner";
     return {
       id: row.id,
@@ -129,6 +132,7 @@ export function summarizeLastManStandingCompetitions(rows: CompetitionSummaryRow
             roundLabel: `Cycle ${currentRound.cycleNumber} · Round ${currentRound.roundNumber}`,
             picks,
             pickOutcomes,
+            pickChanged,
             entrantStatus: row.entryStatus,
             remainingLabel: `${Number(row.standingCount)} of ${Number(row.entrantCount)} standing`,
             deadlineAt: terminalEntry ? null : row.deadlineAt
@@ -207,7 +211,9 @@ const summaryQuery = `
     max(case when own_pick.slot_number = 1 then concat_ws(' ', pick_person.first_name, pick_person.last_name) end) as "pickOneName",
     max(case when own_pick.slot_number = 2 then concat_ws(' ', pick_person.first_name, pick_person.last_name) end) as "pickTwoName",
     max(case when own_pick.slot_number = 1 then own_pick.outcome end) as "pickOneOutcome",
-    max(case when own_pick.slot_number = 2 then own_pick.outcome end) as "pickTwoOutcome"
+    max(case when own_pick.slot_number = 2 then own_pick.outcome end) as "pickTwoOutcome",
+    coalesce(bool_or(own_pick.effective_player_id is distinct from own_pick.selected_player_id and own_pick.effective_player_id is not null) filter (where own_pick.slot_number = 1), false) as "pickOneChanged",
+    coalesce(bool_or(own_pick.effective_player_id is distinct from own_pick.selected_player_id and own_pick.effective_player_id is not null) filter (where own_pick.slot_number = 2), false) as "pickTwoChanged"
   from public.last_man_standing_competition c
   left join public.last_man_standing_entry all_entries on all_entries.competition_id = c.id and all_entries.status <> 'Withdrawn'
   left join public.last_man_standing_entry own_entry on own_entry.competition_id = c.id and own_entry.person_id = $1
@@ -443,6 +449,8 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
           slot_number: number;
           player_id: string | null;
           player_name: string | null;
+          selected_player_name: string | null;
+          was_changed: boolean;
           state: string;
           automatic_reason: string | null;
           outcome: string;
@@ -452,9 +460,12 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
           `select p.id::text, p.slot_number,
                   coalesce(p.effective_player_id, p.selected_player_id)::text as player_id,
                   concat_ws(' ', person.first_name, person.last_name) as player_name,
+                  concat_ws(' ', selected_person.first_name, selected_person.last_name) as selected_player_name,
+                  (p.effective_player_id is not null and p.effective_player_id is distinct from p.selected_player_id) as was_changed,
                   p.state, p.automatic_reason, p.outcome, p.deadline_at::text, p.version
            from public.last_man_standing_pick p
            left join public.person person on person.id = coalesce(p.effective_player_id, p.selected_player_id)
+           left join public.person selected_person on selected_person.id = p.selected_player_id
            where p.entry_id = $1 and p.round_id = $2 order by p.slot_number`,
           [row.entry_id, row.round_id]
         ),
@@ -466,7 +477,7 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
           default_match_date: string;
           deadline_time: string;
           own_fixture_date: string | null;
-          picks: Array<{ slotNumber: number; playerName: string; state: string; outcome: string }>;
+          picks: Array<{ slotNumber: number; playerName: string; selectedPlayerName: string; wasChanged: boolean; state: string; outcome: string; automaticReason: string | null }>;
         }>(
           `select e.id::text, concat_ws(' ', person.first_name, person.last_name) as person_name,
                   e.status, source_team.name as source_team_name,
@@ -483,8 +494,11 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
                   coalesce(jsonb_agg(jsonb_build_object(
                     'slotNumber', pick.slot_number,
                     'playerName', concat_ws(' ', picked.first_name, picked.last_name),
+                    'selectedPlayerName', concat_ws(' ', selected_player.first_name, selected_player.last_name),
+                    'wasChanged', (pick.effective_player_id is not null and pick.effective_player_id is distinct from pick.selected_player_id),
                     'state', pick.state,
-                    'outcome', pick.outcome
+                    'outcome', pick.outcome,
+                    'automaticReason', pick.automatic_reason
                   ) order by pick.slot_number) filter (where pick.id is not null), '[]'::jsonb) as picks
            from public.last_man_standing_entry e
            join public.person person on person.id = e.person_id
@@ -492,6 +506,7 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
            join public.last_man_standing_round_schedule rs on rs.round_id = $2 and rs.tier = e.tier
            left join public.last_man_standing_pick pick on pick.entry_id = e.id and pick.round_id = $2
            left join public.person picked on picked.id = coalesce(pick.effective_player_id, pick.selected_player_id)
+           left join public.person selected_player on selected_player.id = pick.selected_player_id
            where e.competition_id = $1 and e.status <> 'Withdrawn'
            group by e.id, person.id, source_team.id, rs.id order by e.status, person.last_name, person.first_name`,
           [competitionId, row.round_id]
@@ -501,16 +516,21 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
           round_number: number;
           slot_number: number;
           player_name: string;
+          selected_player_name: string;
+          was_changed: boolean;
           state: string;
           outcome: string;
           automatic_reason: string | null;
         }>(
           `select r.name as round_name, r.round_number, p.slot_number,
                   concat_ws(' ', person.first_name, person.last_name) as player_name,
+                  concat_ws(' ', selected_person.first_name, selected_person.last_name) as selected_player_name,
+                  (p.effective_player_id is not null and p.effective_player_id is distinct from p.selected_player_id) as was_changed,
                   p.state, p.outcome, p.automatic_reason
            from public.last_man_standing_pick p
            join public.last_man_standing_round r on r.id = p.round_id
            join public.person person on person.id = coalesce(p.effective_player_id, p.selected_player_id)
+           join public.person selected_person on selected_person.id = p.selected_player_id
            where p.entry_id = $1 and p.round_id <> $2
            order by r.cycle_number desc, r.round_number desc, p.slot_number`,
           [row.entry_id, row.round_id]
@@ -564,6 +584,8 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
       slotNumber: Number(pick.slot_number),
       playerId: pick.player_id,
       playerName: pick.player_name,
+      selectedPlayerName: pick.selected_player_name,
+      wasChanged: pick.was_changed,
       state: pick.state,
       automaticReason: pick.automatic_reason,
       outcome: pick.outcome,
@@ -576,6 +598,8 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
       roundNumber: Number(pick.round_number),
       slotNumber: Number(pick.slot_number),
       playerName: pick.player_name,
+      selectedPlayerName: pick.selected_player_name,
+      wasChanged: pick.was_changed,
       state: pick.state,
       outcome: pick.outcome,
       automaticReason: pick.automatic_reason

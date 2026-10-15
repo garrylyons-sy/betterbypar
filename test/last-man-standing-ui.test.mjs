@@ -41,6 +41,10 @@ test("participant UI exposes deadline, primary action, and automatic replacement
   assert.match(source, /Enter now|Make picks|Change picks/);
   assert.match(source, /automaticReason/);
   assert.match(source, /Automatic replacement/);
+  assert.match(source, /selectedPlayerName/);
+  assert.match(source, /wasChanged/);
+  assert.match(source, /Changed from/);
+  assert.match(source, />Changed</);
   assert.match(source, /View all/);
   assert.match(source, /message \|\| "No competition is currently available\."/);
 });

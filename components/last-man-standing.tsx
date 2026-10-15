@@ -14,9 +14,10 @@ type Summary = {
   status: string;
   isEntered: boolean;
   currentRound: { id: string; name: string; status: string } | null;
-  panel: { roundLabel: string; picks: string[]; pickOutcomes: string[]; entrantStatus: string; remainingLabel: string; deadlineAt: string | null } | null;
+  panel: { roundLabel: string; picks: string[]; pickOutcomes: string[]; pickChanged: boolean[]; entrantStatus: string; remainingLabel: string; deadlineAt: string | null } | null;
 };
 type Candidate = { id: string; name: string; teamName: string; used: boolean; hasFixture: boolean };
+type DisplayPick = { slotNumber: number; playerName: string | null; selectedPlayerName: string | null; wasChanged: boolean; state: string; outcome: string; automaticReason: string | null };
 type Detail = {
   competition: { id: string; name: string; status: string; entryOpensAt: string; entryClosesAt: string };
   entryOptions: Array<{ tier: string; sourceRole: string; teamId: string; teamName: string }>;
@@ -24,9 +25,9 @@ type Detail = {
   entry: { id: string; status: string; tier: string; sourceTeamId: string } | null;
   currentRound: { id: string; name: string; cycleNumber: number; roundNumber: number; status: string } | null;
   candidates: Candidate[];
-  picks: Array<{ id: string; slotNumber: number; playerId: string | null; playerName: string | null; state: string; automaticReason: string | null; outcome: string; deadlineAt: string | null; version: number }>;
-  entries: Array<{ id: string; personName: string; status: string; sourceTeamName: string; deadlineAt: string; picks: Array<{ slotNumber: number; playerName: string; state: string; outcome: string }>; picksHidden: boolean }>;
-  history: Array<{ roundName: string; slotNumber: number; playerName: string; state: string; outcome: string; automaticReason: string | null }>;
+  picks: Array<DisplayPick & { id: string; playerId: string | null; deadlineAt: string | null; version: number }>;
+  entries: Array<{ id: string; personName: string; status: string; sourceTeamName: string; deadlineAt: string; picks: DisplayPick[]; picksHidden: boolean }>;
+  history: Array<DisplayPick & { roundName: string }>;
 };
 
 function apiPath(path: string) {
@@ -99,6 +100,7 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
         {displayedCompetitions.map((competition) => {
           const picks = competition.panel?.picks ?? [];
           const pickOutcomes = competition.panel?.pickOutcomes ?? [];
+          const pickChanged = competition.panel?.pickChanged ?? [];
           const isEliminated = competition.panel?.entrantStatus === "Eliminated";
           const remaining = competition.panel?.remainingLabel.match(/(\d+)\s+of\s+(\d+)/i);
           const remainingCount = Number(remaining?.[1] ?? 0);
@@ -120,11 +122,13 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
                 const outcome = pickOutcomes[index] ?? "Pending";
                 const won = outcome === "Won";
                 const lost = outcome === "Lost";
+                const changed = Boolean(pickChanged[index]);
                 return <span key={index} className={cn("flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 ring-1", won ? "bg-[#effbf5] ring-[#bdebd4]" : lost ? "bg-[#fff1f1] ring-[#f4caca]" : "bg-[#f7f5fa] ring-[#eeeaf2]")}>
                   <span className={cn("grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] font-black text-white", won ? "bg-[#087d4f]" : lost ? "bg-[#b42318]" : "bg-[#10233f]")}>
                     {won ? <Check className="h-3 w-3" /> : lost ? <X className="h-3 w-3" /> : index + 1}
                   </span>
-                  <span className={cn("min-w-0 truncate text-[11px] font-extrabold", lost ? "text-[#8f1d18]" : won ? "text-[#08633f]" : "text-[#10233f]")} aria-label={`Pick ${index + 1}: ${picks[index] || "not selected"} · ${outcome}`}>{picks[index] || `Pick ${index + 1}`}</span>
+                  <span className={cn("min-w-0 flex-1 truncate text-[11px] font-extrabold", lost ? "text-[#8f1d18]" : won ? "text-[#08633f]" : "text-[#10233f]")} aria-label={`Pick ${index + 1}: ${picks[index] || "not selected"} · ${outcome}${changed ? " · automatically changed" : ""}`}>{picks[index] || `Pick ${index + 1}`}</span>
+                  {changed ? <span className="shrink-0 rounded bg-[#d8f7ef] px-1 py-0.5 text-[8px] font-black uppercase text-[#087d68]" title="Automatically changed because the original pick was not playing">Changed</span> : null}
                 </span>;
               })}
             </div>
@@ -141,6 +145,15 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
 
 function PanelStat({ label, value }: { label: string; value: string }) {
   return <div className="min-w-0 rounded-lg bg-[#f7f5fa] p-2"><p className="text-[10px] font-black uppercase text-[#6c5a73]">{label}</p><p className="mt-0.5 break-words text-sm font-extrabold text-[#10233f]">{value}</p></div>;
+}
+
+function PickChangeNotice({ pick }: { pick: DisplayPick }) {
+  if (!pick.wasChanged || !pick.selectedPlayerName || !pick.playerName) return null;
+  return <div className="rounded-lg bg-[#eaf8f4] p-2 text-xs font-bold text-[#246050]"><div className="flex flex-wrap items-center gap-1.5"><Badge variant="cyan">Changed</Badge><span>Automatic replacement · Pick {pick.slotNumber}: {pick.selectedPlayerName} → {pick.playerName}</span></div><p className="mt-1">Changed from {pick.selectedPlayerName} because the original pick was not playing{pick.automaticReason ? ` · ${pick.automaticReason}` : "."}</p></div>;
+}
+
+function VisiblePickNames({ picks }: { picks: DisplayPick[] }) {
+  return <span className="inline-flex flex-wrap items-center gap-1">{picks.map((pick, index) => <span key={pick.slotNumber} className="inline-flex items-center gap-1">{index ? <span>/</span> : null}<span>{pick.playerName}</span>{pick.wasChanged ? <Badge variant="cyan">Changed</Badge> : null}</span>)}</span>;
 }
 
 export function LastManStandingPage() {
@@ -259,9 +272,9 @@ export function LastManStandingPage() {
   const detailContent = detail ? <div className="grid gap-3 border-t border-[#eeeaf2] bg-[#fbfafd] p-3 sm:p-4">
       <div className="grid gap-3 rounded-lg bg-white p-4 shadow-card sm:grid-cols-3"><PanelStat label="Round" value={detail.currentRound ? `Cycle ${detail.currentRound.cycleNumber} · Round ${detail.currentRound.roundNumber}` : "Not started"} /><PanelStat label="Your status" value={detail.entry?.status ?? "Not entered"} /><PanelStat label="Players left" value={`${detail.entries.filter((entry) => ["Entered", "Standing", "Winner"].includes(entry.status)).length} of ${detail.entries.length}`} /></div>
       {!detail.entry ? <div className="grid gap-3 rounded-lg bg-white p-4 shadow-card"><div><h3 className="font-black text-[#25002b]">Enter competition</h3><p className="text-sm font-semibold text-[#6c5a73]">Your player role is used before any manager role.</p></div>{detail.entryOptions.length ? <><select className="min-h-11 rounded-lg border px-3 text-sm font-bold" value={selectedOption} onChange={(event) => setSelectedOption(event.target.value)}>{detail.entryOptions.map((option) => <option key={`${option.tier}:${option.teamId}`} value={`${option.tier}:${option.teamId}`}>{option.tier} pool · {option.teamName} · {option.sourceRole}</option>)}</select><Button disabled={saving} onClick={enter}>Enter competition</Button></> : <p className="text-sm font-bold text-[#6c5a73]">You need an active player or manager team role to enter.</p>}</div> : null}
-      {detail.entry && detail.currentRound ? <div className="grid gap-4 rounded-lg bg-white p-4 shadow-card"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black text-[#25002b]">Your picks</h3><p className="text-sm font-semibold text-[#6c5a73]">Choose two different players you have not used in this cycle.</p></div>{deadline ? <Badge variant={locked ? "muted" : "cyan"}><Clock3 className="mr-1 h-3 w-3" />{locked ? "Selections closed" : `Deadline ${deadline.toLocaleString("en-IE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`}</Badge> : null}</div><div className="grid gap-3 lg:grid-cols-2"><PlayerSelect label="Choose first player" value={playerIds[0]} otherValue={playerIds[1]} groups={candidatesByTeam} disabled={locked} onChange={(value) => setPlayerIds([value, playerIds[1]])} /><PlayerSelect label="Choose second player" value={playerIds[1]} otherValue={playerIds[0]} groups={candidatesByTeam} disabled={locked} onChange={(value) => setPlayerIds([playerIds[0], value])} /></div>{detail.picks.filter((pick) => pick.state === "Automatic").map((pick) => <p key={pick.id} className="rounded-lg bg-[#eaf8f4] p-2 text-xs font-bold text-[#246050]">Automatic replacement · Pick {pick.slotNumber}: {pick.playerName}{pick.automaticReason ? ` · ${pick.automaticReason}` : ""}</p>)}<Button disabled={locked || saving || !playerIds[0] || !playerIds[1] || playerIds[0] === playerIds[1]} onClick={savePicks}>{saving ? "Saving..." : detail.picks.length ? "Change picks" : "Save picks"}</Button></div> : null}
-      <div className="rounded-lg bg-white p-4 shadow-card"><h3 className="flex items-center gap-2 font-black text-[#25002b]"><Users className="h-5 w-5" /> Contestants</h3><div className="mt-3 divide-y">{detail.entries.map((entry) => <div key={entry.id} className={cn("flex items-center justify-between gap-3 py-3", entry.status === "Eliminated" ? "opacity-60" : "")}><div><p className="text-sm font-extrabold">{entry.personName}</p><p className="text-xs font-bold text-[#6c5a73]">{entry.sourceTeamName}{entry.picksHidden ? " · Picks hidden until deadline" : entry.picks.length ? ` · ${entry.picks.map((pick) => pick.playerName).join(" / ")}` : " · No picks yet"}</p></div>{entry.status !== "Entered" ? <Badge variant={entry.status === "Eliminated" || entry.status === "Withdrawn" ? "muted" : "green"}>{entry.status}</Badge> : null}</div>)}</div></div>
-      {detail.history.length ? <details className="rounded-lg bg-white p-4 shadow-card"><summary className="flex cursor-pointer list-none items-center justify-between font-black text-[#25002b]">History <ChevronDown className="h-5 w-5" /></summary><div className="mt-3 grid gap-2">{detail.history.map((pick, index) => <div key={`${pick.roundName}-${pick.slotNumber}-${index}`} className="rounded-lg bg-[#f7f5fa] p-3 text-sm"><p className="font-extrabold">{pick.roundName} · Pick {pick.slotNumber}: {pick.playerName}</p><p className="text-xs font-bold text-[#6c5a73]">{pick.state}{pick.automaticReason ? ` · Automatic: ${pick.automaticReason}` : ""} · {pick.outcome}</p></div>)}</div></details> : null}
+      {detail.entry && detail.currentRound ? <div className="grid gap-4 rounded-lg bg-white p-4 shadow-card"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black text-[#25002b]">Your picks</h3><p className="text-sm font-semibold text-[#6c5a73]">Choose two different players you have not used in this cycle.</p></div>{deadline ? <Badge variant={locked ? "muted" : "cyan"}><Clock3 className="mr-1 h-3 w-3" />{locked ? "Selections closed" : `Deadline ${deadline.toLocaleString("en-IE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`}</Badge> : null}</div><div className="grid gap-3 lg:grid-cols-2"><PlayerSelect label="Choose first player" value={playerIds[0]} otherValue={playerIds[1]} groups={candidatesByTeam} disabled={locked} onChange={(value) => setPlayerIds([value, playerIds[1]])} /><PlayerSelect label="Choose second player" value={playerIds[1]} otherValue={playerIds[0]} groups={candidatesByTeam} disabled={locked} onChange={(value) => setPlayerIds([playerIds[0], value])} /></div>{detail.picks.map((pick) => <PickChangeNotice key={pick.id} pick={pick} />)}<Button disabled={locked || saving || !playerIds[0] || !playerIds[1] || playerIds[0] === playerIds[1]} onClick={savePicks}>{saving ? "Saving..." : detail.picks.length ? "Change picks" : "Save picks"}</Button></div> : null}
+      <div className="rounded-lg bg-white p-4 shadow-card"><h3 className="flex items-center gap-2 font-black text-[#25002b]"><Users className="h-5 w-5" /> Contestants</h3><div className="mt-3 divide-y">{detail.entries.map((entry) => <div key={entry.id} className={cn("flex items-center justify-between gap-3 py-3", entry.status === "Eliminated" ? "opacity-60" : "")}><div><p className="text-sm font-extrabold">{entry.personName}</p><div className="flex flex-wrap items-center gap-1 text-xs font-bold text-[#6c5a73]"><span>{entry.sourceTeamName}</span>{entry.picksHidden ? <span>· Picks hidden until deadline</span> : entry.picks.length ? <><span>·</span><VisiblePickNames picks={entry.picks} /></> : <span>· No picks yet</span>}</div></div>{entry.status !== "Entered" ? <Badge variant={entry.status === "Eliminated" || entry.status === "Withdrawn" ? "muted" : "green"}>{entry.status}</Badge> : null}</div>)}</div></div>
+      {detail.history.length ? <details className="rounded-lg bg-white p-4 shadow-card"><summary className="flex cursor-pointer list-none items-center justify-between font-black text-[#25002b]">History <ChevronDown className="h-5 w-5" /></summary><div className="mt-3 grid gap-2">{detail.history.map((pick, index) => <div key={`${pick.roundName}-${pick.slotNumber}-${index}`} className="grid gap-2 rounded-lg bg-[#f7f5fa] p-3 text-sm"><p className="font-extrabold">{pick.roundName} · Pick {pick.slotNumber}: {pick.playerName}{pick.wasChanged ? <Badge variant="cyan" className="ml-2">Changed</Badge> : null}</p><p className="text-xs font-bold text-[#6c5a73]">{pick.state}{pick.automaticReason ? ` · Automatic: ${pick.automaticReason}` : ""} · {pick.outcome}</p><PickChangeNotice pick={pick} /></div>)}</div></details> : null}
     </div> : null;
 
   return <section className="grid gap-3">
