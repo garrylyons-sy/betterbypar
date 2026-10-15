@@ -11,7 +11,7 @@ import type { TeamContext } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type LadderMatchFormat = "1 Frame" | "Best of 3" | "Best of 5";
-type LadderEntry = { id: string; personId: string; name: string; handicap: number | null; position: number; status: string; canChallenge: boolean };
+type LadderEntry = { id: string; personId: string; name: string; handicap: number | null; recentForm: Array<"W" | "L">; position: number; status: string; canChallenge: boolean };
 type LadderChallenge = {
   id: string;
   status: string;
@@ -194,6 +194,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
 
       {activeChallenges.map((challenge) => {
         const opponent = challenge.isChallenger ? challenge.challenged : challenge.challenger;
+        const positionAtStake = challenge.challenged.position;
         const scheduleValue = scheduledTimes[challenge.id] ?? "";
         const score = scores[challenge.id] ?? { challenger: winsRequired, challenged: 0 };
         return (
@@ -203,6 +204,10 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
               <Badge variant={challenge.status === "Disputed" ? "gold" : "green"}>{challenge.status}</Badge>
             </CardHeader>
             <CardContent className="grid gap-3 pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#10233f] px-3 py-2 text-white">
+                <span className="text-xs font-black uppercase text-white/65">Position at stake</span>
+                <span className="font-black">Challenger wins: moves to #{positionAtStake} · Challenged wins: holds #{positionAtStake}</span>
+              </div>
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-center">
                 <div><p className="text-[10px] font-black uppercase text-[#6c5a73]">Challenger</p><p className="mt-1 font-black">#{challenge.challenger.position} {challenge.challenger.name} <Handicap value={handicapFor(challenge.challenger.personId)} /></p></div>
                 <Swords className="h-5 w-5 text-[#1b8a72]" />
@@ -247,15 +252,21 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
       })}
 
       <Card>
-        <CardHeader><div><CardTitle>Current Ladder</CardTitle><p className="mt-1 text-sm font-semibold text-[#6c5a73]">Players above you within range can be challenged.</p></div><Badge variant="muted">{entries.length}</Badge></CardHeader>
+        <CardHeader><div><CardTitle>Current Ladder</CardTitle><p className="mt-1 text-sm font-semibold text-[#6c5a73]">Challenge directly from the table. Beat a player above you and take their position.</p></div><Badge variant="muted">{entries.length}</Badge></CardHeader>
         <CardContent className="grid gap-2">
           {entries.map((entry) => {
             const mine = entry.id === data.me?.entryId;
             return (
               <div key={entry.id} className={cn("grid min-h-14 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2 ring-1", mine ? "bg-[#eef9f5] ring-[#bfe9dc]" : "bg-white ring-[#eeeaf2]")}>
                 <span className={cn("grid h-9 w-9 place-items-center rounded-lg text-sm font-black", entry.position <= 3 ? "bg-[#10233f] text-white" : "bg-[#f0edf4] text-[#10233f]")}>{entry.position}</span>
-                <div className="min-w-0"><p className="truncate font-black text-[#10233f]">{entry.name} <Handicap value={entry.handicap} /></p><p className="text-[10px] font-black uppercase text-[#6c5a73]">{mine ? "Your position" : entry.status}</p></div>
-                {entry.canChallenge && data.available ? <Button size="sm" onClick={() => void act("challenge", { challengedEntryId: entry.id })} disabled={busy}><Swords className="h-4 w-4" />Challenge</Button> : mine ? <Badge variant="green">You</Badge> : null}
+                <div className="min-w-0">
+                  <p className="truncate font-black text-[#10233f]">{entry.name} <Handicap value={entry.handicap} /></p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-black uppercase text-[#6c5a73]">{mine ? "Your position" : entry.canChallenge ? `Beat them to take #${entry.position}` : entry.status}</span>
+                    <RecentForm results={entry.recentForm} primaryColor={activeTeam.primaryColor} accentColor={activeTeam.accentColor} />
+                  </div>
+                </div>
+                {entry.canChallenge && data.available ? <Button size="sm" onClick={() => void act("challenge", { challengedEntryId: entry.id })} disabled={busy}><Swords className="h-4 w-4" />Play for #{entry.position}</Button> : mine ? <Badge variant="green">You</Badge> : null}
               </div>
             );
           })}
@@ -278,7 +289,14 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
           <CardHeader><CardTitle>Recent challenges</CardTitle><RotateCcw className="h-4 w-4 text-[#6c5a73]" /></CardHeader>
           <CardContent className="grid gap-2">
             {(data.challenges ?? []).filter((challenge) => ["Completed", "Rejected", "Expired", "Cancelled"].includes(challenge.status)).slice(0, 5).map((challenge) => (
-              <div key={challenge.id} className="flex items-center justify-between gap-3 rounded-xl bg-[#f7f5fa] p-3"><span className="min-w-0 truncate text-sm font-bold">{challenge.challenger.name} v {challenge.challenged.name}</span><Badge variant="muted">{challenge.status}</Badge></div>
+              <div key={challenge.id} className="flex items-center justify-between gap-3 rounded-xl bg-[#f7f5fa] p-3">
+                <span className="min-w-0 truncate text-sm font-bold">{challenge.challenger.name} v {challenge.challenged.name}</span>
+                {challenge.status === "Completed" ? (
+                  <Badge variant={challenge.winnerEntryId === (challenge.isChallenger ? challenge.challenger.entryId : challenge.challenged.entryId) ? "green" : "muted"}>
+                    {challenge.winnerEntryId === (challenge.isChallenger ? challenge.challenger.entryId : challenge.challenged.entryId) ? "Won" : "Lost"}
+                  </Badge>
+                ) : <Badge variant="muted">{challenge.status}</Badge>}
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -297,4 +315,17 @@ function ScoreInput({ label, value, max, onChange }: { label: string; value: num
 
 function Handicap({ value }: { value: number | null }) {
   return value === null ? null : <span className="whitespace-nowrap text-[10px] font-black uppercase text-[#6c5a73]">(Hcp {value})</span>;
+}
+
+function RecentForm({ results, primaryColor, accentColor }: { results: Array<"W" | "L">; primaryColor: string; accentColor: string }) {
+  const form = results.slice(0, 3).join("") || "-";
+  return (
+    <span
+      className="inline-flex min-w-9 justify-center rounded-md px-1.5 py-1 text-[10px] font-black text-white"
+      style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }}
+      aria-label={`Recent three match form ${form}`}
+    >
+      {form}
+    </span>
+  );
 }

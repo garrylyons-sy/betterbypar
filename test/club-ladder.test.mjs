@@ -91,3 +91,15 @@ test("ladder administrators can permanently delete a ladder and its cascading da
   assert.match(adminLadders, /Permanently delete/);
   assert.match(adminLadders, /Delete ladder/);
 });
+
+test("the ladder itself communicates challenge stakes and recent form", () => {
+  assert.match(ladderApi, /form\.recent_form/);
+  assert.match(ladderApi, /challenge\.winner_entry_id = cle\.id then 'W' else 'L'/);
+  assert.match(ladderApi, /limit 3/);
+  assert.match(ladderPage, /Beat a player above you and take their position/);
+  assert.match(ladderPage, /Play for #\{entry\.position\}/);
+  assert.match(ladderPage, /Challenger wins: moves to #/);
+  assert.match(ladderPage, /function RecentForm/);
+  assert.match(ladderPage, /results\.slice\(0, 3\)\.join\(""\)/);
+  assert.match(ladderPage, /\? "Won" : "Lost"/);
+});

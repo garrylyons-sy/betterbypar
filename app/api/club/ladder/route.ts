@@ -100,9 +100,10 @@ export async function GET(request: Request) {
       first_name: string;
       last_name: string;
       handicap: string | null;
+      recent_form: string[] | null;
     }>(
       `select cle.id::text, cle.person_id::text, cle.position, cle.status, p.first_name, p.last_name,
-              membership.handicap::text
+              membership.handicap::text, form.recent_form
        from public.club_ladder_entry cle
        join public.person p on p.id = cle.person_id and p.active = true
        left join lateral (
@@ -113,6 +114,20 @@ export async function GET(request: Request) {
          order by cm.joined_date desc, cm.id
          limit 1
        ) membership on true
+       left join lateral (
+         select jsonb_agg(recent.result order by recent.completed_at desc) as recent_form
+         from (
+           select case when challenge.winner_entry_id = cle.id then 'W' else 'L' end as result,
+                  challenge.completed_at
+           from public.club_ladder_challenge challenge
+           where challenge.ladder_id = cle.ladder_id
+             and challenge.status = 'Completed'
+             and challenge.winner_entry_id is not null
+             and (challenge.challenger_entry_id = cle.id or challenge.challenged_entry_id = cle.id)
+           order by challenge.completed_at desc
+           limit 3
+         ) recent
+       ) form on true
        where cle.ladder_id = $1 and cle.status in ('Active', 'Paused')
        order by cle.position`,
       [ladder.id, ladder.club_id]
@@ -167,6 +182,7 @@ export async function GET(request: Request) {
         personId: row.person_id,
         name: `${row.first_name} ${row.last_name}`.trim(),
         handicap: row.handicap === null ? null : Number(row.handicap),
+        recentForm: Array.isArray(row.recent_form) ? row.recent_form : [],
         position: row.position,
         status: row.status,
         canChallenge: Boolean(myEntry && !hasActiveChallenge && row.status === "Active" && canChallengePosition(myEntry.position, row.position, ladder.challenge_range))
