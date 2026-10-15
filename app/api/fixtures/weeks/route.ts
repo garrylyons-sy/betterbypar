@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
-import { organizeFixtureWeeks } from "@/lib/fixture-scheduling.mjs";
+import { cupPlaceholderForTie, organizeFixtureWeeks } from "@/lib/fixture-scheduling.mjs";
 import { fixturePlayerWinPercentage, loadFixturePlayerWinPercentages } from "@/lib/server/player-win-percentages";
 
 export const runtime = "nodejs";
@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const leagueName = request.nextUrl.searchParams.get("league")?.trim() || "A League";
     const seasonName = request.nextUrl.searchParams.get("season")?.trim() || "2026/27";
     const teamId = request.nextUrl.searchParams.get("teamId")?.trim() || "";
+    const includeCups = request.nextUrl.searchParams.get("includeCups") !== "0";
     const rows = await dbQuery<{
       week_id: string;
       week_number: number;
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
        order by fw.starts_on, fw.week_number`,
       [leagueName, seasonName]
     )).rows;
-    const cupRows = (await dbQuery<{
+    const cupRows = includeCups ? (await dbQuery<{
       competition_id: string;
       competition_name: string;
       round_id: string;
@@ -184,7 +185,7 @@ export async function GET(request: NextRequest) {
          m.id, m.home_team_score, m.away_team_score, hfl.status, afl.status
        order by cr.fixture_date, cc.name, cr.round_number, ct.match_number`,
       [seasonName, user.personId]
-    )).rows;
+    )).rows : [];
     const fixtureIds = Array.from(new Set([
       ...rows.rows.map((row) => row.fixture_id),
       ...cupRows.map((row) => row.fixture_id).filter((id): id is string => Boolean(id))
@@ -631,15 +632,18 @@ export async function GET(request: NextRequest) {
       const organizedById = new Map<string, CupDisplayWeek>(organized.map((week) => [week.id, { ...week, cupPlaceholders: [] }]));
 
       for (const round of rounds) {
-        const placeholders = competitionRows.filter((row) => row.round_id === round.roundId && !row.fixture_id).map((row) => {
+        const placeholders = competitionRows.filter((row) => row.round_id === round.roundId && !row.fixture_id).flatMap((row) => {
           const previousRound = row.round_number > 1
             ? competitionRows.find((candidate) => candidate.round_number === row.round_number - 1)?.round_name ?? "previous round"
             : "draw";
-          return {
-            tieId: row.tie_id,
-            homeLabel: row.home_team_name ?? (row.home_source_match_number ? `Winner of ${previousRound} match ${row.home_source_match_number}` : "Bye"),
-            awayLabel: row.away_team_name ?? (row.away_source_match_number ? `Winner of ${previousRound} match ${row.away_source_match_number}` : "Bye")
-          };
+          const placeholder = cupPlaceholderForTie({
+            homeTeamName: row.home_team_name,
+            awayTeamName: row.away_team_name,
+            homeSourceMatchNumber: row.home_source_match_number,
+            awaySourceMatchNumber: row.away_source_match_number,
+            previousRoundName: previousRound
+          });
+          return placeholder ? [{ tieId: row.tie_id, ...placeholder }] : [];
         });
         if (!placeholders.length) continue;
         const existing = organizedById.get(round.id);

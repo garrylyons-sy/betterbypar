@@ -223,6 +223,39 @@ test("fixture dates are only repeated when a displayed week contains another mat
   ]), true);
 });
 
+test("cup byes stay out of fixture lists while real future ties remain visible", async () => {
+  const { cupPlaceholderForTie } = await import("../lib/fixture-scheduling.mjs");
+
+  assert.equal(cupPlaceholderForTie({
+    homeTeamName: "Grange A",
+    awayTeamName: null,
+    homeSourceMatchNumber: null,
+    awaySourceMatchNumber: null,
+    previousRoundName: "draw"
+  }), null);
+  assert.deepEqual(cupPlaceholderForTie({
+    homeTeamName: null,
+    awayTeamName: null,
+    homeSourceMatchNumber: 1,
+    awaySourceMatchNumber: 2,
+    previousRoundName: "Quarter Final"
+  }), {
+    homeLabel: "Winner of Quarter Final match 1",
+    awayLabel: "Winner of Quarter Final match 2"
+  });
+});
+
+test("the fixtures page includes cup rounds in only its first league carousel", () => {
+  const appShell = source("../components/app-shell.tsx");
+  const fixtureWeeksRoute = source("../app/api/fixtures/weeks/route.ts");
+
+  assert.match(appShell, /orderedLeagues\.map\(\(league, index\)/);
+  assert.match(appShell, /includeCups=\{index === 0\}/);
+  assert.match(appShell, /params\.set\("includeCups", includeCups \? "1" : "0"\)/);
+  assert.match(fixtureWeeksRoute, /const includeCups = request\.nextUrl\.searchParams\.get\("includeCups"\) !== "0"/);
+  assert.match(fixtureWeeksRoute, /const cupRows = includeCups \?/);
+});
+
 test("the mobile navigation is outside the scrolling app main", () => {
   const appShell = source("../components/app-shell.tsx");
   const shellStart = appShell.indexOf('return (\n    <>');

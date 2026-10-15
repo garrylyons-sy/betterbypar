@@ -3286,7 +3286,7 @@ function FixturesPage({
 
   return (
     <section className="grid gap-5">
-      {orderedLeagues.map((league) => {
+      {orderedLeagues.map((league, index) => {
         const leagueContext = {
           ...activeTeam,
           league,
@@ -3301,6 +3301,7 @@ function FixturesPage({
             userCanShare={userCanShare}
             onDataRefresh={onDataRefresh}
             onTeamSummaryUpdate={onTeamSummaryUpdate}
+            includeCups={index === 0}
           />
         );
       })}
@@ -5348,7 +5349,8 @@ function FixtureWeekCarouselCard({
   onOpenFixture,
   userCanShare = false,
   onDataRefresh,
-  onTeamSummaryUpdate
+  onTeamSummaryUpdate,
+  includeCups = true
 }: {
   activeTeam: TeamContext;
   selectedFixtureId?: string;
@@ -5357,6 +5359,7 @@ function FixtureWeekCarouselCard({
   userCanShare?: boolean;
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
+  includeCups?: boolean;
 }) {
   const [weeks, setWeeks] = useState<FixtureWeek[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -5379,6 +5382,7 @@ function FixtureWeekCarouselCard({
     async function loadWeeks(showLoading: boolean) {
       if (showLoading) setLoading(true);
       const params = new URLSearchParams({ league: activeTeam.league, season: activeTeam.season });
+      params.set("includeCups", includeCups ? "1" : "0");
       if (activeTeam.teamId) params.set("teamId", activeTeam.teamId);
       if (!showLoading) params.set("refresh", String(Date.now()));
       const response = await fetch(withTestUser(`/api/fixtures/weeks?${params.toString()}`), { credentials: "same-origin", cache: "no-store" });
@@ -5423,7 +5427,7 @@ function FixtureWeekCarouselCard({
       window.removeEventListener("interclub:refresh-panels", refreshPanels);
       if (pollId) window.clearInterval(pollId);
     };
-  }, [activeTeam.league, activeTeam.season, activeTeam.teamId, embeddedDemoMode]);
+  }, [activeTeam.league, activeTeam.season, activeTeam.teamId, embeddedDemoMode, includeCups]);
 
   const week = weeks[activeIndex];
   const showFixtureDates = week

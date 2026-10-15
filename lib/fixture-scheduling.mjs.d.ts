@@ -26,6 +26,14 @@ export function calendarWeekKey(value: unknown): string;
 
 export function shouldShowFixtureDates(weekDate: unknown, fixtureDates: unknown[]): boolean;
 
+export function cupPlaceholderForTie(input: {
+  homeTeamName?: string | null;
+  awayTeamName?: string | null;
+  homeSourceMatchNumber?: number | null;
+  awaySourceMatchNumber?: number | null;
+  previousRoundName?: string;
+}): { homeLabel: string; awayLabel: string } | null;
+
 export function organizeFixtureWeeks<T extends FixtureScheduleItem>(input: {
   weeks: FixtureScheduleWeek[];
   fixtures: T[];
