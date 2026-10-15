@@ -14,6 +14,7 @@ const schema = readFileSync(new URL("../supabase/club_ladders.sql", import.meta.
 const appShell = readFileSync(new URL("../components/app-shell.tsx", import.meta.url), "utf8");
 const ladderPage = readFileSync(new URL("../components/club-ladder.tsx", import.meta.url), "utf8");
 const adminConsole = readFileSync(new URL("../components/admin-console.tsx", import.meta.url), "utf8");
+const adminLadders = readFileSync(new URL("../components/admin-club-ladders.tsx", import.meta.url), "utf8");
 
 test("ladder settings support one frame, best of three and best of five", () => {
   assert.equal(requiredFrameWins("1 Frame"), 1);
@@ -67,4 +68,9 @@ test("admin and My Club expose the ladder without adding it to the main navigati
   assert.match(ladderPage, /This club has not configured a ladder yet\./);
   assert.match(ladderPage, /Ladder rules/);
   assert.doesNotMatch(appShell, /"Ladder"[^\n]+AppearanceMenuId/);
+});
+
+test("admin ladder settings constrain controls inside responsive grid columns", () => {
+  assert.match(adminLadders, /2xl:grid-cols-\[minmax\(15rem,1\.2fr\)_repeat\(4,minmax\(0,1fr\)\)\]/);
+  assert.match(adminLadders, /min-h-11 w-full min-w-0 rounded-lg/);
 });

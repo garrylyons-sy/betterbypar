@@ -128,14 +128,14 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
               </button>
               {open ? (
                 <div className="grid gap-4 border-t border-[#eeeaf2] bg-[#fbfafc] p-3 sm:p-4">
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                    <label className="grid gap-1 sm:col-span-2 lg:col-span-1">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(15rem,1.2fr)_repeat(4,minmax(0,1fr))]">
+                    <label className="grid min-w-0 gap-1 sm:col-span-2 lg:col-span-1">
                       <span className="text-[11px] font-black uppercase text-[#6c5a73]">Name</span>
-                      <input className="min-h-11 rounded-lg border border-[#e3ddea] bg-white px-3 font-bold" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
+                      <input className="min-h-11 w-full min-w-0 rounded-lg border border-[#e3ddea] bg-white px-3 font-bold" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
                     </label>
-                    <label className="grid gap-1">
+                    <label className="grid min-w-0 gap-1">
                       <span className="text-[11px] font-black uppercase text-[#6c5a73]">Match format</span>
-                      <select className="min-h-11 rounded-lg border border-[#e3ddea] bg-white px-3 font-bold" value={draft.matchFormat} onChange={(event) => setDraft((current) => ({ ...current, matchFormat: event.target.value as LadderMatchFormat }))}>
+                      <select className="min-h-11 w-full min-w-0 rounded-lg border border-[#e3ddea] bg-white px-3 font-bold" value={draft.matchFormat} onChange={(event) => setDraft((current) => ({ ...current, matchFormat: event.target.value as LadderMatchFormat }))}>
                         {ladderMatchFormats.map((format) => <option key={format}>{format}</option>)}
                       </select>
                     </label>
@@ -171,9 +171,9 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
 
 function NumberSetting({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void }) {
   return (
-    <label className="grid gap-1">
+    <label className="grid min-w-0 gap-1">
       <span className="text-[11px] font-black uppercase text-[#6c5a73]">{label}</span>
-      <input type="number" min={min} max={max} className="min-h-11 rounded-lg border border-[#e3ddea] bg-white px-3 font-bold" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <input type="number" min={min} max={max} className="min-h-11 w-full min-w-0 rounded-lg border border-[#e3ddea] bg-white px-3 font-bold" value={value} onChange={(event) => onChange(Number(event.target.value))} />
     </label>
   );
 }
