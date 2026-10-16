@@ -18,6 +18,7 @@ type LadderRow = {
   challenge_range: number;
   response_hours: number;
   play_within_days: number;
+  use_handicap: boolean;
   active: boolean;
 };
 
@@ -42,15 +43,62 @@ async function clubAccess(personId: string, clubName: string) {
   return row && (row.is_operator || row.is_member) ? row : null;
 }
 
-async function loadLadder(clubId: string) {
+async function loadEligibleLadders(clubId: string, personId: string, isOperator: boolean) {
   return (await dbQuery<LadderRow>(
     `select cl.id::text, cl.club_id::text, c.name as club_name, cl.name, cl.match_format,
-            cl.challenge_range, cl.response_hours, cl.play_within_days, cl.active
+            cl.challenge_range, cl.response_hours, cl.play_within_days, cl.use_handicap, cl.active
      from public.club_ladder cl
      join public.club c on c.id = cl.club_id
      where cl.club_id = $1
-     limit 1`,
-    [clubId]
+       and (
+         $3::boolean = true
+         or not exists (select 1 from public.club_ladder_eligible_team eligibility where eligibility.ladder_id = cl.id)
+         or exists (
+           select 1
+           from public.club_ladder_eligible_team eligibility
+           join public.team team on team.id = eligibility.team_id and team.active = true
+           join public.person_team_role role on role.person_id = $2 and role.club_id = team.club_id
+             and role.league_id = team.league_id and role.team_name = team.name and role.active = true
+           where eligibility.ladder_id = cl.id
+         )
+         or exists (
+           select 1
+           from public.club_ladder_eligible_team eligibility
+           join public.team_membership membership on membership.team_id = eligibility.team_id
+             and membership.person_id = $2 and membership.active = true
+           where eligibility.ladder_id = cl.id
+         )
+       )
+     order by cl.created_at, lower(cl.name)`,
+    [clubId, personId, isOperator]
+  )).rows;
+}
+
+async function loadLadder(clubId: string, ladderId: string, personId: string, isOperator: boolean) {
+  return (await dbQuery<LadderRow>(
+    `select cl.id::text, cl.club_id::text, c.name as club_name, cl.name, cl.match_format,
+            cl.challenge_range, cl.response_hours, cl.play_within_days, cl.use_handicap, cl.active
+     from public.club_ladder cl
+     join public.club c on c.id = cl.club_id
+     where cl.id = $1 and cl.club_id = $2
+       and (
+         $4::boolean = true
+         or not exists (select 1 from public.club_ladder_eligible_team eligibility where eligibility.ladder_id = cl.id)
+         or exists (
+           select 1 from public.club_ladder_eligible_team eligibility
+           join public.team team on team.id = eligibility.team_id and team.active = true
+           join public.person_team_role role on role.person_id = $3 and role.club_id = team.club_id
+             and role.league_id = team.league_id and role.team_name = team.name and role.active = true
+           where eligibility.ladder_id = cl.id
+         )
+         or exists (
+           select 1 from public.club_ladder_eligible_team eligibility
+           join public.team_membership membership on membership.team_id = eligibility.team_id
+             and membership.person_id = $3 and membership.active = true
+           where eligibility.ladder_id = cl.id
+         )
+       )`,
+    [ladderId, clubId, personId, isOperator]
   )).rows[0] ?? null;
 }
 
@@ -83,16 +131,21 @@ export async function GET(request: Request) {
     if (!clubName) return NextResponse.json({ error: "Club is required." }, { status: 400 });
     const access = await clubAccess(user.personId, clubName);
     if (!access) return NextResponse.json({ error: "Club membership is required." }, { status: 403 });
-    const ladder = await loadLadder(access.id);
-    if (!ladder) return NextResponse.json({ configured: false, clubName });
+    const [ladders, configured] = await Promise.all([
+      loadEligibleLadders(access.id, user.personId, access.is_operator),
+      dbQuery("select 1 from public.club_ladder where club_id = $1 limit 1", [access.id])
+    ]);
+    if (!ladders.length) return NextResponse.json({ configured: Boolean(configured.rowCount), clubName, ladders: [] });
 
     await dbQuery(
       `update public.club_ladder_challenge
        set status = 'Expired', updated_at = now()
-       where ladder_id = $1 and status = 'Pending' and response_due_at < now()`,
-      [ladder.id]
+       where ladder_id = any($1::uuid[]) and status = 'Pending' and response_due_at < now()`,
+      [ladders.map((ladder) => ladder.id)]
     );
-    const entries = await dbQuery<{
+
+    const payloads = await Promise.all(ladders.map(async (ladder) => {
+      const entries = await dbQuery<{
       id: string;
       person_id: string;
       position: number;
@@ -101,7 +154,7 @@ export async function GET(request: Request) {
       last_name: string;
       handicap: string | null;
       recent_form: string[] | null;
-    }>(
+      }>(
       `select cle.id::text, cle.person_id::text, cle.position, cle.status, p.first_name, p.last_name,
               membership.handicap::text, form.recent_form
        from public.club_ladder_entry cle
@@ -131,9 +184,9 @@ export async function GET(request: Request) {
        where cle.ladder_id = $1 and cle.status in ('Active', 'Paused')
        order by cle.position`,
       [ladder.id, ladder.club_id]
-    );
-    const myEntry = entries.rows.find((row) => row.person_id === user.personId) ?? null;
-    const challenges = myEntry ? await dbQuery<Record<string, unknown>>(
+      );
+      const myEntry = entries.rows.find((row) => row.person_id === user.personId) ?? null;
+      const challenges = myEntry ? await dbQuery<Record<string, unknown>>(
       `select chc.id::text, chc.status, chc.challenger_entry_id::text, chc.challenged_entry_id::text,
               chc.response_due_at::text, chc.scheduled_at::text, chc.play_by::text,
               chc.challenger_score, chc.challenged_score, chc.winner_entry_id::text,
@@ -161,34 +214,28 @@ export async function GET(request: Request) {
        order by chc.created_at desc
        limit 20`,
       [ladder.id, myEntry.id]
-    ) : { rows: [] };
-    const hasActiveChallenge = challenges.rows.some((row) => activeChallengeStatuses.includes(String(row.status)));
+      ) : { rows: [] };
+      const hasActiveChallenge = challenges.rows.some((row) => activeChallengeStatuses.includes(String(row.status)));
 
-    return NextResponse.json({
-      configured: true,
-      available: ladder.active,
-      ladder: {
-        id: ladder.id,
-        name: ladder.name,
-        clubName: ladder.club_name,
-        matchFormat: ladder.match_format,
-        challengeRange: ladder.challenge_range,
-        responseHours: ladder.response_hours,
-        playWithinDays: ladder.play_within_days
-      },
-      me: myEntry ? { entryId: myEntry.id, personId: user.personId, position: myEntry.position, status: myEntry.status } : null,
-      entries: entries.rows.map((row) => ({
-        id: row.id,
-        personId: row.person_id,
-        name: `${row.first_name} ${row.last_name}`.trim(),
-        handicap: row.handicap === null ? null : Number(row.handicap),
-        recentForm: Array.isArray(row.recent_form) ? row.recent_form : [],
-        position: row.position,
-        status: row.status,
-        canChallenge: Boolean(myEntry && !hasActiveChallenge && row.status === "Active" && canChallengePosition(myEntry.position, row.position, ladder.challenge_range))
-      })),
-      challenges: challenges.rows.map((row) => formatChallenge(row, user.personId))
-    });
+      return {
+        available: ladder.active,
+        ladder: {
+          id: ladder.id, name: ladder.name, clubName: ladder.club_name, matchFormat: ladder.match_format,
+          challengeRange: ladder.challenge_range, responseHours: ladder.response_hours,
+          playWithinDays: ladder.play_within_days, useHandicap: ladder.use_handicap
+        },
+        me: myEntry ? { entryId: myEntry.id, personId: user.personId, position: myEntry.position, status: myEntry.status } : null,
+        entries: entries.rows.map((row) => ({
+          id: row.id, personId: row.person_id, name: `${row.first_name} ${row.last_name}`.trim(),
+          handicap: row.handicap === null ? null : Number(row.handicap),
+          recentForm: Array.isArray(row.recent_form) ? row.recent_form : [], position: row.position, status: row.status,
+          canChallenge: Boolean(myEntry && !hasActiveChallenge && row.status === "Active" && canChallengePosition(myEntry.position, row.position, ladder.challenge_range))
+        })),
+        challenges: challenges.rows.map((row) => formatChallenge(row, user.personId))
+      };
+    }));
+
+    return NextResponse.json({ configured: true, clubName, ladders: payloads });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ladder could not be loaded." }, { status: 500 });
   }
@@ -201,9 +248,10 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const clubName = String(body.club ?? "").trim();
     const action = String(body.action ?? "").trim();
+    const ladderId = String(body.ladderId ?? "").trim();
     const access = await clubAccess(user.personId, clubName);
     if (!access) return NextResponse.json({ error: "Club membership is required." }, { status: 403 });
-    const ladder = await loadLadder(access.id);
+    const ladder = ladderId ? await loadLadder(access.id, ladderId, user.personId, access.is_operator) : null;
     if (!ladder || !ladder.active) return NextResponse.json({ error: "This club ladder is not currently available." }, { status: 409 });
 
     const result = await withTransaction(async (client) => {
@@ -445,8 +493,9 @@ export async function POST(request: Request) {
 
     await dbQuery(
       `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
-       values ($1, 'Page Visit', '/club/ladder', $2, jsonb_build_object('club_name', $3::text, 'action', $4::text))`,
-      [user.personId, `Ladder ${action}`, clubName, action]
+       values ($1, 'Page Visit', '/club/ladder', $2,
+         jsonb_build_object('club_name', $3::text, 'ladder_id', $4::text, 'action', $5::text))`,
+      [user.personId, `Ladder ${action}`, clubName, ladder.id, action]
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {

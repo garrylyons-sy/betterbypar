@@ -20,6 +20,7 @@ const ladderApi = readFileSync(new URL("../app/api/club/ladder/route.ts", import
 const adminLadderApi = readFileSync(new URL("../app/api/admin/ladders/route.ts", import.meta.url), "utf8");
 const appearance = readFileSync(new URL("../lib/appearance.ts", import.meta.url), "utf8");
 const appearanceMigration = readFileSync(new URL("../supabase/club_ladder_home_panel.sql", import.meta.url), "utf8");
+const multipleLaddersMigration = readFileSync(new URL("../supabase/club_ladder_multiple_ladders.sql", import.meta.url), "utf8");
 
 test("ladder settings support one frame, best of three and best of five", () => {
   assert.equal(requiredFrameWins("1 Frame"), 1);
@@ -31,6 +32,7 @@ test("ladder settings support one frame, best of three and best of five", () => 
     challengeRange: 3,
     responseHours: 48,
     playWithinDays: 14,
+    useHandicap: true,
     active: true
   });
   assert.throws(() => normalizeLadderSettings({ matchFormat: "Best of 7" }), /match format/i);
@@ -55,14 +57,21 @@ test("result scores must match the configured frame format", () => {
   assert.throws(() => validateLadderResult("Best of 3", 2, 2), /one winner/i);
 });
 
-test("ladder schema cascades club ladder data and preserves challenge history", () => {
+test("ladder schema supports multiple ladders, team eligibility and optional handicaps", () => {
   assert.match(schema, /create table if not exists public\.club_ladder/);
-  assert.match(schema, /club_id uuid not null unique references public\.club\(id\) on delete cascade/);
+  assert.match(schema, /club_id uuid not null references public\.club\(id\) on delete cascade/);
+  assert.match(schema, /use_handicap boolean not null default true/);
+  assert.match(schema, /create table if not exists public\.club_ladder_eligible_team/);
+  assert.match(schema, /team_id uuid not null references public\.team\(id\) on delete restrict/);
   assert.match(schema, /ladder_id uuid not null references public\.club_ladder\(id\) on delete cascade/);
   assert.match(schema, /challenger_entry_id uuid not null references public\.club_ladder_entry\(id\) on delete cascade/);
   assert.match(schema, /challenged_entry_id uuid not null references public\.club_ladder_entry\(id\) on delete cascade/);
   assert.match(schema, /match_format text not null[^;]+1 Frame[^;]+Best of 3[^;]+Best of 5/s);
   assert.match(schema, /status text not null default 'Pending'/);
+  assert.match(multipleLaddersMigration, /drop constraint if exists club_ladder_club_id_key/);
+  assert.match(multipleLaddersMigration, /add column if not exists use_handicap boolean not null default true/);
+  assert.match(multipleLaddersMigration, /references public\.team\(id\) on delete restrict/);
+  assert.match(multipleLaddersMigration, /club_ladder_eligible_team_same_club/);
 });
 
 test("admin and My Club expose the ladder without adding it to the main navigation", () => {
@@ -90,10 +99,13 @@ test("admin ladder settings constrain controls inside responsive grid columns", 
   assert.match(adminLadders, /min-h-11 w-full min-w-0 rounded-lg/);
 });
 
-test("ladder setup can optionally add selected club members", () => {
-  assert.match(adminLadderApi, /members\.rows\.filter/);
+test("ladder setup supports multiple ladders, team eligibility and optional initial members", () => {
+  assert.match(adminLadderApi, /eligibleTeamIds/);
+  assert.match(adminLadderApi, /club_ladder_eligible_team/);
+  assert.match(adminLadderApi, /use_handicap/);
+  assert.match(adminLadderApi, /ladderId/);
   assert.match(adminLadderApi, /initialPersonIds/);
-  assert.match(adminLadderApi, /Every selected player must be an active member of this club/);
+  assert.match(adminLadderApi, /Every selected player must be eligible for this ladder/);
   assert.match(adminLadderApi, /insert into public\.club_ladder_entry/);
   assert.match(adminLadderApi, /row_number\(\) over \(order by lower\(p\.last_name\), lower\(p\.first_name\)\)/);
   assert.match(adminLadders, /Add initial players/);
@@ -102,18 +114,40 @@ test("ladder setup can optionally add selected club members", () => {
   assert.match(adminLadders, /initialPersonIds/);
   assert.match(adminLadders, /Hcp \{member\.handicap \?\? "-"\}/);
   assert.match(adminLadders, /No handicap recorded/);
+  assert.match(adminLadders, /All club members/);
+  assert.match(adminLadders, /Use club handicaps/);
+  assert.match(adminLadders, /New ladder/);
 });
 
 test("eligible club members have a configurable visual ladder home panel", () => {
   assert.match(appearance, /id: "clubLadder", label: "Club ladder"/);
   assert.match(ladderPage, /export function ClubLadderHomePanel/);
-  assert.match(ladderPage, /if \(!data\?\.configured \|\| !data\.available \|\| !data\.ladder\) return null/);
-  assert.match(ladderPage, /Position #\{data\.me\.position\}/);
+  assert.match(ladderPage, /if \(!data\?\.ladders\.length\) return null/);
+  assert.match(ladderPage, /Position #\{ladderView\.me\.position\}/);
   assert.match(ladderPage, /Recent form/);
   assert.match(ladderPage, /Join ladder/);
   assert.match(ladderPage, /action: "join"/);
   assert.match(appShell, /panel === "clubLadder"/);
   assert.match(appearanceMigration, /panel_config \|\| '\["clubLadder"\]'/);
+});
+
+test("members see only eligible ladders and the first ladder opens by default", () => {
+  assert.match(ladderApi, /club_ladder_eligible_team/);
+  assert.match(ladderApi, /person_team_role/);
+  assert.match(ladderApi, /ladderId/);
+  assert.match(ladderApi, /ladders:/);
+  assert.match(ladderPage, /setSelectedLadderId\(.*ladders\[0\]\?\.ladder\.id/s);
+  assert.match(ladderPage, /aria-expanded=\{selected\}/);
+  assert.match(ladderPage, /Other ladders|Your ladders/);
+  assert.match(ladderPage, /ladder\.useHandicap/);
+});
+
+test("team eligibility is current and eligibility changes withdraw affected entrants", () => {
+  const eligibilityLoader = ladderApi.slice(ladderApi.indexOf("async function loadEligibleLadders"), ladderApi.indexOf("function formatChallenge"));
+  assert.doesNotMatch(eligibilityLoader, /club_ladder_entry/);
+  assert.match(adminLadderApi, /status = 'Cancelled'/);
+  assert.match(adminLadderApi, /status = 'Withdrawn'/);
+  assert.match(adminLadderApi, /Every selected player must be eligible for this ladder/);
 });
 
 test("club ladders show handicaps and allow players to leave safely", () => {

@@ -29,11 +29,9 @@ type LadderChallenge = {
   isChallenged: boolean;
   canReject: boolean;
 };
-type LadderPayload = {
-  configured: boolean;
-  available?: boolean;
-  clubName?: string;
-  ladder?: {
+type LadderView = {
+  available: boolean;
+  ladder: {
     id: string;
     name: string;
     clubName: string;
@@ -41,10 +39,16 @@ type LadderPayload = {
     challengeRange: number;
     responseHours: number;
     playWithinDays: number;
+    useHandicap: boolean;
   };
-  me?: { entryId: string; personId: string; position: number; status: string } | null;
-  entries?: LadderEntry[];
-  challenges?: LadderChallenge[];
+  me: { entryId: string; personId: string; position: number; status: string } | null;
+  entries: LadderEntry[];
+  challenges: LadderChallenge[];
+};
+type LadderPayload = {
+  configured: boolean;
+  clubName?: string;
+  ladders: LadderView[];
 };
 
 export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeTeam: TeamContext; onOpen: () => void; className?: string }) {
@@ -80,7 +84,7 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
     };
   }, [activeTeam.club]);
 
-  async function join() {
+  async function join(ladderId: string) {
     setJoining(true);
     setMessage("");
     try {
@@ -88,7 +92,7 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ club: activeTeam.club, action: "join" })
+        body: JSON.stringify({ club: activeTeam.club, ladderId, action: "join" })
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Could not join the ladder.");
@@ -101,11 +105,12 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
     }
   }
 
-  if (!data?.configured || !data.available || !data.ladder) return null;
+  if (!data?.ladders.length) return null;
 
-  const myEntry = data.me ? data.entries?.find((entry) => entry.id === data.me?.entryId) ?? null : null;
-  const activeChallenges = (data.challenges ?? []).filter((challenge) => ["Pending", "Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status));
-  const totalPlayers = data.entries?.length ?? 0;
+  const ladderView = data.ladders.find((item) => item.me) ?? data.ladders[0];
+  const myEntry = ladderView.me ? ladderView.entries.find((entry) => entry.id === ladderView.me?.entryId) ?? null : null;
+  const activeChallenges = ladderView.challenges.filter((challenge) => ["Pending", "Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status));
+  const totalPlayers = ladderView.entries.length;
 
   return (
     <Card className={cn("overflow-hidden", className)}>
@@ -117,17 +122,18 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/15 ring-1 ring-white/25"><Swords className="h-6 w-6" /></span>
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase text-white/65">Club ladder</p>
-            <h2 className="truncate text-xl font-black">{data.ladder.name}</h2>
-            <p className="mt-0.5 text-xs font-bold text-white/70">{data.ladder.matchFormat} · Challenge {data.ladder.challengeRange} places up</p>
+            <h2 className="truncate text-xl font-black">{ladderView.ladder.name}</h2>
+            <p className="mt-0.5 text-xs font-bold text-white/70">{ladderView.ladder.matchFormat} · {ladderView.ladder.useHandicap ? "Handicap" : "Scratch"} · Challenge {ladderView.ladder.challengeRange} places up</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="soft">{totalPlayers} players</Badge>
-          {data.me ? <Badge variant="cyan">Position #{data.me.position}</Badge> : <Badge variant="gold">Open to join</Badge>}
+          {data.ladders.length > 1 ? <Badge variant="soft">{data.ladders.length} ladders</Badge> : null}
+          {ladderView.me ? <Badge variant="cyan">Position #{ladderView.me.position}</Badge> : <Badge variant="gold">Open to join</Badge>}
         </div>
       </div>
       <CardContent className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-        {data.me ? (
+        {ladderView.me ? (
           <div className="flex flex-wrap items-center gap-3">
             <div>
               <p className="text-[10px] font-black uppercase text-[#6c5a73]">Recent form</p>
@@ -146,10 +152,10 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
             {message ? <p className="mt-2 text-xs font-bold text-[#b42318]">{message}</p> : null}
           </div>
         )}
-        {data.me ? (
+        {ladderView.me ? (
           <Button variant="secondary" onClick={onOpen}>View ladder<ChevronRight className="h-4 w-4" /></Button>
         ) : (
-          <Button onClick={() => void join()} disabled={joining}><UserPlus className="h-4 w-4" />{joining ? "Joining..." : "Join ladder"}</Button>
+          <Button onClick={() => void join(ladderView.ladder.id)} disabled={joining}><UserPlus className="h-4 w-4" />{joining ? "Joining..." : "Join ladder"}</Button>
         )}
       </CardContent>
     </Card>
@@ -175,7 +181,8 @@ function friendlyDate(value?: string | null) {
 }
 
 export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
-  const [data, setData] = useState<LadderPayload | null>(null);
+  const [collection, setCollection] = useState<LadderPayload | null>(null);
+  const [selectedLadderId, setSelectedLadderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -190,10 +197,12 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
       const response = await fetch(testAwarePath(`/api/club/ladder?club=${encodeURIComponent(activeTeam.club)}`), { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Club ladder could not be loaded.");
-      setData(payload);
-      setScheduledTimes(Object.fromEntries((payload.challenges ?? []).map((challenge: LadderChallenge) => [challenge.id, localDateTimeValue(challenge.scheduledAt)])));
-      setScores(Object.fromEntries((payload.challenges ?? []).map((challenge: LadderChallenge) => [challenge.id, {
-        challenger: challenge.challengerScore ?? requiredFrameWins(payload.ladder?.matchFormat ?? "Best of 3"),
+      setCollection(payload);
+      setSelectedLadderId((current) => payload.ladders.some((item: LadderView) => item.ladder.id === current) ? current : payload.ladders[0]?.ladder.id ?? null);
+      const allChallenges = (payload.ladders ?? []).flatMap((item: LadderView) => item.challenges.map((challenge) => ({ challenge, format: item.ladder.matchFormat })));
+      setScheduledTimes(Object.fromEntries(allChallenges.map(({ challenge }: { challenge: LadderChallenge }) => [challenge.id, localDateTimeValue(challenge.scheduledAt)])));
+      setScores(Object.fromEntries(allChallenges.map(({ challenge, format }: { challenge: LadderChallenge; format: LadderMatchFormat }) => [challenge.id, {
+        challenger: challenge.challengerScore ?? requiredFrameWins(format),
         challenged: challenge.challengedScore ?? 0
       }])));
     } catch (error) {
@@ -212,7 +221,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
       const response = await fetch(testAwarePath("/api/club/ladder"), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ club: activeTeam.club, action, ...extra })
+        body: JSON.stringify({ club: activeTeam.club, ladderId: data?.ladder.id, action, ...extra })
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Ladder action failed.");
@@ -225,34 +234,50 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
     }
   }
 
-  const activeChallenges = useMemo(
-    () => (data?.challenges ?? []).filter((challenge) => ["Pending", "Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status)),
-    [data?.challenges]
-  );
+  const data = collection?.ladders.find((item) => item.ladder.id === selectedLadderId) ?? collection?.ladders[0] ?? null;
+  const activeChallenges = useMemo(() => (data?.challenges ?? []).filter((challenge) => ["Pending", "Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status)), [data?.challenges]);
 
   if (loading) {
     return <Card><CardContent className="p-5 text-sm font-bold text-[#6c5a73]">Loading the club ladder...</CardContent></Card>;
   }
-  if (!data?.configured) {
+  if (!collection?.configured || !collection.ladders.length) {
     return (
       <ClubFeatureUnavailable
         icon={Swords}
         eyebrow="Club ladder"
-        title="This club has not configured a ladder yet."
-        description="Once a club administrator switches it on, members can join, challenge nearby players and record results here."
+        title={collection?.configured ? "There is no ladder available for your team yet." : "This club has not configured a ladder yet."}
+        description={collection?.configured ? "Club ladders can be limited to selected teams. An administrator can add your team or create a club-wide ladder." : "Once a club administrator switches it on, members can join, challenge nearby players and record results here."}
         primaryColor={activeTeam.primaryColor}
         accentColor={activeTeam.accentColor}
       />
     );
   }
+  if (!data) return null;
 
-  const ladder = data.ladder!;
+  const ladder = data.ladder;
   const entries = data.entries ?? [];
   const winsRequired = requiredFrameWins(ladder.matchFormat);
   const handicapFor = (personId: string) => entries.find((entry) => entry.personId === personId)?.handicap ?? null;
 
   return (
     <section className="grid gap-4">
+      {collection.ladders.length > 1 ? (
+        <Card className="overflow-hidden">
+          <CardHeader><div><CardTitle>Your ladders</CardTitle><p className="mt-1 text-sm font-semibold text-[#6c5a73]">The first ladder is open. Select another to switch ladders.</p></div><Badge variant="cyan">{collection.ladders.length}</Badge></CardHeader>
+          <CardContent className="grid gap-2">
+            {collection.ladders.map((item) => {
+              const selected = item.ladder.id === data.ladder.id;
+              return (
+                <button key={item.ladder.id} type="button" aria-expanded={selected} onClick={() => { setSelectedLadderId(item.ladder.id); setRulesOpen(false); setMessage(""); }} className={cn("grid min-h-14 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2 text-left ring-1 transition-colors", selected ? "bg-[#10233f] text-white ring-[#10233f]" : "bg-[#f7f5fa] text-[#10233f] ring-[#eeeaf2]")}>
+                  <span className={cn("grid h-9 w-9 place-items-center rounded-lg", selected ? "bg-white/15" : "bg-white text-[#1b8a72]")}><Trophy className="h-4 w-4" /></span>
+                  <span className="min-w-0"><span className="block truncate font-black">{item.ladder.name}</span><span className={cn("block text-xs font-semibold", selected ? "text-white/65" : "text-[#6c5a73]")}>{item.ladder.matchFormat} · {item.ladder.useHandicap ? "Handicap" : "Scratch"} · {item.entries.length} players</span></span>
+                  <span className="flex items-center gap-2">{item.me ? <Badge variant="cyan">#{item.me.position}</Badge> : <Badge variant="gold">Join</Badge>}<ChevronDown className={cn("h-5 w-5 transition-transform", selected && "rotate-180")} /></span>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : null}
       <div className="overflow-hidden rounded-2xl p-5 text-white shadow-card" style={{ background: `linear-gradient(135deg, ${activeTeam.primaryColor}, ${activeTeam.accentColor})` }}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -262,6 +287,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
           </div>
           <div className="flex gap-2">
             <Badge variant="cyan">{ladder.matchFormat}</Badge>
+            <Badge variant="soft">{ladder.useHandicap ? "Handicap" : "Scratch"}</Badge>
             <Badge variant="soft">{entries.length} players</Badge>
           </div>
         </div>
@@ -317,9 +343,9 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                 <span className="font-black">Challenger wins: moves to #{positionAtStake} · Challenged wins: holds #{positionAtStake}</span>
               </div>
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-center">
-                <div><p className="text-[10px] font-black uppercase text-[#6c5a73]">Challenger</p><p className="mt-1 font-black">#{challenge.challenger.position} {challenge.challenger.name} <Handicap value={handicapFor(challenge.challenger.personId)} /></p></div>
+                <div><p className="text-[10px] font-black uppercase text-[#6c5a73]">Challenger</p><p className="mt-1 font-black">#{challenge.challenger.position} {challenge.challenger.name} {ladder.useHandicap ? <Handicap value={handicapFor(challenge.challenger.personId)} /> : null}</p></div>
                 <Swords className="h-5 w-5 text-[#1b8a72]" />
-                <div><p className="text-[10px] font-black uppercase text-[#6c5a73]">Challenged</p><p className="mt-1 font-black">#{challenge.challenged.position} {challenge.challenged.name} <Handicap value={handicapFor(challenge.challenged.personId)} /></p></div>
+                <div><p className="text-[10px] font-black uppercase text-[#6c5a73]">Challenged</p><p className="mt-1 font-black">#{challenge.challenged.position} {challenge.challenged.name} {ladder.useHandicap ? <Handicap value={handicapFor(challenge.challenged.personId)} /> : null}</p></div>
               </div>
 
               {challenge.status === "Pending" && challenge.isChallenged ? (
@@ -368,7 +394,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
               <div key={entry.id} className={cn("grid min-h-14 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2 ring-1", mine ? "bg-[#eef9f5] ring-[#bfe9dc]" : "bg-white ring-[#eeeaf2]")}>
                 <span className={cn("grid h-9 w-9 place-items-center rounded-lg text-sm font-black", entry.position <= 3 ? "bg-[#10233f] text-white" : "bg-[#f0edf4] text-[#10233f]")}>{entry.position}</span>
                 <div className="min-w-0">
-                  <p className="truncate font-black text-[#10233f]">{entry.name} <Handicap value={entry.handicap} /></p>
+                  <p className="truncate font-black text-[#10233f]">{entry.name} {ladder.useHandicap ? <Handicap value={entry.handicap} /> : null}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-black uppercase text-[#6c5a73]">{mine ? "Your position" : entry.canChallenge ? `Beat them to take #${entry.position}` : entry.status}</span>
                     <RecentForm results={entry.recentForm} primaryColor={activeTeam.primaryColor} accentColor={activeTeam.accentColor} />
