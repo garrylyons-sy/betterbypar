@@ -171,6 +171,13 @@ test("club ladders show handicaps and allow players to leave safely", () => {
   assert.match(ladderPage, /Leave ladder/);
 });
 
+test("every ladder view clearly identifies handicap or scratch play", () => {
+  assert.match(ladderPage, /Handicap ladder/);
+  assert.match(ladderPage, /Scratch ladder/);
+  assert.match(ladderPage, /ladderModeLabel/);
+  assert.match(ladderPage, /aria-label=\{`Ladder type:/);
+});
+
 test("ladder administrators can permanently delete a ladder and its cascading data", () => {
   assert.match(adminLadderApi, /export async function DELETE/);
   assert.match(adminLadderApi, /delete from public\.club_ladder where id = \$1/);

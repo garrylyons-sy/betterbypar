@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, ChevronDown, ChevronRight, Clock3, LogOut, Medal, RotateCcw, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
+import { CalendarClock, Check, ChevronDown, ChevronRight, Clock3, Crosshair, LogOut, Medal, RotateCcw, Scale, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -123,10 +123,11 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase text-white/65">Club ladder</p>
             <h2 className="truncate text-xl font-black">{ladderView.ladder.name}</h2>
-            <p className="mt-0.5 text-xs font-bold text-white/70">{ladderView.ladder.matchFormat} · {ladderView.ladder.useHandicap ? "Handicap" : "Scratch"} · Challenge {ladderView.ladder.challengeRange} places up</p>
+            <p className="mt-0.5 text-xs font-bold text-white/70">{ladderView.ladder.matchFormat} · Challenge {ladderView.ladder.challengeRange} places up</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <LadderModeBadge useHandicap={ladderView.ladder.useHandicap} inverse />
           <Badge variant="soft">{totalPlayers} players</Badge>
           {data.ladders.length > 1 ? <Badge variant="soft">{data.ladders.length} ladders</Badge> : null}
           {ladderView.me ? <Badge variant="cyan">Position #{ladderView.me.position}</Badge> : <Badge variant="gold">Open to join</Badge>}
@@ -178,6 +179,31 @@ function localDateTimeValue(value?: string | null) {
 function friendlyDate(value?: string | null) {
   if (!value) return "Not scheduled";
   return new Date(value).toLocaleString("en-IE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function ladderModeLabel(useHandicap: boolean) {
+  return useHandicap ? "Handicap ladder" : "Scratch ladder";
+}
+
+function LadderModeBadge({ useHandicap, inverse = false }: { useHandicap: boolean; inverse?: boolean }) {
+  const label = ladderModeLabel(useHandicap);
+  const Icon = useHandicap ? Scale : Crosshair;
+  return (
+    <span
+      aria-label={`Ladder type: ${label}`}
+      className={cn(
+        "inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-black ring-1",
+        inverse
+          ? "bg-white text-[#10233f] ring-white/35"
+          : useHandicap
+            ? "bg-[#e7fbf3] text-[#087454] ring-[#bdebd4]"
+            : "bg-[#eef2ff] text-[#243b7a] ring-[#cbd5f1]"
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </span>
+  );
 }
 
 export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
@@ -270,7 +296,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
               return (
                 <button key={item.ladder.id} type="button" aria-expanded={selected} onClick={() => { setSelectedLadderId(item.ladder.id); setRulesOpen(false); setMessage(""); }} className={cn("grid min-h-14 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2 text-left ring-1 transition-colors", selected ? "bg-[#10233f] text-white ring-[#10233f]" : "bg-[#f7f5fa] text-[#10233f] ring-[#eeeaf2]")}>
                   <span className={cn("grid h-9 w-9 place-items-center rounded-lg", selected ? "bg-white/15" : "bg-white text-[#1b8a72]")}><Trophy className="h-4 w-4" /></span>
-                  <span className="min-w-0"><span className="block truncate font-black">{item.ladder.name}</span><span className={cn("block text-xs font-semibold", selected ? "text-white/65" : "text-[#6c5a73]")}>{item.ladder.matchFormat} · {item.ladder.useHandicap ? "Handicap" : "Scratch"} · {item.entries.length} players</span></span>
+                  <span className="min-w-0"><span className="block truncate font-black">{item.ladder.name}</span><span className={cn("block text-xs font-semibold", selected ? "text-white/65" : "text-[#6c5a73]")}>{ladderModeLabel(item.ladder.useHandicap)} · {item.ladder.matchFormat} · {item.entries.length} players</span></span>
                   <span className="flex items-center gap-2">{item.me ? <Badge variant="cyan">#{item.me.position}</Badge> : <Badge variant="gold">Join</Badge>}<ChevronDown className={cn("h-5 w-5 transition-transform", selected && "rotate-180")} /></span>
                 </button>
               );
@@ -284,10 +310,11 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
             <p className="text-xs font-black uppercase text-white/65">{activeTeam.club.replace(" Golf Club", "")}</p>
             <h1 className="mt-1 text-3xl font-black">{ladder.name}</h1>
             <p className="mt-2 text-sm font-bold text-white/75">Challenge upward, arrange the match and earn your place.</p>
+            <p className="mt-1 text-xs font-semibold text-white/65">{ladder.useHandicap ? "Club handicaps apply to every ladder match." : "Matches are played level with no handicap adjustment."}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <LadderModeBadge useHandicap={ladder.useHandicap} inverse />
             <Badge variant="cyan">{ladder.matchFormat}</Badge>
-            <Badge variant="soft">{ladder.useHandicap ? "Handicap" : "Scratch"}</Badge>
             <Badge variant="soft">{entries.length} players</Badge>
           </div>
         </div>
