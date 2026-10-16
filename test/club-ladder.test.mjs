@@ -207,3 +207,15 @@ test("the ladder itself communicates challenge stakes and recent form", () => {
   assert.match(ladderPage, /results\.slice\(0, 3\)\.join\(""\)/);
   assert.match(ladderPage, /\? "Won" : "Lost"/);
 });
+
+test("either ladder player can record a result and update positions immediately", () => {
+  const submitResult = ladderApi.slice(ladderApi.indexOf('if (action === "submitResult")'), ladderApi.indexOf('if (action === "cancel"'));
+  assert.match(submitResult, /status = 'Completed'/);
+  assert.match(submitResult, /completed_at = now\(\)/);
+  assert.match(submitResult, /position = position \+ 1/);
+  assert.match(submitResult, /return \{ status: "Completed" \}/);
+  assert.doesNotMatch(submitResult, /status = 'Result Pending'|return \{ status: "Result Pending" \}/);
+  assert.match(ladderPage, /Record result/);
+  assert.match(ladderPage, /updates the ladder immediately/);
+  assert.doesNotMatch(ladderPage, /Result awaiting confirmation|Opponent to confirm|>Confirm<|>Dispute</);
+});

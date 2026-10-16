@@ -339,7 +339,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
             <Rule icon={Swords} number="1" title="Challenge upward" text={`Challenge anyone up to ${ladder.challengeRange} places above you. Each player can be in one active challenge.`} />
             <Rule icon={Clock3} number="2" title="Answer promptly" text={`The challenged player has ${ladder.responseHours} hours to answer and may reject the same challenger only once.`} />
             <Rule icon={CalendarClock} number="3" title="Arrange the match" text={`Once accepted, play within ${ladder.playWithinDays} days. The format is ${ladder.matchFormat.toLowerCase()}.`} />
-            <Rule icon={Medal} number="4" title="Move up by winning" text="If the challenger wins, they take the challenged position and the players between move down one place." />
+            <Rule icon={Medal} number="4" title="Record the result" text="Either player records the final score. The ladder updates immediately; if the challenger wins, they take the challenged position and the players between move down one place." />
           </CardContent>
         ) : null}
       </Card>
@@ -392,18 +392,14 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                 </div>
               ) : null}
 
-              {["Accepted", "Scheduled"].includes(challenge.status) ? (
+              {["Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status) ? (
                 <div className="grid gap-2 rounded-xl border border-[#eeeaf2] p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
                   <ScoreInput label={challenge.challenger.name} value={score.challenger} max={winsRequired} onChange={(value) => setScores((current) => ({ ...current, [challenge.id]: { ...score, challenger: value } }))} />
                   <ScoreInput label={challenge.challenged.name} value={score.challenged} max={winsRequired} onChange={(value) => setScores((current) => ({ ...current, [challenge.id]: { ...score, challenged: value } }))} />
-                  <Button disabled={busy} onClick={() => void act("submitResult", { challengeId: challenge.id, challengerScore: score.challenger, challengedScore: score.challenged })}><Trophy className="h-4 w-4" />Submit result</Button>
-                </div>
-              ) : null}
-
-              {challenge.status === "Result Pending" ? (
-                <div className="grid gap-3 rounded-xl bg-[#fff6dd] p-3 sm:grid-cols-[1fr_auto] sm:items-center">
-                  <div><p className="text-xs font-black uppercase text-[#7b5500]">Result awaiting confirmation</p><p className="mt-1 text-xl font-black">{challenge.challenger.name} {challenge.challengerScore}–{challenge.challengedScore} {challenge.challenged.name}</p></div>
-                  {!challenge.submittedByMe ? <div className="flex gap-2"><Button onClick={() => void act("confirmResult", { challengeId: challenge.id, confirm: true })}><Check className="h-4 w-4" />Confirm</Button><Button variant="secondary" onClick={() => void act("confirmResult", { challengeId: challenge.id, confirm: false })}>Dispute</Button></div> : <Badge variant="gold">Opponent to confirm</Badge>}
+                  <div className="grid gap-1">
+                    <Button disabled={busy} onClick={() => void act("submitResult", { challengeId: challenge.id, challengerScore: score.challenger, challengedScore: score.challenged })}><Trophy className="h-4 w-4" />Record result</Button>
+                    <span className="text-center text-[10px] font-bold text-[#6c5a73]">Recording this result updates the ladder immediately</span>
+                  </div>
                 </div>
               ) : null}
               {challenge.scheduledAt ? <p className="text-xs font-bold text-[#6c5a73]">Scheduled: {friendlyDate(challenge.scheduledAt)} · Play by {friendlyDate(challenge.playBy)}</p> : challenge.playBy ? <p className="text-xs font-bold text-[#6c5a73]">Play by {friendlyDate(challenge.playBy)}</p> : null}

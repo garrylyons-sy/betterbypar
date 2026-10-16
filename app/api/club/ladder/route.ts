@@ -436,30 +436,13 @@ export async function POST(request: Request) {
       }
 
       if (action === "submitResult") {
-        if (!["Accepted", "Scheduled", "Result Pending"].includes(row.status)) throw new Error("A result cannot be entered for this challenge.");
-        if (row.status === "Result Pending" && row.result_submitted_by !== user.personId) throw new Error("The other player has already submitted a result for you to confirm.");
+        if (!["Accepted", "Scheduled", "Result Pending", "Disputed"].includes(row.status)) throw new Error("A result cannot be entered for this challenge.");
         const challengerScore = Number(body.challengerScore);
         const challengedScore = Number(body.challengedScore);
         const result = validateLadderResult(ladder.match_format, challengerScore, challengedScore);
         const winnerEntryId = result.winner === "home" ? row.challenger_entry_id : row.challenged_entry_id;
-        await client.query(
-          `update public.club_ladder_challenge
-           set status = 'Result Pending', challenger_score = $2, challenged_score = $3,
-               winner_entry_id = $4, result_submitted_by = $5, result_submitted_at = now(), updated_at = now()
-           where id = $1`,
-          [row.id, challengerScore, challengedScore, winnerEntryId, user.personId]
-        );
-        return { status: "Result Pending" };
-      }
-
-      if (action === "confirmResult") {
-        if (row.status !== "Result Pending" || !row.winner_entry_id) throw new Error("There is no result waiting for confirmation.");
-        if (row.result_submitted_by === user.personId) throw new Error("The other player must confirm this result.");
-        if (body.confirm !== true) {
-          await client.query("update public.club_ladder_challenge set status = 'Disputed', updated_at = now() where id = $1", [row.id]);
-          return { status: "Disputed" };
-        }
-        if (row.winner_entry_id === row.challenger_entry_id) {
+        await client.query("select pg_advisory_xact_lock(hashtext($1))", [`ladder:${ladder.id}`]);
+        if (winnerEntryId === row.challenger_entry_id) {
           const positions = await client.query<{ id: string; position: number }>(
             `select id::text, position from public.club_ladder_entry
              where id = any($1::uuid[]) for update`,
@@ -479,7 +462,14 @@ export async function POST(request: Request) {
             await client.query("update public.club_ladder_entry set position = $2, updated_at = now() where id = $1", [challenger.id, challenged.position]);
           }
         }
-        await client.query("update public.club_ladder_challenge set status = 'Completed', completed_at = now(), updated_at = now() where id = $1", [row.id]);
+        await client.query(
+          `update public.club_ladder_challenge
+           set status = 'Completed', challenger_score = $2, challenged_score = $3,
+               winner_entry_id = $4, result_submitted_by = $5, result_submitted_at = now(),
+               completed_at = now(), updated_at = now()
+           where id = $1`,
+          [row.id, challengerScore, challengedScore, winnerEntryId, user.personId]
+        );
         return { status: "Completed" };
       }
 
