@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     if (!access.platform && !access.clubIds.length) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
 
     const params = [access.platform, access.clubIds];
-    const [clubs, ladders, eligibleTeams, teams, members] = await Promise.all([
+    const [clubs, ladders, eligibleTeams, teams, members, entries] = await Promise.all([
       dbQuery<{ club_id: string; club_name: string; logo_path: string | null; primary_color: string | null; accent_color: string | null }>(
         `select c.id::text as club_id, c.name as club_name, c.logo_path, c.primary_color, c.accent_color
          from public.club c
@@ -95,6 +95,22 @@ export async function GET(request: Request) {
          where cm.active = true and ($1::boolean = true or cm.club_id = any($2::uuid[]))
          group by cm.club_id, p.id, team_roles.team_ids
          order by cm.club_id, lower(p.last_name), lower(p.first_name)`, params
+      ),
+      dbQuery<{
+        club_id: string; ladder_id: string; entry_id: string; person_id: string;
+        person_name: string; position: number; status: "Active" | "Paused"; handicap: string | null;
+      }>(
+        `select ladder.club_id::text, entry.ladder_id::text, entry.id::text as entry_id,
+                entry.person_id::text, concat_ws(' ', person.first_name, person.last_name) as person_name,
+                entry.position, entry.status, membership.handicap::text
+         from public.club_ladder_entry entry
+         join public.club_ladder ladder on ladder.id = entry.ladder_id
+         join public.person person on person.id = entry.person_id
+         left join public.club_membership membership on membership.club_id = ladder.club_id
+           and membership.person_id = entry.person_id and membership.active = true
+         where entry.status in ('Active', 'Paused')
+           and ($1::boolean = true or ladder.club_id = any($2::uuid[]))
+         order by ladder.club_id, entry.ladder_id, entry.position`, params
       )
     ]);
 
@@ -116,7 +132,15 @@ export async function GET(request: Request) {
           useHandicap: ladder.use_handicap,
           active: ladder.active,
           entryCount: Number(ladder.entry_count),
-          eligibleTeamIds: eligibleTeams.rows.filter((team) => team.ladder_id === ladder.ladder_id).map((team) => team.team_id)
+          eligibleTeamIds: eligibleTeams.rows.filter((team) => team.ladder_id === ladder.ladder_id).map((team) => team.team_id),
+          entries: entries.rows.filter((entry) => entry.ladder_id === ladder.ladder_id).map((entry) => ({
+            id: entry.entry_id,
+            personId: entry.person_id,
+            name: entry.person_name,
+            position: entry.position,
+            status: entry.status,
+            handicap: entry.handicap === null ? null : Number(entry.handicap)
+          }))
         })),
         members: members.rows.filter((member) => member.club_id === club.club_id).map((member) => ({
           personId: member.person_id,
@@ -304,6 +328,86 @@ export async function POST(request: Request) {
     } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ladder settings could not be saved." }, { status: 400 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const access = await ladderAdminAccess(request);
+    if (!access) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    if (!access.platform && !access.clubIds.length) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
+    const body = await request.json() as Record<string, unknown>;
+    const clubId = String(body.clubId ?? "").trim();
+    const ladderId = String(body.ladderId ?? "").trim();
+    const entryId = String(body.entryId ?? "").trim();
+    if (!clubId || !ladderId || !entryId) throw new Error("Club, ladder and player are required.");
+    if (!access.platform && !access.clubIds.includes(clubId)) {
+      return NextResponse.json({ error: "Club administrator access is required for this club." }, { status: 403 });
+    }
+
+    await withTransaction(async (client) => {
+      const ladder = await client.query<{ name: string; club_name: string }>(
+        `select ladder.name, club.name as club_name
+         from public.club_ladder ladder
+         join public.club club on club.id = ladder.club_id
+         where ladder.id = $1 and ladder.club_id = $2
+         for update of ladder`,
+        [ladderId, clubId]
+      );
+      if (!ladder.rowCount) throw new Error("Club ladder was not found.");
+
+      const entry = await client.query<{ person_name: string; status: string }>(
+        `select concat_ws(' ', person.first_name, person.last_name) as person_name, entry.status
+         from public.club_ladder_entry entry
+         join public.person person on person.id = entry.person_id
+         where entry.id = $1 and entry.ladder_id = $2
+         for update of entry`,
+        [entryId, ladderId]
+      );
+      if (!entry.rowCount || !["Active", "Paused"].includes(entry.rows[0].status)) {
+        throw new Error("This player is not currently in the ladder.");
+      }
+
+      await client.query(
+        `update public.club_ladder_challenge
+         set status = 'Cancelled', updated_at = now()
+         where ladder_id = $1 and status in ('Pending', 'Accepted', 'Scheduled', 'Result Pending', 'Disputed')
+           and (challenger_entry_id = $2 or challenged_entry_id = $2)`,
+        [ladderId, entryId]
+      );
+      await client.query("set constraints all deferred");
+      await client.query(
+        `update public.club_ladder_entry
+         set status = 'Withdrawn', updated_at = now()
+         where id = $1 and ladder_id = $2`,
+        [entryId, ladderId]
+      );
+      await client.query(
+        `with ranked as (
+           select id, row_number() over (
+             order by case when status in ('Active', 'Paused') then 0 else 1 end, position, joined_at, id
+           ) as new_position
+           from public.club_ladder_entry
+           where ladder_id = $1
+         )
+         update public.club_ladder_entry entry
+         set position = ranked.new_position, updated_at = now()
+         from ranked
+         where entry.id = ranked.id`,
+        [ladderId]
+      );
+      await client.query(
+        `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
+         values ($1, 'Page Visit', '/admin/ladders', 'Club ladder player removed',
+           jsonb_build_object('club_id', $2::text, 'club_name', $3::text, 'ladder_id', $4::text,
+             'ladder_name', $5::text, 'entry_id', $6::text, 'player_name', $7::text))`,
+        [access.personId, clubId, ladder.rows[0].club_name, ladderId, ladder.rows[0].name, entryId, entry.rows[0].person_name]
+      );
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Player could not be removed from the ladder." }, { status: 400 });
   }
 }
 

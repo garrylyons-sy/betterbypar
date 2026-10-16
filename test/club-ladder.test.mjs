@@ -185,6 +185,17 @@ test("ladder administrators can permanently delete a ladder and its cascading da
   assert.match(adminLadders, /Delete ladder/);
 });
 
+test("ladder administrators can remove a player without losing completed history", () => {
+  assert.match(adminLadderApi, /export async function PATCH/);
+  assert.match(adminLadderApi, /status = 'Cancelled'/);
+  assert.match(adminLadderApi, /status = 'Withdrawn'/);
+  assert.match(adminLadderApi, /Club ladder player removed/);
+  assert.match(adminLadderApi, /row_number\(\) over/);
+  assert.match(adminLadders, /Current players/);
+  assert.match(adminLadders, /removePlayer/);
+  assert.match(adminLadders, /Remove .* from this ladder/);
+});
+
 test("the ladder itself communicates challenge stakes and recent form", () => {
   assert.match(ladderApi, /form\.recent_form/);
   assert.match(ladderApi, /challenge\.winner_entry_id = cle\.id then 'W' else 'L'/);

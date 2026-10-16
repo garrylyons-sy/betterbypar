@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Clock3, ListOrdered, Plus, Save, Search, ShieldCheck, Shuffle, Swords, Trash2, Trophy, Users } from "lucide-react";
+import { ChevronDown, Clock3, ListOrdered, Plus, Save, Search, ShieldCheck, Shuffle, Swords, Trash2, Trophy, UserMinus, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,14 @@ import { cn } from "@/lib/utils";
 
 type LadderMatchFormat = "1 Frame" | "Best of 3" | "Best of 5";
 type LadderInitialOrder = "Surname" | "Random";
+type AdminLadderEntry = {
+  id: string;
+  personId: string;
+  name: string;
+  position: number;
+  status: "Active" | "Paused";
+  handicap: number | null;
+};
 type LadderSettings = {
   name: string;
   matchFormat: LadderMatchFormat;
@@ -21,7 +29,7 @@ type LadderSettings = {
   eligibleTeamIds: string[];
   active: boolean;
 };
-type AdminLadder = LadderSettings & { id: string; entryCount: number };
+type AdminLadder = LadderSettings & { id: string; entryCount: number; entries: AdminLadderEntry[] };
 type AdminLadderClub = {
   clubId: string;
   clubName: string;
@@ -163,6 +171,26 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
     }
   }
 
+  async function removePlayer(club: AdminLadderClub, ladder: AdminLadder, entry: AdminLadderEntry) {
+    if (!window.confirm(`Remove ${entry.name} from this ladder? Any unfinished challenge involving them will be cancelled.`)) return;
+    setSaving(true);
+    try {
+      const response = await fetch(testAwarePath("/api/admin/ladders"), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clubId: club.clubId, ladderId: ladder.id, entryId: entry.id })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Player could not be removed from the ladder.");
+      onMessage(`${entry.name} removed from ${ladder.name}.`);
+      await load();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Player could not be removed from the ladder.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const activeCount = clubs.reduce((total, club) => total + club.ladders.filter((ladder) => ladder.active).length, 0);
 
   return (
@@ -242,6 +270,32 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                         {visibleMembers.map((member) => { const selected = initialPersonIds.includes(member.personId); return <label key={member.personId} className={cn("flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ring-1", selected ? "bg-[#eaf8f4] ring-[#83d8c2]" : "bg-[#f7f5fa] ring-[#eeeaf2]")}><input type="checkbox" checked={selected} onChange={() => setInitialPersonIds((current) => selected ? current.filter((id) => id !== member.personId) : [...current, member.personId])} /><span className="min-w-0 flex-1 truncate text-sm font-extrabold text-[#10233f]">{member.name}</span><span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-black uppercase text-[#6c5a73] ring-1 ring-[#ded7e5]" title={member.handicap === null ? "No handicap recorded" : `Handicap ${member.handicap}`}>Hcp {member.handicap ?? "-"}</span></label>; })}
                         {!visibleMembers.length ? <p className="text-sm font-semibold text-[#6c5a73]">No eligible club members match this search.</p> : null}
                       </div>
+                    </div>
+                  ) : null}
+
+                  {selectedLadder ? (
+                    <div className="grid gap-3 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-[#10233f]">Current players</p>
+                          <p className="mt-1 text-xs font-semibold text-[#6c5a73]">Remove a player while keeping their completed ladder history. Any unfinished challenge is cancelled.</p>
+                        </div>
+                        <Badge variant="cyan">{selectedLadder.entries.length} players</Badge>
+                      </div>
+                      {selectedLadder.entries.length ? (
+                        <div className="grid max-h-72 gap-2 overflow-y-auto p-0.5 sm:grid-cols-2 xl:grid-cols-3">
+                          {selectedLadder.entries.map((entry) => (
+                            <div key={entry.id} className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg bg-[#f7f5fa] px-3 py-2 ring-1 ring-[#eeeaf2]">
+                              <span className="grid h-8 min-w-8 place-items-center rounded-md bg-[#10233f] px-2 text-xs font-black text-white">#{entry.position}</span>
+                              <span className="min-w-0 truncate text-sm font-extrabold text-[#10233f]">{entry.name}</span>
+                              <span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-black uppercase text-[#6c5a73] ring-1 ring-[#ded7e5]">Hcp {entry.handicap ?? "-"}</span>
+                              <Button type="button" size="icon" variant="secondary" className="h-9 w-9 text-[#b42318]" onClick={() => void removePlayer(club, selectedLadder, entry)} disabled={saving} aria-label={`Remove ${entry.name} from this ladder`} title={`Remove ${entry.name}`}><UserMinus className="h-4 w-4" /></Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="rounded-lg bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No players are currently in this ladder.</p>
+                      )}
                     </div>
                   ) : null}
 
