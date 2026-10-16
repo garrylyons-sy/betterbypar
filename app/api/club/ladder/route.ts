@@ -123,6 +123,70 @@ function formatChallenge(row: Record<string, unknown>, personId: string) {
   };
 }
 
+async function expirePendingChallenges(ladderIds: string[]) {
+  for (const ladderId of ladderIds) {
+    await withTransaction(async (client) => {
+      await client.query("select pg_advisory_xact_lock(hashtext($1))", [`ladder:${ladderId}`]);
+      const expiredChallenges = await client.query<{
+        id: string;
+        challenger_entry_id: string;
+        challenged_entry_id: string;
+        challenger_position: number;
+        challenged_position: number;
+        had_previous_rejection: boolean;
+      }>(
+        `select challenge.id::text, challenge.challenger_entry_id::text, challenge.challenged_entry_id::text,
+                challenger.position as challenger_position, challenged.position as challenged_position,
+                exists (
+                  select 1 from public.club_ladder_challenge previous
+                  where previous.ladder_id = challenge.ladder_id
+                    and previous.challenger_entry_id = challenge.challenger_entry_id
+                    and previous.challenged_entry_id = challenge.challenged_entry_id
+                    and previous.status = 'Rejected'
+                    and previous.id <> challenge.id
+                ) as had_previous_rejection
+         from public.club_ladder_challenge challenge
+         join public.club_ladder_entry challenger on challenger.id = challenge.challenger_entry_id
+         join public.club_ladder_entry challenged on challenged.id = challenge.challenged_entry_id
+         where challenge.ladder_id = $1 and challenge.status = 'Pending' and challenge.response_due_at < now()
+         for update of challenge, challenger, challenged`,
+        [ladderId]
+      );
+
+      for (const expired of expiredChallenges.rows) {
+        if (!expired.had_previous_rejection) {
+          await client.query(
+            "update public.club_ladder_challenge set status = 'Expired', updated_at = now() where id = $1",
+            [expired.id]
+          );
+          continue;
+        }
+
+        await client.query("set constraints all deferred");
+        await client.query(
+          `update public.club_ladder_entry entry
+           set position = case when entry.id = expired.challenger_entry_id
+                               then expired.challenged_position else expired.challenger_position end,
+               updated_at = now()
+           from (
+             select $1::uuid as challenger_entry_id, $2::uuid as challenged_entry_id,
+                    $3::integer as challenger_position, $4::integer as challenged_position
+           ) expired
+           where entry.id in (expired.challenger_entry_id, expired.challenged_entry_id)`,
+          [expired.challenger_entry_id, expired.challenged_entry_id, expired.challenger_position, expired.challenged_position]
+        );
+        await client.query(
+          `update public.club_ladder_challenge expired
+           set status = 'Walkover', winner_entry_id = expired.challenger_entry_id,
+               completed_at = now(), updated_at = now()
+           where expired.id = $1`,
+          [expired.id]
+        );
+      }
+    });
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const user = await currentUserFromRequest(request);
@@ -137,12 +201,7 @@ export async function GET(request: Request) {
     ]);
     if (!ladders.length) return NextResponse.json({ configured: Boolean(configured.rowCount), clubName, ladders: [] });
 
-    await dbQuery(
-      `update public.club_ladder_challenge
-       set status = 'Expired', updated_at = now()
-       where ladder_id = any($1::uuid[]) and status = 'Pending' and response_due_at < now()`,
-      [ladders.map((ladder) => ladder.id)]
-    );
+    await expirePendingChallenges(ladders.map((ladder) => ladder.id));
 
     const payloads = await Promise.all(ladders.map(async (ladder) => {
       const entries = await dbQuery<{

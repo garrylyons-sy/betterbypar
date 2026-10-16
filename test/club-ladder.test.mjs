@@ -219,3 +219,13 @@ test("either ladder player can record a result and update positions immediately"
   assert.match(ladderPage, /updates the ladder immediately/);
   assert.doesNotMatch(ladderPage, /Result awaiting confirmation|Opponent to confirm|>Confirm<|>Dispute</);
 });
+
+test("ignoring a repeat challenge awards a walkover and swaps the two positions", () => {
+  assert.match(ladderApi, /async function expirePendingChallenges/);
+  assert.match(ladderApi, /previous\.status = 'Rejected'/);
+  assert.match(ladderApi, /status = 'Walkover'/);
+  assert.match(ladderApi, /winner_entry_id = expired\.challenger_entry_id/);
+  assert.match(ladderApi, /case when entry\.id = expired\.challenger_entry_id/);
+  assert.match(ladderPage, /If the deadline passes, you swap positions/);
+  assert.match(ladderPage, /"Walkover"/);
+});

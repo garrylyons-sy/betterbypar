@@ -337,7 +337,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
         {rulesOpen ? (
           <CardContent className="grid gap-2 border-t border-[#eeeaf2] pt-4 sm:grid-cols-2">
             <Rule icon={Swords} number="1" title="Challenge upward" text={`Challenge anyone up to ${ladder.challengeRange} places above you. Each player can be in one active challenge.`} />
-            <Rule icon={Clock3} number="2" title="Answer promptly" text={`The challenged player has ${ladder.responseHours} hours to answer and may reject the same challenger only once.`} />
+            <Rule icon={Clock3} number="2" title="Answer promptly" text={`The challenged player has ${ladder.responseHours} hours to answer and may reject the same challenger only once. A repeat challenge must be accepted; if its deadline passes, the two players swap positions.`} />
             <Rule icon={CalendarClock} number="3" title="Arrange the match" text={`Once accepted, play within ${ladder.playWithinDays} days. The format is ${ladder.matchFormat.toLowerCase()}.`} />
             <Rule icon={Medal} number="4" title="Record the result" text="Either player records the final score. The ladder updates immediately; if the challenger wins, they take the challenged position and the players between move down one place." />
           </CardContent>
@@ -376,9 +376,16 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
               </div>
 
               {challenge.status === "Pending" && challenge.isChallenged ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button onClick={() => void act("respond", { challengeId: challenge.id, response: "accept", scheduledAt: scheduleValue ? new Date(scheduleValue).toISOString() : null })} disabled={busy}><Check className="h-4 w-4" />Accept challenge</Button>
-                  <Button variant="secondary" onClick={() => void act("respond", { challengeId: challenge.id, response: "reject" })} disabled={busy || !challenge.canReject}><X className="h-4 w-4" />{challenge.canReject ? "Reject once" : "Must accept"}</Button>
+                <div className="grid gap-2">
+                  {!challenge.canReject ? (
+                    <div className="rounded-xl bg-[#fff6dd] px-3 py-2 text-xs font-bold text-[#7b5500]">
+                      This is a repeat challenge. If the deadline passes, you swap positions with the challenger.
+                    </div>
+                  ) : null}
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button onClick={() => void act("respond", { challengeId: challenge.id, response: "accept", scheduledAt: scheduleValue ? new Date(scheduleValue).toISOString() : null })} disabled={busy}><Check className="h-4 w-4" />Accept challenge</Button>
+                    <Button variant="secondary" onClick={() => void act("respond", { challengeId: challenge.id, response: "reject" })} disabled={busy || !challenge.canReject}><X className="h-4 w-4" />{challenge.canReject ? "Reject once" : "Must accept"}</Button>
+                  </div>
                 </div>
               ) : null}
               {challenge.status === "Pending" && challenge.isChallenger ? (
@@ -441,17 +448,19 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
         </div>
       ) : null}
 
-      {(data.challenges ?? []).some((challenge) => ["Completed", "Rejected", "Expired", "Cancelled"].includes(challenge.status)) ? (
+      {(data.challenges ?? []).some((challenge) => ["Completed", "Walkover", "Rejected", "Expired", "Cancelled"].includes(challenge.status)) ? (
         <Card>
           <CardHeader><CardTitle>Recent challenges</CardTitle><RotateCcw className="h-4 w-4 text-[#6c5a73]" /></CardHeader>
           <CardContent className="grid gap-2">
-            {(data.challenges ?? []).filter((challenge) => ["Completed", "Rejected", "Expired", "Cancelled"].includes(challenge.status)).slice(0, 5).map((challenge) => (
+            {(data.challenges ?? []).filter((challenge) => ["Completed", "Walkover", "Rejected", "Expired", "Cancelled"].includes(challenge.status)).slice(0, 5).map((challenge) => (
               <div key={challenge.id} className="flex items-center justify-between gap-3 rounded-xl bg-[#f7f5fa] p-3">
                 <span className="min-w-0 truncate text-sm font-bold">{challenge.challenger.name} v {challenge.challenged.name}</span>
                 {challenge.status === "Completed" ? (
                   <Badge variant={challenge.winnerEntryId === (challenge.isChallenger ? challenge.challenger.entryId : challenge.challenged.entryId) ? "green" : "muted"}>
                     {challenge.winnerEntryId === (challenge.isChallenger ? challenge.challenger.entryId : challenge.challenged.entryId) ? "Won" : "Lost"}
                   </Badge>
+                ) : challenge.status === "Walkover" ? (
+                  <Badge variant={challenge.isChallenger ? "green" : "muted"}>{challenge.isChallenger ? "Won by walkover" : "Lost by walkover"}</Badge>
                 ) : <Badge variant="muted">{challenge.status}</Badge>}
               </div>
             ))}
