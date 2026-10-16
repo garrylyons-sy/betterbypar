@@ -282,7 +282,7 @@ const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPan
   { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
   { id: "clubs" as const, label: "Clubs", icon: Building2 },
   { id: "ladders" as const, label: "Ladders", icon: Swords },
-  { id: "competitions" as const, label: "Competitions", icon: Trophy },
+  { id: "competitions" as const, label: "Club Competitions", icon: Trophy },
   { id: "cup-competitions" as const, label: "Cup Competitions", icon: Trophy },
   { id: "matches" as const, label: "Matches", icon: CalendarDays },
   { id: "last-man-standing", label: "Last Man Standing", icon: Trophy },
@@ -1243,7 +1243,7 @@ function DesktopAdminPanel({
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
           <CardHeader>
-            <CardTitle>Competitions</CardTitle>
+            <CardTitle>Club Competitions</CardTitle>
             <Badge variant="muted">{competitions.length}</Badge>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-3">
@@ -2170,7 +2170,7 @@ function CompetitionsAdminPanel({
       <div className="grid min-w-0 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>Competitions</CardTitle>
+            <CardTitle>Club Competitions</CardTitle>
             <Badge variant="muted">{competitions.length}</Badge>
           </CardHeader>
           <CardContent className="grid gap-3">
@@ -2439,7 +2439,7 @@ function AdminCompetitionDetailCard({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Competition details</CardTitle>
+          <CardTitle>Club competition details</CardTitle>
           <Badge variant="muted">Select</Badge>
         </CardHeader>
         <CardContent>

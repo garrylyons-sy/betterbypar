@@ -117,6 +117,13 @@ test("clubs admin navigation is available to platform and club administrators", 
   assert.match(adminConsoleSource, /label: "Clubs"/);
 });
 
+test("admin distinguishes club competitions from cup competitions", () => {
+  assert.match(adminConsoleSource, /id: "competitions" as const, label: "Club Competitions"/);
+  assert.match(adminConsoleSource, /id: "cup-competitions" as const, label: "Cup Competitions"/);
+  assert.match(adminConsoleSource, /<CardTitle>Club Competitions<\/CardTitle>/);
+  assert.match(adminConsoleSource, /<CardTitle>Club competition details<\/CardTitle>/);
+});
+
 test("clubs editor stays closed until selected and protects club identity fields", () => {
   const panelSource = adminConsoleSource.slice(adminConsoleSource.indexOf("function ClubsPanel"), adminConsoleSource.indexOf("function CompetitionsAdminPanel"));
   assert.match(panelSource, /selectedClubId/);
