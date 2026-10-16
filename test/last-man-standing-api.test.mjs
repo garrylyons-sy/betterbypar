@@ -62,6 +62,19 @@ test("competition summaries keep concurrent competitions separate and provide pa
   assert.equal(summaries[1].currentRound.id, "round-2");
 });
 
+test("competition discovery requires current entry eligibility or a previous entry", () => {
+  const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
+  const summary = source.slice(source.indexOf("const summaryQuery"), source.indexOf("export async function listLastManStandingCompetitions"));
+  assert.match(summary, /own_entry\.id is not null/);
+  assert.match(summary, /c\.status = 'Open'/);
+  assert.match(summary, /now\(\) >= c\.entry_opens_at/);
+  assert.match(summary, /now\(\) < c\.entry_closes_at/);
+  assert.match(summary, /entry_role\.role in \('Player', 'Manager'\)/);
+  assert.match(summary, /competition_scope\.tier/);
+  assert.match(summary, /c\.audience = 'Team'/);
+  assert.match(summary, /c\.audience = 'League Chair'/);
+});
+
 test("eliminated summaries preserve the deciding round and settled pick outcomes", () => {
   const summaries = summarizeLastManStandingCompetitions([
     { id: "one", name: "Autumn LMS", status: "In Progress", entrantCount: 12, standingCount: 8, entryId: "entry-1", entryStatus: "Eliminated", roundId: "elimination-round", roundName: "Round 2", roundStatus: "Settled", cycleNumber: 1, roundNumber: 2, deadlineAt: "2026-10-15T11:00:00.000Z", pickOneName: "A Player", pickTwoName: "B Player", pickOneOutcome: "Won", pickTwoOutcome: "Lost", pickOneChanged: false, pickTwoChanged: true }

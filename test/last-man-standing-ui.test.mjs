@@ -11,6 +11,8 @@ test("audience-filtered Last Man Standing is available from the page and home pa
   assert.match(shell, /LastManStandingHomePanel/);
   assert.match(shell, /LastManStandingPage/);
   assert.match(shell, /if \(activePage === "Last Man Standing"\) return <LastManStandingPage/);
+  assert.match(shell, /lastManStandingAvailable === true \? items : items\.filter\(\(item\) => item !== "Last Man Standing"\)/);
+  assert.match(shell, /lastManStandingAvailable === false && activePage === "Last Man Standing"/);
   assert.doesNotMatch(shell, /panel === "lastManStanding" && activeTeam\.hasLeagueChairAccess/);
   assert.doesNotMatch(shell, /activePage === "Home" && activeTeam\.hasLeagueChairAccess \? <LastManStandingHomePanel/);
   const panel = read("../components/last-man-standing.tsx");

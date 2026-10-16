@@ -242,32 +242,55 @@ const summaryQuery = `
     from public.last_man_standing_pick p
     where p.entry_id = own_entry.id and p.round_id = current_round.id
   ) own_deadline on true
+  left join lateral (
+    select case when count(distinct rs.tier) = 1 then min(rs.tier) end as tier
+    from public.last_man_standing_round scope_round
+    join public.last_man_standing_round_schedule rs on rs.round_id = scope_round.id
+    where scope_round.competition_id = c.id
+  ) competition_scope on true
   where c.status <> 'Archived'
     and (
       own_entry.id is not null
-      or c.audience = 'Everyone'
-      or exists (
-        select 1 from public.club_membership chair_membership
-        where chair_membership.person_id = $1 and chair_membership.active = true
-          and chair_membership.role = 'League Chair'
-      )
-      or exists (
-        select 1 from public.app_operator operator_access
-        where operator_access.person_id = $1 and operator_access.active = true
-      )
       or (
-        c.audience = 'Team'
+        c.status = 'Open'
+        and now() >= c.entry_opens_at
+        and now() < c.entry_closes_at
         and exists (
           select 1
-          from public.team audience_team
-          join public.person_team_role audience_role
-            on audience_role.person_id = $1
-           and audience_role.club_id = audience_team.club_id
-           and audience_role.league_id = audience_team.league_id
-           and lower(audience_role.team_name) = lower(audience_team.name)
-           and audience_role.active = true
-           and audience_role.role in ('Player', 'Manager')
-          where audience_team.id = c.audience_team_id
+          from public.person_team_role entry_role
+          join public.league entry_league on entry_league.id = entry_role.league_id
+          where entry_role.person_id = $1
+            and entry_role.active = true
+            and entry_role.role in ('Player', 'Manager')
+            and (competition_scope.tier is null or upper(left(trim(entry_league.name), 1)) = competition_scope.tier)
+            and (
+              c.audience = 'Everyone'
+              or (
+                c.audience = 'Team'
+                and exists (
+                  select 1 from public.team audience_team
+                  where audience_team.id = c.audience_team_id
+                    and audience_team.club_id = entry_role.club_id
+                    and audience_team.league_id = entry_role.league_id
+                    and lower(audience_team.name) = lower(entry_role.team_name)
+                )
+              )
+              or (
+                c.audience = 'League Chair'
+                and (
+                  exists (
+                    select 1 from public.club_membership chair_membership
+                    where chair_membership.person_id = $1
+                      and chair_membership.active = true
+                      and chair_membership.role = 'League Chair'
+                  )
+                  or exists (
+                    select 1 from public.app_operator operator_access
+                    where operator_access.person_id = $1 and operator_access.active = true
+                  )
+                )
+              )
+            )
         )
       )
     )

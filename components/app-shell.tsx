@@ -245,6 +245,7 @@ export function AppShell({
   const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
   const [teamSummaryOverrides, setTeamSummaryOverrides] = useState<Record<string, TeamSummaryUpdate>>({});
   const [enteredCompetitionCount, setEnteredCompetitionCount] = useState(0);
+  const [lastManStandingAvailable, setLastManStandingAvailable] = useState<boolean | null>(null);
   const hasAppliedUrlContext = useRef(false);
   useEffect(() => {
     setTeamSummaryOverrides({});
@@ -346,9 +347,34 @@ export function AppShell({
       active = false;
     };
   }, [activeTeam.club, activeTeam.role]);
+  useEffect(() => {
+    let active = true;
+    const refreshAvailability = () => {
+      fetch(withTestUser("/api/last-man-standing"), { credentials: "same-origin", cache: "no-store" })
+        .then((response) => response.json())
+        .then((data) => {
+          if (active) setLastManStandingAvailable((data.competitions ?? []).length > 0);
+        })
+        .catch(() => {
+          if (active) setLastManStandingAvailable(false);
+        });
+    };
+    refreshAvailability();
+    window.addEventListener("focus", refreshAvailability);
+    window.addEventListener("interclub:refresh-panels", refreshAvailability);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshAvailability);
+      window.removeEventListener("interclub:refresh-panels", refreshAvailability);
+    };
+  }, []);
   const activeMenuItems = useMemo(() => {
-    return applyLeagueChairAccess(fixedMenuItemsForRole(activeTeam.role, enteredCompetitionCount), activeTeam);
-  }, [activeTeam, activeTeam.role, enteredCompetitionCount]);
+    const items = applyLeagueChairAccess(fixedMenuItemsForRole(activeTeam.role, enteredCompetitionCount), activeTeam);
+    return lastManStandingAvailable === true ? items : items.filter((item) => item !== "Last Man Standing");
+  }, [activeTeam, activeTeam.role, enteredCompetitionCount, lastManStandingAvailable]);
+  useEffect(() => {
+    if (lastManStandingAvailable === false && activePage === "Last Man Standing") setActivePage("Home");
+  }, [activePage, lastManStandingAvailable]);
   const activeStandings = useMemo(() => {
     const filtered = standingsData.filter((row) => row.league === activeTeam.league && row.season === activeTeam.season);
     return filtered.length ? filtered : standingsData === standings ? standings : [];
