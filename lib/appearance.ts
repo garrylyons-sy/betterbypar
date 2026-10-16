@@ -10,6 +10,7 @@ export const appearancePanelOptions: Array<{ id: AppearancePanelId; label: strin
   { id: "personalRecentForm", label: "Recent personal form", description: "Latest individual games.", roles: ["Player"] },
   { id: "individualGames", label: "Individual games", description: "Full personal game list.", roles: ["Player"] },
   { id: "lastManStanding", label: "Last Man Standing", description: "Current round, picks and remaining entrants.", roles: appearanceRoles },
+  { id: "clubLadder", label: "Club ladder", description: "Position, recent form and active ladder challenges.", roles: appearanceRoles },
   { id: "memberActions", label: "Member actions", description: "Bookings and competition entry.", roles: ["Player", "Manager", "Club Member", "Club Admin"] },
   { id: "openCompetitions", label: "Open competitions", description: "Club competitions currently open for entry.", roles: appearanceRoles },
   { id: "myCompetitionMatches", label: "My competition matches", description: "Upcoming or active club competition ties.", roles: appearanceRoles },
@@ -44,27 +45,27 @@ export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string;
 export const defaultAppearanceConfig: AppearanceConfig = {
   Player: {
     role: "Player",
-    panels: ["matchPlanning", "lastManStanding", "myStats", "leagueTableSnapshot", "teamStats", "teamRecentForm", "personalRecentForm", "individualGames"],
+    panels: ["matchPlanning", "lastManStanding", "clubLadder", "myStats", "leagueTableSnapshot", "teamStats", "teamRecentForm", "personalRecentForm", "individualGames"],
     menuItems: ["Home", "Fixtures", "Table", "Friendlies", "Club"]
   },
   Manager: {
     role: "Manager",
-    panels: ["matchPlanning", "lastManStanding", "squadManagement", "seasonComplete", "teamRecentForm", "managerSnapshot"],
+    panels: ["matchPlanning", "lastManStanding", "clubLadder", "squadManagement", "seasonComplete", "teamRecentForm", "managerSnapshot"],
     menuItems: ["Home", "Fixtures", "Table", "Contacts", "Friendlies", "Club", "Results"]
   },
   "Club Member": {
     role: "Club Member",
-    panels: ["clubAccess", "lastManStanding", "openCompetitions"],
+    panels: ["clubAccess", "lastManStanding", "clubLadder", "openCompetitions"],
     menuItems: ["Home", "Fixtures", "Table", "Bookings", "Competitions", "Interclub Leagues"]
   },
   "Club Admin": {
     role: "Club Admin",
-    panels: ["clubCompetitionAdmin", "lastManStanding", "openCompetitions", "interclubLeagues"],
+    panels: ["clubCompetitionAdmin", "lastManStanding", "clubLadder", "openCompetitions", "interclubLeagues"],
     menuItems: ["Home", "Fixtures", "Table", "Competitions", "Bookings", "Contacts", "Interclub Leagues"]
   },
   "League Chair": {
     role: "League Chair",
-    panels: ["lastManStanding", "interclubLeagues"],
+    panels: ["lastManStanding", "clubLadder", "interclubLeagues"],
     menuItems: ["Home", "Contacts", "Interclub Leagues"]
   }
 };

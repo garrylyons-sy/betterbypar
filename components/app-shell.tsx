@@ -36,7 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LeagueChairLiveIndicator, LeagueChairLiveStatusList, useLiveScoringStatuses } from "@/components/live-scoring-dashboard";
 import { LastManStandingHomePanel, LastManStandingPage } from "@/components/last-man-standing";
-import { ClubLadderPage } from "@/components/club-ladder";
+import { ClubLadderHomePanel, ClubLadderPage } from "@/components/club-ladder";
 import { ClubFeatureUnavailable } from "@/components/club-feature-unavailable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { shouldShowFixtureDates } from "@/lib/fixture-scheduling.mjs";
@@ -2701,6 +2701,7 @@ function PlayerHome({
     if (panel === "personalRecentForm") return <PersonalRecentFormCard key={panel} playerGameResults={playerGameResults} />;
     if (panel === "individualGames") return <PlayerGameResultsCard key={panel} activeTeam={activeTeam} results={playerGameResults} userCanShare={userCanShare} />;
     if (panel === "lastManStanding") return <div key={panel} className="md:col-span-2"><LastManStandingHomePanel onOpen={() => onNavigate("Last Man Standing")} /></div>;
+    if (panel === "clubLadder") return <ClubLadderHomePanel key={panel} className="md:col-span-2" activeTeam={activeTeam} onOpen={() => onNavigate("Ladder")} />;
     if (panel === "openCompetitions") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />;
     if (panel === "myCompetitionMatches") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="mine" onNavigate={onNavigate} />;
     if (panel === "competitionDraws") return <CompetitionPanel key={panel} activeTeam={activeTeam} mode="draws" onNavigate={onNavigate} />;
@@ -3010,6 +3011,7 @@ function AttackSnookerGameCard() {
 function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; panels: AppearancePanelId[] }) {
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "lastManStanding") return <div key={panel} className="md:col-span-2"><LastManStandingHomePanel onOpen={() => onNavigate("Last Man Standing")} /></div>;
+    if (panel === "clubLadder") return <ClubLadderHomePanel key={panel} className="md:col-span-2" activeTeam={activeTeam} onOpen={() => onNavigate("Ladder")} />;
     if (panel === "clubAccess") {
       return (
         <Card key={panel}>
@@ -4175,6 +4177,7 @@ function ManagerHome({
     if (panel === "teamStats") return <TeamStatsCard key={panel} activeTeam={activeTeam} onNavigate={onNavigate} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
     if (panel === "messages") return <MessagesPage key={panel} activeTeam={activeTeam} compact />;
     if (panel === "lastManStanding") return <div key={panel} className="md:col-span-2"><LastManStandingHomePanel onOpen={() => onNavigate("Last Man Standing")} /></div>;
+    if (panel === "clubLadder") return <ClubLadderHomePanel key={panel} className="md:col-span-2" activeTeam={activeTeam} onOpen={() => onNavigate("Ladder")} />;
     return null;
   };
 

@@ -18,6 +18,8 @@ const adminConsole = readFileSync(new URL("../components/admin-console.tsx", imp
 const adminLadders = readFileSync(new URL("../components/admin-club-ladders.tsx", import.meta.url), "utf8");
 const ladderApi = readFileSync(new URL("../app/api/club/ladder/route.ts", import.meta.url), "utf8");
 const adminLadderApi = readFileSync(new URL("../app/api/admin/ladders/route.ts", import.meta.url), "utf8");
+const appearance = readFileSync(new URL("../lib/appearance.ts", import.meta.url), "utf8");
+const appearanceMigration = readFileSync(new URL("../supabase/club_ladder_home_panel.sql", import.meta.url), "utf8");
 
 test("ladder settings support one frame, best of three and best of five", () => {
   assert.equal(requiredFrameWins("1 Frame"), 1);
@@ -100,6 +102,18 @@ test("ladder setup can optionally add selected club members", () => {
   assert.match(adminLadders, /initialPersonIds/);
   assert.match(adminLadders, /Hcp \{member\.handicap \?\? "-"\}/);
   assert.match(adminLadders, /No handicap recorded/);
+});
+
+test("eligible club members have a configurable visual ladder home panel", () => {
+  assert.match(appearance, /id: "clubLadder", label: "Club ladder"/);
+  assert.match(ladderPage, /export function ClubLadderHomePanel/);
+  assert.match(ladderPage, /if \(!data\?\.configured \|\| !data\.available \|\| !data\.ladder\) return null/);
+  assert.match(ladderPage, /Position #\{data\.me\.position\}/);
+  assert.match(ladderPage, /Recent form/);
+  assert.match(ladderPage, /Join ladder/);
+  assert.match(ladderPage, /action: "join"/);
+  assert.match(appShell, /panel === "clubLadder"/);
+  assert.match(appearanceMigration, /panel_config \|\| '\["clubLadder"\]'/);
 });
 
 test("club ladders show handicaps and allow players to leave safely", () => {

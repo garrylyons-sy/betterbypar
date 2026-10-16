@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, ChevronDown, Clock3, LogOut, Medal, RotateCcw, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
+import { CalendarClock, Check, ChevronDown, ChevronRight, Clock3, LogOut, Medal, RotateCcw, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,115 @@ type LadderPayload = {
   entries?: LadderEntry[];
   challenges?: LadderChallenge[];
 };
+
+export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeTeam: TeamContext; onOpen: () => void; className?: string }) {
+  const [data, setData] = useState<LadderPayload | null>(null);
+  const [joining, setJoining] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function load() {
+    try {
+      const response = await fetch(testAwarePath(`/api/club/ladder?club=${encodeURIComponent(activeTeam.club)}`), { credentials: "same-origin", cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Club ladder could not be loaded.");
+      setData(payload);
+    } catch {
+      setData(null);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      if (!active) return;
+      await load();
+    };
+    void refresh();
+    const onRefresh = () => void refresh();
+    window.addEventListener("focus", onRefresh);
+    window.addEventListener("interclub:refresh-panels", onRefresh);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", onRefresh);
+      window.removeEventListener("interclub:refresh-panels", onRefresh);
+    };
+  }, [activeTeam.club]);
+
+  async function join() {
+    setJoining(true);
+    setMessage("");
+    try {
+      const response = await fetch(testAwarePath("/api/club/ladder"), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ club: activeTeam.club, action: "join" })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Could not join the ladder.");
+      await load();
+      window.dispatchEvent(new Event("interclub:refresh-panels"));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not join the ladder.");
+    } finally {
+      setJoining(false);
+    }
+  }
+
+  if (!data?.configured || !data.available || !data.ladder) return null;
+
+  const myEntry = data.me ? data.entries?.find((entry) => entry.id === data.me?.entryId) ?? null : null;
+  const activeChallenges = (data.challenges ?? []).filter((challenge) => ["Pending", "Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status));
+  const totalPlayers = data.entries?.length ?? 0;
+
+  return (
+    <Card className={cn("overflow-hidden", className)}>
+      <div
+        className="grid gap-4 p-4 text-white sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+        style={{ background: `linear-gradient(135deg, ${activeTeam.primaryColor}, ${activeTeam.accentColor} 68%, #071426)` }}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/15 ring-1 ring-white/25"><Swords className="h-6 w-6" /></span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase text-white/65">Club ladder</p>
+            <h2 className="truncate text-xl font-black">{data.ladder.name}</h2>
+            <p className="mt-0.5 text-xs font-bold text-white/70">{data.ladder.matchFormat} · Challenge {data.ladder.challengeRange} places up</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="soft">{totalPlayers} players</Badge>
+          {data.me ? <Badge variant="cyan">Position #{data.me.position}</Badge> : <Badge variant="gold">Open to join</Badge>}
+        </div>
+      </div>
+      <CardContent className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        {data.me ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase text-[#6c5a73]">Recent form</p>
+              <div className="mt-1"><RecentForm results={myEntry?.recentForm ?? []} primaryColor={activeTeam.primaryColor} accentColor={activeTeam.accentColor} /></div>
+            </div>
+            <div className="h-9 w-px bg-[#e3ddea]" />
+            <div>
+              <p className="text-[10px] font-black uppercase text-[#6c5a73]">Active challenge</p>
+              <p className="mt-1 text-sm font-black text-[#10233f]">{activeChallenges.length ? activeChallenges[0].status : "None"}</p>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p className="font-black text-[#10233f]">Join at the bottom and start climbing</p>
+            <p className="mt-1 text-xs font-semibold text-[#6c5a73]">Once you join, you can challenge nearby players directly from the ladder.</p>
+            {message ? <p className="mt-2 text-xs font-bold text-[#b42318]">{message}</p> : null}
+          </div>
+        )}
+        {data.me ? (
+          <Button variant="secondary" onClick={onOpen}>View ladder<ChevronRight className="h-4 w-4" /></Button>
+        ) : (
+          <Button onClick={() => void join()} disabled={joining}><UserPlus className="h-4 w-4" />{joining ? "Joining..." : "Join ladder"}</Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function testAwarePath(path: string) {
   if (typeof window === "undefined") return path;

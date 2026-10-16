@@ -7,6 +7,7 @@ export type AppearancePanelId =
   | "personalRecentForm"
   | "individualGames"
   | "lastManStanding"
+  | "clubLadder"
   | "memberActions"
   | "clubAccess"
   | "interclubLeagues"
