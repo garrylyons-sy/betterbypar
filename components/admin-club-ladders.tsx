@@ -211,7 +211,12 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                                 onChange={() => setInitialPersonIds((current) => selected ? current.filter((id) => id !== member.personId) : [...current, member.personId])}
                               />
                               <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-[#10233f]">{member.name}</span>
-                              {member.handicap !== null ? <span className="shrink-0 text-xs font-black text-[#6c5a73]">Hcp {member.handicap}</span> : null}
+                              <span
+                                className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-black uppercase text-[#6c5a73] ring-1 ring-[#ded7e5]"
+                                title={member.handicap === null ? "No handicap recorded" : `Handicap ${member.handicap}`}
+                              >
+                                Hcp {member.handicap ?? "-"}
+                              </span>
                             </label>
                           );
                         })}

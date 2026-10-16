@@ -98,6 +98,8 @@ test("ladder setup can optionally add selected club members", () => {
   assert.match(adminLadders, /Selected members start on the ladder in surname order/);
   assert.match(adminLadders, /Find a club member/);
   assert.match(adminLadders, /initialPersonIds/);
+  assert.match(adminLadders, /Hcp \{member\.handicap \?\? "-"\}/);
+  assert.match(adminLadders, /No handicap recorded/);
 });
 
 test("club ladders show handicaps and allow players to leave safely", () => {
