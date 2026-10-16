@@ -88,6 +88,18 @@ test("admin ladder settings constrain controls inside responsive grid columns", 
   assert.match(adminLadders, /min-h-11 w-full min-w-0 rounded-lg/);
 });
 
+test("ladder setup can optionally add selected club members", () => {
+  assert.match(adminLadderApi, /members\.rows\.filter/);
+  assert.match(adminLadderApi, /initialPersonIds/);
+  assert.match(adminLadderApi, /Every selected player must be an active member of this club/);
+  assert.match(adminLadderApi, /insert into public\.club_ladder_entry/);
+  assert.match(adminLadderApi, /row_number\(\) over \(order by lower\(p\.last_name\), lower\(p\.first_name\)\)/);
+  assert.match(adminLadders, /Add initial players/);
+  assert.match(adminLadders, /Selected members start on the ladder in surname order/);
+  assert.match(adminLadders, /Find a club member/);
+  assert.match(adminLadders, /initialPersonIds/);
+});
+
 test("club ladders show handicaps and allow players to leave safely", () => {
   assert.match(ladderApi, /membership\.handicap::text/);
   assert.match(ladderApi, /if \(action === "leave"\)/);

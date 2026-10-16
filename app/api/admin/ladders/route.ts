@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     if (!access) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
     if (!access.platform && !access.clubIds.length) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
 
-    const result = await dbQuery<{
+    const [result, members] = await Promise.all([dbQuery<{
       club_id: string;
       club_name: string;
       logo_path: string | null;
@@ -57,7 +57,23 @@ export async function GET(request: Request) {
        group by c.id, cl.id
        order by c.name`,
       [access.platform, access.clubIds]
-    );
+    ), dbQuery<{
+      club_id: string;
+      person_id: string;
+      person_name: string;
+      handicap: string | null;
+    }>(
+      `select cm.club_id::text, p.id::text as person_id,
+              concat_ws(' ', p.first_name, p.last_name) as person_name,
+              max(cm.handicap)::text as handicap
+       from public.club_membership cm
+       join public.person p on p.id = cm.person_id and p.active = true
+       where cm.active = true
+         and ($1::boolean = true or cm.club_id = any($2::uuid[]))
+       group by cm.club_id, p.id
+       order by cm.club_id, lower(p.last_name), lower(p.first_name)`,
+      [access.platform, access.clubIds]
+    )]);
 
     return NextResponse.json({
       clubs: result.rows.map((row) => ({
@@ -75,7 +91,12 @@ export async function GET(request: Request) {
           playWithinDays: row.play_within_days,
           active: row.active,
           entryCount: Number(row.entry_count)
-        } : null
+        } : null,
+        members: members.rows.filter((member) => member.club_id === row.club_id).map((member) => ({
+          personId: member.person_id,
+          name: member.person_name,
+          handicap: member.handicap === null ? null : Number(member.handicap)
+        }))
       }))
     });
   } catch (error) {
@@ -95,10 +116,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Club administrator access is required for this club." }, { status: 403 });
     }
     const settings = normalizeLadderSettings(body);
+    const initialPersonIds = Array.isArray(body.initialPersonIds)
+      ? Array.from(new Set(body.initialPersonIds.map((personId) => String(personId).trim()).filter(Boolean)))
+      : [];
 
     const ladder = await withTransaction(async (client) => {
       const club = await client.query<{ name: string }>("select name from public.club where id = $1 and active = true", [clubId]);
       if (!club.rowCount) throw new Error("Club was not found.");
+      const existing = await client.query<{ id: string }>("select id::text from public.club_ladder where club_id = $1 for update", [clubId]);
+      if (!existing.rowCount && initialPersonIds.length) {
+        const validMembers = await client.query<{ person_id: string }>(
+          `select distinct cm.person_id::text
+           from public.club_membership cm
+           join public.person p on p.id = cm.person_id and p.active = true
+           where cm.club_id = $1 and cm.active = true and cm.person_id = any($2::uuid[])`,
+          [clubId, initialPersonIds]
+        );
+        if (validMembers.rowCount !== initialPersonIds.length) throw new Error("Every selected player must be an active member of this club.");
+      }
       const saved = await client.query<{
         id: string;
         name: string;
@@ -122,11 +157,22 @@ export async function POST(request: Request) {
          returning id::text, name, match_format, challenge_range, response_hours, play_within_days, active`,
         [clubId, settings.name, settings.matchFormat, settings.challengeRange, settings.responseHours, settings.playWithinDays, settings.active, access.personId]
       );
+      if (!existing.rowCount && initialPersonIds.length) {
+        await client.query(
+          `insert into public.club_ladder_entry (ladder_id, person_id, position, status, updated_at)
+           select $1, selected.person_id, row_number() over (order by lower(p.last_name), lower(p.first_name)), 'Active', now()
+           from unnest($2::uuid[]) as selected(person_id)
+           join public.person p on p.id = selected.person_id
+           order by lower(p.last_name), lower(p.first_name)`,
+          [saved.rows[0].id, initialPersonIds]
+        );
+      }
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
          values ($1, 'Page Visit', '/admin/ladders', 'Club ladder settings saved',
-           jsonb_build_object('club_id', $2::text, 'club_name', $3::text, 'match_format', $4::text))`,
-        [access.personId, clubId, club.rows[0].name, settings.matchFormat]
+           jsonb_build_object('club_id', $2::text, 'club_name', $3::text, 'match_format', $4::text,
+             'initial_player_count', $5::int))`,
+        [access.personId, clubId, club.rows[0].name, settings.matchFormat, !existing.rowCount ? initialPersonIds.length : 0]
       );
       return saved.rows[0];
     });

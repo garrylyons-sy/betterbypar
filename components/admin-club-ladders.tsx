@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Clock3, Save, ShieldCheck, Swords, Trash2, Trophy, Users } from "lucide-react";
+import { ChevronDown, Clock3, Save, Search, ShieldCheck, Swords, Trash2, Trophy, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ type AdminLadderClub = {
   primaryColor: string | null;
   accentColor: string | null;
   ladder: (LadderSettings & { id: string; entryCount: number }) | null;
+  members: Array<{ personId: string; name: string; handicap: number | null }>;
 };
 
 const defaults: LadderSettings = {
@@ -41,6 +42,8 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
   const [saving, setSaving] = useState(false);
   const [openClubId, setOpenClubId] = useState<string | null>(null);
   const [draft, setDraft] = useState<LadderSettings>(defaults);
+  const [initialPersonIds, setInitialPersonIds] = useState<string[]>([]);
+  const [memberSearch, setMemberSearch] = useState("");
 
   async function load() {
     setLoading(true);
@@ -64,6 +67,8 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
       return;
     }
     setOpenClubId(club.clubId);
+    setInitialPersonIds([]);
+    setMemberSearch("");
     setDraft(club.ladder ? {
       name: club.ladder.name,
       matchFormat: club.ladder.matchFormat,
@@ -80,7 +85,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
       const response = await fetch(testAwarePath("/api/admin/ladders"), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ clubId, ...draft })
+        body: JSON.stringify({ clubId, ...draft, initialPersonIds: clubId === openClubId ? initialPersonIds : [] })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Ladder settings could not be saved.");
@@ -127,6 +132,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
         {clubs.map((club) => {
           const open = openClubId === club.clubId;
           const color = club.primaryColor || "#10233f";
+          const visibleMembers = club.members.filter((member) => member.name.toLowerCase().includes(memberSearch.trim().toLowerCase()));
           return (
             <section key={club.clubId} className="overflow-hidden rounded-xl border border-[#eeeaf2] bg-white">
               <button
@@ -169,6 +175,50 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                     <RuleSummary icon={Clock3} text={`${draft.responseHours} hours to reply`} />
                     <RuleSummary icon={ShieldCheck} text={`Play within ${draft.playWithinDays} days`} />
                   </div>
+                  {!club.ladder ? (
+                    <div className="grid gap-3 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-black text-[#10233f]">Add initial players</p>
+                            <Badge variant="muted">Optional</Badge>
+                          </div>
+                          <p className="mt-1 text-xs font-semibold text-[#6c5a73]">Selected members start on the ladder in surname order. Others can join later.</p>
+                        </div>
+                        <Badge variant="cyan">{initialPersonIds.length} selected</Badge>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                        <label className="relative min-w-0">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6c5a73]" />
+                          <input
+                            className="min-h-10 w-full rounded-lg border border-[#e3ddea] bg-white pl-9 pr-3 text-sm font-bold"
+                            value={memberSearch}
+                            onChange={(event) => setMemberSearch(event.target.value)}
+                            placeholder="Find a club member"
+                          />
+                        </label>
+                        <Button type="button" size="sm" variant="secondary" onClick={() => setInitialPersonIds(club.members.map((member) => member.personId))}>Select all</Button>
+                        <Button type="button" size="sm" variant="secondary" onClick={() => setInitialPersonIds([])}>Clear</Button>
+                      </div>
+                      <div className="grid max-h-64 gap-2 overflow-y-auto p-0.5 sm:grid-cols-2 xl:grid-cols-3">
+                        {visibleMembers.map((member) => {
+                          const selected = initialPersonIds.includes(member.personId);
+                          return (
+                            <label key={member.personId} className={cn("flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ring-1", selected ? "bg-[#eaf8f4] ring-[#83d8c2]" : "bg-[#f7f5fa] ring-[#eeeaf2]")}>
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => setInitialPersonIds((current) => selected ? current.filter((id) => id !== member.personId) : [...current, member.personId])}
+                              />
+                              <span className="min-w-0 flex-1 truncate text-sm font-extrabold text-[#10233f]">{member.name}</span>
+                              {member.handicap !== null ? <span className="shrink-0 text-xs font-black text-[#6c5a73]">Hcp {member.handicap}</span> : null}
+                            </label>
+                          );
+                        })}
+                        {!visibleMembers.length ? <p className="text-sm font-semibold text-[#6c5a73]">No matching club members.</p> : null}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <label className="inline-flex min-h-11 items-center gap-3 rounded-lg bg-white px-3 font-bold ring-1 ring-[#eeeaf2]">
                       <input type="checkbox" checked={draft.active} onChange={(event) => setDraft((current) => ({ ...current, active: event.target.checked }))} />
