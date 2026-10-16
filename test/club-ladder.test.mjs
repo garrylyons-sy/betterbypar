@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   canChallengePosition,
   canRejectChallenge,
+  normalizeLadderInitialOrder,
   normalizeLadderSettings,
   requiredFrameWins,
   validateLadderResult
@@ -107,9 +108,9 @@ test("ladder setup supports multiple ladders, team eligibility and optional init
   assert.match(adminLadderApi, /initialPersonIds/);
   assert.match(adminLadderApi, /Every selected player must be eligible for this ladder/);
   assert.match(adminLadderApi, /insert into public\.club_ladder_entry/);
-  assert.match(adminLadderApi, /row_number\(\) over \(order by lower\(p\.last_name\), lower\(p\.first_name\)\)/);
+  assert.match(adminLadderApi, /lower\(p\.last_name\), lower\(p\.first_name\), p\.id/);
   assert.match(adminLadders, /Add initial players/);
-  assert.match(adminLadders, /Selected members start on the ladder in surname order/);
+  assert.match(adminLadders, /choose how their opening positions are drawn/);
   assert.match(adminLadders, /Find a club member/);
   assert.match(adminLadders, /initialPersonIds/);
   assert.match(adminLadders, /Hcp \{member\.handicap \?\? "-"\}/);
@@ -117,6 +118,18 @@ test("ladder setup supports multiple ladders, team eligibility and optional init
   assert.match(adminLadders, /All club members/);
   assert.match(adminLadders, /Use club handicaps/);
   assert.match(adminLadders, /New ladder/);
+});
+
+test("new ladders can seed selected players by surname or random draw", () => {
+  assert.equal(normalizeLadderInitialOrder("Surname"), "Surname");
+  assert.equal(normalizeLadderInitialOrder("Random"), "Random");
+  assert.throws(() => normalizeLadderInitialOrder("Current ranking"), /starting order/i);
+  assert.match(adminLadderApi, /initialOrder/);
+  assert.match(adminLadderApi, /then random\(\)/);
+  assert.match(adminLadderApi, /'initial_order'/);
+  assert.match(adminLadders, /Surname order/);
+  assert.match(adminLadders, /Random draw/);
+  assert.match(adminLadders, /initialOrder/);
 });
 
 test("eligible club members have a configurable visual ladder home panel", () => {

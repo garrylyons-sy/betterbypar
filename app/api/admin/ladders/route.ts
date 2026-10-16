@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { normalizeLadderSettings } from "@/lib/club-ladder.mjs";
+import { normalizeLadderInitialOrder, normalizeLadderSettings } from "@/lib/club-ladder.mjs";
 import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
@@ -141,6 +141,7 @@ export async function POST(request: Request) {
     const ladderId = String(body.ladderId ?? "").trim() || null;
     const eligibleTeamIds = stringIds(body.eligibleTeamIds);
     const initialPersonIds = stringIds(body.initialPersonIds);
+    const initialOrder = normalizeLadderInitialOrder(body.initialOrder);
     if (!clubId) throw new Error("Club is required.");
     if (!access.platform && !access.clubIds.includes(clubId)) {
       return NextResponse.json({ error: "Club administrator access is required for this club." }, { status: 403 });
@@ -274,19 +275,25 @@ export async function POST(request: Request) {
       if (!ladderId && initialPersonIds.length) {
         await client.query(
           `insert into public.club_ladder_entry (ladder_id, person_id, position, status, updated_at)
-           select $1, selected.person_id, row_number() over (order by lower(p.last_name), lower(p.first_name)), 'Active', now()
+           select $1, selected.person_id,
+                  row_number() over (
+                    order by case when $3::text = 'Random' then random() else null::double precision end,
+                             lower(p.last_name), lower(p.first_name), p.id
+                  ),
+                  'Active', now()
            from unnest($2::uuid[]) as selected(person_id)
            join public.person p on p.id = selected.person_id
-           order by lower(p.last_name), lower(p.first_name)`,
-          [saved.rows[0].id, initialPersonIds]
+           order by 3`,
+          [saved.rows[0].id, initialPersonIds, initialOrder]
         );
       }
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
          values ($1, 'Page Visit', '/admin/ladders', 'Club ladder settings saved',
            jsonb_build_object('club_id', $2::text, 'club_name', $3::text, 'ladder_id', $4::text,
-             'match_format', $5::text, 'eligible_team_count', $6::int, 'initial_player_count', $7::int))`,
-        [access.personId, clubId, club.rows[0].name, saved.rows[0].id, settings.matchFormat, eligibleTeamIds.length, ladderId ? 0 : initialPersonIds.length]
+             'match_format', $5::text, 'eligible_team_count', $6::int, 'initial_player_count', $7::int,
+             'initial_order', $8::text))`,
+        [access.personId, clubId, club.rows[0].name, saved.rows[0].id, settings.matchFormat, eligibleTeamIds.length, ladderId ? 0 : initialPersonIds.length, ladderId ? null : initialOrder]
       );
       return saved.rows[0];
     });

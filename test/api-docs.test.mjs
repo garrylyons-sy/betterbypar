@@ -17,3 +17,29 @@ test("developer API docs catalogue is read-only and excludes internal admin rout
     assert.ok(endpoint.exampleResponse.trim().startsWith("{"));
   }
 });
+
+test("developer API docs cover the current member-facing feature APIs", () => {
+  const endpoints = apiDocSections.flatMap((section) => section.endpoints);
+  const paths = new Set(endpoints.map((endpoint) => endpoint.path));
+
+  for (const path of [
+    "/api/club/ladder",
+    "/api/last-man-standing",
+    "/api/last-man-standing/[competitionId]",
+    "/api/league-chair/live-scoring/dashboard",
+    "/api/shop",
+    "/api/table-bookings"
+  ]) {
+    assert.ok(paths.has(path), `${path} should be documented`);
+  }
+});
+
+test("fixture documentation explains cup rounds and postponed matches", () => {
+  const fixtures = apiDocSections
+    .flatMap((section) => section.endpoints)
+    .find((endpoint) => endpoint.path === "/api/fixtures/weeks");
+
+  assert.ok(fixtures);
+  assert.match(`${fixtures.summary} ${fixtures.exampleResponse}`, /cup/i);
+  assert.match(`${fixtures.summary} ${fixtures.exampleResponse}`, /postpon/i);
+});

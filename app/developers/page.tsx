@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
 import { ArrowRight, BookOpen, Code2, KeyRound, Lock, ShieldCheck } from "lucide-react";
 
-import { apiDocSections, developerDocsAuthModel } from "@/lib/api-docs.mjs";
+import { apiDocSections, developerDocsAuthModel, developerDocsMeta } from "@/lib/api-docs.mjs";
 
 export const metadata: Metadata = {
   title: "Developer API Documentation | Interclub Snooker",
-  description: "Read-only Interclub Snooker API documentation for fixtures, tables, player stats, breaks, contacts, and competitions."
+  description: "Read-only Interclub Snooker API documentation for fixtures, statistics, competitions, ladders, LMS, live scoring, and member services."
 };
 
 const baseUrl = "https://www.interclubsnooker.com";
 
 export default function DevelopersPage() {
   const firstEndpoint = apiDocSections[0]?.endpoints[0];
+  const endpointCount = apiDocSections.reduce((total, section) => total + section.endpoints.length, 0);
 
   return (
     <main className="min-h-screen bg-[#f7f5fa] text-[#25002b]">
@@ -26,7 +27,7 @@ export default function DevelopersPage() {
               Interclub Snooker API
             </h1>
             <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-white/72">
-              Build read-only league tools using fixtures, tables, player stats, breaks, club teams, contacts, and competition data.
+              Build read-only league tools using fixtures, cup rounds, statistics, club ladders, Last Man Standing, live scoring, and member-service data.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <a href="#quickstart" className="inline-flex items-center gap-2 rounded-xl bg-[#00ff85] px-4 py-3 text-sm font-black text-[#071426]">
@@ -66,10 +67,11 @@ export default function DevelopersPage() {
 
         <div className="grid min-w-0 gap-6">
           <section id="overview" className="rounded-2xl bg-white p-5 ring-1 ring-[#eeeaf2] md:p-6">
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <DocMetric icon={<Code2 className="h-5 w-5" />} label="Base URL" value={baseUrl} />
               <DocMetric icon={<Lock className="h-5 w-5" />} label="Current auth" value="App session" />
-              <DocMetric icon={<ShieldCheck className="h-5 w-5" />} label="Scope" value="Read-only docs" />
+              <DocMetric icon={<ShieldCheck className="h-5 w-5" />} label="Documented" value={`${endpointCount} read endpoints`} />
+              <DocMetric icon={<BookOpen className="h-5 w-5" />} label="Updated" value={`${developerDocsMeta.updatedAt} · ${developerDocsMeta.version}`} />
             </div>
           </section>
 

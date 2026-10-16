@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Clock3, Plus, Save, Search, ShieldCheck, Swords, Trash2, Trophy, Users } from "lucide-react";
+import { ChevronDown, Clock3, ListOrdered, Plus, Save, Search, ShieldCheck, Shuffle, Swords, Trash2, Trophy, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { ladderMatchFormats } from "@/lib/club-ladder.mjs";
 import { cn } from "@/lib/utils";
 
 type LadderMatchFormat = "1 Frame" | "Best of 3" | "Best of 5";
+type LadderInitialOrder = "Surname" | "Random";
 type LadderSettings = {
   name: string;
   matchFormat: LadderMatchFormat;
@@ -57,6 +58,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
   const [editingLadderId, setEditingLadderId] = useState<string | "new" | null>(null);
   const [draft, setDraft] = useState<LadderSettings>(defaults);
   const [initialPersonIds, setInitialPersonIds] = useState<string[]>([]);
+  const [initialOrder, setInitialOrder] = useState<LadderInitialOrder>("Surname");
   const [memberSearch, setMemberSearch] = useState("");
 
   async function load() {
@@ -88,6 +90,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
       active: ladder.active
     });
     setInitialPersonIds([]);
+    setInitialOrder("Surname");
     setMemberSearch("");
   }
 
@@ -96,6 +99,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
     setEditingLadderId("new");
     setDraft({ ...defaults, name: club.ladders.length ? `${shortName} Ladder ${club.ladders.length + 1}` : `${shortName} Ladder` });
     setInitialPersonIds([]);
+    setInitialOrder("Surname");
     setMemberSearch("");
   }
 
@@ -120,7 +124,8 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
           clubId,
           ladderId: editingLadderId === "new" ? null : editingLadderId,
           ...draft,
-          initialPersonIds: editingLadderId === "new" ? initialPersonIds : []
+          initialPersonIds: editingLadderId === "new" ? initialPersonIds : [],
+          initialOrder: editingLadderId === "new" ? initialOrder : "Surname"
         })
       });
       const data = await response.json().catch(() => ({}));
@@ -227,7 +232,11 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
 
                   {editingLadderId === "new" ? (
                     <div className="grid gap-3 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
-                      <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><p className="text-sm font-black text-[#10233f]">Add initial players</p><Badge variant="muted">Optional</Badge></div><p className="mt-1 text-xs font-semibold text-[#6c5a73]">Selected members start on the ladder in surname order. Others can join later.</p></div><Badge variant="cyan">{initialPersonIds.length} selected</Badge></div>
+                      <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><p className="text-sm font-black text-[#10233f]">Add initial players</p><Badge variant="muted">Optional</Badge></div><p className="mt-1 text-xs font-semibold text-[#6c5a73]">Select the starting field and choose how their opening positions are drawn. Others can join later at the bottom.</p></div><Badge variant="cyan">{initialPersonIds.length} selected</Badge></div>
+                      <div className="grid gap-2 rounded-lg bg-[#f7f5fa] p-2 ring-1 ring-[#eeeaf2] sm:grid-cols-2" role="group" aria-label="Starting order">
+                        <button type="button" aria-pressed={initialOrder === "Surname"} onClick={() => setInitialOrder("Surname")} className={cn("flex min-h-12 items-center gap-3 rounded-lg px-3 text-left ring-1", initialOrder === "Surname" ? "bg-[#10233f] text-white ring-[#10233f]" : "bg-white text-[#10233f] ring-[#e3ddea]")}><ListOrdered className="h-5 w-5 shrink-0" /><span><span className="block text-sm font-black">Surname order</span><span className={cn("block text-[11px] font-semibold", initialOrder === "Surname" ? "text-white/70" : "text-[#6c5a73]")}>Predictable A-Z starting positions</span></span></button>
+                        <button type="button" aria-pressed={initialOrder === "Random"} onClick={() => setInitialOrder("Random")} className={cn("flex min-h-12 items-center gap-3 rounded-lg px-3 text-left ring-1", initialOrder === "Random" ? "bg-[#10233f] text-white ring-[#10233f]" : "bg-white text-[#10233f] ring-[#e3ddea]")}><Shuffle className="h-5 w-5 shrink-0" /><span><span className="block text-sm font-black">Random draw</span><span className={cn("block text-[11px] font-semibold", initialOrder === "Random" ? "text-white/70" : "text-[#6c5a73]")}>Shuffle all selected players once</span></span></button>
+                      </div>
                       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><label className="relative min-w-0"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6c5a73]" /><input className="min-h-10 w-full rounded-lg border border-[#e3ddea] bg-white pl-9 pr-3 text-sm font-bold" value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder="Find a club member" /></label><Button type="button" size="sm" variant="secondary" onClick={() => setInitialPersonIds(eligibleMembers.map((member) => member.personId))}>Select all</Button><Button type="button" size="sm" variant="secondary" onClick={() => setInitialPersonIds([])}>Clear</Button></div>
                       <div className="grid max-h-64 gap-2 overflow-y-auto p-0.5 sm:grid-cols-2 xl:grid-cols-3">
                         {visibleMembers.map((member) => { const selected = initialPersonIds.includes(member.personId); return <label key={member.personId} className={cn("flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ring-1", selected ? "bg-[#eaf8f4] ring-[#83d8c2]" : "bg-[#f7f5fa] ring-[#eeeaf2]")}><input type="checkbox" checked={selected} onChange={() => setInitialPersonIds((current) => selected ? current.filter((id) => id !== member.personId) : [...current, member.personId])} /><span className="min-w-0 flex-1 truncate text-sm font-extrabold text-[#10233f]">{member.name}</span><span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-black uppercase text-[#6c5a73] ring-1 ring-[#ded7e5]" title={member.handicap === null ? "No handicap recorded" : `Handicap ${member.handicap}`}>Hcp {member.handicap ?? "-"}</span></label>; })}
