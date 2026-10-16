@@ -334,5 +334,36 @@ function CupVisibilityEditor({ competition, leagues, onMessage, onSaved }: { com
     }
   }
 
-  return <section className="grid gap-2 rounded-lg bg-[#f7f5fa] p-3 md:grid-cols-[minmax(0,230px)_1fr_auto] md:items-center"><label className="grid gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">Visible to<select className="rounded-lg border border-[#ded7e5] bg-white px-3 py-2 text-sm font-bold normal-case text-[#10233f]" value={audience} onChange={(event) => { setAudience(event.target.value as CupAudience); if (event.target.value !== "Specific Leagues") setLeagueIds([]); }}><option>All Players</option><option>All Managers</option><option>Specific Leagues</option><option>League Chairs</option></select></label>{audience === "Specific Leagues" ? <LeagueVisibilityChoices leagues={leagues} selected={leagueIds} onChange={setLeagueIds} /> : <p className="text-xs font-semibold text-[#6c5a73]">Visibility is checked from each person&apos;s active platform roles.</p>}<Button size="sm" disabled={!changed || busy} onClick={() => void save()}>{busy ? "Saving..." : "Save visibility"}</Button></section>;
+  return (
+    <section className="grid gap-3 rounded-lg bg-[#f7f5fa] p-3 md:grid-cols-[minmax(0,230px)_minmax(0,1fr)_auto] md:items-end">
+      <label className="grid min-w-0 gap-1 text-xs font-extrabold uppercase text-[#6c5a73]">
+        Visible to
+        <select
+          className="min-h-10 w-full rounded-lg border border-[#ded7e5] bg-white px-3 py-2 text-sm font-bold normal-case text-[#10233f]"
+          value={audience}
+          onChange={(event) => {
+            setAudience(event.target.value as CupAudience);
+            if (event.target.value !== "Specific Leagues") setLeagueIds([]);
+          }}
+        >
+          <option>All Players</option>
+          <option>All Managers</option>
+          <option>Specific Leagues</option>
+          <option>League Chairs</option>
+        </select>
+      </label>
+      {audience === "Specific Leagues" ? (
+        <div className="flex min-h-10 items-center">
+          <LeagueVisibilityChoices leagues={leagues} selected={leagueIds} onChange={setLeagueIds} />
+        </div>
+      ) : (
+        <p className="flex min-h-10 items-center text-xs font-semibold text-[#6c5a73]">
+          Visibility is checked from each person&apos;s active platform roles.
+        </p>
+      )}
+      <Button className="min-h-10" size="sm" disabled={!changed || busy} onClick={() => void save()}>
+        {busy ? "Saving..." : "Save visibility"}
+      </Button>
+    </section>
+  );
 }

@@ -78,6 +78,8 @@ test("cup visibility supports players, managers, selected leagues and league cha
   assert.match(cupAdmin, /All Managers/);
   assert.match(cupAdmin, /Specific Leagues/);
   assert.match(cupAdmin, /League Chairs/);
+  assert.match(cupAdmin, /md:items-end/);
+  assert.match(cupAdmin, /flex min-h-10 items-center/);
   assert.match(fixtureRoute, /can_person_view_cup/);
 });
 
