@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { LeagueChairLiveIndicator, LeagueChairLiveStatusList, useLiveScoringStatuses } from "@/components/live-scoring-dashboard";
 import { LastManStandingHomePanel, LastManStandingPage } from "@/components/last-man-standing";
 import { ClubLadderPage } from "@/components/club-ladder";
+import { ClubFeatureUnavailable } from "@/components/club-feature-unavailable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { shouldShowFixtureDates } from "@/lib/fixture-scheduling.mjs";
 import { cn } from "@/lib/utils";
@@ -1730,19 +1731,14 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
 
   if (activeTeam.club !== "Castle Golf Club") {
     return (
-      <section className="grid gap-4">
-        <Card className="overflow-hidden">
-          <CardContent className="pt-4">
-            <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
-              <p className="text-xs font-extrabold uppercase text-white/65">Table bookings</p>
-              <h2 className="mt-1 text-3xl font-black leading-none">{activeTeam.club}</h2>
-              <p className="mt-2 text-sm font-semibold text-white/75">
-                This has not been set up for your club as of yet.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+      <ClubFeatureUnavailable
+        icon={CalendarPlus}
+        eyebrow="Table bookings"
+        title="Table bookings are not set up yet."
+        description="Once a club administrator enables bookings, members can view availability and reserve tables here."
+        primaryColor={activeTeam.primaryColor}
+        accentColor={activeTeam.accentColor}
+      />
     );
   }
 
@@ -2284,6 +2280,19 @@ function CompetitionsPage({ activeTeam }: { activeTeam: TeamContext }) {
   const enterableCompetitions = orderedCompetitions.filter((competition) => competition.status === "Open" && !competition.isEntered && !competitionEntryClosed(competition) && Boolean(membershipForCompetition(competition)));
   const otherCompetitions = orderedCompetitions.filter((competition) => !competition.isEntered && !enterableCompetitions.some((enterable) => enterable.id === competition.id));
 
+  if (!loading && !message && !competitions.length) {
+    return (
+      <ClubFeatureUnavailable
+        icon={Trophy}
+        eyebrow="Club competitions"
+        title="No club competitions have been created yet."
+        description="Once a club administrator creates a competition, members can enter and follow draws, rounds and results here."
+        primaryColor={activeTeam.primaryColor}
+        accentColor={activeTeam.accentColor}
+      />
+    );
+  }
+
   return (
     <section className="grid gap-4">
         <Card>
@@ -2731,7 +2740,6 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
       </Card>
       <ClubTeamsOverview activeTeam={activeTeam} />
       <AttackSnookerGameCard />
-      <CompetitionPanel activeTeam={activeTeam} mode="open" onNavigate={onNavigate} />
     </section>
   );
 }

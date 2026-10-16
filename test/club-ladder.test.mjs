@@ -13,6 +13,7 @@ import {
 const schema = readFileSync(new URL("../supabase/club_ladders.sql", import.meta.url), "utf8");
 const appShell = readFileSync(new URL("../components/app-shell.tsx", import.meta.url), "utf8");
 const ladderPage = readFileSync(new URL("../components/club-ladder.tsx", import.meta.url), "utf8");
+const unavailableState = readFileSync(new URL("../components/club-feature-unavailable.tsx", import.meta.url), "utf8");
 const adminConsole = readFileSync(new URL("../components/admin-console.tsx", import.meta.url), "utf8");
 const adminLadders = readFileSync(new URL("../components/admin-club-ladders.tsx", import.meta.url), "utf8");
 const ladderApi = readFileSync(new URL("../app/api/club/ladder/route.ts", import.meta.url), "utf8");
@@ -70,6 +71,16 @@ test("admin and My Club expose the ladder without adding it to the main navigati
   assert.match(ladderPage, /This club has not configured a ladder yet\./);
   assert.match(ladderPage, /Ladder rules/);
   assert.doesNotMatch(appShell, /"Ladder"[^\n]+AppearanceMenuId/);
+});
+
+test("unavailable club features share the ladder layout and club colour treatment", () => {
+  assert.match(ladderPage, /<ClubFeatureUnavailable/);
+  assert.match(appShell, /title="Table bookings are not set up yet\."/);
+  assert.match(appShell, /title="No club competitions have been created yet\."/);
+  assert.match(unavailableState, /sm:grid-cols-\[72px_1fr\]/);
+  assert.match(unavailableState, /linear-gradient\(135deg/);
+  assert.match(unavailableState, /primaryColor/);
+  assert.match(unavailableState, /accentColor/);
 });
 
 test("admin ladder settings constrain controls inside responsive grid columns", () => {

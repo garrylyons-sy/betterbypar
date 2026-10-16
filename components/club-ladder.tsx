@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClubFeatureUnavailable } from "@/components/club-feature-unavailable";
 import { requiredFrameWins } from "@/lib/club-ladder.mjs";
 import type { TeamContext } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -125,16 +126,14 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
   }
   if (!data?.configured) {
     return (
-      <Card className="overflow-hidden">
-        <CardContent className="grid gap-4 p-5 sm:grid-cols-[72px_1fr] sm:items-center">
-          <span className="grid h-16 w-16 place-items-center rounded-2xl bg-[#10233f] text-white"><Swords className="h-8 w-8" /></span>
-          <div>
-            <p className="text-xs font-black uppercase text-[#6c5a73]">Club ladder</p>
-            <h2 className="mt-1 text-2xl font-black text-[#10233f]">This club has not configured a ladder yet.</h2>
-            <p className="mt-2 text-sm font-semibold text-[#6c5a73]">Once a club administrator switches it on, members can join, challenge nearby players and record results here.</p>
-          </div>
-        </CardContent>
-      </Card>
+      <ClubFeatureUnavailable
+        icon={Swords}
+        eyebrow="Club ladder"
+        title="This club has not configured a ladder yet."
+        description="Once a club administrator switches it on, members can join, challenge nearby players and record results here."
+        primaryColor={activeTeam.primaryColor}
+        accentColor={activeTeam.accentColor}
+      />
     );
   }
 

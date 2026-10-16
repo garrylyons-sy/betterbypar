@@ -53,6 +53,15 @@ test("club member home respects configured panels and remains useful without ope
   }
 });
 
+test("My Club links to competitions without repeating the competition panel", () => {
+  const clubHubSource = appShellSource.slice(
+    appShellSource.indexOf("function ClubHubPage"),
+    appShellSource.indexOf("function ClubActionTile")
+  );
+  assert.match(clubHubSource, /onNavigate\("Competitions"\)/, "My Club should keep its competitions menu tile");
+  assert.doesNotMatch(clubHubSource, /<CompetitionPanel/, "My Club should not repeat competitions at the bottom");
+});
+
 test("platform operator contexts receive League Chair pilot access", () => {
   assert.match(authSource, /isAppOperator[\s\S]*hasLiveScoringAccess/);
   assert.doesNotMatch(authSource, /\(leagueChairMemberships\.length > 0 \|\| isAppOperator\)[\s\S]*hasLeagueChairAccess: true/, "operator scoring must not grant unrelated League Chair features");
