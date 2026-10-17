@@ -137,8 +137,12 @@ export async function GET(request: NextRequest) {
        break_stats as (
          select b.player_id as person_id, max(b.break_value) as highest_break
          from public.break b
+         left join public.game break_game on break_game.id = b.game_id
+         left join public.match break_match on break_match.id = break_game.match_id
+         left join public.fixture break_fixture on break_fixture.id = break_match.fixture_id
          where b.season_id = (select season_id from target)
            and b.league_id = (select league_id from target)
+           and (break_fixture.id is null or coalesce(break_fixture.fixture_type, 'League') = 'League')
          group by b.player_id
        ),
        raw_stats as (
