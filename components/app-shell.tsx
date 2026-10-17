@@ -5347,9 +5347,9 @@ function defaultFixtureWeekIndex(weeks: FixtureWeek[], league: TeamContext["leag
   )).index;
 }
 
-const MATCH_POLL_ACTIVE_MS = 15_000;
-const MATCH_POLL_IDLE_MS = 60_000;
-const MATCH_POLL_TICK_MS = 15_000;
+const MATCH_POLL_ACTIVE_MS = 30_000;
+const MATCH_POLL_IDLE_MS = 120_000;
+const MATCH_POLL_TICK_MS = 30_000;
 
 function fixtureWeekPollInterval(week?: FixtureWeek) {
   if (!week) return null;

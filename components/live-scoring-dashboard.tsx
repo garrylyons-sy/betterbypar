@@ -12,6 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const LIVE_STATUS_POLL_MS = 20_000;
+const LIVE_DASHBOARD_POLL_MS = 20_000;
+
 export type CompactLiveStatus = {
   fixture_id: string;
   game_id: string;
@@ -79,7 +82,7 @@ export function useLiveScoringStatuses(fixtureIds: string[], enabled = true) {
       }).catch(() => undefined);
     };
     load();
-    const pollId = window.setInterval(load, 10000);
+    const pollId = window.setInterval(load, LIVE_STATUS_POLL_MS);
     document.addEventListener("visibilitychange", load);
     return () => {
       active = false;
@@ -204,7 +207,7 @@ export function LiveScoringDashboard({ userName = "", embedded = false }: { user
     const poll = () => {
       if (document.visibilityState === "visible") void load(true);
     };
-    const pollId = window.setInterval(poll, 10000);
+    const pollId = window.setInterval(poll, LIVE_DASHBOARD_POLL_MS);
     document.addEventListener("visibilitychange", poll);
     return () => {
       window.clearInterval(pollId);

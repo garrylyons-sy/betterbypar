@@ -81,7 +81,7 @@ test("normal fixtures show a small League Chair-only live indicator", () => {
   assert.match(appShell, /activeTeam\.hasLiveScoringAccess[\s\S]*LeagueChairLiveIndicator/);
   assert.match(dashboard, /fixtureIds/);
   assert.match(dashboard, /document\.visibilityState === "visible"/);
-  assert.match(dashboard, /10000/, "compact status polling should be slower than the active scorer");
+  assert.match(dashboard, /LIVE_STATUS_POLL_MS = 20_000/, "compact status polling should be slower than the active scorer");
   assert.match(dashboardRoute, /loadLiveScoringStatuses/);
   assert.match(service, /status in \('Live', 'Paused'\)/, "fixture indicators should omit closed sessions");
   assert.match(service, /join public\.fixture f on f\.id = lfs\.fixture_id[\s\S]*join public\.season s on s\.id = f\.season_id/);

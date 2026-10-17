@@ -14,6 +14,8 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import { isValidPassword } from "@/lib/password-policy";
 import type { AppearanceConfig, MatchResult, PlayerBreakStat, PlayerGameResult, Role, SponsorAd, Standing, TeamContext } from "@/lib/types";
 
+const VISIBILITY_REFRESH_COOLDOWN_MS = 5_000;
+
 type AuthMode = "signin" | "activate" | "forgot" | "request";
 type TeamOption = {
   clubId: string;
@@ -164,12 +166,14 @@ export function AuthGateway() {
 
   useEffect(() => {
     if (!session?.authenticated) return;
+    let lastRefreshAt = 0;
 
     const refreshVisibleSession = () => {
-      if (document.visibilityState === "visible") {
-        refreshSession({ silent: true });
-        window.dispatchEvent(new Event("interclub:refresh-panels"));
-      }
+      const now = Date.now();
+      if (document.visibilityState !== "visible" || now - lastRefreshAt < VISIBILITY_REFRESH_COOLDOWN_MS) return;
+      lastRefreshAt = now;
+      refreshSession({ silent: true });
+      window.dispatchEvent(new Event("interclub:refresh-panels"));
     };
 
     window.addEventListener("focus", refreshVisibleSession);
