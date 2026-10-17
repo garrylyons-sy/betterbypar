@@ -163,17 +163,6 @@ export function AuthGateway() {
   }, [refreshSession]);
 
   useEffect(() => {
-    if (!session?.authenticated || !session.activeMatchCount) return;
-
-    const poll = window.setInterval(() => {
-      refreshSession({ silent: true });
-      window.dispatchEvent(new Event("interclub:refresh-panels"));
-    }, 60000);
-
-    return () => window.clearInterval(poll);
-  }, [refreshSession, session?.activeMatchCount, session?.authenticated]);
-
-  useEffect(() => {
     if (!session?.authenticated) return;
 
     const refreshVisibleSession = () => {

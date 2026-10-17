@@ -5347,11 +5347,21 @@ function defaultFixtureWeekIndex(weeks: FixtureWeek[], league: TeamContext["leag
   )).index;
 }
 
-function fixtureWeekShouldPoll(week?: FixtureWeek) {
-  if (!week) return false;
+const MATCH_POLL_ACTIVE_MS = 15_000;
+const MATCH_POLL_IDLE_MS = 60_000;
+const MATCH_POLL_TICK_MS = 15_000;
+
+function fixtureWeekPollInterval(week?: FixtureWeek) {
+  if (!week) return null;
   const today = localIsoDate();
-  if (!isMatchPollingWindow()) return false;
-  return week.fixtures.some((fixture) => fixture.fixtureDate.slice(0, 10) === today && fixture.status !== "Completed");
+  if (!isMatchPollingWindow()) return null;
+  const activeFixtures = week.fixtures.filter((fixture) => (
+    fixture.fixtureDate.slice(0, 10) === today && fixture.status !== "Completed"
+  ));
+  if (!activeFixtures.length) return null;
+  return activeFixtures.some((fixture) => fixture.completedGames > 0)
+    ? MATCH_POLL_ACTIVE_MS
+    : MATCH_POLL_IDLE_MS;
 }
 
 function isMatchPollingWindow() {
@@ -5360,9 +5370,13 @@ function isMatchPollingWindow() {
   return minutes >= 19 * 60 + 30 && minutes <= 23 * 60 + 30;
 }
 
-function managerLineupShouldPoll(payload: ManagerLineupPayload | null) {
-  if (!payload?.fixture || payload.fixture.status === "Completed") return false;
-  return payload.fixture.fixtureDate.slice(0, 10) === localIsoDate() && isMatchPollingWindow();
+function managerLineupPollInterval(payload: ManagerLineupPayload | null) {
+  if (!payload?.fixture || payload.fixture.status === "Completed") return null;
+  if (payload.fixture.fixtureDate.slice(0, 10) !== localIsoDate() || !isMatchPollingWindow()) return null;
+  const currentWeekFixture = payload.weekFixtures.find((fixture) => fixture.id === payload.fixture?.id);
+  const hasStarted = payload.games.some((game) => Boolean(game.winner_team_id))
+    || (currentWeekFixture?.completedGames ?? 0) > 0;
+  return hasStarted ? MATCH_POLL_ACTIVE_MS : MATCH_POLL_IDLE_MS;
 }
 
 function fixtureHasStarted(fixture: FixtureWeekFixture) {
@@ -5413,6 +5427,7 @@ function FixtureWeekCarouselCard({
   useEffect(() => {
     let active = true;
     let pollId: number | undefined;
+    let lastPollAt = Date.now();
     setLoading(true);
     setMessage("");
 
@@ -5440,14 +5455,20 @@ function FixtureWeekCarouselCard({
     loadWeeks(true)
       .then(() => {
         if (!active) return;
+        lastPollAt = Date.now();
         pollId = window.setInterval(() => {
+          if (document.visibilityState !== "visible") return;
           setWeeks((currentWeeks) => {
-            if (embeddedDemoMode || fixtureWeekShouldPoll(currentWeeks[activeIndexRef.current])) {
+            const interval = embeddedDemoMode
+              ? MATCH_POLL_ACTIVE_MS
+              : fixtureWeekPollInterval(currentWeeks[activeIndexRef.current]);
+            if (interval && Date.now() - lastPollAt >= interval) {
+              lastPollAt = Date.now();
               loadWeeks(false).catch(() => undefined);
             }
             return currentWeeks;
           });
-        }, 30000);
+        }, MATCH_POLL_TICK_MS);
       })
       .catch((error) => {
         if (active) setMessage(error instanceof Error ? error.message : "Fixtures unavailable.");
@@ -5456,6 +5477,7 @@ function FixtureWeekCarouselCard({
         if (active) setLoading(false);
       });
     const refreshPanels = () => {
+      lastPollAt = Date.now();
       loadWeeks(false).catch(() => undefined);
     };
     window.addEventListener("interclub:refresh-panels", refreshPanels);
@@ -5775,13 +5797,20 @@ function ManagerLineupCard({
       }
     }
 
+    let lastPollAt = Date.now();
     loadLineup();
     const poll = window.setInterval(() => {
-      if (testManagerMode || managerLineupShouldPoll(payloadRef.current)) {
+      if (document.visibilityState !== "visible") return;
+      const interval = testManagerMode
+        ? MATCH_POLL_ACTIVE_MS
+        : managerLineupPollInterval(payloadRef.current);
+      if (interval && Date.now() - lastPollAt >= interval) {
+        lastPollAt = Date.now();
         loadLineup();
       }
-    }, 30000);
+    }, MATCH_POLL_TICK_MS);
     const refreshPanels = () => {
+      lastPollAt = Date.now();
       loadLineup();
     };
     window.addEventListener("interclub:refresh-panels", refreshPanels);

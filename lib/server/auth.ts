@@ -1190,6 +1190,7 @@ export async function loadSessionPayload(user: AppUser) {
      from public.fixture f
      where f.fixture_date::date = (now() at time zone 'Europe/Dublin')::date
        and coalesce(f.fixture_type, 'League') = 'League'
+       and f.status <> 'Completed'
        and (now() at time zone 'Europe/Dublin')::time >= time '19:30'
        and (now() at time zone 'Europe/Dublin')::time < time '23:30'`
   )).rows[0]?.count ?? 0);
