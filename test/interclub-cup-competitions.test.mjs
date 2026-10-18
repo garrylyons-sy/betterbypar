@@ -11,6 +11,7 @@ const managerRoute = readFileSync(new URL("../app/api/manager/lineup/route.ts", 
 const fixtureRoute = readFileSync(new URL("../app/api/fixtures/weeks/route.ts", import.meta.url), "utf8");
 const cupAdmin = readFileSync(new URL("../components/admin-cup-competitions.tsx", import.meta.url), "utf8");
 const cupAdminRoute = readFileSync(new URL("../app/api/admin/cup-competitions/route.ts", import.meta.url), "utf8");
+const expandedVisibilityMigration = readFileSync(new URL("../supabase/cup_competition_expanded_visibility.sql", import.meta.url), "utf8");
 
 test("cup bracket creates first-round byes and every later-round placeholder", () => {
   const bracket = buildCupBracket({
@@ -68,19 +69,26 @@ test("fixture calendar includes cup fixtures and unresolved cup placeholders", (
   assert.match(fixtureRoute, /fixtureType: "League" \| "Cup"/);
 });
 
-test("cup visibility supports players, managers, selected leagues and league chairs", () => {
-  for (const source of [migration, schema]) {
-    assert.match(source, /'All Players', 'All Managers', 'Specific Leagues', 'League Chairs'/);
+test("cup visibility supports everyone, combined roles, selected leagues and league chairs", () => {
+  for (const source of [migration, schema, expandedVisibilityMigration]) {
+    assert.match(source, /'Everyone', 'All Players', 'All Managers', 'All Players and Managers', 'Specific Leagues', 'League Chairs'/);
     assert.match(source, /cup_competition_visibility_league/);
     assert.match(source, /can_person_view_cup/);
   }
+  assert.match(expandedVisibilityMigration, /cc\.audience = 'Everyone'/);
+  assert.match(expandedVisibilityMigration, /cc\.audience = 'All Players and Managers'/);
+  assert.match(expandedVisibilityMigration, /ptr\.role in \('Player', 'Manager'\)/);
+  assert.match(cupAdmin, /Everyone/);
   assert.match(cupAdmin, /All Players/);
   assert.match(cupAdmin, /All Managers/);
+  assert.match(cupAdmin, /All Players and Managers/);
   assert.match(cupAdmin, /Specific Leagues/);
   assert.match(cupAdmin, /League Chairs/);
   assert.match(cupAdmin, /md:items-end/);
   assert.match(cupAdmin, /flex min-h-10 items-center/);
   assert.match(fixtureRoute, /can_person_view_cup/);
+  assert.match(cupAdminRoute, /All Players and Managers/);
+  assert.match(cupAdminRoute, /Everyone/);
 });
 
 test("deleting a cup removes generated fixtures and all competition-owned records", () => {

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cupRoundDateError } from "@/lib/cup-round-dates.mjs";
 
-type CupAudience = "All Players" | "All Managers" | "Specific Leagues" | "League Chairs";
+type CupAudience = "Everyone" | "All Players" | "All Managers" | "All Players and Managers" | "Specific Leagues" | "League Chairs";
 type CupTeam = { id: string; name: string; season_id: string; season_name: string; league_id: string; league_name: string; club_name: string };
 type CupLeague = { id: string; name: string };
 type CupRound = {
@@ -202,9 +202,9 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
               <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-black text-[#25002b]">Visibility</h3><Badge variant="muted">{audience}</Badge></div>
               <div className="grid gap-2 md:grid-cols-[minmax(0,260px)_1fr]">
                 <select className="rounded-lg border border-[#ded7e5] bg-white px-3 py-2 text-sm font-bold text-[#10233f]" value={audience} onChange={(event) => { setAudience(event.target.value as CupAudience); if (event.target.value !== "Specific Leagues") setVisibilityLeagueIds([]); }}>
-                  <option>All Players</option><option>All Managers</option><option>Specific Leagues</option><option>League Chairs</option>
+                  <option>Everyone</option><option>All Players</option><option>All Managers</option><option>All Players and Managers</option><option>Specific Leagues</option><option>League Chairs</option>
                 </select>
-                {audience === "Specific Leagues" ? <LeagueVisibilityChoices leagues={data.leagues} selected={visibilityLeagueIds} onChange={setVisibilityLeagueIds} /> : <p className="self-center text-xs font-semibold text-[#6c5a73]">Only signed-in people with the selected role will see this cup in the normal app.</p>}
+                {audience === "Specific Leagues" ? <LeagueVisibilityChoices leagues={data.leagues} selected={visibilityLeagueIds} onChange={setVisibilityLeagueIds} /> : <p className="self-center text-xs font-semibold text-[#6c5a73]">{cupAudienceDescription(audience)}</p>}
               </div>
             </section>
 
@@ -307,6 +307,15 @@ function LeagueVisibilityChoices({ leagues, selected, onChange }: { leagues: Cup
   return <div className="flex flex-wrap gap-2">{leagues.map((league) => <label key={league.id} className="flex items-center gap-2 rounded-lg bg-[#f7f5fa] px-3 py-2 text-xs font-extrabold text-[#10233f]"><input type="checkbox" checked={selected.includes(league.id)} onChange={() => onChange(selected.includes(league.id) ? selected.filter((id) => id !== league.id) : [...selected, league.id])} />{league.name}</label>)}</div>;
 }
 
+function cupAudienceDescription(audience: CupAudience) {
+  if (audience === "Everyone") return "Every active signed-in person will see this cup in the normal app.";
+  if (audience === "All Players and Managers") return "Every active player or manager will see this cup in the normal app.";
+  if (audience === "All Players") return "Every active player will see this cup in the normal app.";
+  if (audience === "All Managers") return "Every active manager will see this cup in the normal app.";
+  if (audience === "League Chairs") return "Only League Chairs will see this cup in the normal app.";
+  return "Players and managers in the selected leagues will see this cup in the normal app.";
+}
+
 function CupVisibilityEditor({ competition, leagues, onMessage, onSaved }: { competition: CupCompetition; leagues: CupLeague[]; onMessage: (message: string) => void; onSaved: () => Promise<void> }) {
   const [audience, setAudience] = useState<CupAudience>(competition.audience);
   const [leagueIds, setLeagueIds] = useState<string[]>(competition.visibilityLeagueIds ?? []);
@@ -346,8 +355,10 @@ function CupVisibilityEditor({ competition, leagues, onMessage, onSaved }: { com
             if (event.target.value !== "Specific Leagues") setLeagueIds([]);
           }}
         >
+          <option>Everyone</option>
           <option>All Players</option>
           <option>All Managers</option>
+          <option>All Players and Managers</option>
           <option>Specific Leagues</option>
           <option>League Chairs</option>
         </select>
@@ -358,7 +369,7 @@ function CupVisibilityEditor({ competition, leagues, onMessage, onSaved }: { com
         </div>
       ) : (
         <p className="flex min-h-10 items-center text-xs font-semibold text-[#6c5a73]">
-          Visibility is checked from each person&apos;s active platform roles.
+          {cupAudienceDescription(audience)}
         </p>
       )}
       <Button className="min-h-10" size="sm" disabled={!changed || busy} onClick={() => void save()}>

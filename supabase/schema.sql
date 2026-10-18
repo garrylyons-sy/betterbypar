@@ -616,7 +616,7 @@ create table public.cup_competition (
   name text not null,
   round_count integer not null check (round_count between 1 and 6),
   status text not null default 'Draft' check (status in ('Draft', 'Drawn', 'In Progress', 'Complete')),
-  audience text not null default 'All Players' check (audience in ('All Players', 'All Managers', 'Specific Leagues', 'League Chairs')),
+  audience text not null default 'All Players' check (audience in ('Everyone', 'All Players', 'All Managers', 'All Players and Managers', 'Specific Leagues', 'League Chairs')),
   created_by uuid references public.person(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -727,6 +727,9 @@ as $$
     where cc.id = competition_uuid
       and (
         exists (select 1 from public.app_operator ao where ao.person_id = person_uuid and ao.active = true)
+        or (cc.audience = 'Everyone' and exists (
+          select 1 from public.person p where p.id = person_uuid and p.active = true
+        ))
         or (cc.audience = 'League Chairs' and exists (
           select 1 from public.club_membership cm
           where cm.person_id = person_uuid and cm.role = 'League Chair' and cm.active = true
@@ -746,6 +749,14 @@ as $$
             where ptr.person_id = person_uuid and ptr.role = 'Manager' and ptr.active = true
           )
           or exists (select 1 from public.team_membership tm where tm.person_id = person_uuid and tm.role = 'Manager' and tm.active = true)
+        ))
+        or (cc.audience = 'All Players and Managers' and (
+          exists (
+            select 1 from public.person_team_role ptr
+            join public.club_membership cm on cm.id = ptr.club_membership_id and cm.active = true
+            where ptr.person_id = person_uuid and ptr.role in ('Player', 'Manager') and ptr.active = true
+          )
+          or exists (select 1 from public.team_membership tm where tm.person_id = person_uuid and tm.role in ('Player', 'Manager') and tm.active = true)
         ))
         or (cc.audience = 'Specific Leagues' and exists (
           select 1

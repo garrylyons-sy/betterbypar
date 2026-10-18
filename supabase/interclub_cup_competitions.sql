@@ -47,7 +47,7 @@ alter table public.cup_competition
 alter table public.cup_competition drop constraint if exists cup_competition_audience_check;
 alter table public.cup_competition
   add constraint cup_competition_audience_check
-  check (audience in ('All Players', 'All Managers', 'Specific Leagues', 'League Chairs'));
+  check (audience in ('Everyone', 'All Players', 'All Managers', 'All Players and Managers', 'Specific Leagues', 'League Chairs'));
 
 create table if not exists public.cup_competition_format_slot (
   id uuid primary key default gen_random_uuid(),
@@ -164,6 +164,13 @@ as $$
           where ao.person_id = person_uuid and ao.active = true
         )
         or (
+          cc.audience = 'Everyone'
+          and exists (
+            select 1 from public.person p
+            where p.id = person_uuid and p.active = true
+          )
+        )
+        or (
           cc.audience = 'League Chairs'
           and exists (
             select 1 from public.club_membership cm
@@ -197,6 +204,21 @@ as $$
             or exists (
               select 1 from public.team_membership tm
               where tm.person_id = person_uuid and tm.role = 'Manager' and tm.active = true
+            )
+          )
+        )
+        or (
+          cc.audience = 'All Players and Managers'
+          and (
+            exists (
+              select 1
+              from public.person_team_role ptr
+              join public.club_membership cm on cm.id = ptr.club_membership_id and cm.active = true
+              where ptr.person_id = person_uuid and ptr.role in ('Player', 'Manager') and ptr.active = true
+            )
+            or exists (
+              select 1 from public.team_membership tm
+              where tm.person_id = person_uuid and tm.role in ('Player', 'Manager') and tm.active = true
             )
           )
         )

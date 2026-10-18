@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     const visibilityLeagueIds = Array.from(new Set((Array.isArray(body.visibilityLeagueIds) ? body.visibilityLeagueIds : []).map((value: unknown) => String(value).trim()).filter(Boolean)));
 
     if (!name || !seasonId) return NextResponse.json({ error: "Name and season are required." }, { status: 400 });
-    if (!["All Players", "All Managers", "Specific Leagues", "League Chairs"].includes(audience)) return NextResponse.json({ error: "Choose a valid audience." }, { status: 400 });
+    if (!["Everyone", "All Players", "All Managers", "All Players and Managers", "Specific Leagues", "League Chairs"].includes(audience)) return NextResponse.json({ error: "Choose a valid audience." }, { status: 400 });
     if (audience === "Specific Leagues" && !visibilityLeagueIds.length) return NextResponse.json({ error: "Choose at least one visible league." }, { status: 400 });
     if (!Number.isInteger(roundCount) || roundCount < 1 || roundCount > 6) return NextResponse.json({ error: "Choose between 1 and 6 rounds." }, { status: 400 });
     const capacity = 2 ** roundCount;
@@ -184,7 +184,7 @@ export async function PATCH(request: NextRequest) {
     const audience = String(body.audience ?? "").trim();
     const visibilityLeagueIds = Array.from(new Set((Array.isArray(body.visibilityLeagueIds) ? body.visibilityLeagueIds : []).map((value: unknown) => String(value).trim()).filter(Boolean)));
     if (!competitionId) return NextResponse.json({ error: "Competition is required." }, { status: 400 });
-    if (!["All Players", "All Managers", "Specific Leagues", "League Chairs"].includes(audience)) return NextResponse.json({ error: "Choose a valid audience." }, { status: 400 });
+    if (!["Everyone", "All Players", "All Managers", "All Players and Managers", "Specific Leagues", "League Chairs"].includes(audience)) return NextResponse.json({ error: "Choose a valid audience." }, { status: 400 });
     if (audience === "Specific Leagues" && !visibilityLeagueIds.length) return NextResponse.json({ error: "Choose at least one visible league." }, { status: 400 });
 
     await withTransaction(async (client) => {
