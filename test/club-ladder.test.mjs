@@ -159,6 +159,10 @@ test("eligible club members have a configurable visual ladder home panel", () =>
   assert.match(ladderPage, /Recent form/);
   assert.match(ladderPage, /Join ladder/);
   assert.match(ladderPage, /action: "join"/);
+  assert.match(ladderPage, /challenge\.status === "Pending" && challenge\.isChallenged/);
+  assert.match(ladderPage, /Challenge received/);
+  assert.match(ladderPage, /Respond by/);
+  assert.match(ladderPage, /Respond now/);
   assert.match(appShell, /panel === "clubLadder"/);
   assert.match(appearanceMigration, /panel_config \|\| '\["clubLadder"\]'/);
 });

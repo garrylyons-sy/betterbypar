@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Check, ChevronDown, ChevronRight, Clock3, Crosshair, LogOut, Medal, RotateCcw, Scale, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
+import { BellRing, CalendarClock, Check, ChevronDown, ChevronRight, Clock3, Crosshair, LogOut, Medal, RotateCcw, Scale, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -107,13 +107,16 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
 
   if (!data?.ladders.length) return null;
 
-  const ladderView = data.ladders.find((item) => item.me) ?? data.ladders[0];
+  const ladderView = data.ladders.find((item) => item.challenges.some((challenge) => challenge.status === "Pending" && challenge.isChallenged))
+    ?? data.ladders.find((item) => item.me)
+    ?? data.ladders[0];
   const myEntry = ladderView.me ? ladderView.entries.find((entry) => entry.id === ladderView.me?.entryId) ?? null : null;
   const activeChallenges = ladderView.challenges.filter((challenge) => ["Pending", "Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status));
+  const incomingChallenge = activeChallenges.find((challenge) => challenge.status === "Pending" && challenge.isChallenged) ?? null;
   const totalPlayers = ladderView.entries.length;
 
   return (
-    <Card className={cn("overflow-hidden", className)}>
+    <Card className={cn("overflow-hidden", incomingChallenge && "border-[#e7b84b] ring-2 ring-[#f4d98c]/70", className)}>
       <div
         className="grid gap-4 p-4 text-white sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
         style={{ background: `linear-gradient(135deg, ${activeTeam.primaryColor}, ${activeTeam.accentColor} 68%, #071426)` }}
@@ -130,11 +133,20 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
           <LadderModeBadge useHandicap={ladderView.ladder.useHandicap} inverse />
           <Badge variant="soft">{totalPlayers} players</Badge>
           {data.ladders.length > 1 ? <Badge variant="soft">{data.ladders.length} ladders</Badge> : null}
+          {incomingChallenge ? <Badge variant="gold">Action needed</Badge> : null}
           {ladderView.me ? <Badge variant="cyan">Position #{ladderView.me.position}</Badge> : <Badge variant="gold">Open to join</Badge>}
         </div>
       </div>
       <CardContent className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-        {ladderView.me ? (
+        {incomingChallenge ? (
+          <div className="flex min-w-0 items-center gap-3 rounded-xl bg-[#fff6dd] px-3 py-3 ring-1 ring-[#efd27f]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#f4c95d] text-[#4f3500]"><BellRing className="h-5 w-5" /></span>
+            <div className="min-w-0">
+              <p className="font-black text-[#4f3500]">Challenge received</p>
+              <p className="mt-0.5 truncate text-xs font-bold text-[#7b5500]">{incomingChallenge.challenger.name} challenged you · Respond by {friendlyDate(incomingChallenge.responseDueAt)}</p>
+            </div>
+          </div>
+        ) : ladderView.me ? (
           <div className="flex flex-wrap items-center gap-3">
             <div>
               <p className="text-[10px] font-black uppercase text-[#6c5a73]">Recent form</p>
@@ -154,7 +166,7 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
           </div>
         )}
         {ladderView.me ? (
-          <Button variant="secondary" onClick={onOpen}>View ladder<ChevronRight className="h-4 w-4" /></Button>
+          <Button variant={incomingChallenge ? "default" : "secondary"} onClick={onOpen}>{incomingChallenge ? "Respond now" : "View ladder"}<ChevronRight className="h-4 w-4" /></Button>
         ) : (
           <Button onClick={() => void join(ladderView.ladder.id)} disabled={joining}><UserPlus className="h-4 w-4" />{joining ? "Joining..." : "Join ladder"}</Button>
         )}
