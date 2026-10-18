@@ -177,10 +177,11 @@ test("ladder home panel compactly identifies the active challenge opponent", () 
   assert.match(ladderPage, /const activeChallenge = activeChallenges\[0\]/);
   assert.match(ladderPage, /activeChallenge\.isChallenger \? activeChallenge\.challenged : activeChallenge\.challenger/);
   assert.match(ladderPage, /Challenge sent/);
-  assert.match(ladderPage, /You challenged/);
   assert.match(ladderPage, /Playing/);
   assert.match(ladderPage, /Reply due/);
   assert.match(ladderPage, /Play by/);
+  assert.doesNotMatch(ladderPage, /You challenged \$\{activeOpponent\.name\}/);
+  assert.doesNotMatch(ladderPage, /Playing \$\{activeOpponent\.name\}/);
 });
 
 test("members see only eligible ladders and the first ladder opens by default", () => {

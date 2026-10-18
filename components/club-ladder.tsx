@@ -170,8 +170,10 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
                   <p className="mt-0.5 truncate text-sm font-black text-[#10233f]">{activeOpponent.name}</p>
                   <p className="truncate text-[10px] font-bold text-[#6c5a73]">
                     {activeChallenge.status === "Pending"
-                      ? `You challenged ${activeOpponent.name} · Reply due ${friendlyDate(activeChallenge.responseDueAt)}`
-                      : `Playing ${activeOpponent.name} · ${activeChallenge.scheduledAt ? `Scheduled ${friendlyDate(activeChallenge.scheduledAt)}` : `Play by ${friendlyDate(activeChallenge.playBy)}`}`}
+                      ? `Reply due ${friendlyDate(activeChallenge.responseDueAt)}`
+                      : activeChallenge.scheduledAt
+                        ? `Scheduled ${friendlyDate(activeChallenge.scheduledAt)}`
+                        : `Play by ${friendlyDate(activeChallenge.playBy)}`}
                   </p>
                 </>
               ) : <p className="mt-1 text-sm font-black text-[#10233f]">None</p>}
