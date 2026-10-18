@@ -4,10 +4,12 @@ import test from "node:test";
 
 import {
   canChallengePosition,
+  canRechallenge,
   canRejectChallenge,
   normalizeLadderInitialOrder,
   normalizeLadderSettings,
   requiredFrameWins,
+  rechallengeAvailableAt,
   validateLadderResult
 } from "../lib/club-ladder.mjs";
 
@@ -43,6 +45,17 @@ test("players may challenge only the configured number of places above", () => {
   assert.equal(canChallengePosition(8, 5, 3), true);
   assert.equal(canChallengePosition(8, 4, 3), false);
   assert.equal(canChallengePosition(5, 6, 3), false);
+});
+
+test("a rejected challenge has a seven day rechallenge cooldown", () => {
+  const rejectedAt = "2026-10-01T18:30:00.000Z";
+  assert.equal(rechallengeAvailableAt(rejectedAt)?.toISOString(), "2026-10-08T18:30:00.000Z");
+  assert.equal(canRechallenge(rejectedAt, "2026-10-08T18:29:59.999Z"), false);
+  assert.equal(canRechallenge(rejectedAt, "2026-10-08T18:30:00.000Z"), true);
+  assert.equal(canRechallenge(null, "2026-10-02T18:30:00.000Z"), true);
+  assert.match(ladderApi, /status = 'Rejected'[\s\S]*order by updated_at desc/);
+  assert.match(ladderApi, /canRechallenge/);
+  assert.match(ladderPage, /Challenge available/);
 });
 
 test("the same challenged player can reject a challenger only once", () => {

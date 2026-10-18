@@ -12,7 +12,7 @@ import type { TeamContext } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type LadderMatchFormat = "1 Frame" | "Best of 3" | "Best of 5";
-type LadderEntry = { id: string; personId: string; name: string; handicap: number | null; recentForm: Array<"W" | "L">; position: number; status: string; canChallenge: boolean };
+type LadderEntry = { id: string; personId: string; name: string; handicap: number | null; recentForm: Array<"W" | "L">; position: number; status: string; canChallenge: boolean; rechallengeAvailableAt: string | null };
 type LadderChallenge = {
   id: string;
   status: string;
@@ -426,7 +426,15 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                 <div className="min-w-0">
                   <p className="truncate font-black text-[#10233f]">{entry.name} {ladder.useHandicap ? <Handicap value={entry.handicap} /> : null}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-black uppercase text-[#6c5a73]">{mine ? "Your position" : entry.canChallenge ? `Beat them to take #${entry.position}` : entry.status}</span>
+                    <span className="text-[10px] font-black uppercase text-[#6c5a73]">
+                      {mine
+                        ? "Your position"
+                        : entry.canChallenge
+                          ? `Beat them to take #${entry.position}`
+                          : entry.rechallengeAvailableAt && new Date(entry.rechallengeAvailableAt) > new Date()
+                            ? `Challenge available ${friendlyDate(entry.rechallengeAvailableAt)}`
+                            : entry.status}
+                    </span>
                     <RecentForm results={entry.recentForm} primaryColor={activeTeam.primaryColor} accentColor={activeTeam.accentColor} />
                   </div>
                 </div>

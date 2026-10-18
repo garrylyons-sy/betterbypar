@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { canChallengePosition, canRejectChallenge, validateLadderResult } from "@/lib/club-ladder.mjs";
+import { canChallengePosition, canRechallenge, canRejectChallenge, rechallengeAvailableAt, validateLadderResult } from "@/lib/club-ladder.mjs";
 import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
@@ -215,9 +215,10 @@ export async function GET(request: Request) {
       last_name: string;
       handicap: string | null;
       recent_form: string[] | null;
+      latest_rejected_at: string | null;
       }>(
       `select cle.id::text, cle.person_id::text, cle.position, cle.status, p.first_name, p.last_name,
-              membership.handicap::text, form.recent_form
+              membership.handicap::text, form.recent_form, rejection.latest_rejected_at
        from public.club_ladder_entry cle
        join public.person p on p.id = cle.person_id and p.active = true
        left join lateral (
@@ -242,9 +243,20 @@ export async function GET(request: Request) {
            limit 3
          ) recent
        ) form on true
+       left join lateral (
+         select challenge.updated_at::text as latest_rejected_at
+         from public.club_ladder_challenge challenge
+         join public.club_ladder_entry challenger on challenger.id = challenge.challenger_entry_id
+         where challenge.ladder_id = cle.ladder_id
+           and challenge.challenged_entry_id = cle.id
+           and challenger.person_id = $3
+           and challenge.status = 'Rejected'
+         order by updated_at desc
+         limit 1
+       ) rejection on true
        where cle.ladder_id = $1 and cle.status in ('Active', 'Paused')
        order by cle.position`,
-      [ladder.id, ladder.club_id]
+      [ladder.id, ladder.club_id, user.personId]
       );
       const myEntry = entries.rows.find((row) => row.person_id === user.personId) ?? null;
       const challenges = myEntry ? await dbQuery<Record<string, unknown>>(
@@ -287,10 +299,13 @@ export async function GET(request: Request) {
         },
         me: myEntry ? { entryId: myEntry.id, personId: user.personId, position: myEntry.position, status: myEntry.status } : null,
         entries: entries.rows.map((row) => ({
+          rechallengeAvailableAt: rechallengeAvailableAt(row.latest_rejected_at)?.toISOString() ?? null,
           id: row.id, personId: row.person_id, name: `${row.first_name} ${row.last_name}`.trim(),
           handicap: row.handicap === null ? null : Number(row.handicap),
           recentForm: Array.isArray(row.recent_form) ? row.recent_form : [], position: row.position, status: row.status,
-          canChallenge: Boolean(myEntry && !hasActiveChallenge && row.status === "Active" && canChallengePosition(myEntry.position, row.position, ladder.challenge_range))
+          canChallenge: Boolean(myEntry && !hasActiveChallenge && row.status === "Active"
+            && canRechallenge(row.latest_rejected_at)
+            && canChallengePosition(myEntry.position, row.position, ladder.challenge_range))
         })),
         challenges: challenges.rows.map((row) => formatChallenge(row, user.personId))
       };
@@ -403,6 +418,18 @@ export async function POST(request: Request) {
         if (!target.rowCount || target.rows[0].status !== "Active") throw new Error("That player is not available to challenge.");
         if (!canChallengePosition(myEntry.position, target.rows[0].position, ladder.challenge_range)) {
           throw new Error(`You can challenge up to ${ladder.challenge_range} places above you.`);
+        }
+        const latestRejection = await client.query<{ updated_at: string }>(
+          `select updated_at::text
+           from public.club_ladder_challenge
+           where ladder_id = $1 and challenger_entry_id = $2 and challenged_entry_id = $3
+             and status = 'Rejected'
+           order by updated_at desc
+           limit 1`,
+          [ladder.id, myEntry.id, target.rows[0].id]
+        );
+        if (!canRechallenge(latestRejection.rows[0]?.updated_at)) {
+          throw new Error("You must wait seven days after a rejected challenge before challenging this player again.");
         }
         const busy = await client.query(
           `select 1 from public.club_ladder_challenge
