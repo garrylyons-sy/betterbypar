@@ -38,7 +38,7 @@ test("maintenance centrally blocks normal APIs and old club-admin sessions", () 
   assert.equal(decide("/admin"), "allow");
   assert.equal(decide("/api/login"), "allow");
   assert.equal(decide("/api/logout"), "allow");
-  assert.equal(decide("/api/maintenance"), "allow");
+  assert.equal(decide("/api/maintenance"), "block-api");
   assert.equal(decide("/auth/google"), "allow");
   assert.equal(decide("/auth/google/callback"), "allow");
   assert.equal(decide("/fixtures", { hasSession: true }), "show-maintenance");
@@ -60,16 +60,16 @@ const sql = readFileSync(new URL("../supabase/maintenance_mode.sql", import.meta
   assert.match(sql, /on conflict \(singleton\) do nothing/i);
 });
 
-test("the root layout gates normal pages and exposes a maintenance status endpoint", () => {
+test("middleware enforces maintenance without a duplicate root layout check", () => {
   const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const middleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
-  const publicRoute = readFileSync(new URL("../app/api/maintenance/route.ts", import.meta.url), "utf8");
-  assert.match(middleware, /x-interclub-pathname/);
+  assert.doesNotMatch(middleware, /x-interclub-pathname/);
   assert.match(middleware, /maintenanceSessionAccess/);
   assert.match(middleware, /decision === "block-api"/);
-  assert.match(layout, /loadMaintenanceMode/);
-  assert.match(layout, /MaintenanceGate/);
-  assert.match(publicRoute, /loadMaintenanceMode/);
+  assert.doesNotMatch(layout, /loadMaintenanceMode/);
+  assert.doesNotMatch(layout, /MaintenanceGate/);
+  assert.equal(existsSync(new URL("../components/maintenance-gate.tsx", import.meta.url)), false);
+  assert.equal(existsSync(new URL("../app/api/maintenance/route.ts", import.meta.url)), false);
 });
 
 test("password and Google sign-in independently enforce maintenance access", () => {

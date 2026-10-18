@@ -4,9 +4,6 @@ import { maintenanceRequestDecision } from "@/lib/maintenance-policy.mjs";
 import { loadMaintenanceMode, maintenanceSessionAccess } from "@/lib/server/maintenance";
 
 export async function middleware(request: NextRequest) {
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-interclub-pathname", request.nextUrl.pathname);
-
   const maintenance = await loadMaintenanceMode().catch(() => ({ enabled: false, updatedAt: null }));
   const access = maintenance.enabled
     ? await maintenanceSessionAccess(request.cookies.get("is_session")?.value).catch(() => ({ hasSession: false, platformAdmin: false }))
@@ -25,14 +22,12 @@ export async function middleware(request: NextRequest) {
   }
 
   if (decision === "show-maintenance") {
-    const response = NextResponse.rewrite(new URL("/maintenance", request.url), {
-      request: { headers: requestHeaders }
-    });
+    const response = NextResponse.rewrite(new URL("/maintenance", request.url));
     response.headers.set("Cache-Control", "no-store");
     return response;
   }
 
-  return NextResponse.next({ request: { headers: requestHeaders } });
+  return NextResponse.next();
 }
 
 export const config = {

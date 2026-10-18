@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const maintenanceGate = readFileSync(new URL("../components/maintenance-gate.tsx", import.meta.url), "utf8");
+const rootLayout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const authGateway = readFileSync(new URL("../components/auth-gateway.tsx", import.meta.url), "utf8");
 const appShell = readFileSync(new URL("../components/app-shell.tsx", import.meta.url), "utf8");
 const authService = readFileSync(new URL("../lib/server/auth.ts", import.meta.url), "utf8");
@@ -11,16 +11,13 @@ const lastManStanding = readFileSync(new URL("../components/last-man-standing.ts
 const clubLadder = readFileSync(new URL("../components/club-ladder.tsx", import.meta.url), "utf8");
 const fixtureStatusRoute = readFileSync(new URL("../app/api/fixtures/status/route.ts", import.meta.url), "utf8");
 
-test("maintenance checks are infrequent and pause while the app is hidden", () => {
-  assert.match(maintenanceGate, /MAINTENANCE_POLL_MS = 15 \* 60 \* 1000/);
-  assert.match(maintenanceGate, /document\.visibilityState !== "visible"/);
-  assert.doesNotMatch(maintenanceGate, /setInterval\(refresh, 30000\)/);
+test("maintenance is enforced on requests without client polling", () => {
+  assert.doesNotMatch(rootLayout, /MaintenanceGate/);
+  assert.doesNotMatch(rootLayout, /loadMaintenanceMode/);
 });
 
 test("focus and visibility events share a cooldown instead of duplicating refreshes", () => {
-  assert.match(maintenanceGate, /VISIBILITY_REFRESH_COOLDOWN_MS = 5_000/);
   assert.match(authGateway, /VISIBILITY_REFRESH_COOLDOWN_MS = 5 \* 60 \* 1000/);
-  assert.match(maintenanceGate, /now - lastRefreshAt < VISIBILITY_REFRESH_COOLDOWN_MS/);
   assert.match(authGateway, /now - lastRefreshAt < VISIBILITY_REFRESH_COOLDOWN_MS/);
   assert.doesNotMatch(lastManStanding, /window\.addEventListener\("focus"/);
   assert.doesNotMatch(clubLadder, /window\.addEventListener\("focus"/);
