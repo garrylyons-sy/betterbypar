@@ -58,14 +58,15 @@ async function loadEligibleLadders(clubId: string, personId: string, isOperator:
            from public.club_ladder_eligible_team eligibility
            join public.team team on team.id = eligibility.team_id and team.active = true
            join public.person_team_role role on role.person_id = $2 and role.club_id = team.club_id
-             and role.league_id = team.league_id and role.team_name = team.name and role.active = true
+             and role.league_id = team.league_id and role.team_name = team.name
+             and role.role = 'Player' and role.active = true
            where eligibility.ladder_id = cl.id
          )
          or exists (
            select 1
            from public.club_ladder_eligible_team eligibility
            join public.team_membership membership on membership.team_id = eligibility.team_id
-             and membership.person_id = $2 and membership.active = true
+             and membership.person_id = $2 and membership.role = 'Player' and membership.active = true
            where eligibility.ladder_id = cl.id
          )
        )
@@ -88,13 +89,14 @@ async function loadLadder(clubId: string, ladderId: string, personId: string, is
            select 1 from public.club_ladder_eligible_team eligibility
            join public.team team on team.id = eligibility.team_id and team.active = true
            join public.person_team_role role on role.person_id = $3 and role.club_id = team.club_id
-             and role.league_id = team.league_id and role.team_name = team.name and role.active = true
+             and role.league_id = team.league_id and role.team_name = team.name
+             and role.role = 'Player' and role.active = true
            where eligibility.ladder_id = cl.id
          )
          or exists (
            select 1 from public.club_ladder_eligible_team eligibility
            join public.team_membership membership on membership.team_id = eligibility.team_id
-             and membership.person_id = $3 and membership.active = true
+             and membership.person_id = $3 and membership.role = 'Player' and membership.active = true
            where eligibility.ladder_id = cl.id
          )
        )`,

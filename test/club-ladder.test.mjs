@@ -147,12 +147,15 @@ test("eligible club members have a configurable visual ladder home panel", () =>
 test("members see only eligible ladders and the first ladder opens by default", () => {
   assert.match(ladderApi, /club_ladder_eligible_team/);
   assert.match(ladderApi, /person_team_role/);
+  assert.match(ladderApi, /role\.role = 'Player'/);
+  assert.match(ladderApi, /membership\.role = 'Player'/);
   assert.match(ladderApi, /ladderId/);
   assert.match(ladderApi, /ladders:/);
   assert.match(ladderPage, /setSelectedLadderId\(.*ladders\[0\]\?\.ladder\.id/s);
   assert.match(ladderPage, /aria-expanded=\{selected\}/);
   assert.match(ladderPage, /Other ladders|Your ladders/);
   assert.match(ladderPage, /ladder\.useHandicap/);
+  assert.match(ladderPage, /There are no eligible ladders for you at the moment\./);
 });
 
 test("team eligibility is current and eligibility changes withdraw affected entrants", () => {
@@ -161,6 +164,8 @@ test("team eligibility is current and eligibility changes withdraw affected entr
   assert.match(adminLadderApi, /status = 'Cancelled'/);
   assert.match(adminLadderApi, /status = 'Withdrawn'/);
   assert.match(adminLadderApi, /Every selected player must be eligible for this ladder/);
+  assert.match(adminLadderApi, /ptr\.role = 'Player'/);
+  assert.match(adminLadderApi, /tm\.role = 'Player'/);
 });
 
 test("club ladders show handicaps and allow players to leave safely", () => {

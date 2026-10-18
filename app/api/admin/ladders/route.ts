@@ -83,13 +83,14 @@ export async function GET(request: Request) {
              join public.team t on t.club_id = ptr.club_id and t.league_id = ptr.league_id
                and t.name = ptr.team_name and t.active = true
              join public.season s on s.id = t.season_id and s.active = true
-             where ptr.person_id = cm.person_id and ptr.club_id = cm.club_id and ptr.active = true
+             where ptr.person_id = cm.person_id and ptr.club_id = cm.club_id
+               and ptr.role = 'Player' and ptr.active = true
              union
              select t.id
              from public.team_membership tm
              join public.team t on t.id = tm.team_id and t.club_id = cm.club_id and t.active = true
              join public.season s on s.id = t.season_id and s.active = true
-             where tm.person_id = cm.person_id and tm.active = true
+             where tm.person_id = cm.person_id and tm.role = 'Player' and tm.active = true
            ) roles
          ) team_roles on true
          where cm.active = true and ($1::boolean = true or cm.club_id = any($2::uuid[]))
@@ -207,11 +208,13 @@ export async function POST(request: Request) {
                  join public.team t on t.club_id = ptr.club_id and t.league_id = ptr.league_id
                    and t.name = ptr.team_name and t.active = true
                  where ptr.person_id = cm.person_id and ptr.club_id = cm.club_id and ptr.active = true
+                   and ptr.role = 'Player'
                    and t.id = any($3::uuid[])
                )
                or exists (
                  select 1 from public.team_membership tm
-                 where tm.person_id = cm.person_id and tm.active = true and tm.team_id = any($3::uuid[])
+                 where tm.person_id = cm.person_id and tm.role = 'Player'
+                   and tm.active = true and tm.team_id = any($3::uuid[])
                )
              )`,
           [clubId, initialPersonIds, eligibleTeamIds]
@@ -258,11 +261,12 @@ export async function POST(request: Request) {
                from public.person_team_role role
                join public.team team on team.club_id = role.club_id and team.league_id = role.league_id
                  and team.name = role.team_name and team.active = true
-               where role.person_id = entry.person_id and role.active = true and team.id = any($2::uuid[])
+               where role.person_id = entry.person_id and role.role = 'Player'
+                 and role.active = true and team.id = any($2::uuid[])
              )
              and not exists (
                select 1 from public.team_membership membership
-               where membership.person_id = entry.person_id and membership.active = true
+               where membership.person_id = entry.person_id and membership.role = 'Player' and membership.active = true
                  and membership.team_id = any($2::uuid[])
              )`,
           [saved.rows[0].id, eligibleTeamIds]
