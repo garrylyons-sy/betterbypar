@@ -292,6 +292,12 @@ test("either ladder player can record a result and update positions immediately"
   assert.doesNotMatch(ladderPage, /Result awaiting confirmation|Opponent to confirm|>Confirm<|>Dispute</);
 });
 
+test("an unrecorded ladder result starts at nil all", () => {
+  assert.match(ladderPage, /challenger: challenge\.challengerScore \?\? 0/);
+  assert.match(ladderPage, /challenged: challenge\.challengedScore \?\? 0/);
+  assert.doesNotMatch(ladderPage, /challenger: challenge\.challengerScore \?\? requiredFrameWins/);
+});
+
 test("ladder entries preserve and display their starting position", () => {
   assert.match(schema, /starting_position integer not null check \(starting_position > 0\)/);
   assert.match(startingPositionMigration, /add column if not exists starting_position integer/);

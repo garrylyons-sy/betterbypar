@@ -237,9 +237,9 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
       if (!response.ok) throw new Error(payload.error || "Club ladder could not be loaded.");
       setCollection(payload);
       setSelectedLadderId((current) => payload.ladders.some((item: LadderView) => item.ladder.id === current) ? current : payload.ladders[0]?.ladder.id ?? null);
-      const allChallenges = (payload.ladders ?? []).flatMap((item: LadderView) => item.challenges.map((challenge) => ({ challenge, format: item.ladder.matchFormat })));
-      setScores(Object.fromEntries(allChallenges.map(({ challenge, format }: { challenge: LadderChallenge; format: LadderMatchFormat }) => [challenge.id, {
-        challenger: challenge.challengerScore ?? requiredFrameWins(format),
+      const allChallenges = (payload.ladders ?? []).flatMap((item: LadderView) => item.challenges);
+      setScores(Object.fromEntries(allChallenges.map((challenge: LadderChallenge) => [challenge.id, {
+        challenger: challenge.challengerScore ?? 0,
         challenged: challenge.challengedScore ?? 0
       }])));
     } catch (error) {
