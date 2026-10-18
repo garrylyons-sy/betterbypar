@@ -278,6 +278,18 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
   if (loading) {
     return <Card><CardContent className="p-5 text-sm font-bold text-[#6c5a73]">Loading the club ladder...</CardContent></Card>;
   }
+  if (!collection) {
+    return (
+      <ClubFeatureUnavailable
+        icon={Swords}
+        eyebrow="Club Ladders"
+        title="Club ladders could not be loaded."
+        description={message || "Please try again in a moment."}
+        primaryColor={activeTeam.primaryColor}
+        accentColor={activeTeam.accentColor}
+      />
+    );
+  }
   if (!collection?.configured || !collection.ladders.length) {
     return (
       <ClubFeatureUnavailable

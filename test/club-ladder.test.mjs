@@ -53,9 +53,14 @@ test("a rejected challenge has a seven day rechallenge cooldown", () => {
   assert.equal(canRechallenge(rejectedAt, "2026-10-08T18:29:59.999Z"), false);
   assert.equal(canRechallenge(rejectedAt, "2026-10-08T18:30:00.000Z"), true);
   assert.equal(canRechallenge(null, "2026-10-02T18:30:00.000Z"), true);
-  assert.match(ladderApi, /status = 'Rejected'[\s\S]*order by updated_at desc/);
+  assert.match(ladderApi, /status = 'Rejected'[\s\S]*order by challenge\.updated_at desc/);
   assert.match(ladderApi, /canRechallenge/);
   assert.match(ladderPage, /Challenge available/);
+});
+
+test("ladder loading errors are not presented as missing configuration", () => {
+  assert.match(ladderPage, /Club ladders could not be loaded\./);
+  assert.match(ladderPage, /description=\{message/);
 });
 
 test("the same challenged player can reject a challenger only once", () => {

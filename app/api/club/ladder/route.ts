@@ -251,7 +251,7 @@ export async function GET(request: Request) {
            and challenge.challenged_entry_id = cle.id
            and challenger.person_id = $3
            and challenge.status = 'Rejected'
-         order by updated_at desc
+         order by challenge.updated_at desc
          limit 1
        ) rejection on true
        where cle.ladder_id = $1 and cle.status in ('Active', 'Paused')
