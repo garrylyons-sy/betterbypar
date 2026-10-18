@@ -20,6 +20,7 @@ type LadderRow = {
   play_within_days: number;
   use_handicap: boolean;
   active: boolean;
+  can_join: boolean;
 };
 
 async function clubAccess(personId: string, clubName: string) {
@@ -32,6 +33,11 @@ async function clubAccess(personId: string, clubName: string) {
                 select 1 from public.team_membership tm
                 join public.team t on t.id = tm.team_id and t.club_id = c.id and t.active = true
                 where tm.person_id = $1 and tm.active = true
+              )
+              or exists (
+                select 1 from public.person_team_role ptr
+                where ptr.person_id = $1 and ptr.club_id = c.id and ptr.active = true
+                  and ptr.role = 'Manager'
               )
             ) as is_member
      from public.club c
@@ -46,7 +52,25 @@ async function clubAccess(personId: string, clubName: string) {
 async function loadEligibleLadders(clubId: string, personId: string, isOperator: boolean) {
   return (await dbQuery<LadderRow>(
     `select cl.id::text, cl.club_id::text, c.name as club_name, cl.name, cl.match_format,
-            cl.challenge_range, cl.response_hours, cl.play_within_days, cl.use_handicap, cl.active
+            cl.challenge_range, cl.response_hours, cl.play_within_days, cl.use_handicap, cl.active,
+            (
+              $3::boolean = true
+              or not exists (select 1 from public.club_ladder_eligible_team eligibility where eligibility.ladder_id = cl.id)
+              or exists (
+                select 1 from public.club_ladder_eligible_team eligibility
+                join public.team team on team.id = eligibility.team_id and team.active = true
+                join public.person_team_role role on role.person_id = $2 and role.club_id = team.club_id
+                  and role.league_id = team.league_id and role.team_name = team.name
+                  and role.role = 'Player' and role.active = true
+                where eligibility.ladder_id = cl.id
+              )
+              or exists (
+                select 1 from public.club_ladder_eligible_team eligibility
+                join public.team_membership membership on membership.team_id = eligibility.team_id
+                  and membership.person_id = $2 and membership.role = 'Player' and membership.active = true
+                where eligibility.ladder_id = cl.id
+              )
+            ) as can_join
      from public.club_ladder cl
      join public.club c on c.id = cl.club_id
      where cl.club_id = $1
@@ -59,14 +83,14 @@ async function loadEligibleLadders(clubId: string, personId: string, isOperator:
            join public.team team on team.id = eligibility.team_id and team.active = true
            join public.person_team_role role on role.person_id = $2 and role.club_id = team.club_id
              and role.league_id = team.league_id and role.team_name = team.name
-             and role.role = 'Player' and role.active = true
+             and role.role in ('Player', 'Manager') and role.active = true
            where eligibility.ladder_id = cl.id
          )
          or exists (
            select 1
            from public.club_ladder_eligible_team eligibility
            join public.team_membership membership on membership.team_id = eligibility.team_id
-             and membership.person_id = $2 and membership.role = 'Player' and membership.active = true
+             and membership.person_id = $2 and membership.role in ('Player', 'Manager') and membership.active = true
            where eligibility.ladder_id = cl.id
          )
        )
@@ -78,7 +102,25 @@ async function loadEligibleLadders(clubId: string, personId: string, isOperator:
 async function loadLadder(clubId: string, ladderId: string, personId: string, isOperator: boolean) {
   return (await dbQuery<LadderRow>(
     `select cl.id::text, cl.club_id::text, c.name as club_name, cl.name, cl.match_format,
-            cl.challenge_range, cl.response_hours, cl.play_within_days, cl.use_handicap, cl.active
+            cl.challenge_range, cl.response_hours, cl.play_within_days, cl.use_handicap, cl.active,
+            (
+              $4::boolean = true
+              or not exists (select 1 from public.club_ladder_eligible_team eligibility where eligibility.ladder_id = cl.id)
+              or exists (
+                select 1 from public.club_ladder_eligible_team eligibility
+                join public.team team on team.id = eligibility.team_id and team.active = true
+                join public.person_team_role role on role.person_id = $3 and role.club_id = team.club_id
+                  and role.league_id = team.league_id and role.team_name = team.name
+                  and role.role = 'Player' and role.active = true
+                where eligibility.ladder_id = cl.id
+              )
+              or exists (
+                select 1 from public.club_ladder_eligible_team eligibility
+                join public.team_membership membership on membership.team_id = eligibility.team_id
+                  and membership.person_id = $3 and membership.role = 'Player' and membership.active = true
+                where eligibility.ladder_id = cl.id
+              )
+            ) as can_join
      from public.club_ladder cl
      join public.club c on c.id = cl.club_id
      where cl.id = $1 and cl.club_id = $2
@@ -90,13 +132,13 @@ async function loadLadder(clubId: string, ladderId: string, personId: string, is
            join public.team team on team.id = eligibility.team_id and team.active = true
            join public.person_team_role role on role.person_id = $3 and role.club_id = team.club_id
              and role.league_id = team.league_id and role.team_name = team.name
-             and role.role = 'Player' and role.active = true
+             and role.role in ('Player', 'Manager') and role.active = true
            where eligibility.ladder_id = cl.id
          )
          or exists (
            select 1 from public.club_ladder_eligible_team eligibility
            join public.team_membership membership on membership.team_id = eligibility.team_id
-             and membership.person_id = $3 and membership.role = 'Player' and membership.active = true
+             and membership.person_id = $3 and membership.role in ('Player', 'Manager') and membership.active = true
            where eligibility.ladder_id = cl.id
          )
        )`,
@@ -123,6 +165,18 @@ function formatChallenge(row: Record<string, unknown>, personId: string) {
     isChallenged: challengedPersonId === personId,
     canReject: Boolean(row.can_reject)
   };
+}
+
+function ladderActivityLabel(action: string, status: string) {
+  if (action === "respond" && ["Accepted", "Scheduled"].includes(status)) return "Ladder challenge accepted";
+  if (action === "respond" && status === "Rejected") return "Ladder challenge rejected";
+  return ({
+    challenge: "Ladder challenge made",
+    submitResult: "Ladder result recorded",
+    join: "Ladder joined",
+    leave: "Ladder left",
+    cancel: "Ladder challenge cancelled"
+  } as Record<string, string>)[action] ?? `Ladder ${action}`;
 }
 
 async function expirePendingChallenges(ladderIds: string[]) {
@@ -293,6 +347,7 @@ export async function GET(request: Request) {
 
       return {
         available: ladder.active,
+        canJoin: ladder.can_join,
         ladder: {
           id: ladder.id, name: ladder.name, clubName: ladder.club_name, matchFormat: ladder.match_format,
           challengeRange: ladder.challenge_range, responseHours: ladder.response_hours,
@@ -331,6 +386,9 @@ export async function POST(request: Request) {
     if (!access) return NextResponse.json({ error: "Club membership is required." }, { status: 403 });
     const ladder = ladderId ? await loadLadder(access.id, ladderId, user.personId, access.is_operator) : null;
     if (!ladder || !ladder.active) return NextResponse.json({ error: "This club ladder is not currently available." }, { status: 409 });
+    if (action === "join" && !ladder.can_join) {
+      return NextResponse.json({ error: "This ladder is visible to you as a manager, but only eligible players can join." }, { status: 403 });
+    }
 
     const result = await withTransaction(async (client) => {
       if (action === "join") {
@@ -412,8 +470,8 @@ export async function POST(request: Request) {
 
       if (action === "challenge") {
         const challengedEntryId = String(body.challengedEntryId ?? "").trim();
-        const target = await client.query<{ id: string; position: number; status: string }>(
-          `select id::text, position, status from public.club_ladder_entry
+        const target = await client.query<{ id: string; person_id: string; position: number; status: string }>(
+          `select id::text, person_id::text, position, status from public.club_ladder_entry
            where id = $1 and ladder_id = $2 for update`,
           [challengedEntryId, ladder.id]
         );
@@ -448,7 +506,7 @@ export async function POST(request: Request) {
            returning id::text`,
           [ladder.id, myEntry.id, target.rows[0].id, ladder.response_hours]
         );
-        return { challengeId: created.rows[0].id };
+        return { challengeId: created.rows[0].id, status: "Pending", opponentPersonId: target.rows[0].person_id };
       }
 
       const challengeId = String(body.challengeId ?? "").trim();
@@ -495,7 +553,7 @@ export async function POST(request: Request) {
             `update public.club_ladder_challenge set status = 'Rejected', rejection_number = 1, updated_at = now() where id = $1`,
             [row.id]
           );
-          return { status: "Rejected" };
+          return { challengeId: row.id, status: "Rejected", opponentPersonId: row.challenger_person_id };
         }
         if (response !== "accept") throw new Error("Choose accept or reject.");
         const scheduledAt = body.scheduledAt ? new Date(String(body.scheduledAt)) : null;
@@ -512,7 +570,7 @@ export async function POST(request: Request) {
            where id = $1`,
           [row.id, scheduledAt?.toISOString() ?? null, ladder.play_within_days]
         );
-        return { status: scheduledAt ? "Scheduled" : "Accepted" };
+        return { challengeId: row.id, status: scheduledAt ? "Scheduled" : "Accepted", opponentPersonId: row.challenger_person_id };
       }
 
       if (action === "schedule") {
@@ -571,11 +629,23 @@ export async function POST(request: Request) {
       throw new Error("Unsupported ladder action.");
     });
 
+    const auditResult = result as Record<string, unknown>;
+    const auditStatus = String(auditResult.status ?? "");
     await dbQuery(
       `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
        values ($1, 'Page Visit', '/club/ladder', $2,
-         jsonb_build_object('club_name', $3::text, 'ladder_id', $4::text, 'action', $5::text))`,
-      [user.personId, `Ladder ${action}`, clubName, ladder.id, action]
+         jsonb_build_object('club_name', $3::text, 'ladder_id', $4::text, 'action', $5::text,
+           'challenge_id', $6::text, 'status', $7::text, 'opponent_person_id', $8::text))`,
+      [
+        user.personId,
+        ladderActivityLabel(action, auditStatus),
+        clubName,
+        ladder.id,
+        action,
+        String(auditResult.challengeId ?? body.challengeId ?? "") || null,
+        auditStatus || null,
+        String(auditResult.opponentPersonId ?? "") || null
+      ]
     );
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {

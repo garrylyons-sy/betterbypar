@@ -187,6 +187,24 @@ test("members see only eligible ladders and the first ladder opens by default", 
   assert.match(ladderPage, /There are no eligible ladders for you at the moment\./);
 });
 
+test("team managers can view ladders involving their players without gaining player actions", () => {
+  assert.match(ladderApi, /role\.role in \('Player', 'Manager'\)/);
+  assert.match(ladderApi, /membership\.role in \('Player', 'Manager'\)/);
+  assert.match(ladderApi, /as can_join/);
+  assert.match(ladderApi, /if \(action === "join" && !ladder\.can_join\)/);
+  assert.match(ladderPage, /Manager view/);
+  assert.match(ladderPage, /data\.canJoin/);
+  assert.match(ladderPage, /ladderView\.canJoin/);
+});
+
+test("ladder challenge creation and acceptance write explicit activity logs", () => {
+  assert.match(ladderApi, /Ladder challenge made/);
+  assert.match(ladderApi, /Ladder challenge accepted/);
+  assert.match(ladderApi, /'challenge_id'/);
+  assert.match(ladderApi, /'opponent_person_id'/);
+  assert.match(ladderApi, /'status'/);
+});
+
 test("team eligibility is current and eligibility changes withdraw affected entrants", () => {
   const eligibilityLoader = ladderApi.slice(ladderApi.indexOf("async function loadEligibleLadders"), ladderApi.indexOf("function formatChallenge"));
   assert.doesNotMatch(eligibilityLoader, /club_ladder_entry/);

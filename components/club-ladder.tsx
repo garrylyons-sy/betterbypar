@@ -31,6 +31,7 @@ type LadderChallenge = {
 };
 type LadderView = {
   available: boolean;
+  canJoin: boolean;
   ladder: {
     id: string;
     name: string;
@@ -134,7 +135,7 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
           <Badge variant="soft">{totalPlayers} players</Badge>
           {data.ladders.length > 1 ? <Badge variant="soft">{data.ladders.length} ladders</Badge> : null}
           {incomingChallenge ? <Badge variant="gold">Action needed</Badge> : null}
-          {ladderView.me ? <Badge variant="cyan">Position #{ladderView.me.position}</Badge> : <Badge variant="gold">Open to join</Badge>}
+          {ladderView.me ? <Badge variant="cyan">Position #{ladderView.me.position}</Badge> : ladderView.canJoin ? <Badge variant="gold">Open to join</Badge> : <Badge variant="soft">Manager view</Badge>}
         </div>
       </div>
       <CardContent className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -158,17 +159,24 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
               <p className="mt-1 text-sm font-black text-[#10233f]">{activeChallenges.length ? activeChallenges[0].status : "None"}</p>
             </div>
           </div>
-        ) : (
+        ) : ladderView.canJoin ? (
           <div>
             <p className="font-black text-[#10233f]">Join at the bottom and start climbing</p>
             <p className="mt-1 text-xs font-semibold text-[#6c5a73]">Once you join, you can challenge nearby players directly from the ladder.</p>
             {message ? <p className="mt-2 text-xs font-bold text-[#b42318]">{message}</p> : null}
           </div>
+        ) : (
+          <div>
+            <p className="font-black text-[#10233f]">Follow your team&apos;s ladder</p>
+            <p className="mt-1 text-xs font-semibold text-[#6c5a73]">You can see the order, recent form and challenge activity for your players.</p>
+          </div>
         )}
         {ladderView.me ? (
           <Button variant={incomingChallenge ? "default" : "secondary"} onClick={onOpen}>{incomingChallenge ? "Respond now" : "View ladder"}<ChevronRight className="h-4 w-4" /></Button>
-        ) : (
+        ) : ladderView.canJoin ? (
           <Button onClick={() => void join(ladderView.ladder.id)} disabled={joining}><UserPlus className="h-4 w-4" />{joining ? "Joining..." : "Join ladder"}</Button>
+        ) : (
+          <Button variant="secondary" onClick={onOpen}>View ladder<ChevronRight className="h-4 w-4" /></Button>
         )}
       </CardContent>
     </Card>
@@ -312,7 +320,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                 <button key={item.ladder.id} type="button" aria-expanded={selected} onClick={() => { setSelectedLadderId(item.ladder.id); setRulesOpen(false); setMessage(""); }} className={cn("grid min-h-14 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2 text-left ring-1 transition-colors", selected ? "bg-[#10233f] text-white ring-[#10233f]" : "bg-[#f7f5fa] text-[#10233f] ring-[#eeeaf2]")}>
                   <span className={cn("grid h-9 w-9 place-items-center rounded-lg", selected ? "bg-white/15" : "bg-white text-[#1b8a72]")}><Trophy className="h-4 w-4" /></span>
                   <span className="min-w-0"><span className="block truncate font-black">{item.ladder.name}</span><span className={cn("block text-xs font-semibold", selected ? "text-white/65" : "text-[#6c5a73]")}>{ladderModeLabel(item.ladder.useHandicap)} · {item.ladder.matchFormat} · {item.entries.length} players</span></span>
-                  <span className="flex items-center gap-2">{item.me ? <Badge variant="cyan">#{item.me.position}</Badge> : <Badge variant="gold">Join</Badge>}<ChevronDown className={cn("h-5 w-5 transition-transform", selected && "rotate-180")} /></span>
+                  <span className="flex items-center gap-2">{item.me ? <Badge variant="cyan">#{item.me.position}</Badge> : item.canJoin ? <Badge variant="gold">Join</Badge> : <Badge variant="muted">View</Badge>}<ChevronDown className={cn("h-5 w-5 transition-transform", selected && "rotate-180")} /></span>
                 </button>
               );
             })}
@@ -359,7 +367,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
         ) : null}
       </Card>
 
-      {!data.me && data.available ? (
+      {!data.me && data.available && data.canJoin ? (
         <Card>
           <CardContent className="grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
             <div><p className="text-lg font-black text-[#10233f]">Join at the bottom and start climbing</p><p className="mt-1 text-sm font-semibold text-[#6c5a73]">Your first challenge can be made as soon as you join.</p></div>
