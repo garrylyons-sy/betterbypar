@@ -103,12 +103,17 @@ export async function GET(request: Request) {
       }>(
         `select ladder.club_id::text, entry.ladder_id::text, entry.id::text as entry_id,
                 entry.person_id::text, concat_ws(' ', person.first_name, person.last_name) as person_name,
-                entry.position, entry.status, membership.handicap::text
+                entry.position, entry.status, membership.handicap
          from public.club_ladder_entry entry
          join public.club_ladder ladder on ladder.id = entry.ladder_id
          join public.person person on person.id = entry.person_id
-         left join public.club_membership membership on membership.club_id = ladder.club_id
-           and membership.person_id = entry.person_id and membership.active = true
+         left join lateral (
+           select max(cm.handicap)::text as handicap
+           from public.club_membership cm
+           where cm.club_id = ladder.club_id
+             and cm.person_id = entry.person_id
+             and cm.active = true
+         ) membership on true
          where entry.status in ('Active', 'Paused')
            and ($1::boolean = true or ladder.club_id = any($2::uuid[]))
          order by ladder.club_id, entry.ladder_id, entry.position`, params

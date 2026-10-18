@@ -189,6 +189,11 @@ test("club ladders show handicaps and allow players to leave safely", () => {
   assert.match(ladderPage, /Leave ladder/);
 });
 
+test("admin ladder entries remain unique when a player has multiple club membership rows", () => {
+  assert.match(adminLadderApi, /left join lateral \(\s*select max\(cm\.handicap\)::text as handicap[\s\S]*?\) membership on true/);
+  assert.doesNotMatch(adminLadderApi, /left join public\.club_membership membership/);
+});
+
 test("every ladder view clearly identifies handicap or scratch play", () => {
   assert.match(ladderPage, /Handicap ladder/);
   assert.match(ladderPage, /Scratch ladder/);
