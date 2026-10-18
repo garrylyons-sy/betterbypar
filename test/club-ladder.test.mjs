@@ -234,6 +234,18 @@ test("ladder administrators can remove a player without losing completed history
   assert.match(adminLadders, /Remove .* from this ladder/);
 });
 
+test("ladder administrators can add eligible players to an existing ladder", () => {
+  assert.match(adminLadderApi, /action === "addPlayers"/);
+  assert.match(adminLadderApi, /personIds/);
+  assert.match(adminLadderApi, /Every selected player must be eligible for this ladder/);
+  assert.match(adminLadderApi, /on conflict \(ladder_id, person_id\)/);
+  assert.match(adminLadderApi, /Club ladder players added/);
+  assert.match(adminLadders, /Add players/);
+  assert.match(adminLadders, /addPlayers/);
+  assert.match(adminLadders, /Add selected to ladder/);
+  assert.match(adminLadders, /selectedLadder\.entries\.some/);
+});
+
 test("the ladder itself communicates challenge stakes and recent form", () => {
   assert.match(ladderApi, /form\.recent_form/);
   assert.match(ladderApi, /challenge\.winner_entry_id = cle\.id then 'W' else 'L'/);

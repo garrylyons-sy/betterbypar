@@ -349,13 +349,114 @@ export async function PATCH(request: Request) {
     if (!access) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
     if (!access.platform && !access.clubIds.length) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
     const body = await request.json() as Record<string, unknown>;
+    const action = String(body.action ?? "removePlayer");
     const clubId = String(body.clubId ?? "").trim();
     const ladderId = String(body.ladderId ?? "").trim();
-    const entryId = String(body.entryId ?? "").trim();
-    if (!clubId || !ladderId || !entryId) throw new Error("Club, ladder and player are required.");
+    if (!clubId || !ladderId) throw new Error("Club and ladder are required.");
     if (!access.platform && !access.clubIds.includes(clubId)) {
       return NextResponse.json({ error: "Club administrator access is required for this club." }, { status: 403 });
     }
+
+    if (action === "addPlayers") {
+      const personIds = stringIds(body.personIds);
+      if (!personIds.length) throw new Error("Select at least one player to add.");
+
+      await withTransaction(async (client) => {
+        const ladder = await client.query<{ name: string; club_name: string; eligible_team_ids: string[] }>(
+          `select ladder.name, club.name as club_name,
+                  array(
+                    select eligibility.team_id
+                    from public.club_ladder_eligible_team eligibility
+                    where eligibility.ladder_id = ladder.id
+                    order by eligibility.team_id
+                  ) as eligible_team_ids
+           from public.club_ladder ladder
+           join public.club club on club.id = ladder.club_id
+           where ladder.id = $1 and ladder.club_id = $2
+           for update of ladder`,
+          [ladderId, clubId]
+        );
+        if (!ladder.rowCount) throw new Error("Club ladder was not found.");
+        const eligibleTeamIds = ladder.rows[0].eligible_team_ids;
+
+        const validMembers = await client.query<{ person_id: string }>(
+          `select distinct membership.person_id::text
+           from public.club_membership membership
+           join public.person person on person.id = membership.person_id and person.active = true
+           where membership.club_id = $1 and membership.active = true
+             and membership.person_id = any($2::uuid[])
+             and (
+               cardinality($3::uuid[]) = 0
+               or exists (
+                 select 1 from public.person_team_role role
+                 join public.team team on team.club_id = role.club_id and team.league_id = role.league_id
+                   and team.name = role.team_name and team.active = true
+                 where role.person_id = membership.person_id and role.club_id = membership.club_id
+                   and role.role = 'Player' and role.active = true and team.id = any($3::uuid[])
+               )
+               or exists (
+                 select 1 from public.team_membership team_membership
+                 where team_membership.person_id = membership.person_id and team_membership.role = 'Player'
+                   and team_membership.active = true and team_membership.team_id = any($3::uuid[])
+               )
+             )`,
+          [clubId, personIds, eligibleTeamIds]
+        );
+        if (validMembers.rowCount !== personIds.length) throw new Error("Every selected player must be eligible for this ladder.");
+
+        const currentEntries = await client.query(
+          `select 1 from public.club_ladder_entry
+           where ladder_id = $1 and person_id = any($2::uuid[]) and status in ('Active', 'Paused')
+           limit 1`,
+          [ladderId, personIds]
+        );
+        if (currentEntries.rowCount) throw new Error("One or more selected players are already in this ladder.");
+
+        await client.query("set constraints all deferred");
+        await client.query(
+          `insert into public.club_ladder_entry (ladder_id, person_id, position, status, joined_at, updated_at)
+           select $1, selected.person_id,
+                  coalesce((select max(position) from public.club_ladder_entry where ladder_id = $1), 0) + selected.selection_order::integer,
+                  'Active', now(), now()
+           from unnest($2::uuid[]) with ordinality as selected(person_id, selection_order)
+           join public.person person on person.id = selected.person_id and person.active = true
+           on conflict (ladder_id, person_id) do update
+             set status = 'Active', joined_at = now(), updated_at = now()`,
+          [ladderId, personIds]
+        );
+        await client.query(
+          `with ranked as (
+             select id, row_number() over (
+               order by case
+                          when person_id = any($2::uuid[]) then 1
+                          when status in ('Active', 'Paused') then 0
+                          else 2
+                        end,
+                        case when person_id = any($2::uuid[]) then array_position($2::uuid[], person_id) end,
+                        position, joined_at, id
+             ) as new_position
+             from public.club_ladder_entry
+             where ladder_id = $1
+           )
+           update public.club_ladder_entry entry
+           set position = ranked.new_position, updated_at = now()
+           from ranked where entry.id = ranked.id`,
+          [ladderId, personIds]
+        );
+        await client.query(
+          `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
+           values ($1, 'Page Visit', '/admin/ladders', 'Club ladder players added',
+             jsonb_build_object('club_id', $2::text, 'club_name', $3::text, 'ladder_id', $4::text,
+               'ladder_name', $5::text, 'player_count', $6::int, 'person_ids', to_jsonb($7::uuid[])))`,
+          [access.personId, clubId, ladder.rows[0].club_name, ladderId, ladder.rows[0].name, personIds.length, personIds]
+        );
+      });
+
+      return NextResponse.json({ ok: true, addedCount: personIds.length });
+    }
+
+    const entryId = String(body.entryId ?? "").trim();
+    if (!entryId) throw new Error("Player is required.");
 
     await withTransaction(async (client) => {
       const ladder = await client.query<{ name: string; club_name: string }>(
