@@ -14,7 +14,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import { isValidPassword } from "@/lib/password-policy";
 import type { AppearanceConfig, MatchResult, PlayerBreakStat, PlayerGameResult, Role, SponsorAd, Standing, TeamContext } from "@/lib/types";
 
-const VISIBILITY_REFRESH_COOLDOWN_MS = 5_000;
+const VISIBILITY_REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 
 type AuthMode = "signin" | "activate" | "forgot" | "request";
 type TeamOption = {

@@ -39,11 +39,11 @@ function apiPath(path: string) {
   return testUser ? `${path}${path.includes("?") ? "&" : "?"}testUser=${encodeURIComponent(testUser)}` : path;
 }
 
-const summaryCacheLifetimeMs = 30_000;
+const summaryCacheLifetimeMs = 5 * 60 * 1000;
 let summariesCache: { path: string; rows: Summary[]; loadedAt: number } | null = null;
 let summariesRequest: { path: string; promise: Promise<Summary[]> } | null = null;
 
-async function loadSummaries(force = false) {
+export async function loadLastManStandingSummaries(force = false) {
   const path = apiPath("/api/last-man-standing");
   if (!force && summariesCache?.path === path && Date.now() - summariesCache.loadedAt < summaryCacheLifetimeMs) {
     return summariesCache.rows;
@@ -69,15 +69,13 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
   const [competitions, setCompetitions] = useState<Summary[]>([]);
   useEffect(() => {
     let active = true;
-    const refresh = (force = false) => loadSummaries(force).then((rows) => { if (active) setCompetitions(rows); }).catch(() => {});
+    const refresh = (force = false) => loadLastManStandingSummaries(force).then((rows) => { if (active) setCompetitions(rows); }).catch(() => {});
     void refresh();
-    const forceRefresh = () => refresh(true);
-    window.addEventListener("focus", forceRefresh);
-    window.addEventListener("interclub:refresh-panels", forceRefresh);
+    const refreshPanels = () => refresh();
+    window.addEventListener("interclub:refresh-panels", refreshPanels);
     return () => {
       active = false;
-      window.removeEventListener("focus", forceRefresh);
-      window.removeEventListener("interclub:refresh-panels", forceRefresh);
+      window.removeEventListener("interclub:refresh-panels", refreshPanels);
     };
   }, []);
   const homeCompetitions = competitions.filter((competition) => shouldShowLastManStandingOnHome(competition));
@@ -177,7 +175,7 @@ export function LastManStandingPage() {
   async function refreshSummaries(force = false) {
     if (!competitions.length) setLoadingSummaries(true);
     try {
-      const rows = await loadSummaries(force);
+      const rows = await loadLastManStandingSummaries(force);
       setCompetitions(rows);
       return rows;
     } catch (error) {
@@ -248,7 +246,7 @@ export function LastManStandingPage() {
     setMessage("You are entered.");
     const competitionId = detail.competition.id;
     const [rows] = await Promise.all([
-      loadSummaries(true),
+      loadLastManStandingSummaries(true),
       loadCompetitionDetail(competitionId, true)
     ]);
     setCompetitions(rows);
@@ -267,7 +265,7 @@ export function LastManStandingPage() {
     setMessage("Your picks are saved. You can change them until noon on match day.");
     const competitionId = detail.competition.id;
     const [rows] = await Promise.all([
-      loadSummaries(true),
+      loadLastManStandingSummaries(true),
       loadCompetitionDetail(competitionId, true)
     ]);
     setCompetitions(rows);

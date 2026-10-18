@@ -12,8 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const LIVE_STATUS_POLL_MS = 20_000;
-const LIVE_DASHBOARD_POLL_MS = 20_000;
+const LIVE_STATUS_POLL_MS = 60_000;
+const LIVE_DASHBOARD_POLL_MS = 60_000;
 
 export type CompactLiveStatus = {
   fixture_id: string;

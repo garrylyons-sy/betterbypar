@@ -7,6 +7,9 @@ const authGateway = readFileSync(new URL("../components/auth-gateway.tsx", impor
 const appShell = readFileSync(new URL("../components/app-shell.tsx", import.meta.url), "utf8");
 const authService = readFileSync(new URL("../lib/server/auth.ts", import.meta.url), "utf8");
 const liveDashboard = readFileSync(new URL("../components/live-scoring-dashboard.tsx", import.meta.url), "utf8");
+const lastManStanding = readFileSync(new URL("../components/last-man-standing.tsx", import.meta.url), "utf8");
+const clubLadder = readFileSync(new URL("../components/club-ladder.tsx", import.meta.url), "utf8");
+const fixtureStatusRoute = readFileSync(new URL("../app/api/fixtures/status/route.ts", import.meta.url), "utf8");
 
 test("maintenance checks are infrequent and pause while the app is hidden", () => {
   assert.match(maintenanceGate, /MAINTENANCE_POLL_MS = 15 \* 60 \* 1000/);
@@ -16,9 +19,12 @@ test("maintenance checks are infrequent and pause while the app is hidden", () =
 
 test("focus and visibility events share a cooldown instead of duplicating refreshes", () => {
   assert.match(maintenanceGate, /VISIBILITY_REFRESH_COOLDOWN_MS = 5_000/);
-  assert.match(authGateway, /VISIBILITY_REFRESH_COOLDOWN_MS = 5_000/);
+  assert.match(authGateway, /VISIBILITY_REFRESH_COOLDOWN_MS = 5 \* 60 \* 1000/);
   assert.match(maintenanceGate, /now - lastRefreshAt < VISIBILITY_REFRESH_COOLDOWN_MS/);
   assert.match(authGateway, /now - lastRefreshAt < VISIBILITY_REFRESH_COOLDOWN_MS/);
+  assert.doesNotMatch(lastManStanding, /window\.addEventListener\("focus"/);
+  assert.doesNotMatch(clubLadder, /window\.addEventListener\("focus"/);
+  assert.match(lastManStanding, /summaryCacheLifetimeMs = 5 \* 60 \* 1000/);
 });
 
 test("match night does not poll the complete session payload", () => {
@@ -27,17 +33,22 @@ test("match night does not poll the complete session payload", () => {
 });
 
 test("fixture and lineup polling is visible, adaptive and stops after completion", () => {
-  assert.match(appShell, /MATCH_POLL_ACTIVE_MS = 30_000/);
-  assert.match(appShell, /MATCH_POLL_IDLE_MS = 120_000/);
-  assert.match(appShell, /MATCH_POLL_TICK_MS = 30_000/);
+  assert.match(appShell, /MATCH_POLL_ACTIVE_MS = 60_000/);
+  assert.match(appShell, /MATCH_POLL_IDLE_MS = 5 \* 60 \* 1000/);
+  assert.match(appShell, /MATCH_POLL_TICK_MS = 60_000/);
   assert.match(appShell, /fixtureWeekPollInterval/);
   assert.match(appShell, /managerLineupPollInterval/);
   assert.match(appShell, /document\.visibilityState !== "visible"/);
   assert.match(appShell, /fixture\.completedGames > 0/);
   assert.match(appShell, /payload\.fixture\.status === "Completed"/);
+  assert.match(appShell, /\/api\/fixtures\/status\?fixtureIds=/);
+  assert.match(appShell, /fixtureStatusSnapshot/);
+  assert.match(fixtureStatusRoute, /currentUserFromRequest/);
+  assert.match(fixtureStatusRoute, /count\(g\.id\) filter \(where g\.winner_team_id is not null\)/);
+  assert.match(fixtureStatusRoute, /fixtureIds\.length > 50/);
 });
 
 test("read-only live indicators use a lower-frequency status poll", () => {
-  assert.match(liveDashboard, /LIVE_STATUS_POLL_MS = 20_000/);
-  assert.match(liveDashboard, /LIVE_DASHBOARD_POLL_MS = 20_000/);
+  assert.match(liveDashboard, /LIVE_STATUS_POLL_MS = 60_000/);
+  assert.match(liveDashboard, /LIVE_DASHBOARD_POLL_MS = 60_000/);
 });

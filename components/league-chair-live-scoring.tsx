@@ -10,6 +10,9 @@ import { cn } from "@/lib/utils";
 type Side = "home" | "away";
 type SaveState = "Saved" | "Saving" | "Offline" | "Conflict";
 
+const LIVE_SCORER_POLL_MS = 15_000;
+const LIVE_OBSERVER_POLL_MS = 30_000;
+
 export type LiveFrameState = {
   homeScore: number;
   awayScore: number;
@@ -302,7 +305,7 @@ export function LeagueChairMatchControls({
       poll();
     };
     const offline = () => setSaveState("Offline");
-    const pollId = window.setInterval(poll, selectedSessionCanControl ? 2000 : 10000);
+    const pollId = window.setInterval(poll, selectedSessionCanControl ? LIVE_SCORER_POLL_MS : LIVE_OBSERVER_POLL_MS);
     document.addEventListener("visibilitychange", poll);
     window.addEventListener("online", online);
     window.addEventListener("offline", offline);

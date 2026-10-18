@@ -83,10 +83,11 @@ test("a frame without an active visit clearly offers to switch the next team", (
   assert.match(controls, /!state\.activePlayerId \? `Switch to \$\{otherTeamName\}` : "End visit"/);
 });
 
-test("polling is two-second, visible-only, and isolated from the normal fixtures payload", () => {
+test("polling preserves the scorer lease at a reduced frequency and stays visible-only", () => {
   assert.match(controls, /document\.visibilityState === "visible"/, "polling should stop while the app is backgrounded");
   assert.match(controls, /visibilitychange/, "visibility changes should restart or stop polling");
-  assert.match(controls, /2000/, "open live controls should poll every two seconds");
+  assert.match(controls, /LIVE_SCORER_POLL_MS = 15_000/, "open live controls should renew the scorer lease every fifteen seconds");
+  assert.match(controls, /LIVE_OBSERVER_POLL_MS = 30_000/, "observers should poll less frequently than the scorer");
   assert.match(controls, /controlsOpen && selectedGameId/, "polling should stop when the scorer closes");
   assert.match(controls, /Hand over/, "the current scorer should be able to release control explicitly");
   assert.match(controls, /Confirm[\s\S]*Complete frame|window\.confirm\([\s\S]*Complete frame/, "official completion should require winner confirmation");

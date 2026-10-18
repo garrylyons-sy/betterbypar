@@ -76,11 +76,9 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
     };
     void refresh();
     const onRefresh = () => void refresh();
-    window.addEventListener("focus", onRefresh);
     window.addEventListener("interclub:refresh-panels", onRefresh);
     return () => {
       active = false;
-      window.removeEventListener("focus", onRefresh);
       window.removeEventListener("interclub:refresh-panels", onRefresh);
     };
   }, [activeTeam.club]);

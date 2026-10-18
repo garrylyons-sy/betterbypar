@@ -35,7 +35,7 @@ import type { AppearanceConfig, AppearanceMenuId, AppearancePanelId, MatchResult
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LeagueChairLiveIndicator, LeagueChairLiveStatusList, useLiveScoringStatuses } from "@/components/live-scoring-dashboard";
-import { LastManStandingHomePanel, LastManStandingPage } from "@/components/last-man-standing";
+import { LastManStandingHomePanel, LastManStandingPage, loadLastManStandingSummaries } from "@/components/last-man-standing";
 import { ClubLadderHomePanel, ClubLadderPage } from "@/components/club-ladder";
 import { ClubFeatureUnavailable } from "@/components/club-feature-unavailable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -350,21 +350,18 @@ export function AppShell({
   useEffect(() => {
     let active = true;
     const refreshAvailability = () => {
-      fetch(withTestUser("/api/last-man-standing"), { credentials: "same-origin", cache: "no-store" })
-        .then((response) => response.json())
-        .then((data) => {
-          if (active) setLastManStandingAvailable((data.competitions ?? []).length > 0);
+      loadLastManStandingSummaries()
+        .then((competitions) => {
+          if (active) setLastManStandingAvailable(competitions.length > 0);
         })
         .catch(() => {
           if (active) setLastManStandingAvailable(false);
         });
     };
     refreshAvailability();
-    window.addEventListener("focus", refreshAvailability);
     window.addEventListener("interclub:refresh-panels", refreshAvailability);
     return () => {
       active = false;
-      window.removeEventListener("focus", refreshAvailability);
       window.removeEventListener("interclub:refresh-panels", refreshAvailability);
     };
   }, []);
@@ -5347,9 +5344,46 @@ function defaultFixtureWeekIndex(weeks: FixtureWeek[], league: TeamContext["leag
   )).index;
 }
 
-const MATCH_POLL_ACTIVE_MS = 30_000;
-const MATCH_POLL_IDLE_MS = 120_000;
-const MATCH_POLL_TICK_MS = 30_000;
+const MATCH_POLL_ACTIVE_MS = 60_000;
+const MATCH_POLL_IDLE_MS = 5 * 60 * 1000;
+const MATCH_POLL_TICK_MS = 60_000;
+
+type FixtureStatusSnapshot = {
+  id: string;
+  status: string;
+  homeTeamScore: number | null;
+  awayTeamScore: number | null;
+  homeLineupStatus: "Draft" | "Published" | null;
+  awayLineupStatus: "Draft" | "Published" | null;
+  completedGames: number;
+  totalGames: number;
+};
+
+function fixtureStatusSnapshot(fixtures: FixtureStatusSnapshot[]) {
+  return JSON.stringify([...fixtures]
+    .sort((left, right) => left.id.localeCompare(right.id))
+    .map((fixture) => [
+      fixture.id,
+      fixture.status,
+      fixture.homeTeamScore,
+      fixture.awayTeamScore,
+      fixture.homeLineupStatus,
+      fixture.awayLineupStatus,
+      fixture.completedGames,
+      fixture.totalGames
+    ]));
+}
+
+async function loadFixtureStatuses(fixtureIds: string[]) {
+  if (!fixtureIds.length) return [];
+  const response = await fetch(withTestUser(`/api/fixtures/status?fixtureIds=${encodeURIComponent(fixtureIds.join(","))}`), {
+    credentials: "same-origin",
+    cache: "no-store"
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Fixture status is unavailable.");
+  return (data.fixtures ?? []) as FixtureStatusSnapshot[];
+}
 
 function fixtureWeekPollInterval(week?: FixtureWeek) {
   if (!week) return null;
@@ -5418,6 +5452,7 @@ function FixtureWeekCarouselCard({
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const activeIndexRef = useRef(0);
+  const weeksRef = useRef<FixtureWeek[]>([]);
   const embeddedDemoMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1";
 
   useEffect(() => {
@@ -5442,6 +5477,7 @@ function FixtureWeekCarouselCard({
       if (!response.ok) throw new Error(data.error || "Fixtures unavailable.");
       if (!active) return;
       const nextWeeks: FixtureWeek[] = data.weeks ?? [];
+      weeksRef.current = nextWeeks;
       setWeeks(nextWeeks);
       if (nextWeeks.length) {
         setActiveIndex((current) => {
@@ -5456,18 +5492,29 @@ function FixtureWeekCarouselCard({
       .then(() => {
         if (!active) return;
         lastPollAt = Date.now();
-        pollId = window.setInterval(() => {
+        let statusPollInFlight = false;
+        pollId = window.setInterval(async () => {
           if (document.visibilityState !== "visible") return;
-          setWeeks((currentWeeks) => {
-            const interval = embeddedDemoMode
-              ? MATCH_POLL_ACTIVE_MS
-              : fixtureWeekPollInterval(currentWeeks[activeIndexRef.current]);
-            if (interval && Date.now() - lastPollAt >= interval) {
-              lastPollAt = Date.now();
-              loadWeeks(false).catch(() => undefined);
-            }
-            return currentWeeks;
-          });
+          const currentWeek = weeksRef.current[activeIndexRef.current];
+          const interval = embeddedDemoMode
+            ? MATCH_POLL_ACTIVE_MS
+            : fixtureWeekPollInterval(currentWeek);
+          if (!interval || Date.now() - lastPollAt < interval || statusPollInFlight) return;
+          const today = localIsoDate();
+          const visibleFixtures = (currentWeek?.fixtures ?? []).filter((fixture) => (
+            fixture.fixtureDate.slice(0, 10) === today && fixture.status !== "Completed"
+          ));
+          if (!visibleFixtures.length) return;
+          lastPollAt = Date.now();
+          statusPollInFlight = true;
+          try {
+            const nextStatuses = await loadFixtureStatuses(visibleFixtures.map((fixture) => fixture.id));
+            if (fixtureStatusSnapshot(visibleFixtures) !== fixtureStatusSnapshot(nextStatuses)) await loadWeeks(false);
+          } catch {
+            // The next scheduled check or a manual refresh will retry.
+          } finally {
+            statusPollInFlight = false;
+          }
         }, MATCH_POLL_TICK_MS);
       })
       .catch((error) => {
@@ -5798,15 +5845,26 @@ function ManagerLineupCard({
     }
 
     let lastPollAt = Date.now();
+    let statusPollInFlight = false;
     loadLineup();
-    const poll = window.setInterval(() => {
+    const poll = window.setInterval(async () => {
       if (document.visibilityState !== "visible") return;
       const interval = testManagerMode
         ? MATCH_POLL_ACTIVE_MS
         : managerLineupPollInterval(payloadRef.current);
-      if (interval && Date.now() - lastPollAt >= interval) {
-        lastPollAt = Date.now();
-        loadLineup();
+      if (!interval || Date.now() - lastPollAt < interval || statusPollInFlight) return;
+      const fixtureId = payloadRef.current?.fixture?.id;
+      const currentFixture = payloadRef.current?.weekFixtures.find((fixture) => fixture.id === fixtureId);
+      if (!fixtureId || !currentFixture) return;
+      lastPollAt = Date.now();
+      statusPollInFlight = true;
+      try {
+        const nextStatuses = await loadFixtureStatuses([fixtureId]);
+        if (fixtureStatusSnapshot([currentFixture]) !== fixtureStatusSnapshot(nextStatuses)) await loadLineup();
+      } catch {
+        // The next scheduled check or a manual refresh will retry.
+      } finally {
+        statusPollInFlight = false;
       }
     }, MATCH_POLL_TICK_MS);
     const refreshPanels = () => {

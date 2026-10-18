@@ -18,7 +18,8 @@ test("audience-filtered Last Man Standing is available from the page and home pa
   const panel = read("../components/last-man-standing.tsx");
   assert.match(panel, /cache: "no-store"/);
   assert.match(panel, /interclub:refresh-panels/);
-  assert.match(panel, /window\.addEventListener\("focus"/);
+  assert.doesNotMatch(panel, /window\.addEventListener\("focus"/);
+  assert.match(shell, /loadLastManStandingSummaries/);
   assert.match(panel, /summariesCache/);
   assert.match(panel, /summariesRequest/);
   assert.match(panel, /role="progressbar"/);
