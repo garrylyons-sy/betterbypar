@@ -34,6 +34,67 @@ export async function GET(request: Request) {
     if (!access) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
     if (!access.platform && !access.clubIds.length) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
 
+    const search = new URL(request.url).searchParams;
+    const ladderId = search.get("ladderId")?.trim() ?? "";
+    const detail = search.get("detail")?.trim() ?? "";
+    if (ladderId && (detail === "activeChallenges" || detail === "history")) {
+      const allowed = await dbQuery(
+        `select 1 from public.club_ladder
+         where id = $1 and ($2::boolean = true or club_id = any($3::uuid[]))`,
+        [ladderId, access.platform, access.clubIds]
+      );
+      if (!allowed.rowCount) return NextResponse.json({ error: "Club ladder was not found." }, { status: 404 });
+
+      const statusClause = detail === "activeChallenges"
+        ? "challenge.status = any(array['Pending','Accepted','Scheduled','Result Pending','Disputed']::text[])"
+        : "challenge.status = any(array['Completed','Walkover']::text[])";
+      const challenges = await dbQuery<{
+        id: string; status: string; challenger_name: string; challenged_name: string;
+        challenger_position: number; challenged_position: number; challenger_score: number | null;
+        challenged_score: number | null; winner_name: string | null; response_due_at: string | null;
+        scheduled_at: string | null; play_by: string | null; recorded_at: string | null;
+      }>(
+        `select challenge.id::text, challenge.status,
+                concat_ws(' ', challenger_person.first_name, challenger_person.last_name) as challenger_name,
+                concat_ws(' ', challenged_person.first_name, challenged_person.last_name) as challenged_name,
+                challenger.position as challenger_position, challenged.position as challenged_position,
+                challenge.challenger_score, challenge.challenged_score,
+                case when winner.id = challenger.id
+                     then concat_ws(' ', challenger_person.first_name, challenger_person.last_name)
+                     when winner.id = challenged.id
+                     then concat_ws(' ', challenged_person.first_name, challenged_person.last_name)
+                     else null end as winner_name,
+                challenge.response_due_at::text, challenge.scheduled_at::text, challenge.play_by::text,
+                coalesce(challenge.result_submitted_at, challenge.completed_at)::text as recorded_at
+         from public.club_ladder_challenge challenge
+         join public.club_ladder_entry challenger on challenger.id = challenge.challenger_entry_id
+         join public.person challenger_person on challenger_person.id = challenger.person_id
+         join public.club_ladder_entry challenged on challenged.id = challenge.challenged_entry_id
+         join public.person challenged_person on challenged_person.id = challenged.person_id
+         left join public.club_ladder_entry winner on winner.id = challenge.winner_entry_id
+         where challenge.ladder_id = $1 and ${statusClause}
+         order by coalesce(challenge.completed_at, challenge.updated_at, challenge.created_at) desc`,
+        [ladderId]
+      );
+      return NextResponse.json({
+        challenges: challenges.rows.map((challenge) => ({
+          id: challenge.id,
+          status: challenge.status,
+          challengerName: challenge.challenger_name,
+          challengedName: challenge.challenged_name,
+          challengerPosition: challenge.challenger_position,
+          challengedPosition: challenge.challenged_position,
+          challengerScore: challenge.challenger_score,
+          challengedScore: challenge.challenged_score,
+          winnerName: challenge.winner_name,
+          responseDueAt: challenge.response_due_at,
+          scheduledAt: challenge.scheduled_at,
+          playBy: challenge.play_by,
+          recordedAt: challenge.recorded_at
+        }))
+      });
+    }
+
     const params = [access.platform, access.clubIds];
     const [clubs, ladders, eligibleTeams, teams, members, entries] = await Promise.all([
       dbQuery<{ club_id: string; club_name: string; logo_path: string | null; primary_color: string | null; accent_color: string | null }>(
@@ -310,16 +371,19 @@ export async function POST(request: Request) {
       }
       if (!ladderId && initialPersonIds.length) {
         await client.query(
-          `insert into public.club_ladder_entry (ladder_id, person_id, position, status, updated_at)
-           select $1, selected.person_id,
-                  row_number() over (
-                    order by case when $3::text = 'Random' then random() else null::double precision end,
-                             lower(p.last_name), lower(p.first_name), p.id
-                  ),
-                  'Active', now()
-           from unnest($2::uuid[]) as selected(person_id)
-           join public.person p on p.id = selected.person_id
-           order by 3`,
+          `with ordered as (
+             select selected.person_id,
+                    row_number() over (
+                      order by case when $3::text = 'Random' then random() else null::double precision end,
+                               lower(p.last_name), lower(p.first_name), p.id
+                    )::integer as opening_position
+             from unnest($2::uuid[]) as selected(person_id)
+             join public.person p on p.id = selected.person_id
+           )
+           insert into public.club_ladder_entry
+             (ladder_id, person_id, position, starting_position, status, updated_at)
+           select $1, person_id, opening_position, opening_position, 'Active', now()
+           from ordered order by opening_position`,
           [saved.rows[0].id, initialPersonIds, initialOrder]
         );
       }
@@ -414,8 +478,9 @@ export async function PATCH(request: Request) {
 
         await client.query("set constraints all deferred");
         await client.query(
-          `insert into public.club_ladder_entry (ladder_id, person_id, position, status, joined_at, updated_at)
+          `insert into public.club_ladder_entry (ladder_id, person_id, position, starting_position, status, joined_at, updated_at)
            select $1, selected.person_id,
+                  coalesce((select max(position) from public.club_ladder_entry where ladder_id = $1), 0) + selected.selection_order::integer,
                   coalesce((select max(position) from public.club_ladder_entry where ladder_id = $1), 0) + selected.selection_order::integer,
                   'Active', now(), now()
            from unnest($2::uuid[]) with ordinality as selected(person_id, selection_order)
@@ -441,6 +506,12 @@ export async function PATCH(request: Request) {
            update public.club_ladder_entry entry
            set position = ranked.new_position, updated_at = now()
            from ranked where entry.id = ranked.id`,
+          [ladderId, personIds]
+        );
+        await client.query(
+          `update public.club_ladder_entry
+           set starting_position = position, updated_at = now()
+           where ladder_id = $1 and person_id = any($2::uuid[])`,
           [ladderId, personIds]
         );
         await client.query(

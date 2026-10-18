@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Clock3, ListOrdered, Plus, Save, Search, ShieldCheck, Shuffle, Swords, Trash2, Trophy, UserMinus, UserPlus, Users } from "lucide-react";
+import { ChevronDown, Clock3, History, ListOrdered, Plus, Save, Search, ShieldCheck, Shuffle, Swords, Trash2, Trophy, UserMinus, UserPlus, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,22 @@ type LadderSettings = {
   active: boolean;
 };
 type AdminLadder = LadderSettings & { id: string; entryCount: number; entries: AdminLadderEntry[] };
+type LadderDetailKind = "activeChallenges" | "history";
+type AdminLadderChallenge = {
+  id: string;
+  status: string;
+  challengerName: string;
+  challengedName: string;
+  challengerPosition: number;
+  challengedPosition: number;
+  challengerScore: number | null;
+  challengedScore: number | null;
+  winnerName: string | null;
+  responseDueAt: string | null;
+  scheduledAt: string | null;
+  playBy: string | null;
+  recordedAt: string | null;
+};
 type AdminLadderClub = {
   clubId: string;
   clubName: string;
@@ -70,6 +86,9 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
   const [memberSearch, setMemberSearch] = useState("");
   const [addPersonIds, setAddPersonIds] = useState<string[]>([]);
   const [addMemberSearch, setAddMemberSearch] = useState("");
+  const [openDetailKey, setOpenDetailKey] = useState<string | null>(null);
+  const [detailCache, setDetailCache] = useState<Record<string, AdminLadderChallenge[]>>({});
+  const [loadingDetailKey, setLoadingDetailKey] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -231,6 +250,28 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
     }
   }
 
+  async function loadLadderDetail(ladderId: string, detail: LadderDetailKind) {
+    const key = `${ladderId}:${detail}`;
+    if (openDetailKey === key) {
+      setOpenDetailKey(null);
+      return;
+    }
+    setOpenDetailKey(key);
+    if (detailCache[key]) return;
+    setLoadingDetailKey(key);
+    try {
+      const response = await fetch(testAwarePath(`/api/admin/ladders?ladderId=${encodeURIComponent(ladderId)}&detail=${detail}`), { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Ladder challenges could not be loaded.");
+      setDetailCache((current) => ({ ...current, [key]: data.challenges ?? [] }));
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "Ladder challenges could not be loaded.");
+      setOpenDetailKey(null);
+    } finally {
+      setLoadingDetailKey(null);
+    }
+  }
+
   const activeCount = clubs.reduce((total, club) => total + club.ladders.filter((ladder) => ladder.active).length, 0);
 
   return (
@@ -364,6 +405,26 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                       ) : (
                         <p className="rounded-lg bg-[#f7f5fa] p-3 text-sm font-semibold text-[#6c5a73]">No players are currently in this ladder.</p>
                       )}
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <LadderDetailAccordion
+                          title="Active challenges"
+                          icon={Swords}
+                          detailKey={`${selectedLadder.id}:activeChallenges`}
+                          openDetailKey={openDetailKey}
+                          loadingDetailKey={loadingDetailKey}
+                          challenges={detailCache[`${selectedLadder.id}:activeChallenges`]}
+                          onToggle={() => void loadLadderDetail(selectedLadder.id, "activeChallenges")}
+                        />
+                        <LadderDetailAccordion
+                          title="Match history"
+                          icon={History}
+                          detailKey={`${selectedLadder.id}:history`}
+                          openDetailKey={openDetailKey}
+                          loadingDetailKey={loadingDetailKey}
+                          challenges={detailCache[`${selectedLadder.id}:history`]}
+                          onToggle={() => void loadLadderDetail(selectedLadder.id, "history")}
+                        />
+                      </div>
                     </div>
                   ) : null}
 
@@ -391,4 +452,48 @@ function NumberSetting({ label, value, min, max, onChange }: { label: string; va
 
 function RuleSummary({ icon: Icon, text }: { icon: typeof Users; text: string }) {
   return <div className="flex min-h-12 items-center gap-2 rounded-lg bg-white px-3 ring-1 ring-[#eeeaf2]"><Icon className="h-4 w-4 shrink-0 text-[#1b8a72]" /><span className="text-xs font-extrabold text-[#10233f]">{text}</span></div>;
+}
+
+function LadderDetailAccordion({ title, icon: Icon, detailKey, openDetailKey, loadingDetailKey, challenges, onToggle }: {
+  title: string;
+  icon: typeof Swords;
+  detailKey: string;
+  openDetailKey: string | null;
+  loadingDetailKey: string | null;
+  challenges: AdminLadderChallenge[] | undefined;
+  onToggle: () => void;
+}) {
+  const open = openDetailKey === detailKey;
+  const loading = loadingDetailKey === detailKey;
+  return (
+    <div className="overflow-hidden rounded-lg bg-[#f7f5fa] ring-1 ring-[#eeeaf2]">
+      <button type="button" className="flex min-h-12 w-full items-center gap-2 px-3 text-left" onClick={onToggle} aria-expanded={open}>
+        <Icon className="h-4 w-4 text-[#1b8a72]" />
+        <span className="flex-1 text-sm font-black text-[#10233f]">{title}</span>
+        <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+      </button>
+      {open ? (
+        <div className="grid gap-2 border-t border-[#e3ddea] p-3">
+          {loading ? <p className="text-xs font-bold text-[#6c5a73]">Loading...</p> : null}
+          {!loading && challenges?.map((challenge) => (
+            <div key={challenge.id} className="rounded-lg bg-white p-3 ring-1 ring-[#eeeaf2]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-black text-[#10233f]">#{challenge.challengerPosition} {challenge.challengerName} v #{challenge.challengedPosition} {challenge.challengedName}</p>
+                <Badge variant={challenge.status === "Completed" || challenge.status === "Walkover" ? "green" : "cyan"}>{challenge.status}</Badge>
+              </div>
+              {challenge.challengerScore !== null && challenge.challengedScore !== null ? <p className="mt-1 text-sm font-black text-[#10233f]">{challenge.challengerScore}-{challenge.challengedScore}{challenge.winnerName ? ` · ${challenge.winnerName} won` : ""}</p> : null}
+              <p className="mt-1 text-[11px] font-bold text-[#6c5a73]">
+                {challenge.recordedAt ? `Recorded ${formatAdminDate(challenge.recordedAt)}` : challenge.scheduledAt ? `Scheduled ${formatAdminDate(challenge.scheduledAt)}` : challenge.playBy ? `Play by ${formatAdminDate(challenge.playBy)}` : challenge.responseDueAt ? `Reply by ${formatAdminDate(challenge.responseDueAt)}` : ""}
+              </p>
+            </div>
+          ))}
+          {!loading && challenges && !challenges.length ? <p className="text-xs font-bold text-[#6c5a73]">Nothing to show yet.</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatAdminDate(value: string) {
+  return new Date(value).toLocaleString("en-IE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }

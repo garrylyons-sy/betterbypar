@@ -55,6 +55,7 @@ create table if not exists public.club_ladder_entry (
   ladder_id uuid not null references public.club_ladder(id) on delete cascade,
   person_id uuid not null references public.person(id) on delete cascade,
   position integer not null check (position > 0),
+  starting_position integer not null check (starting_position > 0),
   status text not null default 'Active' check (status in ('Active', 'Paused', 'Withdrawn')),
   joined_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

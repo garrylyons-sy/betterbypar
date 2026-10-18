@@ -210,6 +210,7 @@ export async function GET(request: Request) {
       id: string;
       person_id: string;
       position: number;
+      starting_position: number;
       status: string;
       first_name: string;
       last_name: string;
@@ -217,7 +218,7 @@ export async function GET(request: Request) {
       recent_form: string[] | null;
       latest_rejected_at: string | null;
       }>(
-      `select cle.id::text, cle.person_id::text, cle.position, cle.status, p.first_name, p.last_name,
+      `select cle.id::text, cle.person_id::text, cle.position, cle.starting_position, cle.status, p.first_name, p.last_name,
               membership.handicap::text, form.recent_form, rejection.latest_rejected_at
        from public.club_ladder_entry cle
        join public.person p on p.id = cle.person_id and p.active = true
@@ -302,7 +303,8 @@ export async function GET(request: Request) {
           rechallengeAvailableAt: rechallengeAvailableAt(row.latest_rejected_at)?.toISOString() ?? null,
           id: row.id, personId: row.person_id, name: `${row.first_name} ${row.last_name}`.trim(),
           handicap: row.handicap === null ? null : Number(row.handicap),
-          recentForm: Array.isArray(row.recent_form) ? row.recent_form : [], position: row.position, status: row.status,
+          recentForm: Array.isArray(row.recent_form) ? row.recent_form : [], position: row.position,
+          startingPosition: row.starting_position, status: row.status,
           canChallenge: Boolean(myEntry && !hasActiveChallenge && row.status === "Active"
             && canRechallenge(row.latest_rejected_at)
             && canChallengePosition(myEntry.position, row.position, ladder.challenge_range))
@@ -356,15 +358,15 @@ export async function POST(request: Request) {
         if (existing.rowCount) {
           await client.query(
             `update public.club_ladder_entry
-             set status = 'Active', position = $2, updated_at = now()
+             set status = 'Active', position = $2, starting_position = $2, joined_at = now(), updated_at = now()
              where id = $1`,
             [existing.rows[0].id, position]
           );
           return { entryId: existing.rows[0].id };
         }
         const saved = await client.query<{ id: string }>(
-          `insert into public.club_ladder_entry (ladder_id, person_id, position, status, updated_at)
-           values ($1, $2, $3, 'Active', now()) returning id::text`,
+          `insert into public.club_ladder_entry (ladder_id, person_id, position, starting_position, status, updated_at)
+           values ($1, $2, $3, $3, 'Active', now()) returning id::text`,
           [ladder.id, user.personId, position]
         );
         return { entryId: saved.rows[0].id };

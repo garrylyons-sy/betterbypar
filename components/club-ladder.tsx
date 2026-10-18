@@ -12,7 +12,7 @@ import type { TeamContext } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type LadderMatchFormat = "1 Frame" | "Best of 3" | "Best of 5";
-type LadderEntry = { id: string; personId: string; name: string; handicap: number | null; recentForm: Array<"W" | "L">; position: number; status: string; canChallenge: boolean; rechallengeAvailableAt: string | null };
+type LadderEntry = { id: string; personId: string; name: string; handicap: number | null; recentForm: Array<"W" | "L">; position: number; startingPosition: number; status: string; canChallenge: boolean; rechallengeAvailableAt: string | null };
 type LadderChallenge = {
   id: string;
   status: string;
@@ -181,13 +181,6 @@ function testAwarePath(path: string) {
   return testUser ? `${path}${path.includes("?") ? "&" : "?"}testUser=${encodeURIComponent(testUser)}` : path;
 }
 
-function localDateTimeValue(value?: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
-}
-
 function friendlyDate(value?: string | null) {
   if (!value) return "Not scheduled";
   return new Date(value).toLocaleString("en-IE", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -225,7 +218,6 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [rulesOpen, setRulesOpen] = useState(false);
-  const [scheduledTimes, setScheduledTimes] = useState<Record<string, string>>({});
   const [scores, setScores] = useState<Record<string, { challenger: number; challenged: number }>>({});
 
   async function load() {
@@ -238,7 +230,6 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
       setCollection(payload);
       setSelectedLadderId((current) => payload.ladders.some((item: LadderView) => item.ladder.id === current) ? current : payload.ladders[0]?.ladder.id ?? null);
       const allChallenges = (payload.ladders ?? []).flatMap((item: LadderView) => item.challenges.map((challenge) => ({ challenge, format: item.ladder.matchFormat })));
-      setScheduledTimes(Object.fromEntries(allChallenges.map(({ challenge }: { challenge: LadderChallenge }) => [challenge.id, localDateTimeValue(challenge.scheduledAt)])));
       setScores(Object.fromEntries(allChallenges.map(({ challenge, format }: { challenge: LadderChallenge; format: LadderMatchFormat }) => [challenge.id, {
         challenger: challenge.challengerScore ?? requiredFrameWins(format),
         challenged: challenge.challengedScore ?? 0
@@ -380,7 +371,6 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
       {activeChallenges.map((challenge) => {
         const opponent = challenge.isChallenger ? challenge.challenged : challenge.challenger;
         const positionAtStake = challenge.challenged.position;
-        const scheduleValue = scheduledTimes[challenge.id] ?? "";
         const score = scores[challenge.id] ?? { challenger: winsRequired, challenged: 0 };
         return (
           <Card key={challenge.id} className="overflow-hidden border-[#bfe9dc]">
@@ -407,20 +397,13 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                     </div>
                   ) : null}
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Button onClick={() => void act("respond", { challengeId: challenge.id, response: "accept", scheduledAt: scheduleValue ? new Date(scheduleValue).toISOString() : null })} disabled={busy}><Check className="h-4 w-4" />Accept challenge</Button>
+                    <Button onClick={() => void act("respond", { challengeId: challenge.id, response: "accept" })} disabled={busy}><Check className="h-4 w-4" />Accept challenge</Button>
                     <Button variant="secondary" onClick={() => void act("respond", { challengeId: challenge.id, response: "reject" })} disabled={busy || !challenge.canReject}><X className="h-4 w-4" />{challenge.canReject ? "Reject once" : "Must accept"}</Button>
                   </div>
                 </div>
               ) : null}
               {challenge.status === "Pending" && challenge.isChallenger ? (
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-[#f7f5fa] p-3"><span className="text-sm font-bold text-[#6c5a73]">Reply due {friendlyDate(challenge.responseDueAt)}</span><Button size="sm" variant="ghost" onClick={() => void act("cancel", { challengeId: challenge.id })}>Cancel</Button></div>
-              ) : null}
-
-              {["Accepted", "Scheduled"].includes(challenge.status) ? (
-                <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-                  <label className="grid gap-1"><span className="text-[11px] font-black uppercase text-[#6c5a73]">Match date and time</span><input type="datetime-local" className="min-h-11 rounded-xl border border-[#e3ddea] px-3 font-bold" value={scheduleValue} onChange={(event) => setScheduledTimes((current) => ({ ...current, [challenge.id]: event.target.value }))} /></label>
-                  <Button variant="secondary" disabled={busy || !scheduleValue} onClick={() => void act("schedule", { challengeId: challenge.id, scheduledAt: new Date(scheduleValue).toISOString() })}><CalendarClock className="h-4 w-4" />Save schedule</Button>
-                </div>
               ) : null}
 
               {["Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status) ? (
@@ -450,6 +433,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                 <div className="min-w-0">
                   <p className="truncate font-black text-[#10233f]">{entry.name} {ladder.useHandicap ? <Handicap value={entry.handicap} /> : null}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
+                    {entry.position !== entry.startingPosition ? <span className="rounded-md bg-[#f0edf4] px-1.5 py-0.5 text-[10px] font-black text-[#6c5a73]">Started #{entry.startingPosition}</span> : null}
                     <span className="text-[10px] font-black uppercase text-[#6c5a73]">
                       {mine
                         ? "Your position"

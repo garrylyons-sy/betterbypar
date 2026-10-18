@@ -24,6 +24,7 @@ const adminLadderApi = readFileSync(new URL("../app/api/admin/ladders/route.ts",
 const appearance = readFileSync(new URL("../lib/appearance.ts", import.meta.url), "utf8");
 const appearanceMigration = readFileSync(new URL("../supabase/club_ladder_home_panel.sql", import.meta.url), "utf8");
 const multipleLaddersMigration = readFileSync(new URL("../supabase/club_ladder_multiple_ladders.sql", import.meta.url), "utf8");
+const startingPositionMigration = readFileSync(new URL("../supabase/club_ladder_starting_position.sql", import.meta.url), "utf8");
 
 test("ladder settings support one frame, best of three and best of five", () => {
   assert.equal(requiredFrameWins("1 Frame"), 1);
@@ -268,7 +269,27 @@ test("either ladder player can record a result and update positions immediately"
   assert.doesNotMatch(submitResult, /status = 'Result Pending'|return \{ status: "Result Pending" \}/);
   assert.match(ladderPage, /Record result/);
   assert.match(ladderPage, /updates the ladder immediately/);
+  assert.doesNotMatch(ladderPage, /type="datetime-local"/);
+  assert.match(submitResult, /result_submitted_at = now\(\)/);
   assert.doesNotMatch(ladderPage, /Result awaiting confirmation|Opponent to confirm|>Confirm<|>Dispute</);
+});
+
+test("ladder entries preserve and display their starting position", () => {
+  assert.match(schema, /starting_position integer not null check \(starting_position > 0\)/);
+  assert.match(startingPositionMigration, /add column if not exists starting_position integer/);
+  assert.match(startingPositionMigration, /set starting_position = position/);
+  assert.match(ladderApi, /cle\.starting_position/);
+  assert.match(ladderPage, /Started #\{entry\.startingPosition\}/);
+  assert.match(adminLadderApi, /starting_position/);
+});
+
+test("admin ladder challenge lists load only when their accordions open", () => {
+  assert.match(adminLadderApi, /detail === "activeChallenges"/);
+  assert.match(adminLadderApi, /detail === "history"/);
+  assert.match(adminLadders, /Active challenges/);
+  assert.match(adminLadders, /Match history/);
+  assert.match(adminLadders, /loadLadderDetail/);
+  assert.match(adminLadders, /detail=/);
 });
 
 test("ignoring a repeat challenge awards a walkover and swaps the two positions", () => {
