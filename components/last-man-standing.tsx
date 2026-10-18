@@ -6,12 +6,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { shouldShowLastManStandingOnHome } from "@/lib/last-man-standing-home.mjs";
 import { cn } from "@/lib/utils";
 
 type Summary = {
   id: string;
   name: string;
   status: string;
+  finishedAt: string | null;
   isEntered: boolean;
   currentRound: { id: string; name: string; status: string } | null;
   panel: { roundLabel: string; picks: string[]; pickOutcomes: string[]; pickChanged: boolean[]; entrantStatus: string; remainingLabel: string; deadlineAt: string | null } | null;
@@ -78,12 +80,13 @@ export function LastManStandingHomePanel({ onOpen }: { onOpen: () => void }) {
       window.removeEventListener("interclub:refresh-panels", forceRefresh);
     };
   }, []);
-  if (!competitions.length) return null;
-  const enteredCompetitions = competitions.filter((competition) => competition.isEntered);
-  const availableCompetitionCount = competitions.filter((competition) => !competition.isEntered && competition.status === "Open").length;
+  const homeCompetitions = competitions.filter((competition) => shouldShowLastManStandingOnHome(competition));
+  if (!homeCompetitions.length) return null;
+  const enteredCompetitions = homeCompetitions.filter((competition) => competition.isEntered);
+  const availableCompetitionCount = homeCompetitions.filter((competition) => !competition.isEntered && competition.status === "Open").length;
   const displayedCompetitions = enteredCompetitions.length > 0
     ? enteredCompetitions
-    : competitions.filter((competition) => ["Open", "In Progress"].includes(competition.status)).slice(0, 1);
+    : homeCompetitions.filter((competition) => ["Open", "In Progress"].includes(competition.status)).slice(0, 1);
   return (
     <button type="button" onClick={onOpen} className="w-full overflow-hidden rounded-lg bg-white text-left shadow-card ring-1 ring-[#e5e0e9] transition-colors hover:bg-[#fbfafd]">
       <div className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 p-3">

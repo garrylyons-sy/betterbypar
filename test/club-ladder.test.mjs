@@ -173,6 +173,16 @@ test("eligible club members have a configurable visual ladder home panel", () =>
   assert.match(appearanceMigration, /panel_config \|\| '\["clubLadder"\]'/);
 });
 
+test("ladder home panel compactly identifies the active challenge opponent", () => {
+  assert.match(ladderPage, /const activeChallenge = activeChallenges\[0\]/);
+  assert.match(ladderPage, /activeChallenge\.isChallenger \? activeChallenge\.challenged : activeChallenge\.challenger/);
+  assert.match(ladderPage, /Challenge sent/);
+  assert.match(ladderPage, /You challenged/);
+  assert.match(ladderPage, /Playing/);
+  assert.match(ladderPage, /Reply due/);
+  assert.match(ladderPage, /Play by/);
+});
+
 test("members see only eligible ladders and the first ladder opens by default", () => {
   assert.match(ladderApi, /club_ladder_eligible_team/);
   assert.match(ladderApi, /person_team_role/);

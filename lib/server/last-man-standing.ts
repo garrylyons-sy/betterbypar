@@ -9,6 +9,7 @@ import {
   resolveEntryTierOptions,
   validateManualPicks
 } from "../last-man-standing-rules.mjs";
+export { shouldShowLastManStandingOnHome } from "../last-man-standing-home.mjs";
 
 type AccessInput = {
   authenticated: boolean;
@@ -22,6 +23,7 @@ type CompetitionSummaryRow = {
   id: string;
   name: string;
   status: string;
+  finishedAt: string | null;
   entrantCount: number | string;
   standingCount: number | string;
   entryId: string | null;
@@ -124,6 +126,7 @@ export function summarizeLastManStandingCompetitions(rows: CompetitionSummaryRow
       id: row.id,
       name: row.name,
       status: row.status,
+      finishedAt: row.finishedAt ?? null,
       isEntered: Boolean(row.entryId),
       entryId: row.entryId,
       currentRound,
@@ -198,6 +201,15 @@ const summaryQuery = `
     c.id::text,
     c.name,
     c.status,
+    case
+      when c.status in ('Complete', 'No Winner') then (
+        select max(finished_round.settled_at)::text
+        from public.last_man_standing_round finished_round
+        where finished_round.competition_id = c.id
+          and finished_round.status = 'Settled'
+      )
+      else null
+    end as "finishedAt",
     count(distinct all_entries.id)::int as "entrantCount",
     count(distinct all_entries.id) filter (where all_entries.status in ('Entered', 'Standing', 'Winner'))::int as "standingCount",
     own_entry.id::text as "entryId",

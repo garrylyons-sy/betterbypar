@@ -114,6 +114,10 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
   const myEntry = ladderView.me ? ladderView.entries.find((entry) => entry.id === ladderView.me?.entryId) ?? null : null;
   const activeChallenges = ladderView.challenges.filter((challenge) => ["Pending", "Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status));
   const incomingChallenge = activeChallenges.find((challenge) => challenge.status === "Pending" && challenge.isChallenged) ?? null;
+  const activeChallenge = activeChallenges[0] ?? null;
+  const activeOpponent = activeChallenge
+    ? activeChallenge.isChallenger ? activeChallenge.challenged : activeChallenge.challenger
+    : null;
   const totalPlayers = ladderView.entries.length;
 
   return (
@@ -148,15 +152,29 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
             </div>
           </div>
         ) : ladderView.me ? (
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="grid min-w-0 grid-cols-[auto_1px_minmax(0,1fr)] items-center gap-3">
             <div>
               <p className="text-[10px] font-black uppercase text-[#6c5a73]">Recent form</p>
               <div className="mt-1"><RecentForm results={myEntry?.recentForm ?? []} primaryColor={activeTeam.primaryColor} accentColor={activeTeam.accentColor} /></div>
             </div>
-            <div className="h-9 w-px bg-[#e3ddea]" />
-            <div>
-              <p className="text-[10px] font-black uppercase text-[#6c5a73]">Active challenge</p>
-              <p className="mt-1 text-sm font-black text-[#10233f]">{activeChallenges.length ? activeChallenges[0].status : "None"}</p>
+            <div className="h-full min-h-9 w-px bg-[#e3ddea]" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-[10px] font-black uppercase text-[#6c5a73]">
+                  {!activeChallenge ? "Active challenge" : activeChallenge.status === "Pending" ? "Challenge sent" : "Playing"}
+                </p>
+                {activeChallenge ? <Badge variant={activeChallenge.status === "Pending" ? "muted" : "green"}>{activeChallenge.status}</Badge> : null}
+              </div>
+              {activeChallenge && activeOpponent ? (
+                <>
+                  <p className="mt-0.5 truncate text-sm font-black text-[#10233f]">{activeOpponent.name}</p>
+                  <p className="truncate text-[10px] font-bold text-[#6c5a73]">
+                    {activeChallenge.status === "Pending"
+                      ? `You challenged ${activeOpponent.name} · Reply due ${friendlyDate(activeChallenge.responseDueAt)}`
+                      : `Playing ${activeOpponent.name} · ${activeChallenge.scheduledAt ? `Scheduled ${friendlyDate(activeChallenge.scheduledAt)}` : `Play by ${friendlyDate(activeChallenge.playBy)}`}`}
+                  </p>
+                </>
+              ) : <p className="mt-1 text-sm font-black text-[#10233f]">None</p>}
             </div>
           </div>
         ) : ladderView.canJoin ? (

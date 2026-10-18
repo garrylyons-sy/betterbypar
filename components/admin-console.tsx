@@ -168,6 +168,20 @@ const emptyMatchStats: AdminMatchStats = {
   smallestSquadUsage: null,
   scopes: []
 };
+type AdminFeatureStats = {
+  lineups: { draft: number; published: number; readyFixtures: number };
+  cups: { competitions: number; tiesPlayed: number; framesPlayed: number };
+  ladders: { active: number; players: number; challenges: number; openChallenges: number; completedMatches: number };
+  lastManStanding: { competitions: number; entries: number; standing: number; roundsSettled: number };
+  liveScoring: { framesStarted: number; framesCompleted: number; liveNow: number };
+};
+const emptyFeatureStats: AdminFeatureStats = {
+  lineups: { draft: 0, published: 0, readyFixtures: 0 },
+  cups: { competitions: 0, tiesPlayed: 0, framesPlayed: 0 },
+  ladders: { active: 0, players: 0, challenges: 0, openChallenges: 0, completedMatches: 0 },
+  lastManStanding: { competitions: 0, entries: 0, standing: 0, roundsSettled: 0 },
+  liveScoring: { framesStarted: 0, framesCompleted: 0, liveNow: 0 }
+};
 type AdminCompetitionDetail = {
   id: string;
   name: string;
@@ -425,6 +439,7 @@ export function AdminConsole() {
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [competitions, setCompetitions] = useState<AdminCompetitionRow[]>([]);
   const [matchStats, setMatchStats] = useState<AdminMatchStats>(emptyMatchStats);
+  const [featureStats, setFeatureStats] = useState<AdminFeatureStats>(emptyFeatureStats);
   const [ads, setAds] = useState<AdminAdRow[]>([]);
   const [appearance, setAppearance] = useState<AppearanceConfig>(defaultAppearanceConfig);
   const [maintenanceMode, setMaintenanceMode] = useState<MaintenanceModeState>({ enabled: false, updatedAt: null });
@@ -492,6 +507,7 @@ export function AdminConsole() {
         setInvites(data.invites ?? []);
         setCompetitions(data.competitions ?? []);
         setMatchStats(data.matchStats ?? emptyMatchStats);
+        setFeatureStats(data.featureStats ?? emptyFeatureStats);
         setAds((data.ads ?? []).map((ad: {
           id: string;
           name: string;
@@ -570,7 +586,7 @@ export function AdminConsole() {
       adminMode={adminMode}
       onLogout={logout}
     >
-      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logsRefreshKey={logsRefreshKey} requests={requests} invites={invites} competitions={competitions} matchStats={matchStats} ads={ads} competitionsLoading={!adminDataLoaded} appearance={appearance} maintenanceMode={maintenanceMode} onMaintenanceChange={setMaintenanceMode} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
+      <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logsRefreshKey={logsRefreshKey} requests={requests} invites={invites} competitions={competitions} matchStats={matchStats} featureStats={featureStats} ads={ads} competitionsLoading={!adminDataLoaded} appearance={appearance} maintenanceMode={maintenanceMode} onMaintenanceChange={setMaintenanceMode} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
     </AdminLayout>
   );
 }
@@ -669,6 +685,7 @@ function AdminTabPanel(props: {
   invites: InviteRow[];
   competitions: AdminCompetitionRow[];
   matchStats: AdminMatchStats;
+  featureStats: AdminFeatureStats;
   ads: AdminAdRow[];
   competitionsLoading: boolean;
   appearance: AppearanceConfig;
@@ -680,7 +697,7 @@ function AdminTabPanel(props: {
   onRefresh: () => void;
 }) {
   if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
-  if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} maintenanceMode={props.maintenanceMode} onMaintenanceChange={props.onMaintenanceChange} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} featureStats={props.featureStats} maintenanceMode={props.maintenanceMode} onMaintenanceChange={props.onMaintenanceChange} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;
   if (props.tab === "ladders") return <AdminClubLadders onMessage={props.onMessage} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
@@ -938,6 +955,7 @@ function DesktopAdminPanel({
   requests,
   competitions,
   matchStats,
+  featureStats,
   maintenanceMode,
   onMaintenanceChange,
   onMessage,
@@ -949,6 +967,7 @@ function DesktopAdminPanel({
   requests: InviteRequestRow[];
   competitions: AdminCompetitionRow[];
   matchStats: AdminMatchStats;
+  featureStats: AdminFeatureStats;
   maintenanceMode: MaintenanceModeState;
   onMaintenanceChange: (maintenance: MaintenanceModeState) => void;
   onMessage: (message: string) => void;
@@ -984,6 +1003,60 @@ function DesktopAdminPanel({
     { label: "Home wins", value: matchTotals.homeWins, percent: matchTotals.homeWinPct, className: "bg-[#00ff85]" },
     { label: "Away wins", value: matchTotals.awayWins, percent: matchTotals.awayWinPct, className: "bg-[#00e5ff]" },
     { label: "Draws", value: matchTotals.draws, percent: matchTotals.drawPct, className: "bg-[#e9e3ee]" }
+  ];
+  const activityGroups: Array<{
+    title: string;
+    icon: typeof LayoutPanelTop;
+    metrics: Array<{ label: string; value: number; highlight?: boolean }>;
+  }> = [
+    {
+      title: "Team selections",
+      icon: Users,
+      metrics: [
+        { label: "Draft lineups", value: featureStats.lineups.draft },
+        { label: "Published lineups", value: featureStats.lineups.published },
+        { label: "Fixtures ready", value: featureStats.lineups.readyFixtures, highlight: true }
+      ]
+    },
+    {
+      title: "Cup competitions",
+      icon: Trophy,
+      metrics: [
+        { label: "Active cups", value: featureStats.cups.competitions },
+        { label: "Cup ties played", value: featureStats.cups.tiesPlayed, highlight: true },
+        { label: "Cup frames played", value: featureStats.cups.framesPlayed }
+      ]
+    },
+    {
+      title: "Club ladders",
+      icon: Swords,
+      metrics: [
+        { label: "Active ladders", value: featureStats.ladders.active },
+        { label: "Players", value: featureStats.ladders.players },
+        { label: "Challenges made", value: featureStats.ladders.challenges },
+        { label: "Open challenges", value: featureStats.ladders.openChallenges, highlight: featureStats.ladders.openChallenges > 0 },
+        { label: "Matches played", value: featureStats.ladders.completedMatches }
+      ]
+    },
+    {
+      title: "Last Man Standing",
+      icon: Trophy,
+      metrics: [
+        { label: "Competitions", value: featureStats.lastManStanding.competitions },
+        { label: "Entries", value: featureStats.lastManStanding.entries },
+        { label: "Still standing", value: featureStats.lastManStanding.standing, highlight: true },
+        { label: "Rounds settled", value: featureStats.lastManStanding.roundsSettled }
+      ]
+    },
+    {
+      title: "Live scoring",
+      icon: Radio,
+      metrics: [
+        { label: "Frames started", value: featureStats.liveScoring.framesStarted },
+        { label: "Frames completed", value: featureStats.liveScoring.framesCompleted },
+        { label: "Live now", value: featureStats.liveScoring.liveNow, highlight: featureStats.liveScoring.liveNow > 0 }
+      ]
+    }
   ];
   const maxScorelineCount = Math.max(1, ...selectedMatchStats.scorelines.map((row) => row.count));
   const maxPlayersUsed = Math.max(1, ...selectedMatchStats.playersUsedByTeam.map((row) => row.count));
@@ -1074,6 +1147,20 @@ function DesktopAdminPanel({
           <AdminMetric label="Players" value={players.length} />
           <AdminMetric label="Teams" value={teams.length} />
           <AdminMetric label={adminMode === "platform" ? "Clubs" : "Managers"} value={adminMode === "platform" ? clubs : managers.length} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <div>
+            <CardTitle>{adminMode === "platform" ? "Platform activity" : "Club activity"}</CardTitle>
+            <p className="mt-1 text-sm font-semibold text-[#6c5a73]">Current season activity across the newer parts of the platform.</p>
+          </div>
+          <Badge variant="muted">Current</Badge>
+        </CardHeader>
+        <CardContent className="grid gap-x-5 gap-y-4 sm:grid-cols-2 xl:grid-cols-5">
+          {activityGroups.map((group) => (
+            <AdminActivityGroup key={group.title} title={group.title} icon={group.icon} metrics={group.metrics} />
+          ))}
         </CardContent>
       </Card>
       {adminMode === "platform" ? (
@@ -2258,6 +2345,40 @@ function AdminMetric({ label, value, tone = "dark" }: { label: string; value: nu
       <p className={cn("text-xs font-bold uppercase", labelClass)}>{label}</p>
       <p className="mt-1 text-3xl font-extrabold">{value}</p>
     </div>
+  );
+}
+
+function AdminActivityGroup({
+  title,
+  icon: Icon,
+  metrics
+}: {
+  title: string;
+  icon: typeof LayoutPanelTop;
+  metrics: Array<{ label: string; value: number; highlight?: boolean }>;
+}) {
+  return (
+    <section className="min-w-0 border-b border-[#eeeaf2] pb-4 last:border-b-0 sm:[&:nth-last-child(-n+2)]:border-b-0 xl:border-b-0 xl:border-r xl:pr-5 xl:last:border-r-0 xl:last:pr-0">
+      <div className="mb-2 flex items-center gap-2 text-[#25002b]">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#10233f] text-white">
+          <Icon className="h-4 w-4" />
+        </span>
+        <h3 className="min-w-0 text-sm font-black">{title}</h3>
+      </div>
+      <dl className="grid gap-1.5">
+        {metrics.map((metric) => (
+          <div key={metric.label} className="flex min-h-8 items-center justify-between gap-2">
+            <dt className="text-xs font-bold text-[#6c5a73]">{metric.label}</dt>
+            <dd className={cn(
+              "min-w-8 rounded-md px-2 py-1 text-center text-sm font-black tabular-nums",
+              metric.highlight ? "bg-[#00ff85] text-[#10233f]" : "bg-[#f7f5fa] text-[#25002b]"
+            )}>
+              {metric.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 

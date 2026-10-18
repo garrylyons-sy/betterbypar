@@ -8,6 +8,7 @@ import {
   presentLastManStandingEntries,
   summarizeLastManStandingCompetitions
 } from "../lib/server/last-man-standing.ts";
+import { shouldShowLastManStandingOnHome } from "../lib/last-man-standing-home.mjs";
 
 test("a league-specific competition only offers roles from its league", () => {
   const roles = {
@@ -62,6 +63,14 @@ test("competition summaries keep concurrent competitions separate and provide pa
   assert.equal(summaries[1].currentRound.id, "round-2");
 });
 
+test("finished competitions remain on the home panel for only 48 hours", () => {
+  const now = new Date("2026-10-18T12:00:00.000Z");
+  assert.equal(shouldShowLastManStandingOnHome({ status: "In Progress", finishedAt: null }, now), true);
+  assert.equal(shouldShowLastManStandingOnHome({ status: "Complete", finishedAt: "2026-10-16T12:00:01.000Z" }, now), true);
+  assert.equal(shouldShowLastManStandingOnHome({ status: "No Winner", finishedAt: "2026-10-16T12:00:00.000Z" }, now), false);
+  assert.equal(shouldShowLastManStandingOnHome({ status: "Complete", finishedAt: null }, now), false);
+});
+
 test("competition discovery requires current entry eligibility or a previous entry", () => {
   const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
   const summary = source.slice(source.indexOf("const summaryQuery"), source.indexOf("export async function listLastManStandingCompetitions"));
@@ -106,6 +115,8 @@ test("competition detail preserves an eliminated entrant's run and overall resul
 
 test("competition summary query groups every selected current-round field", () => {
   const source = readFileSync(new URL("../lib/server/last-man-standing.ts", import.meta.url), "utf8");
+  const summary = source.slice(source.indexOf("const summaryQuery"), source.indexOf("export async function listLastManStandingCompetitions"));
+  assert.match(summary, /max\(finished_round\.settled_at\)/);
   assert.match(source, /group by c\.id, own_entry\.id, current_round\.id,\s*current_round\.name, current_round\.status,\s*current_round\.cycle_number, current_round\.round_number,\s*own_deadline\.deadline_at/);
   assert.match(source, /r\.id = own_entry\.eliminated_round_id/);
   assert.match(source, /own_entry\.status = 'Winner'/);

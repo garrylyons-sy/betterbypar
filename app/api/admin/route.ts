@@ -41,7 +41,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ authenticated: false, administrator: false }, { status: 401 });
     if (!administrator) return NextResponse.json({ authenticated: true, administrator: false, user }, { status: 403 });
 
-    const [teams, peopleResult, requestsResult, invitesResult, competitionsResult, adsResult, matchFixturesResult, matchAppearancesResult, appearance, maintenance] = await Promise.all([
+    const [teams, peopleResult, requestsResult, invitesResult, competitionsResult, adsResult, matchFixturesResult, matchAppearancesResult, featureStatsResult, appearance, maintenance] = await Promise.all([
       loadTeamOptions().then((rows) => platformAdmin ? rows : rows.filter((team) => clubAdminClubIds.includes(team.club_id))),
       dbQuery(
         `select distinct on (p.id)
@@ -310,9 +310,276 @@ export async function GET() {
          order by league_name, team_name`,
         [platformAdmin, clubAdminClubIds]
       ),
+      dbQuery<{
+        draft_lineups: number;
+        published_lineups: number;
+        ready_fixtures: number;
+        cup_competitions: number;
+        cup_ties_played: number;
+        cup_frames_played: number;
+        active_ladders: number;
+        ladder_players: number;
+        ladder_challenges: number;
+        open_ladder_challenges: number;
+        completed_ladder_matches: number;
+        lms_competitions: number;
+        lms_entries: number;
+        lms_standing: number;
+        lms_rounds_settled: number;
+        live_frames_started: number;
+        live_frames_completed: number;
+        live_frames_now: number;
+      }>(
+        `select
+           (
+             select count(*)::int
+             from public.fixture_lineup fl
+             join public.fixture f on f.id = fl.fixture_id
+             join public.season s on s.id = f.season_id
+             join public.team t on t.id = fl.team_id
+             where s.active = true
+               and fl.status = 'Draft'
+               and ($1::boolean = true or t.club_id = any($2::uuid[]))
+           ) as draft_lineups,
+           (
+             select count(*)::int
+             from public.fixture_lineup fl
+             join public.fixture f on f.id = fl.fixture_id
+             join public.season s on s.id = f.season_id
+             join public.team t on t.id = fl.team_id
+             where s.active = true
+               and fl.status = 'Published'
+               and ($1::boolean = true or t.club_id = any($2::uuid[]))
+           ) as published_lineups,
+           (
+             select count(*)::int
+             from (
+               select f.id
+               from public.fixture f
+               join public.season s on s.id = f.season_id
+               join public.team ht on ht.id = f.home_team_id
+               join public.team at on at.id = f.away_team_id
+               join public.fixture_lineup fl on fl.fixture_id = f.id and fl.status = 'Published'
+               where s.active = true
+                 and f.status <> 'Completed'
+                 and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
+               group by f.id
+               having count(distinct fl.team_id) = 2
+             ) ready
+           ) as ready_fixtures,
+           (
+             select count(*)::int
+             from public.cup_competition cc
+             join public.season s on s.id = cc.season_id
+             where s.active = true
+               and cc.status <> 'Complete'
+               and (
+                 $1::boolean = true
+                 or exists (
+                   select 1
+                   from public.cup_competition_entry cce
+                   join public.team t on t.id = cce.team_id
+                   where cce.competition_id = cc.id and t.club_id = any($2::uuid[])
+                 )
+               )
+           ) as cup_competitions,
+           (
+             select count(*)::int
+             from public.cup_competition_tie cct
+             join public.cup_competition_round ccr on ccr.id = cct.competition_round_id
+             join public.cup_competition cc on cc.id = ccr.competition_id
+             join public.season s on s.id = cc.season_id
+             where s.active = true
+               and cct.status = 'Completed'
+               and (
+                 $1::boolean = true
+                 or exists (
+                   select 1
+                   from public.cup_competition_entry cce
+                   join public.team t on t.id = cce.team_id
+                   where cce.competition_id = cc.id and t.club_id = any($2::uuid[])
+                 )
+               )
+           ) as cup_ties_played,
+           (
+             select count(*)::int
+             from public.game g
+             join public.match m on m.id = g.match_id
+             join public.cup_competition_tie cct on cct.fixture_id = m.fixture_id
+             join public.cup_competition_round ccr on ccr.id = cct.competition_round_id
+             join public.cup_competition cc on cc.id = ccr.competition_id
+             join public.season s on s.id = cc.season_id
+             where s.active = true
+               and g.winner_team_id is not null
+               and (
+                 $1::boolean = true
+                 or exists (
+                   select 1
+                   from public.cup_competition_entry cce
+                   join public.team t on t.id = cce.team_id
+                   where cce.competition_id = cc.id and t.club_id = any($2::uuid[])
+                 )
+               )
+           ) as cup_frames_played,
+           (
+             select count(*)::int
+             from public.club_ladder cl
+             where cl.active = true
+               and ($1::boolean = true or cl.club_id = any($2::uuid[]))
+           ) as active_ladders,
+           (
+             select count(*)::int
+             from public.club_ladder_entry cle
+             join public.club_ladder cl on cl.id = cle.ladder_id
+             where cl.active = true
+               and cle.status = 'Active'
+               and ($1::boolean = true or cl.club_id = any($2::uuid[]))
+           ) as ladder_players,
+           (
+             select count(*)::int
+             from public.club_ladder_challenge clc
+             join public.club_ladder cl on cl.id = clc.ladder_id
+             where $1::boolean = true or cl.club_id = any($2::uuid[])
+           ) as ladder_challenges,
+           (
+             select count(*)::int
+             from public.club_ladder_challenge clc
+             join public.club_ladder cl on cl.id = clc.ladder_id
+             where clc.status in ('Pending', 'Accepted', 'Scheduled', 'Result Pending')
+               and ($1::boolean = true or cl.club_id = any($2::uuid[]))
+           ) as open_ladder_challenges,
+           (
+             select count(*)::int
+             from public.club_ladder_challenge clc
+             join public.club_ladder cl on cl.id = clc.ladder_id
+             where clc.status = 'Completed'
+               and ($1::boolean = true or cl.club_id = any($2::uuid[]))
+           ) as completed_ladder_matches,
+           (
+             select count(*)::int
+             from public.last_man_standing_competition lmsc
+             join public.season s on s.id = lmsc.season_id
+             where s.active = true
+               and lmsc.status <> 'Archived'
+               and (
+                 $1::boolean = true
+                 or exists (
+                   select 1
+                   from public.last_man_standing_entry lmse
+                   join public.team t on t.id = lmse.source_team_id
+                   where lmse.competition_id = lmsc.id and t.club_id = any($2::uuid[])
+                 )
+               )
+           ) as lms_competitions,
+           (
+             select count(*)::int
+             from public.last_man_standing_entry lmse
+             join public.last_man_standing_competition lmsc on lmsc.id = lmse.competition_id
+             join public.season s on s.id = lmsc.season_id
+             join public.team t on t.id = lmse.source_team_id
+             where s.active = true
+               and lmse.status <> 'Withdrawn'
+               and ($1::boolean = true or t.club_id = any($2::uuid[]))
+           ) as lms_entries,
+           (
+             select count(*)::int
+             from public.last_man_standing_entry lmse
+             join public.last_man_standing_competition lmsc on lmsc.id = lmse.competition_id
+             join public.season s on s.id = lmsc.season_id
+             join public.team t on t.id = lmse.source_team_id
+             where s.active = true
+               and lmse.status in ('Entered', 'Standing')
+               and ($1::boolean = true or t.club_id = any($2::uuid[]))
+           ) as lms_standing,
+           (
+             select count(*)::int
+             from public.last_man_standing_round lmsr
+             join public.last_man_standing_competition lmsc on lmsc.id = lmsr.competition_id
+             join public.season s on s.id = lmsc.season_id
+             where s.active = true
+               and lmsr.status = 'Settled'
+               and (
+                 $1::boolean = true
+                 or exists (
+                   select 1
+                   from public.last_man_standing_entry lmse
+                   join public.team t on t.id = lmse.source_team_id
+                   where lmse.competition_id = lmsc.id and t.club_id = any($2::uuid[])
+                 )
+               )
+           ) as lms_rounds_settled,
+           (
+             select count(distinct lfs.game_id)::int
+             from public.live_frame_session lfs
+             join public.fixture f on f.id = lfs.fixture_id
+             join public.season s on s.id = f.season_id
+             join public.team ht on ht.id = f.home_team_id
+             join public.team at on at.id = f.away_team_id
+             where s.active = true
+               and lfs.superseded_at is null
+               and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
+           ) as live_frames_started,
+           (
+             select count(distinct lfs.game_id)::int
+             from public.live_frame_session lfs
+             join public.fixture f on f.id = lfs.fixture_id
+             join public.season s on s.id = f.season_id
+             join public.team ht on ht.id = f.home_team_id
+             join public.team at on at.id = f.away_team_id
+             where s.active = true
+               and lfs.status = 'Completed'
+               and lfs.superseded_at is null
+               and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
+           ) as live_frames_completed,
+           (
+             select count(distinct lfs.game_id)::int
+             from public.live_frame_session lfs
+             join public.fixture f on f.id = lfs.fixture_id
+             join public.season s on s.id = f.season_id
+             join public.team ht on ht.id = f.home_team_id
+             join public.team at on at.id = f.away_team_id
+             where s.active = true
+               and lfs.status in ('Live', 'Paused')
+               and lfs.superseded_at is null
+               and ($1::boolean = true or ht.club_id = any($2::uuid[]) or at.club_id = any($2::uuid[]))
+           ) as live_frames_now`,
+        [platformAdmin, clubAdminClubIds]
+      ),
       loadAppearanceConfig(),
       loadMaintenanceMode()
     ]);
+
+    const featureRow = featureStatsResult.rows[0];
+    const featureStats = {
+      lineups: {
+        draft: Number(featureRow?.draft_lineups ?? 0),
+        published: Number(featureRow?.published_lineups ?? 0),
+        readyFixtures: Number(featureRow?.ready_fixtures ?? 0)
+      },
+      cups: {
+        competitions: Number(featureRow?.cup_competitions ?? 0),
+        tiesPlayed: Number(featureRow?.cup_ties_played ?? 0),
+        framesPlayed: Number(featureRow?.cup_frames_played ?? 0)
+      },
+      ladders: {
+        active: Number(featureRow?.active_ladders ?? 0),
+        players: Number(featureRow?.ladder_players ?? 0),
+        challenges: Number(featureRow?.ladder_challenges ?? 0),
+        openChallenges: Number(featureRow?.open_ladder_challenges ?? 0),
+        completedMatches: Number(featureRow?.completed_ladder_matches ?? 0)
+      },
+      lastManStanding: {
+        competitions: Number(featureRow?.lms_competitions ?? 0),
+        entries: Number(featureRow?.lms_entries ?? 0),
+        standing: Number(featureRow?.lms_standing ?? 0),
+        roundsSettled: Number(featureRow?.lms_rounds_settled ?? 0)
+      },
+      liveScoring: {
+        framesStarted: Number(featureRow?.live_frames_started ?? 0),
+        framesCompleted: Number(featureRow?.live_frames_completed ?? 0),
+        liveNow: Number(featureRow?.live_frames_now ?? 0)
+      }
+    };
 
     return NextResponse.json({
       authenticated: true,
@@ -329,6 +596,7 @@ export async function GET() {
         fixtures: matchFixturesResult.rows,
         appearances: matchAppearancesResult.rows
       }),
+      featureStats,
       appearance,
       maintenance: platformAdmin ? maintenance : undefined
     });

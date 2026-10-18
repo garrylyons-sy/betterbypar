@@ -25,6 +25,9 @@ test("audience-filtered Last Man Standing is available from the page and home pa
   assert.match(panel, /const displayedCompetitions = enteredCompetitions\.length > 0/);
   assert.match(panel, /displayedCompetitions\.map/);
   assert.match(panel, /availableCompetitionCount/);
+  assert.match(panel, /shouldShowLastManStandingOnHome/);
+  assert.match(panel, /const homeCompetitions = competitions\.filter/);
+  assert.match(panel, /const enteredCompetitions = homeCompetitions\.filter/);
   assert.doesNotMatch(panel, /enteredCompetitionCountLabel/);
   assert.doesNotMatch(panel, />\{enteredCompetitionCountLabel\}<\/Badge>/);
   assert.doesNotMatch(panel, /const competition = competitions\.find/);
