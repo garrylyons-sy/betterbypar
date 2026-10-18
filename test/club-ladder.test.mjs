@@ -316,6 +316,18 @@ test("admin ladder challenge lists load only when their accordions open", () => 
   assert.match(adminLadders, /detail=/);
 });
 
+test("ladder administrators can accept challenges and record results for players", () => {
+  assert.match(adminLadderApi, /action === "acceptChallenge"/);
+  assert.match(adminLadderApi, /action === "recordResult"/);
+  assert.match(adminLadderApi, /Club ladder challenge accepted by administrator/);
+  assert.match(adminLadderApi, /Club ladder result recorded by administrator/);
+  assert.match(adminLadderApi, /validateLadderResult/);
+  assert.match(adminLadderApi, /result_submitted_by = \$5/);
+  assert.match(adminLadders, /Accept challenge/);
+  assert.match(adminLadders, /Record result/);
+  assert.match(adminLadders, /adminChallengeAction/);
+});
+
 test("ignoring a repeat challenge awards a walkover and swaps the two positions", () => {
   assert.match(ladderApi, /async function expirePendingChallenges/);
   assert.match(ladderApi, /previous\.status = 'Rejected'/);

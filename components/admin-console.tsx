@@ -1662,7 +1662,7 @@ function AdminLineupEditor({
     });
   }
 
-  async function saveLineup(action: "save" | "publish") {
+  async function saveLineup(action: "save" | "publish" | "unpublish") {
     setBusy(action);
     try {
       const response = await fetch("/api/manager/lineup", {
@@ -1680,9 +1680,9 @@ function AdminLineupEditor({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not save lineup.");
       setSlots(data.lineup?.slots?.length ? data.lineup.slots : slots);
-      const nextStatus = data.lineup?.status ?? (action === "publish" || lineupStatus === "Published" ? "Published" : "Draft");
+      const nextStatus = data.lineup?.status ?? (action === "unpublish" ? "Draft" : action === "publish" || lineupStatus === "Published" ? "Published" : "Draft");
       setLineupStatus(nextStatus);
-      onMessage(nextStatus === "Published" ? `${target.teamName} published lineup updated.` : `${target.teamName} draft lineup saved.`);
+      onMessage(action === "unpublish" ? `${target.teamName} lineup unpublished. The manager can now make changes.` : nextStatus === "Published" ? `${target.teamName} published lineup updated.` : `${target.teamName} draft lineup saved.`);
       await onSaved();
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not save lineup.");
@@ -1736,7 +1736,12 @@ function AdminLineupEditor({
               </div>
             </div>
           ))}
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className={cn("grid gap-2", lineupStatus === "Published" ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+            {lineupStatus === "Published" ? (
+              <Button type="button" variant="secondary" size="sm" onClick={() => saveLineup("unpublish")} disabled={Boolean(busy)}>
+                <XCircle className="h-4 w-4" />{busy === "unpublish" ? "Unpublishing..." : "Unpublish lineup"}
+              </Button>
+            ) : null}
             <Button type="button" variant="secondary" size="sm" onClick={() => saveLineup("save")} disabled={Boolean(busy)}>
               {busy === "save" ? "Saving..." : lineupStatus === "Published" ? "Save changes" : "Save draft"}
             </Button>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { normalizeLadderInitialOrder, normalizeLadderSettings } from "@/lib/club-ladder.mjs";
+import { normalizeLadderInitialOrder, normalizeLadderSettings, validateLadderResult } from "@/lib/club-ladder.mjs";
 import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
@@ -419,6 +419,115 @@ export async function PATCH(request: Request) {
     if (!clubId || !ladderId) throw new Error("Club and ladder are required.");
     if (!access.platform && !access.clubIds.includes(clubId)) {
       return NextResponse.json({ error: "Club administrator access is required for this club." }, { status: 403 });
+    }
+
+    if (action === "acceptChallenge" || action === "recordResult") {
+      const challengeId = String(body.challengeId ?? "").trim();
+      if (!challengeId) throw new Error("Challenge is required.");
+
+      const result = await withTransaction(async (client) => {
+        const challenge = await client.query<{
+          id: string; status: string; challenger_entry_id: string; challenged_entry_id: string;
+          challenger_name: string; challenged_name: string; ladder_name: string; club_name: string;
+          match_format: "1 Frame" | "Best of 3" | "Best of 5"; play_within_days: number;
+        }>(
+          `select challenge.id::text, challenge.status,
+                  challenge.challenger_entry_id::text, challenge.challenged_entry_id::text,
+                  concat_ws(' ', challenger_person.first_name, challenger_person.last_name) as challenger_name,
+                  concat_ws(' ', challenged_person.first_name, challenged_person.last_name) as challenged_name,
+                  ladder.name as ladder_name, club.name as club_name,
+                  ladder.match_format, ladder.play_within_days
+           from public.club_ladder_challenge challenge
+           join public.club_ladder ladder on ladder.id = challenge.ladder_id
+           join public.club club on club.id = ladder.club_id
+           join public.club_ladder_entry challenger on challenger.id = challenge.challenger_entry_id
+           join public.person challenger_person on challenger_person.id = challenger.person_id
+           join public.club_ladder_entry challenged on challenged.id = challenge.challenged_entry_id
+           join public.person challenged_person on challenged_person.id = challenged.person_id
+           where challenge.id = $1 and challenge.ladder_id = $2
+             and ladder.club_id = $3
+           for update of challenge, ladder`,
+          [challengeId, ladderId, clubId]
+        );
+        if (!challenge.rowCount) throw new Error("Ladder challenge was not found.");
+        const row = challenge.rows[0];
+
+        if (action === "acceptChallenge") {
+          if (row.status !== "Pending") throw new Error("Only a pending challenge can be accepted.");
+          await client.query(
+            `update public.club_ladder_challenge
+             set status = 'Accepted', accepted_at = now(),
+                 play_by = now() + ($2::text || ' days')::interval,
+                 updated_at = now()
+             where id = $1`,
+            [row.id, row.play_within_days]
+          );
+          await client.query(
+            `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
+             values ($1, 'Page Visit', '/admin/ladders', 'Club ladder challenge accepted by administrator',
+               jsonb_build_object('club_id', $2::text, 'club_name', $3::text, 'ladder_id', $4::text,
+                 'ladder_name', $5::text, 'challenge_id', $6::text,
+                 'challenger_name', $7::text, 'challenged_name', $8::text))`,
+            [access.personId, clubId, row.club_name, ladderId, row.ladder_name, row.id, row.challenger_name, row.challenged_name]
+          );
+          return { status: "Accepted" };
+        }
+
+        if (!["Accepted", "Scheduled", "Result Pending", "Disputed"].includes(row.status)) {
+          throw new Error("A result cannot be entered for this challenge.");
+        }
+        const challengerScore = Number(body.challengerScore);
+        const challengedScore = Number(body.challengedScore);
+        const validated = validateLadderResult(row.match_format, challengerScore, challengedScore);
+        const winnerEntryId = validated.winner === "home" ? row.challenger_entry_id : row.challenged_entry_id;
+
+        await client.query("select pg_advisory_xact_lock(hashtext($1))", [`ladder:${ladderId}`]);
+        if (winnerEntryId === row.challenger_entry_id) {
+          const positions = await client.query<{ id: string; position: number }>(
+            `select id::text, position from public.club_ladder_entry
+             where id = any($1::uuid[]) for update`,
+            [[row.challenger_entry_id, row.challenged_entry_id]]
+          );
+          const challenger = positions.rows.find((entry) => entry.id === row.challenger_entry_id);
+          const challenged = positions.rows.find((entry) => entry.id === row.challenged_entry_id);
+          if (!challenger || !challenged) throw new Error("The ladder positions could not be found.");
+          if (challenger.position > challenged.position) {
+            await client.query("set constraints all deferred");
+            await client.query(
+              `update public.club_ladder_entry
+               set position = position + 1, updated_at = now()
+               where ladder_id = $1 and status <> 'Withdrawn'
+                 and position >= $2 and position < $3 and id <> $4`,
+              [ladderId, challenged.position, challenger.position, challenger.id]
+            );
+            await client.query(
+              "update public.club_ladder_entry set position = $2, updated_at = now() where id = $1",
+              [challenger.id, challenged.position]
+            );
+          }
+        }
+        await client.query(
+          `update public.club_ladder_challenge
+           set status = 'Completed', challenger_score = $2, challenged_score = $3,
+               winner_entry_id = $4, result_submitted_by = $5, result_submitted_at = now(),
+               completed_at = now(), updated_at = now()
+           where id = $1`,
+          [row.id, challengerScore, challengedScore, winnerEntryId, access.personId]
+        );
+        await client.query(
+          `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
+           values ($1, 'Page Visit', '/admin/ladders', 'Club ladder result recorded by administrator',
+             jsonb_build_object('club_id', $2::text, 'club_name', $3::text, 'ladder_id', $4::text,
+               'ladder_name', $5::text, 'challenge_id', $6::text,
+               'challenger_name', $7::text, 'challenged_name', $8::text,
+               'challenger_score', $9::int, 'challenged_score', $10::int))`,
+          [access.personId, clubId, row.club_name, ladderId, row.ladder_name, row.id,
+            row.challenger_name, row.challenged_name, challengerScore, challengedScore]
+        );
+        return { status: "Completed" };
+      });
+
+      return NextResponse.json({ ok: true, ...result });
     }
 
     if (action === "addPlayers") {

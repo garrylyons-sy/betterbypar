@@ -17,3 +17,13 @@ test("only an app operator can bypass the once-per-team play-up rule", () => {
   assert.match(lineupRoute, /ignorePlayUpLimit \? new Map\(\) : new Map/);
   assert.match(lineupRoute, /Guest Player already played for/, "manager saves should still enforce the normal restriction");
 });
+
+test("an administrator can unpublish a lineup without removing its selections", () => {
+  assert.match(lineupRoute, /action === "unpublish"/);
+  assert.match(lineupRoute, /if \(!adminOverride\)[\s\S]*Only an administrator can unpublish a lineup/);
+  assert.match(lineupRoute, /set status = 'Draft',[\s\S]*published_at = null/);
+  assert.match(lineupRoute, /Unpublished lineup/);
+  assert.match(lineupRoute, /Frame scoring has already started/);
+  assert.match(adminConsole, /Unpublish lineup/);
+  assert.match(adminConsole, /saveLineup\("unpublish"\)/);
+});

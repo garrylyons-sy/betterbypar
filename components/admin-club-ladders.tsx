@@ -89,6 +89,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
   const [openDetailKey, setOpenDetailKey] = useState<string | null>(null);
   const [detailCache, setDetailCache] = useState<Record<string, AdminLadderChallenge[]>>({});
   const [loadingDetailKey, setLoadingDetailKey] = useState<string | null>(null);
+  const [actionChallengeId, setActionChallengeId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -272,6 +273,36 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
     }
   }
 
+  async function adminChallengeAction(clubId: string, ladderId: string, challengeId: string, action: "acceptChallenge" | "recordResult", scores?: { challengerScore: number; challengedScore: number }) {
+    setActionChallengeId(challengeId);
+    try {
+      const response = await fetch(testAwarePath("/api/admin/ladders"), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ clubId, ladderId, challengeId, action, ...scores })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "The ladder challenge could not be updated.");
+      onMessage(action === "acceptChallenge" ? "Challenge accepted on the player's behalf." : "Ladder result recorded.");
+
+      const detail = "activeChallenges";
+      const key = `${ladderId}:${detail}`;
+      const detailResponse = await fetch(testAwarePath(`/api/admin/ladders?ladderId=${encodeURIComponent(ladderId)}&detail=${detail}`), { cache: "no-store" });
+      const detailData = await detailResponse.json().catch(() => ({}));
+      if (detailResponse.ok) setDetailCache((current) => ({ ...current, [key]: detailData.challenges ?? [] }));
+      setDetailCache((current) => {
+        const next = { ...current };
+        delete next[`${ladderId}:history`];
+        return next;
+      });
+      await load();
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : "The ladder challenge could not be updated.");
+    } finally {
+      setActionChallengeId(null);
+    }
+  }
+
   const activeCount = clubs.reduce((total, club) => total + club.ladders.filter((ladder) => ladder.active).length, 0);
 
   return (
@@ -414,6 +445,8 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                           loadingDetailKey={loadingDetailKey}
                           challenges={detailCache[`${selectedLadder.id}:activeChallenges`]}
                           onToggle={() => void loadLadderDetail(selectedLadder.id, "activeChallenges")}
+                          actionChallengeId={actionChallengeId}
+                          onAction={(challengeId, action, scores) => void adminChallengeAction(club.clubId, selectedLadder.id, challengeId, action, scores)}
                         />
                         <LadderDetailAccordion
                           title="Match history"
@@ -454,7 +487,7 @@ function RuleSummary({ icon: Icon, text }: { icon: typeof Users; text: string })
   return <div className="flex min-h-12 items-center gap-2 rounded-lg bg-white px-3 ring-1 ring-[#eeeaf2]"><Icon className="h-4 w-4 shrink-0 text-[#1b8a72]" /><span className="text-xs font-extrabold text-[#10233f]">{text}</span></div>;
 }
 
-function LadderDetailAccordion({ title, icon: Icon, detailKey, openDetailKey, loadingDetailKey, challenges, onToggle }: {
+function LadderDetailAccordion({ title, icon: Icon, detailKey, openDetailKey, loadingDetailKey, challenges, onToggle, actionChallengeId, onAction }: {
   title: string;
   icon: typeof Swords;
   detailKey: string;
@@ -462,9 +495,12 @@ function LadderDetailAccordion({ title, icon: Icon, detailKey, openDetailKey, lo
   loadingDetailKey: string | null;
   challenges: AdminLadderChallenge[] | undefined;
   onToggle: () => void;
+  actionChallengeId?: string | null;
+  onAction?: (challengeId: string, action: "acceptChallenge" | "recordResult", scores?: { challengerScore: number; challengedScore: number }) => void;
 }) {
   const open = openDetailKey === detailKey;
   const loading = loadingDetailKey === detailKey;
+  const [scoreDrafts, setScoreDrafts] = useState<Record<string, { challenger: number; challenged: number }>>({});
   return (
     <div className="overflow-hidden rounded-lg bg-[#f7f5fa] ring-1 ring-[#eeeaf2]">
       <button type="button" className="flex min-h-12 w-full items-center gap-2 px-3 text-left" onClick={onToggle} aria-expanded={open}>
@@ -485,6 +521,22 @@ function LadderDetailAccordion({ title, icon: Icon, detailKey, openDetailKey, lo
               <p className="mt-1 text-[11px] font-bold text-[#6c5a73]">
                 {challenge.recordedAt ? `Recorded ${formatAdminDate(challenge.recordedAt)}` : challenge.scheduledAt ? `Scheduled ${formatAdminDate(challenge.scheduledAt)}` : challenge.playBy ? `Play by ${formatAdminDate(challenge.playBy)}` : challenge.responseDueAt ? `Reply by ${formatAdminDate(challenge.responseDueAt)}` : ""}
               </p>
+              {onAction && challenge.status === "Pending" ? (
+                <div className="mt-3 flex justify-end">
+                  <Button type="button" size="sm" onClick={() => onAction(challenge.id, "acceptChallenge")} disabled={actionChallengeId === challenge.id}><ShieldCheck className="h-4 w-4" />Accept challenge</Button>
+                </div>
+              ) : null}
+              {onAction && ["Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status) ? (() => {
+                const scores = scoreDrafts[challenge.id] ?? { challenger: challenge.challengerScore ?? 0, challenged: challenge.challengedScore ?? 0 };
+                return (
+                  <div className="mt-3 grid gap-2 border-t border-[#eeeaf2] pt-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] sm:items-end">
+                    <label className="grid gap-1"><span className="truncate text-[10px] font-black uppercase text-[#6c5a73]">{challenge.challengerName}</span><input type="number" min={0} max={3} value={scores.challenger} onChange={(event) => setScoreDrafts((current) => ({ ...current, [challenge.id]: { ...scores, challenger: Number(event.target.value) } }))} className="min-h-10 w-full rounded-lg border border-[#e3ddea] bg-white px-3 text-center font-black" /></label>
+                    <span className="hidden pb-2 text-sm font-black text-[#6c5a73] sm:block">-</span>
+                    <label className="grid gap-1"><span className="truncate text-[10px] font-black uppercase text-[#6c5a73]">{challenge.challengedName}</span><input type="number" min={0} max={3} value={scores.challenged} onChange={(event) => setScoreDrafts((current) => ({ ...current, [challenge.id]: { ...scores, challenged: Number(event.target.value) } }))} className="min-h-10 w-full rounded-lg border border-[#e3ddea] bg-white px-3 text-center font-black" /></label>
+                    <Button type="button" size="sm" onClick={() => onAction(challenge.id, "recordResult", { challengerScore: scores.challenger, challengedScore: scores.challenged })} disabled={actionChallengeId === challenge.id}><Trophy className="h-4 w-4" />Record result</Button>
+                  </div>
+                );
+              })() : null}
             </div>
           ))}
           {!loading && challenges && !challenges.length ? <p className="text-xs font-bold text-[#6c5a73]">Nothing to show yet.</p> : null}

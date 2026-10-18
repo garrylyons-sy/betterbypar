@@ -213,6 +213,55 @@ export async function POST(request: NextRequest) {
     }
     await requireTeamManager(teamId, { testManager, testUser: body.testUser });
 
+    if (action === "unpublish") {
+      if (!adminOverride) throw new Error("Only an administrator can unpublish a lineup.");
+      await withTransaction(async (client) => {
+        await ensureFixtureTeam(client, fixtureId, teamId);
+        const lineup = await client.query<{ id: string; status: "Draft" | "Published"; scoring_started: boolean }>(
+          `select fl.id::text, fl.status::text as status,
+                  (
+                    f.status = 'Completed'
+                    or coalesce(m.home_team_score, 0) <> 0
+                    or coalesce(m.away_team_score, 0) <> 0
+                    or exists (
+                      select 1
+                      from public.game g
+                      where g.match_id = m.id
+                        and (
+                          g.winner_team_id is not null
+                          or g.home_score <> 0
+                          or g.away_score <> 0
+                          or exists (select 1 from public.break b where b.game_id = g.id)
+                          or exists (select 1 from public.live_frame_session session where session.game_id = g.id)
+                        )
+                    )
+                  ) as scoring_started
+           from public.fixture_lineup fl
+           join public.fixture f on f.id = fl.fixture_id
+           left join public.match m on m.fixture_id = f.id
+           where fl.fixture_id = $1 and fl.team_id = $2
+           for update of fl, f`,
+          [fixtureId, teamId]
+        );
+        if (!lineup.rowCount || lineup.rows[0].status !== "Published") {
+          throw new Error("This lineup is not currently published.");
+        }
+        if (lineup.rows[0].scoring_started) {
+          throw new Error("Frame scoring has already started, so this lineup cannot be unpublished.");
+        }
+        await client.query(
+          `update public.fixture_lineup
+           set status = 'Draft', published_at = null, updated_at = now()
+           where id = $1`,
+          [lineup.rows[0].id]
+        );
+        await recordLineupActivity(client, user.personId, fixtureId, teamId, "Unpublished lineup", { adminOverride: true });
+      });
+
+      const payload = await loadLineupPayload(teamId, fixtureId, { ignorePlayUpLimit: true });
+      return NextResponse.json({ ok: true, ...payload, canManage: true });
+    }
+
     if (action === "recordResult") {
       const gameId = String(body.gameId ?? "").trim();
       const winnerTeamId = body.winnerTeamId === null ? null : String(body.winnerTeamId ?? "").trim();
