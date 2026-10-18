@@ -312,7 +312,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
       <ClubFeatureUnavailable
         icon={Swords}
         eyebrow="Club Ladders"
-        title={collection?.configured ? "There are no eligible ladders for you at the moment." : "This club has not configured a ladder yet."}
+        title={collection?.configured ? "There are no eligible ladders for you at the moment." : "Your club has not configured a ladder yet."}
         description={collection?.configured ? "This club's ladders are currently limited to players from selected teams. An administrator can include your team or create a club-wide ladder." : "Once a club administrator switches it on, members can join, challenge nearby players and record results here."}
         primaryColor={activeTeam.primaryColor}
         accentColor={activeTeam.accentColor}

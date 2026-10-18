@@ -99,7 +99,7 @@ test("admin and My Club expose the ladder without adding it to the main navigati
   assert.match(adminConsole, /<AdminClubLadders/);
   assert.match(appShell, /onNavigate\("Ladder"\)/);
   assert.match(appShell, /if \(activePage === "Ladder"\) return <ClubLadderPage/);
-  assert.match(ladderPage, /This club has not configured a ladder yet\./);
+  assert.match(ladderPage, /Your club has not configured a ladder yet\./);
   assert.match(ladderPage, /Ladder rules/);
   assert.doesNotMatch(appShell, /"Ladder"[^\n]+AppearanceMenuId/);
 });
