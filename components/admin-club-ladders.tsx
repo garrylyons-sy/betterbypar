@@ -122,6 +122,18 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
     else newLadder(club);
   }
 
+  function toggleEligibleTeam(club: AdminLadderClub, teamId: string) {
+    const eligibleTeamIds = draft.eligibleTeamIds.includes(teamId)
+      ? draft.eligibleTeamIds.filter((id) => id !== teamId)
+      : [...draft.eligibleTeamIds, teamId];
+    setDraft((current) => ({ ...current, eligibleTeamIds }));
+    if (editingLadderId === "new") {
+      setInitialPersonIds(eligibleTeamIds.length
+        ? club.members.filter((member) => member.teamIds.some((id) => eligibleTeamIds.includes(id))).map((member) => member.personId)
+        : []);
+    }
+  }
+
   async function save(clubId: string) {
     setSaving(true);
     try {
@@ -252,7 +264,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                     <div className="flex flex-wrap gap-2">
                       {club.teams.map((team) => {
                         const selected = draft.eligibleTeamIds.includes(team.id);
-                        return <button key={team.id} type="button" onClick={() => { setDraft((current) => ({ ...current, eligibleTeamIds: selected ? current.eligibleTeamIds.filter((id) => id !== team.id) : [...current.eligibleTeamIds, team.id] })); setInitialPersonIds([]); }} className={cn("min-h-10 rounded-lg px-3 text-sm font-black ring-1", selected ? "bg-[#10233f] text-white ring-[#10233f]" : "bg-[#f7f5fa] text-[#10233f] ring-[#e3ddea]")}>{team.name}</button>;
+                        return <button key={team.id} type="button" onClick={() => toggleEligibleTeam(club, team.id)} className={cn("min-h-10 rounded-lg px-3 text-sm font-black ring-1", selected ? "bg-[#10233f] text-white ring-[#10233f]" : "bg-[#f7f5fa] text-[#10233f] ring-[#e3ddea]")}>{team.name}</button>;
                       })}
                     </div>
                     <label className="inline-flex w-fit min-h-11 items-center gap-3 rounded-lg bg-[#f7f5fa] px-3 font-bold ring-1 ring-[#eeeaf2]"><input type="checkbox" checked={draft.useHandicap} onChange={(event) => setDraft((current) => ({ ...current, useHandicap: event.target.checked }))} />Use club handicaps</label>
@@ -270,6 +282,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                         {visibleMembers.map((member) => { const selected = initialPersonIds.includes(member.personId); return <label key={member.personId} className={cn("flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ring-1", selected ? "bg-[#eaf8f4] ring-[#83d8c2]" : "bg-[#f7f5fa] ring-[#eeeaf2]")}><input type="checkbox" checked={selected} onChange={() => setInitialPersonIds((current) => selected ? current.filter((id) => id !== member.personId) : [...current, member.personId])} /><span className="min-w-0 flex-1 truncate text-sm font-extrabold text-[#10233f]">{member.name}</span><span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-black uppercase text-[#6c5a73] ring-1 ring-[#ded7e5]" title={member.handicap === null ? "No handicap recorded" : `Handicap ${member.handicap}`}>Hcp {member.handicap ?? "-"}</span></label>; })}
                         {!visibleMembers.length ? <p className="text-sm font-semibold text-[#6c5a73]">No eligible club members match this search.</p> : null}
                       </div>
+                      {!initialPersonIds.length ? <p className="text-xs font-bold text-[#b42318]">Select at least one player to create this ladder.</p> : null}
                     </div>
                   ) : null}
 
@@ -303,7 +316,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                     <label className="inline-flex min-h-11 items-center gap-3 rounded-lg bg-white px-3 font-bold ring-1 ring-[#eeeaf2]"><input type="checkbox" checked={draft.active} onChange={(event) => setDraft((current) => ({ ...current, active: event.target.checked }))} />Available in My Club</label>
                     <div className="flex flex-wrap items-center gap-2">
                       {selectedLadder ? <Button variant="secondary" onClick={() => void deleteLadder(club, selectedLadder)} disabled={saving} className="text-[#b42318]"><Trash2 className="h-4 w-4" />Delete ladder</Button> : null}
-                      <Button onClick={() => void save(club.clubId)} disabled={saving}><Save className="h-4 w-4" />{saving ? "Saving..." : editingLadderId === "new" ? "Create ladder" : "Save settings"}</Button>
+                      <Button onClick={() => void save(club.clubId)} disabled={saving || (editingLadderId === "new" && !initialPersonIds.length)}><Save className="h-4 w-4" />{saving ? "Saving..." : editingLadderId === "new" ? "Create ladder" : "Save settings"}</Button>
                     </div>
                   </div>
                 </div>

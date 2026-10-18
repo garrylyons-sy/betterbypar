@@ -2758,8 +2758,8 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
           <ClubActionTile
             icon={Swords}
             eyebrow="Challenge"
-            title="Club ladder"
-            description="See the order, challenge and climb."
+            title="Club Ladders"
+            description="View rankings, make challenges and track your form."
             colors={["#10233f", "#1b8a72"]}
             onClick={() => onNavigate("Ladder")}
           />

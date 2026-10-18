@@ -120,6 +120,7 @@ test("ladder setup supports multiple ladders, team eligibility and optional init
   assert.match(adminLadderApi, /ladderId/);
   assert.match(adminLadderApi, /initialPersonIds/);
   assert.match(adminLadderApi, /Every selected player must be eligible for this ladder/);
+  assert.match(adminLadderApi, /Select at least one player before creating a ladder/);
   assert.match(adminLadderApi, /insert into public\.club_ladder_entry/);
   assert.match(adminLadderApi, /lower\(p\.last_name\), lower\(p\.first_name\), p\.id/);
   assert.match(adminLadders, /Add initial players/);
@@ -131,6 +132,9 @@ test("ladder setup supports multiple ladders, team eligibility and optional init
   assert.match(adminLadders, /All club members/);
   assert.match(adminLadders, /Use club handicaps/);
   assert.match(adminLadders, /New ladder/);
+  assert.match(adminLadders, /toggleEligibleTeam/);
+  assert.match(adminLadders, /club\.members\.filter\(\(member\) => member\.teamIds\.some/);
+  assert.match(adminLadders, /Select at least one player to create this ladder/);
 });
 
 test("new ladders can seed selected players by surname or random draw", () => {
@@ -146,7 +150,9 @@ test("new ladders can seed selected players by surname or random draw", () => {
 });
 
 test("eligible club members have a configurable visual ladder home panel", () => {
-  assert.match(appearance, /id: "clubLadder", label: "Club ladder"/);
+  assert.match(appearance, /id: "clubLadder", label: "Club Ladders"/);
+  assert.match(appShell, /title="Club Ladders"/);
+  assert.match(appShell, /description="View rankings, make challenges and track your form\."/);
   assert.match(ladderPage, /export function ClubLadderHomePanel/);
   assert.match(ladderPage, /if \(!data\?\.ladders\.length\) return null/);
   assert.match(ladderPage, /Position #\{ladderView\.me\.position\}/);

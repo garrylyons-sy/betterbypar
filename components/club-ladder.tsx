@@ -121,7 +121,7 @@ export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeT
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-white/15 ring-1 ring-white/25"><Swords className="h-6 w-6" /></span>
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase text-white/65">Club ladder</p>
+            <p className="text-[10px] font-black uppercase text-white/65">Club Ladders</p>
             <h2 className="truncate text-xl font-black">{ladderView.ladder.name}</h2>
             <p className="mt-0.5 text-xs font-bold text-white/70">{ladderView.ladder.matchFormat} · Challenge {ladderView.ladder.challengeRange} places up</p>
           </div>
@@ -270,7 +270,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
     return (
       <ClubFeatureUnavailable
         icon={Swords}
-        eyebrow="Club ladder"
+        eyebrow="Club Ladders"
         title={collection?.configured ? "There are no eligible ladders for you at the moment." : "This club has not configured a ladder yet."}
         description={collection?.configured ? "This club's ladders are currently limited to players from selected teams. An administrator can include your team or create a club-wide ladder." : "Once a club administrator switches it on, members can join, challenge nearby players and record results here."}
         primaryColor={activeTeam.primaryColor}

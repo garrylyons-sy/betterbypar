@@ -10,7 +10,7 @@ export const appearancePanelOptions: Array<{ id: AppearancePanelId; label: strin
   { id: "personalRecentForm", label: "Recent personal form", description: "Latest individual games.", roles: ["Player"] },
   { id: "individualGames", label: "Individual games", description: "Full personal game list.", roles: ["Player"] },
   { id: "lastManStanding", label: "Last Man Standing", description: "Current round, picks and remaining entrants.", roles: appearanceRoles },
-  { id: "clubLadder", label: "Club ladder", description: "Position, recent form and active ladder challenges.", roles: appearanceRoles },
+  { id: "clubLadder", label: "Club Ladders", description: "Positions, recent form and active ladder challenges.", roles: appearanceRoles },
   { id: "memberActions", label: "Member actions", description: "Bookings and competition entry.", roles: ["Player", "Manager", "Club Member", "Club Admin"] },
   { id: "openCompetitions", label: "Open competitions", description: "Club competitions currently open for entry.", roles: appearanceRoles },
   { id: "myCompetitionMatches", label: "My competition matches", description: "Upcoming or active club competition ties.", roles: appearanceRoles },

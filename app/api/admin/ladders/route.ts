@@ -176,6 +176,9 @@ export async function POST(request: Request) {
     if (!access.platform && !access.clubIds.includes(clubId)) {
       return NextResponse.json({ error: "Club administrator access is required for this club." }, { status: 403 });
     }
+    if (!ladderId && !initialPersonIds.length) {
+      throw new Error("Select at least one player before creating a ladder.");
+    }
     const settings = normalizeLadderSettings(body);
 
     const ladder = await withTransaction(async (client) => {
