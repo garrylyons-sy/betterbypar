@@ -391,7 +391,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
             <CardContent className="grid gap-3 pt-4">
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#10233f] px-3 py-2 text-white">
                 <span className="text-xs font-black uppercase text-white/65">Position at stake</span>
-                <span className="font-black">Challenger wins: moves to #{positionAtStake} · Challenged wins: holds #{positionAtStake}</span>
+                <span className="font-black">{challenge.challenger.name} wins: moves to #{positionAtStake} · {challenge.challenged.name} wins: holds #{positionAtStake}</span>
               </div>
               <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-center">
                 <div><p className="text-[10px] font-black uppercase text-[#6c5a73]">Challenger</p><p className="mt-1 font-black">#{challenge.challenger.position} {challenge.challenger.name} {ladder.useHandicap ? <Handicap value={handicapFor(challenge.challenger.personId)} /> : null}</p></div>

@@ -240,7 +240,8 @@ test("the ladder itself communicates challenge stakes and recent form", () => {
   assert.match(ladderApi, /limit 3/);
   assert.match(ladderPage, /Beat a player above you and take their position/);
   assert.match(ladderPage, /Play for #\{entry\.position\}/);
-  assert.match(ladderPage, /Challenger wins: moves to #/);
+  assert.match(ladderPage, /\{challenge\.challenger\.name\} wins: moves to #/);
+  assert.match(ladderPage, /\{challenge\.challenged\.name\} wins: holds #/);
   assert.match(ladderPage, /function RecentForm/);
   assert.match(ladderPage, /results\.slice\(0, 3\)\.join\(""\)/);
   assert.match(ladderPage, /\? "Won" : "Lost"/);
