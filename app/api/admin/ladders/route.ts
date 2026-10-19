@@ -130,12 +130,34 @@ export async function GET(request: Request) {
          order by t.club_id, t.name`, params
       ),
       dbQuery<{ club_id: string; person_id: string; person_name: string; handicap: string | null; team_ids: string[] | null }>(
-        `select cm.club_id::text, p.id::text as person_id,
+        `select people.club_id::text, p.id::text as person_id,
                 concat_ws(' ', p.first_name, p.last_name) as person_name,
-                max(cm.handicap)::text as handicap,
+                handicap.handicap,
                 coalesce(team_roles.team_ids, array[]::text[]) as team_ids
-         from public.club_membership cm
-         join public.person p on p.id = cm.person_id and p.active = true
+         from (
+           select cm.club_id, cm.person_id
+           from public.club_membership cm
+           where cm.active = true
+           union
+           select ptr.club_id, ptr.person_id
+           from public.person_team_role ptr
+           join public.team team on team.club_id = ptr.club_id and team.league_id = ptr.league_id
+             and team.name = ptr.team_name and team.active = true
+           join public.season season on season.id = team.season_id and season.active = true
+           where ptr.active = true and ptr.role in ('Player', 'Manager')
+           union
+           select team.club_id, membership.person_id
+           from public.team_membership membership
+           join public.team team on team.id = membership.team_id and team.active = true
+           join public.season season on season.id = team.season_id and season.active = true
+           where membership.active = true and membership.role in ('Player', 'Manager')
+         ) people
+         join public.person p on p.id = people.person_id and p.active = true
+         left join lateral (
+           select max(cm.handicap)::text as handicap
+           from public.club_membership cm
+           where cm.club_id = people.club_id and cm.person_id = people.person_id and cm.active = true
+         ) handicap on true
          left join lateral (
            select array_agg(distinct roles.team_id::text) as team_ids
            from (
@@ -144,19 +166,18 @@ export async function GET(request: Request) {
              join public.team t on t.club_id = ptr.club_id and t.league_id = ptr.league_id
                and t.name = ptr.team_name and t.active = true
              join public.season s on s.id = t.season_id and s.active = true
-             where ptr.person_id = cm.person_id and ptr.club_id = cm.club_id
-               and ptr.role = 'Player' and ptr.active = true
+             where ptr.person_id = people.person_id and ptr.club_id = people.club_id
+               and ptr.role in ('Player', 'Manager') and ptr.active = true
              union
              select t.id
              from public.team_membership tm
-             join public.team t on t.id = tm.team_id and t.club_id = cm.club_id and t.active = true
+             join public.team t on t.id = tm.team_id and t.club_id = people.club_id and t.active = true
              join public.season s on s.id = t.season_id and s.active = true
-             where tm.person_id = cm.person_id and tm.role = 'Player' and tm.active = true
+             where tm.person_id = people.person_id and tm.role in ('Player', 'Manager') and tm.active = true
            ) roles
          ) team_roles on true
-         where cm.active = true and ($1::boolean = true or cm.club_id = any($2::uuid[]))
-         group by cm.club_id, p.id, team_roles.team_ids
-         order by cm.club_id, lower(p.last_name), lower(p.first_name)`, params
+         where ($1::boolean = true or people.club_id = any($2::uuid[]))
+         order by people.club_id, lower(p.last_name), lower(p.first_name)`, params
       ),
       dbQuery<{
         club_id: string; ladder_id: string; entry_id: string; person_id: string;
@@ -266,23 +287,41 @@ export async function POST(request: Request) {
 
       if (initialPersonIds.length) {
         const validMembers = await client.query<{ person_id: string }>(
-          `select distinct cm.person_id::text
-           from public.club_membership cm
-           join public.person p on p.id = cm.person_id and p.active = true
-           where cm.club_id = $1 and cm.active = true and cm.person_id = any($2::uuid[])
+          `select distinct person.id::text as person_id
+           from public.person person
+           where person.active = true and person.id = any($2::uuid[])
+             and (
+               exists (
+                 select 1 from public.club_membership membership
+                 where membership.person_id = person.id and membership.club_id = $1 and membership.active = true
+               )
+               or exists (
+                 select 1 from public.person_team_role ptr
+                 join public.team t on t.club_id = ptr.club_id and t.league_id = ptr.league_id
+                   and t.name = ptr.team_name and t.active = true
+                 where ptr.person_id = person.id and ptr.club_id = $1 and ptr.active = true
+                   and ptr.role in ('Player', 'Manager')
+                   and (cardinality($3::uuid[]) = 0 or t.id = any($3::uuid[]))
+               )
+               or exists (
+                 select 1 from public.team_membership tm
+                 join public.team t on t.id = tm.team_id and t.club_id = $1 and t.active = true
+                 where tm.person_id = person.id and tm.role in ('Player', 'Manager')
+                   and tm.active = true and (cardinality($3::uuid[]) = 0 or tm.team_id = any($3::uuid[]))
+               )
+             )
              and (
                cardinality($3::uuid[]) = 0
                or exists (
                  select 1 from public.person_team_role ptr
                  join public.team t on t.club_id = ptr.club_id and t.league_id = ptr.league_id
                    and t.name = ptr.team_name and t.active = true
-                 where ptr.person_id = cm.person_id and ptr.club_id = cm.club_id and ptr.active = true
-                   and ptr.role = 'Player'
-                   and t.id = any($3::uuid[])
+                 where ptr.person_id = person.id and ptr.club_id = $1 and ptr.active = true
+                   and ptr.role in ('Player', 'Manager') and t.id = any($3::uuid[])
                )
                or exists (
                  select 1 from public.team_membership tm
-                 where tm.person_id = cm.person_id and tm.role = 'Player'
+                 where tm.person_id = person.id and tm.role in ('Player', 'Manager')
                    and tm.active = true and tm.team_id = any($3::uuid[])
                )
              )`,
@@ -330,12 +369,12 @@ export async function POST(request: Request) {
                from public.person_team_role role
                join public.team team on team.club_id = role.club_id and team.league_id = role.league_id
                  and team.name = role.team_name and team.active = true
-               where role.person_id = entry.person_id and role.role = 'Player'
+               where role.person_id = entry.person_id and role.role in ('Player', 'Manager')
                  and role.active = true and team.id = any($2::uuid[])
              )
              and not exists (
                select 1 from public.team_membership membership
-               where membership.person_id = entry.person_id and membership.role = 'Player' and membership.active = true
+               where membership.person_id = entry.person_id and membership.role in ('Player', 'Manager') and membership.active = true
                  and membership.team_id = any($2::uuid[])
              )`,
           [saved.rows[0].id, eligibleTeamIds]
@@ -553,23 +592,42 @@ export async function PATCH(request: Request) {
         const eligibleTeamIds = ladder.rows[0].eligible_team_ids;
 
         const validMembers = await client.query<{ person_id: string }>(
-          `select distinct membership.person_id::text
-           from public.club_membership membership
-           join public.person person on person.id = membership.person_id and person.active = true
-           where membership.club_id = $1 and membership.active = true
-             and membership.person_id = any($2::uuid[])
+          `select distinct person.id::text as person_id
+           from public.person person
+           where person.active = true and person.id = any($2::uuid[])
+             and (
+               exists (
+                 select 1 from public.club_membership membership
+                 where membership.person_id = person.id and membership.club_id = $1 and membership.active = true
+               )
+               or exists (
+                 select 1 from public.person_team_role role
+                 join public.team team on team.club_id = role.club_id and team.league_id = role.league_id
+                   and team.name = role.team_name and team.active = true
+                 where role.person_id = person.id and role.club_id = $1
+                   and role.role in ('Player', 'Manager') and role.active = true
+                   and (cardinality($3::uuid[]) = 0 or team.id = any($3::uuid[]))
+               )
+               or exists (
+                 select 1 from public.team_membership team_membership
+                 join public.team team on team.id = team_membership.team_id and team.club_id = $1 and team.active = true
+                 where team_membership.person_id = person.id and team_membership.role in ('Player', 'Manager')
+                   and team_membership.active = true
+                   and (cardinality($3::uuid[]) = 0 or team_membership.team_id = any($3::uuid[]))
+               )
+             )
              and (
                cardinality($3::uuid[]) = 0
                or exists (
                  select 1 from public.person_team_role role
                  join public.team team on team.club_id = role.club_id and team.league_id = role.league_id
                    and team.name = role.team_name and team.active = true
-                 where role.person_id = membership.person_id and role.club_id = membership.club_id
-                   and role.role = 'Player' and role.active = true and team.id = any($3::uuid[])
+                 where role.person_id = person.id and role.club_id = $1
+                   and role.role in ('Player', 'Manager') and role.active = true and team.id = any($3::uuid[])
                )
                or exists (
                  select 1 from public.team_membership team_membership
-                 where team_membership.person_id = membership.person_id and team_membership.role = 'Player'
+                 where team_membership.person_id = person.id and team_membership.role in ('Player', 'Manager')
                    and team_membership.active = true and team_membership.team_id = any($3::uuid[])
                )
              )`,

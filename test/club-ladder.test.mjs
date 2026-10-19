@@ -184,11 +184,13 @@ test("ladder home panel compactly identifies the active challenge opponent", () 
   assert.doesNotMatch(ladderPage, /Playing \$\{activeOpponent\.name\}/);
 });
 
-test("members see only eligible ladders and the first ladder opens by default", () => {
+test("players and managers see eligible ladders and the first ladder opens by default", () => {
   assert.match(ladderApi, /club_ladder_eligible_team/);
   assert.match(ladderApi, /person_team_role/);
-  assert.match(ladderApi, /role\.role = 'Player'/);
-  assert.match(ladderApi, /membership\.role = 'Player'/);
+  assert.match(ladderApi, /role\.role in \('Player', 'Manager'\)/);
+  assert.match(ladderApi, /membership\.role in \('Player', 'Manager'\)/);
+  assert.doesNotMatch(ladderApi, /role\.role = 'Player'/);
+  assert.doesNotMatch(ladderApi, /membership\.role = 'Player'/);
   assert.match(ladderApi, /ladderId/);
   assert.match(ladderApi, /ladders:/);
   assert.match(ladderPage, /setSelectedLadderId\(.*ladders\[0\]\?\.ladder\.id/s);
@@ -198,7 +200,7 @@ test("members see only eligible ladders and the first ladder opens by default", 
   assert.match(ladderPage, /There are no eligible ladders for you at the moment\./);
 });
 
-test("team managers can view ladders involving their players without gaining player actions", () => {
+test("team managers can join ladders involving their teams", () => {
   assert.match(ladderApi, /role\.role in \('Player', 'Manager'\)/);
   assert.match(ladderApi, /membership\.role in \('Player', 'Manager'\)/);
   assert.match(ladderApi, /as can_join/);
@@ -222,8 +224,14 @@ test("team eligibility is current and eligibility changes withdraw affected entr
   assert.match(adminLadderApi, /status = 'Cancelled'/);
   assert.match(adminLadderApi, /status = 'Withdrawn'/);
   assert.match(adminLadderApi, /Every selected player must be eligible for this ladder/);
-  assert.match(adminLadderApi, /ptr\.role = 'Player'/);
-  assert.match(adminLadderApi, /tm\.role = 'Player'/);
+  assert.match(adminLadderApi, /ptr\.role in \('Player', 'Manager'\)/);
+  assert.match(adminLadderApi, /tm\.role in \('Player', 'Manager'\)/);
+  assert.doesNotMatch(adminLadderApi, /ptr\.role = 'Player'/);
+  assert.doesNotMatch(adminLadderApi, /tm\.role = 'Player'/);
+  assert.match(adminLadderApi, /array_agg\(distinct roles\.team_id::text\)/);
+  assert.match(adminLadderApi, /select ptr\.club_id, ptr\.person_id/);
+  assert.match(adminLadderApi, /select team\.club_id, membership\.person_id/);
+  assert.match(adminLadderApi, /select distinct person\.id::text as person_id/);
 });
 
 test("club ladders show handicaps and allow players to leave safely", () => {
@@ -279,7 +287,7 @@ test("ladder administrators can add eligible players to an existing ladder", () 
 test("changing ladder teams immediately recalculates eligible player choices", () => {
   assert.match(adminLadders, /eligibleMembersForTeams\(club, eligibleTeamIds\)/);
   assert.match(adminLadders, /eligibleMembersForTeams\(club, draft\.eligibleTeamIds\)/);
-  assert.match(adminLadders, /setAddPersonIds\(\(current\) => current\.filter\(\(personId\) => eligiblePersonIds\.has\(personId\)\)\)/);
+  assert.match(adminLadders, /setAddPersonIds\(eligibleMembers[\s\S]*?!currentEntryPersonIds\.has\(member\.personId\)/);
   assert.match(adminLadders, /Save team changes before adding players/);
   assert.match(adminLadders, /disabled=\{saving \|\| !addPersonIds\.length \|\| eligibilityChanged\}/);
   assert.doesNotMatch(adminLadders, /selectedLadder\.eligibleTeamIds\.length \|\| member\.teamIds/);

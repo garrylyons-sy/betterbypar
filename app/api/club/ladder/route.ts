@@ -61,13 +61,13 @@ async function loadEligibleLadders(clubId: string, personId: string, isOperator:
                 join public.team team on team.id = eligibility.team_id and team.active = true
                 join public.person_team_role role on role.person_id = $2 and role.club_id = team.club_id
                   and role.league_id = team.league_id and role.team_name = team.name
-                  and role.role = 'Player' and role.active = true
+                  and role.role in ('Player', 'Manager') and role.active = true
                 where eligibility.ladder_id = cl.id
               )
               or exists (
                 select 1 from public.club_ladder_eligible_team eligibility
                 join public.team_membership membership on membership.team_id = eligibility.team_id
-                  and membership.person_id = $2 and membership.role = 'Player' and membership.active = true
+                  and membership.person_id = $2 and membership.role in ('Player', 'Manager') and membership.active = true
                 where eligibility.ladder_id = cl.id
               )
             ) as can_join
@@ -111,13 +111,13 @@ async function loadLadder(clubId: string, ladderId: string, personId: string, is
                 join public.team team on team.id = eligibility.team_id and team.active = true
                 join public.person_team_role role on role.person_id = $3 and role.club_id = team.club_id
                   and role.league_id = team.league_id and role.team_name = team.name
-                  and role.role = 'Player' and role.active = true
+                  and role.role in ('Player', 'Manager') and role.active = true
                 where eligibility.ladder_id = cl.id
               )
               or exists (
                 select 1 from public.club_ladder_eligible_team eligibility
                 join public.team_membership membership on membership.team_id = eligibility.team_id
-                  and membership.person_id = $3 and membership.role = 'Player' and membership.active = true
+                  and membership.person_id = $3 and membership.role in ('Player', 'Manager') and membership.active = true
                 where eligibility.ladder_id = cl.id
               )
             ) as can_join
@@ -387,7 +387,7 @@ export async function POST(request: Request) {
     const ladder = ladderId ? await loadLadder(access.id, ladderId, user.personId, access.is_operator) : null;
     if (!ladder || !ladder.active) return NextResponse.json({ error: "This club ladder is not currently available." }, { status: 409 });
     if (action === "join" && !ladder.can_join) {
-      return NextResponse.json({ error: "This ladder is visible to you as a manager, but only eligible players can join." }, { status: 403 });
+      return NextResponse.json({ error: "An eligible player or manager team role is required to join this ladder." }, { status: 403 });
     }
 
     const result = await withTransaction(async (client) => {
