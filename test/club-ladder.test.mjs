@@ -276,6 +276,15 @@ test("ladder administrators can add eligible players to an existing ladder", () 
   assert.match(adminLadders, /selectedLadder\.entries\.some/);
 });
 
+test("changing ladder teams immediately recalculates eligible player choices", () => {
+  assert.match(adminLadders, /eligibleMembersForTeams\(club, eligibleTeamIds\)/);
+  assert.match(adminLadders, /eligibleMembersForTeams\(club, draft\.eligibleTeamIds\)/);
+  assert.match(adminLadders, /setAddPersonIds\(\(current\) => current\.filter\(\(personId\) => eligiblePersonIds\.has\(personId\)\)\)/);
+  assert.match(adminLadders, /Save team changes before adding players/);
+  assert.match(adminLadders, /disabled=\{saving \|\| !addPersonIds\.length \|\| eligibilityChanged\}/);
+  assert.doesNotMatch(adminLadders, /selectedLadder\.eligibleTeamIds\.length \|\| member\.teamIds/);
+});
+
 test("the ladder itself communicates challenge stakes and recent form", () => {
   assert.match(ladderApi, /form\.recent_form/);
   assert.match(ladderApi, /challenge\.winner_entry_id = cle\.id then 'W' else 'L'/);

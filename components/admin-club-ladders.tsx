@@ -74,6 +74,11 @@ function testAwarePath(path: string) {
   return testUser ? `${path}${path.includes("?") ? "&" : "?"}testUser=${encodeURIComponent(testUser)}` : path;
 }
 
+function eligibleMembersForTeams(club: AdminLadderClub, eligibleTeamIds: string[]) {
+  if (!eligibleTeamIds.length) return club.members;
+  return club.members.filter((member) => member.teamIds.some((teamId) => eligibleTeamIds.includes(teamId)));
+}
+
 export function AdminClubLadders({ onMessage }: { onMessage: (message: string) => void }) {
   const [clubs, setClubs] = useState<AdminLadderClub[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,10 +158,14 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
       ? draft.eligibleTeamIds.filter((id) => id !== teamId)
       : [...draft.eligibleTeamIds, teamId];
     setDraft((current) => ({ ...current, eligibleTeamIds }));
+    const eligibleMembers = eligibleMembersForTeams(club, eligibleTeamIds);
+    const eligiblePersonIds = new Set(eligibleMembers.map((member) => member.personId));
     if (editingLadderId === "new") {
       setInitialPersonIds(eligibleTeamIds.length
-        ? club.members.filter((member) => member.teamIds.some((id) => eligibleTeamIds.includes(id))).map((member) => member.personId)
+        ? eligibleMembers.map((member) => member.personId)
         : []);
+    } else {
+      setAddPersonIds((current) => current.filter((personId) => eligiblePersonIds.has(personId)));
     }
   }
 
@@ -319,14 +328,16 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
           const open = openClubId === club.clubId;
           const color = club.primaryColor || "#10233f";
           const selectedLadder = club.ladders.find((ladder) => ladder.id === editingLadderId) ?? null;
-          const eligibleMembers = club.members.filter((member) => !draft.eligibleTeamIds.length || member.teamIds.some((teamId) => draft.eligibleTeamIds.includes(teamId)));
+          const eligibleMembers = eligibleMembersForTeams(club, draft.eligibleTeamIds);
           const visibleMembers = eligibleMembers.filter((member) => member.name.toLowerCase().includes(memberSearch.trim().toLowerCase()));
           const addableMembers = selectedLadder
-            ? club.members.filter((member) =>
-                (!selectedLadder.eligibleTeamIds.length || member.teamIds.some((teamId) => selectedLadder.eligibleTeamIds.includes(teamId)))
-                && !selectedLadder.entries.some((entry) => entry.personId === member.personId)
-              )
+            ? eligibleMembers.filter((member) => !selectedLadder.entries.some((entry) => entry.personId === member.personId))
             : [];
+          const eligibilityChanged = Boolean(selectedLadder)
+            && (draft.eligibleTeamIds.length !== selectedLadder!.eligibleTeamIds.length
+              || draft.eligibleTeamIds.some((teamId) => !selectedLadder!.eligibleTeamIds.includes(teamId)));
+          const eligiblePersonIds = new Set(eligibleMembers.map((member) => member.personId));
+          const entriesLosingEligibility = selectedLadder?.entries.filter((entry) => !eligiblePersonIds.has(entry.personId)) ?? [];
           const visibleAddableMembers = addableMembers.filter((member) => member.name.toLowerCase().includes(addMemberSearch.trim().toLowerCase()));
           return (
             <section key={club.clubId} className="overflow-hidden rounded-xl border border-[#eeeaf2] bg-white">
@@ -395,6 +406,11 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
 
                   {selectedLadder ? (
                     <div className="grid gap-3 rounded-xl bg-white p-3 ring-1 ring-[#eeeaf2]">
+                      {entriesLosingEligibility.length ? (
+                        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+                          Saving these team changes will remove {entriesLosingEligibility.length} player{entriesLosingEligibility.length === 1 ? "" : "s"} who {entriesLosingEligibility.length === 1 ? "is" : "are"} no longer eligible. Their completed match history will be kept.
+                        </p>
+                      ) : null}
                       <div className="grid gap-3 rounded-lg bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div><p className="text-sm font-black text-[#10233f]">Add players</p><p className="mt-1 text-xs font-semibold text-[#6c5a73]">Eligible players are added at the bottom of the current ladder.</p></div>
@@ -402,6 +418,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                         </div>
                         {addableMembers.length ? (
                           <>
+                            {eligibilityChanged ? <p className="text-xs font-bold text-amber-800">Save team changes before adding players.</p> : null}
                             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                               <label className="relative min-w-0"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6c5a73]" /><input className="min-h-10 w-full rounded-lg border border-[#e3ddea] bg-white pl-9 pr-3 text-sm font-bold" value={addMemberSearch} onChange={(event) => setAddMemberSearch(event.target.value)} placeholder="Find an eligible player" /></label>
                               <Button type="button" size="sm" variant="secondary" onClick={() => setAddPersonIds(addableMembers.map((member) => member.personId))}>Select all</Button>
@@ -411,7 +428,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                               {visibleAddableMembers.map((member) => { const selected = addPersonIds.includes(member.personId); return <label key={member.personId} className={cn("flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ring-1", selected ? "bg-[#eaf8f4] ring-[#83d8c2]" : "bg-white ring-[#e3ddea]")}><input type="checkbox" checked={selected} onChange={() => setAddPersonIds((current) => selected ? current.filter((id) => id !== member.personId) : [...current, member.personId])} /><span className="min-w-0 flex-1 truncate text-sm font-extrabold text-[#10233f]">{member.name}</span><span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-black uppercase text-[#6c5a73] ring-1 ring-[#ded7e5]">Hcp {member.handicap ?? "-"}</span></label>; })}
                               {!visibleAddableMembers.length ? <p className="text-sm font-semibold text-[#6c5a73]">No eligible players match this search.</p> : null}
                             </div>
-                            <div className="flex justify-end"><Button type="button" onClick={() => void addPlayers(club, selectedLadder)} disabled={saving || !addPersonIds.length}><UserPlus className="h-4 w-4" />Add selected to ladder</Button></div>
+                            <div className="flex justify-end"><Button type="button" onClick={() => void addPlayers(club, selectedLadder)} disabled={saving || !addPersonIds.length || eligibilityChanged}><UserPlus className="h-4 w-4" />Add selected to ladder</Button></div>
                           </>
                         ) : <p className="text-sm font-semibold text-[#6c5a73]">All eligible players are already in this ladder.</p>}
                       </div>
