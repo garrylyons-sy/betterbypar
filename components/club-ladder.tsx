@@ -433,12 +433,23 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
               ) : null}
 
               {["Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status) ? (
-                <div className="grid gap-2 rounded-xl border border-[#eeeaf2] p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-                  <ScoreInput label={challenge.challenger.name} value={score.challenger} max={winsRequired} onChange={(value) => setScores((current) => ({ ...current, [challenge.id]: { ...score, challenger: value } }))} />
-                  <ScoreInput label={challenge.challenged.name} value={score.challenged} max={winsRequired} onChange={(value) => setScores((current) => ({ ...current, [challenge.id]: { ...score, challenged: value } }))} />
-                  <div className="grid gap-1">
-                    <Button disabled={busy} onClick={() => void act("submitResult", { challengeId: challenge.id, challengerScore: score.challenger, challengedScore: score.challenged })}><Trophy className="h-4 w-4" />Record result</Button>
-                    <span className="text-center text-[10px] font-bold text-[#6c5a73]">Recording this result updates the ladder immediately</span>
+                <div className="grid gap-3 rounded-xl border border-[#eeeaf2] p-3">
+                  <div className="grid gap-2">
+                    <p className="text-sm font-black text-[#10233f]">Record result</p>
+                    <p className="text-[10px] font-black uppercase text-[#6c5a73]">Select the winner</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Button className="min-w-0" variant="secondary" disabled={busy} onClick={() => void act("submitResult", { challengeId: challenge.id, winnerSide: "challenger" })}><Trophy className="h-4 w-4 shrink-0" /><span className="truncate">{challenge.challenger.name} won</span></Button>
+                      <Button className="min-w-0" variant="secondary" disabled={busy} onClick={() => void act("submitResult", { challengeId: challenge.id, winnerSide: "challenged" })}><Trophy className="h-4 w-4 shrink-0" /><span className="truncate">{challenge.challenged.name} won</span></Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] font-black uppercase text-[#6c5a73]"><span className="h-px flex-1 bg-[#eeeaf2]" /><span>Or enter the score</span><span className="h-px flex-1 bg-[#eeeaf2]" /></div>
+                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                    <ScoreInput label={challenge.challenger.name} value={score.challenger} max={winsRequired} onChange={(value) => setScores((current) => ({ ...current, [challenge.id]: { ...score, challenger: value } }))} />
+                    <ScoreInput label={challenge.challenged.name} value={score.challenged} max={winsRequired} onChange={(value) => setScores((current) => ({ ...current, [challenge.id]: { ...score, challenged: value } }))} />
+                    <div className="grid gap-1">
+                      <Button disabled={busy} onClick={() => void act("submitResult", { challengeId: challenge.id, challengerScore: score.challenger, challengedScore: score.challenged })}><Trophy className="h-4 w-4" />Record score</Button>
+                      <span className="text-center text-[10px] font-bold text-[#6c5a73]">Recording this result updates the ladder immediately</span>
+                    </div>
                   </div>
                 </div>
               ) : null}

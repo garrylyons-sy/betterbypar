@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { normalizeLadderInitialOrder, normalizeLadderSettings, validateLadderResult } from "@/lib/club-ladder.mjs";
+import { normalizeLadderInitialOrder, normalizeLadderSettings, resolveLadderResult } from "@/lib/club-ladder.mjs";
 import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
@@ -515,9 +515,16 @@ export async function PATCH(request: Request) {
         if (!["Accepted", "Scheduled", "Result Pending", "Disputed"].includes(row.status)) {
           throw new Error("A result cannot be entered for this challenge.");
         }
-        const challengerScore = Number(body.challengerScore);
-        const challengedScore = Number(body.challengedScore);
-        const validated = validateLadderResult(row.match_format, challengerScore, challengedScore);
+        const selectedWinner = body.winnerSide === undefined
+          ? undefined
+          : body.winnerSide === "challenger"
+            ? "home"
+            : body.winnerSide === "challenged"
+              ? "away"
+              : String(body.winnerSide);
+        const validated = resolveLadderResult(row.match_format, body.challengerScore as number | undefined, body.challengedScore as number | undefined, selectedWinner);
+        const challengerScore = validated.homeScore;
+        const challengedScore = validated.awayScore;
         const winnerEntryId = validated.winner === "home" ? row.challenger_entry_id : row.challenged_entry_id;
 
         await client.query("select pg_advisory_xact_lock(hashtext($1))", [`ladder:${ladderId}`]);

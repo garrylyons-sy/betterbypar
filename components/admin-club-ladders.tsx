@@ -282,13 +282,13 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
     }
   }
 
-  async function adminChallengeAction(clubId: string, ladderId: string, challengeId: string, action: "acceptChallenge" | "recordResult", scores?: { challengerScore: number; challengedScore: number }) {
+  async function adminChallengeAction(clubId: string, ladderId: string, challengeId: string, action: "acceptChallenge" | "recordResult", result?: { challengerScore?: number; challengedScore?: number; winnerSide?: "challenger" | "challenged" }) {
     setActionChallengeId(challengeId);
     try {
       const response = await fetch(testAwarePath("/api/admin/ladders"), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ clubId, ladderId, challengeId, action, ...scores })
+        body: JSON.stringify({ clubId, ladderId, challengeId, action, ...result })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "The ladder challenge could not be updated.");
@@ -513,7 +513,7 @@ function LadderDetailAccordion({ title, icon: Icon, detailKey, open, loadingDeta
   challenges: AdminLadderChallenge[] | undefined;
   onToggle: () => void;
   actionChallengeId?: string | null;
-  onAction?: (challengeId: string, action: "acceptChallenge" | "recordResult", scores?: { challengerScore: number; challengedScore: number }) => void;
+  onAction?: (challengeId: string, action: "acceptChallenge" | "recordResult", result?: { challengerScore?: number; challengedScore?: number; winnerSide?: "challenger" | "challenged" }) => void;
 }) {
   const loading = loadingDetailKey === detailKey;
   const [scoreDrafts, setScoreDrafts] = useState<Record<string, { challenger: number; challenged: number }>>({});
@@ -533,7 +533,7 @@ function LadderDetailAccordion({ title, icon: Icon, detailKey, open, loadingDeta
                 <p className="text-sm font-black text-[#10233f]">#{challenge.challengerPosition} {challenge.challengerName} v #{challenge.challengedPosition} {challenge.challengedName}</p>
                 <Badge variant={challenge.status === "Completed" || challenge.status === "Walkover" ? "green" : "cyan"}>{challenge.status}</Badge>
               </div>
-              {challenge.challengerScore !== null && challenge.challengedScore !== null ? <p className="mt-1 text-sm font-black text-[#10233f]">{challenge.challengerScore}-{challenge.challengedScore}{challenge.winnerName ? ` · ${challenge.winnerName} won` : ""}</p> : null}
+              {challenge.challengerScore !== null && challenge.challengedScore !== null ? <p className="mt-1 text-sm font-black text-[#10233f]">{challenge.challengerScore}-{challenge.challengedScore}{challenge.winnerName ? ` · ${challenge.winnerName} won` : ""}</p> : challenge.winnerName ? <p className="mt-1 text-sm font-black text-[#10233f]">{challenge.winnerName} won</p> : null}
               <p className="mt-1 text-[11px] font-bold text-[#6c5a73]">
                 {challenge.recordedAt ? `Recorded ${formatAdminDate(challenge.recordedAt)}` : challenge.scheduledAt ? `Scheduled ${formatAdminDate(challenge.scheduledAt)}` : challenge.playBy ? `Play by ${formatAdminDate(challenge.playBy)}` : challenge.responseDueAt ? `Reply by ${formatAdminDate(challenge.responseDueAt)}` : ""}
               </p>
@@ -545,11 +545,19 @@ function LadderDetailAccordion({ title, icon: Icon, detailKey, open, loadingDeta
               {onAction && ["Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status) ? (() => {
                 const scores = scoreDrafts[challenge.id] ?? { challenger: challenge.challengerScore ?? 0, challenged: challenge.challengedScore ?? 0 };
                 return (
-                  <div className="mt-3 grid gap-2 border-t border-[#eeeaf2] pt-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] sm:items-end">
-                    <label className="grid gap-1"><span className="truncate text-[10px] font-black uppercase text-[#6c5a73]">{challenge.challengerName}</span><input type="number" min={0} max={3} value={scores.challenger} onChange={(event) => setScoreDrafts((current) => ({ ...current, [challenge.id]: { ...scores, challenger: Number(event.target.value) } }))} className="min-h-10 w-full rounded-lg border border-[#e3ddea] bg-white px-3 text-center font-black" /></label>
-                    <span className="hidden pb-2 text-sm font-black text-[#6c5a73] sm:block">-</span>
-                    <label className="grid gap-1"><span className="truncate text-[10px] font-black uppercase text-[#6c5a73]">{challenge.challengedName}</span><input type="number" min={0} max={3} value={scores.challenged} onChange={(event) => setScoreDrafts((current) => ({ ...current, [challenge.id]: { ...scores, challenged: Number(event.target.value) } }))} className="min-h-10 w-full rounded-lg border border-[#e3ddea] bg-white px-3 text-center font-black" /></label>
-                    <Button type="button" size="sm" onClick={() => onAction(challenge.id, "recordResult", { challengerScore: scores.challenger, challengedScore: scores.challenged })} disabled={actionChallengeId === challenge.id}><Trophy className="h-4 w-4" />Record result</Button>
+                  <div className="mt-3 grid gap-3 border-t border-[#eeeaf2] pt-3">
+                    <p className="text-xs font-black uppercase text-[#6c5a73]">Record result</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <Button type="button" size="sm" variant="secondary" className="min-w-0" onClick={() => onAction(challenge.id, "recordResult", { winnerSide: "challenger" })} disabled={actionChallengeId === challenge.id}><Trophy className="h-4 w-4 shrink-0" /><span className="truncate">{challenge.challengerName} won</span></Button>
+                      <Button type="button" size="sm" variant="secondary" className="min-w-0" onClick={() => onAction(challenge.id, "recordResult", { winnerSide: "challenged" })} disabled={actionChallengeId === challenge.id}><Trophy className="h-4 w-4 shrink-0" /><span className="truncate">{challenge.challengedName} won</span></Button>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-[#6c5a73]"><span className="h-px flex-1 bg-[#eeeaf2]" /><span>Or enter the score</span><span className="h-px flex-1 bg-[#eeeaf2]" /></div>
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto] sm:items-end">
+                      <label className="grid gap-1"><span className="truncate text-[10px] font-black uppercase text-[#6c5a73]">{challenge.challengerName}</span><input type="number" min={0} max={3} value={scores.challenger} onChange={(event) => setScoreDrafts((current) => ({ ...current, [challenge.id]: { ...scores, challenger: Number(event.target.value) } }))} className="min-h-10 w-full rounded-lg border border-[#e3ddea] bg-white px-3 text-center font-black" /></label>
+                      <span className="hidden pb-2 text-sm font-black text-[#6c5a73] sm:block">-</span>
+                      <label className="grid gap-1"><span className="truncate text-[10px] font-black uppercase text-[#6c5a73]">{challenge.challengedName}</span><input type="number" min={0} max={3} value={scores.challenged} onChange={(event) => setScoreDrafts((current) => ({ ...current, [challenge.id]: { ...scores, challenged: Number(event.target.value) } }))} className="min-h-10 w-full rounded-lg border border-[#e3ddea] bg-white px-3 text-center font-black" /></label>
+                      <Button type="button" size="sm" onClick={() => onAction(challenge.id, "recordResult", { challengerScore: scores.challenger, challengedScore: scores.challenged })} disabled={actionChallengeId === challenge.id}><Trophy className="h-4 w-4" />Record score</Button>
+                    </div>
                   </div>
                 );
               })() : null}

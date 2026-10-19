@@ -10,6 +10,7 @@ import {
   normalizeLadderSettings,
   requiredFrameWins,
   rechallengeAvailableAt,
+  resolveLadderResult,
   validateLadderResult
 } from "../lib/club-ladder.mjs";
 
@@ -75,6 +76,31 @@ test("result scores must match the configured frame format", () => {
   assert.deepEqual(validateLadderResult("Best of 5", 3, 0), { winner: "home", loserScore: 0 });
   assert.throws(() => validateLadderResult("Best of 3", 1, 0), /winning score/i);
   assert.throws(() => validateLadderResult("Best of 3", 2, 2), /one winner/i);
+});
+
+test("a ladder result can record only the selected winner", () => {
+  assert.deepEqual(resolveLadderResult("1 Frame", undefined, undefined, "home"), {
+    winner: "home",
+    homeScore: null,
+    awayScore: null
+  });
+  assert.deepEqual(resolveLadderResult("Best of 3", undefined, undefined, "away"), {
+    winner: "away",
+    homeScore: null,
+    awayScore: null
+  });
+  assert.deepEqual(resolveLadderResult("Best of 3", 2, 1), {
+    winner: "home",
+    homeScore: 2,
+    awayScore: 1
+  });
+  assert.throws(() => resolveLadderResult("1 Frame", undefined, undefined, "draw"), /winner/i);
+  assert.match(ladderPage, /winnerSide: "challenger"/);
+  assert.match(ladderPage, /winnerSide: "challenged"/);
+  assert.match(adminLadders, /winnerSide: "challenger"/);
+  assert.match(adminLadders, /winnerSide: "challenged"/);
+  assert.match(ladderApi, /resolveLadderResult/);
+  assert.match(adminLadderApi, /resolveLadderResult/);
 });
 
 test("ladder schema supports multiple ladders, team eligibility and optional handicaps", () => {
@@ -352,7 +378,7 @@ test("ladder administrators can accept challenges and record results for players
   assert.match(adminLadderApi, /action === "recordResult"/);
   assert.match(adminLadderApi, /Club ladder challenge accepted by administrator/);
   assert.match(adminLadderApi, /Club ladder result recorded by administrator/);
-  assert.match(adminLadderApi, /validateLadderResult/);
+  assert.match(adminLadderApi, /resolveLadderResult/);
   assert.match(adminLadderApi, /result_submitted_by = \$5/);
   assert.match(adminLadders, /Accept challenge/);
   assert.match(adminLadders, /Record result/);

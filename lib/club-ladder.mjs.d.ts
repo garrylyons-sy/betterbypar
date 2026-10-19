@@ -17,3 +17,4 @@ export function canRejectChallenge(previousRejections: number): boolean;
 export function rechallengeAvailableAt(rejectedAt: string | Date | null | undefined): Date | null;
 export function canRechallenge(rejectedAt: string | Date | null | undefined, now?: string | Date): boolean;
 export function validateLadderResult(matchFormat: LadderMatchFormat, homeScore: number, awayScore: number): { winner: "home" | "away"; loserScore: number };
+export function resolveLadderResult(matchFormat: LadderMatchFormat, homeScore?: number, awayScore?: number, selectedWinner?: "home" | "away" | string): { winner: "home" | "away"; homeScore: number | null; awayScore: number | null };
