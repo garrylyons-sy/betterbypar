@@ -5692,7 +5692,7 @@ function FixtureWeekCarouselCard({
                         )}
                         <FixtureTeamLabel teamName={fixture.awayTeamName} align="right" lineupStatus={fixtureHasStarted(fixture) ? undefined : awayLineupStatus} />
                       </div>
-                      {canManage ? (
+                      {canManage && fixture.status !== "Completed" ? (
                         <span className="justify-self-start rounded-lg px-3 py-2 text-xs font-extrabold uppercase text-white" style={{ backgroundColor: activeTeam.primaryColor }}>
                           {fixtureHasStarted(fixture) ? "Open match" : "Pick team"}
                         </span>
