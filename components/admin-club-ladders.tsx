@@ -91,7 +91,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
   const [memberSearch, setMemberSearch] = useState("");
   const [addPersonIds, setAddPersonIds] = useState<string[]>([]);
   const [addMemberSearch, setAddMemberSearch] = useState("");
-  const [openDetailKey, setOpenDetailKey] = useState<string | null>(null);
+  const [openDetailKeys, setOpenDetailKeys] = useState<Record<string, boolean>>({});
   const [detailCache, setDetailCache] = useState<Record<string, AdminLadderChallenge[]>>({});
   const [loadingDetailKey, setLoadingDetailKey] = useState<string | null>(null);
   const [actionChallengeId, setActionChallengeId] = useState<string | null>(null);
@@ -265,12 +265,9 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
 
   async function loadLadderDetail(ladderId: string, detail: LadderDetailKind) {
     const key = `${ladderId}:${detail}`;
-    if (openDetailKey === key) {
-      setOpenDetailKey(null);
-      return;
-    }
-    setOpenDetailKey(key);
-    if (detailCache[key]) return;
+    const opening = !openDetailKeys[key];
+    setOpenDetailKeys((current) => ({ ...current, [key]: !current[key] }));
+    if (!opening || detailCache[key]) return;
     setLoadingDetailKey(key);
     try {
       const response = await fetch(testAwarePath(`/api/admin/ladders?ladderId=${encodeURIComponent(ladderId)}&detail=${detail}`), { cache: "no-store" });
@@ -279,7 +276,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
       setDetailCache((current) => ({ ...current, [key]: data.challenges ?? [] }));
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Ladder challenges could not be loaded.");
-      setOpenDetailKey(null);
+      setOpenDetailKeys((current) => ({ ...current, [key]: false }));
     } finally {
       setLoadingDetailKey(null);
     }
@@ -461,7 +458,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                           title="Active challenges"
                           icon={Swords}
                           detailKey={`${selectedLadder.id}:activeChallenges`}
-                          openDetailKey={openDetailKey}
+                          open={Boolean(openDetailKeys[`${selectedLadder.id}:activeChallenges`])}
                           loadingDetailKey={loadingDetailKey}
                           challenges={detailCache[`${selectedLadder.id}:activeChallenges`]}
                           onToggle={() => void loadLadderDetail(selectedLadder.id, "activeChallenges")}
@@ -472,7 +469,7 @@ export function AdminClubLadders({ onMessage }: { onMessage: (message: string) =
                           title="Match history"
                           icon={History}
                           detailKey={`${selectedLadder.id}:history`}
-                          openDetailKey={openDetailKey}
+                          open={Boolean(openDetailKeys[`${selectedLadder.id}:history`])}
                           loadingDetailKey={loadingDetailKey}
                           challenges={detailCache[`${selectedLadder.id}:history`]}
                           onToggle={() => void loadLadderDetail(selectedLadder.id, "history")}
@@ -507,18 +504,17 @@ function RuleSummary({ icon: Icon, text }: { icon: typeof Users; text: string })
   return <div className="flex min-h-12 items-center gap-2 rounded-lg bg-white px-3 ring-1 ring-[#eeeaf2]"><Icon className="h-4 w-4 shrink-0 text-[#1b8a72]" /><span className="text-xs font-extrabold text-[#10233f]">{text}</span></div>;
 }
 
-function LadderDetailAccordion({ title, icon: Icon, detailKey, openDetailKey, loadingDetailKey, challenges, onToggle, actionChallengeId, onAction }: {
+function LadderDetailAccordion({ title, icon: Icon, detailKey, open, loadingDetailKey, challenges, onToggle, actionChallengeId, onAction }: {
   title: string;
   icon: typeof Swords;
   detailKey: string;
-  openDetailKey: string | null;
+  open: boolean;
   loadingDetailKey: string | null;
   challenges: AdminLadderChallenge[] | undefined;
   onToggle: () => void;
   actionChallengeId?: string | null;
   onAction?: (challengeId: string, action: "acceptChallenge" | "recordResult", scores?: { challengerScore: number; challengedScore: number }) => void;
 }) {
-  const open = openDetailKey === detailKey;
   const loading = loadingDetailKey === detailKey;
   const [scoreDrafts, setScoreDrafts] = useState<Record<string, { challenger: number; challenged: number }>>({});
   return (

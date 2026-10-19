@@ -342,6 +342,9 @@ test("admin ladder challenge lists load only when their accordions open", () => 
   assert.match(adminLadders, /Match history/);
   assert.match(adminLadders, /loadLadderDetail/);
   assert.match(adminLadders, /detail=/);
+  assert.match(adminLadders, /openDetailKeys/);
+  assert.match(adminLadders, /\[key\]: !current\[key\]/);
+  assert.doesNotMatch(adminLadders, /const \[openDetailKey, setOpenDetailKey\]/);
 });
 
 test("ladder administrators can accept challenges and record results for players", () => {
