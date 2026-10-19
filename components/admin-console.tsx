@@ -292,6 +292,8 @@ const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Adm
 const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
 const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin", "League Chair"];
 const clubAdminTabs: AdminTab[] = ["clubs", "ladders", "people", "competitions", "matches"];
+const ADMIN_SESSION_CACHE_KEY = "interclub:admin-session-data:v1";
+const ADMIN_SESSION_TAB_KEY = "interclub:admin-session-tab:v1";
 const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPanelTop }> = [
   { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
   { id: "clubs" as const, label: "Clubs", icon: Building2 },
@@ -423,11 +425,53 @@ function logPersonOptionName(person: LogPersonOption) {
   return name || person.email || "Unknown user";
 }
 
+function readAdminSessionCache() {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = JSON.parse(window.sessionStorage.getItem(ADMIN_SESSION_CACHE_KEY) ?? "null") as { version?: number; data?: Record<string, any> } | null;
+    if (cached?.version !== 1 || !cached.data?.authenticated || !cached.data?.administrator) return null;
+    return { data: cached.data };
+  } catch {
+    window.sessionStorage.removeItem(ADMIN_SESSION_CACHE_KEY);
+    return null;
+  }
+}
+
+function writeAdminSessionCache(data: Record<string, any>) {
+  if (typeof window === "undefined" || !data.authenticated || !data.administrator) return;
+  try {
+    window.sessionStorage.setItem(ADMIN_SESSION_CACHE_KEY, JSON.stringify({ version: 1, data }));
+  } catch {
+    // Storage may be unavailable or full; the admin console still works from the network response.
+  }
+}
+
+function readAdminSessionTab(): AdminTab | null {
+  if (typeof window === "undefined") return null;
+  const tab = window.sessionStorage.getItem(ADMIN_SESSION_TAB_KEY) as AdminTab | null;
+  return tab && (tab === "invites" || adminNavItems.some((item) => item.id === tab)) ? tab : null;
+}
+
+function writeAdminSessionTab(tab: AdminTab) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(ADMIN_SESSION_TAB_KEY, tab);
+  } catch {
+    // Remembering the tab is an enhancement only.
+  }
+}
+
+function clearAdminSessionCache() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(ADMIN_SESSION_CACHE_KEY);
+  window.sessionStorage.removeItem(ADMIN_SESSION_TAB_KEY);
+}
+
 export function AdminConsole() {
   const [tab, setTab] = useState<AdminTab>("desktop");
   const [logsRefreshKey, setLogsRefreshKey] = useState(0);
   const [authenticated, setAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [adminDataLoaded, setAdminDataLoaded] = useState(false);
   const [administrator, setAdministrator] = useState(false);
   const [adminMode, setAdminMode] = useState<AdminMode>("platform");
@@ -445,101 +489,121 @@ export function AdminConsole() {
   const [maintenanceMode, setMaintenanceMode] = useState<MaintenanceModeState>({ enabled: false, updatedAt: null });
 
   useEffect(() => {
-    refreshAdminData();
+    const cached = readAdminSessionCache();
+    const cachedTab = readAdminSessionTab();
+    if (cachedTab) setTab(cachedTab);
+    if (cached) {
+      applyAdminData(cached.data);
+      setLoading(false);
+      void refreshAdminData({ silent: true });
+      return;
+    }
+    void refreshAdminData();
   }, []);
+
+  function applyAdminData(data: Record<string, any>) {
+    setAuthenticated(Boolean(data.authenticated));
+    setAdministrator(Boolean(data.administrator));
+    const nextAdminMode: AdminMode = data.adminMode === "club" ? "club" : "platform";
+    setAdminMode(nextAdminMode);
+    setAdminUser(data.user ? {
+      email: data.user.email ?? "",
+      name: data.user.name ?? data.user.email ?? "Signed in"
+    } : null);
+    setTab((currentTab) => {
+      const nextTab = currentTab === "invites" || (nextAdminMode === "club" && !clubAdminTabs.includes(currentTab))
+        ? "people"
+        : currentTab;
+      writeAdminSessionTab(nextTab);
+      return nextTab;
+    });
+    setAdminDataLoaded(true);
+    setTeams((data.teams ?? []).map((team: { club_id: string; team_id: string; team_name: string; club_name: string; league_name: string }) => ({
+      teamId: team.team_id,
+      clubId: team.club_id,
+      teamName: team.team_name,
+      clubName: team.club_name,
+      leagueName: team.league_name
+    })));
+
+    const seen = new Map<string, PersonOption>();
+    for (const person of data.people ?? []) {
+      seen.set(person.person_id, {
+        personId: person.person_id,
+        firstName: person.first_name ?? "",
+        lastName: person.last_name ?? "",
+        name: `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim(),
+        email: person.email ?? "",
+        phone: person.phone ?? "",
+        accountId: person.account_id ?? null,
+        username: person.username ?? null,
+        loginActive: person.login_active ?? null,
+        lastLogin: person.last_login ?? null,
+        invitationId: person.invitation_id ?? null,
+        inviteStatus: person.invite_status ?? null,
+        invitedAt: person.invited_at ?? null,
+        inviteSentAt: person.invite_sent_at ?? null,
+        inviteAcceptedAt: person.invite_accepted_at ?? null,
+        clubHandicaps: person.club_handicaps ?? [],
+        clubAdmins: person.club_admins ?? [],
+        teamRoles: person.team_roles ?? [],
+        admin: Boolean(person.admin)
+      });
+    }
+    setPeople(Array.from(seen.values()));
+    setRequests(data.requests ?? []);
+    setInvites(data.invites ?? []);
+    setCompetitions(data.competitions ?? []);
+    setMatchStats(data.matchStats ?? emptyMatchStats);
+    setFeatureStats(data.featureStats ?? emptyFeatureStats);
+    setAds((data.ads ?? []).map((ad: {
+      id: string;
+      name: string;
+      placement: SponsorAd["placement"];
+      audience: SponsorAd["audience"];
+      image_path: string;
+      link_url: string;
+      affiliate_code?: string | null;
+      alt_text: string;
+      active: boolean;
+      sort_order: number;
+      starts_at?: string | null;
+      ends_at?: string | null;
+    }) => ({
+      id: ad.id,
+      name: ad.name,
+      placement: ad.placement,
+      audience: ad.audience,
+      imagePath: ad.image_path,
+      linkUrl: ad.link_url,
+      affiliateCode: ad.affiliate_code ?? "",
+      altText: ad.alt_text,
+      active: Boolean(ad.active),
+      sortOrder: Number(ad.sort_order ?? 100),
+      startsAt: ad.starts_at ?? null,
+      endsAt: ad.ends_at ?? null
+    })));
+    setAppearance(normalizeAppearanceConfig(data.appearance ?? defaultAppearanceConfig));
+    setMaintenanceMode({
+      enabled: Boolean(data.maintenance?.enabled),
+      updatedAt: data.maintenance?.updatedAt ?? null
+    });
+  }
 
   async function refreshAdminData(options?: { silent?: boolean }) {
     if (!options?.silent) setLoading(true);
     try {
       const response = await fetchWithTimeout("/api/admin", { credentials: "same-origin" });
-      const data = await response.json().catch(() => ({}));
-      setAuthenticated(Boolean(data.authenticated));
-      setAdministrator(Boolean(data.administrator));
-      const nextAdminMode: AdminMode = data.adminMode === "club" ? "club" : "platform";
-      setAdminMode(nextAdminMode);
-      setAdminUser(data.user ? {
-        email: data.user.email ?? "",
-        name: data.user.name ?? data.user.email ?? "Signed in"
-      } : null);
+      const data = await response.json().catch(() => ({})) as Record<string, any>;
 
       if (response.ok) {
-        if (tab === "invites") {
-          setTab("people");
-        }
-        if (nextAdminMode === "club" && !clubAdminTabs.includes(tab)) {
-          setTab("people");
-        }
-        setAdminDataLoaded(true);
-        setTeams((data.teams ?? []).map((team: { club_id: string; team_id: string; team_name: string; club_name: string; league_name: string }) => ({
-          teamId: team.team_id,
-          clubId: team.club_id,
-          teamName: team.team_name,
-          clubName: team.club_name,
-          leagueName: team.league_name
-        })));
-
-        const seen = new Map<string, PersonOption>();
-        for (const person of data.people ?? []) {
-          seen.set(person.person_id, {
-            personId: person.person_id,
-            firstName: person.first_name ?? "",
-            lastName: person.last_name ?? "",
-            name: `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim(),
-            email: person.email ?? "",
-            phone: person.phone ?? "",
-            accountId: person.account_id ?? null,
-            username: person.username ?? null,
-            loginActive: person.login_active ?? null,
-            lastLogin: person.last_login ?? null,
-            invitationId: person.invitation_id ?? null,
-            inviteStatus: person.invite_status ?? null,
-            invitedAt: person.invited_at ?? null,
-            inviteSentAt: person.invite_sent_at ?? null,
-            inviteAcceptedAt: person.invite_accepted_at ?? null,
-            clubHandicaps: person.club_handicaps ?? [],
-            clubAdmins: person.club_admins ?? [],
-            teamRoles: person.team_roles ?? [],
-            admin: Boolean(person.admin)
-          });
-        }
-        setPeople(Array.from(seen.values()));
-        setRequests(data.requests ?? []);
-        setInvites(data.invites ?? []);
-        setCompetitions(data.competitions ?? []);
-        setMatchStats(data.matchStats ?? emptyMatchStats);
-        setFeatureStats(data.featureStats ?? emptyFeatureStats);
-        setAds((data.ads ?? []).map((ad: {
-          id: string;
-          name: string;
-          placement: SponsorAd["placement"];
-          audience: SponsorAd["audience"];
-          image_path: string;
-          link_url: string;
-          affiliate_code?: string | null;
-          alt_text: string;
-          active: boolean;
-          sort_order: number;
-          starts_at?: string | null;
-          ends_at?: string | null;
-        }) => ({
-          id: ad.id,
-          name: ad.name,
-          placement: ad.placement,
-          audience: ad.audience,
-          imagePath: ad.image_path,
-          linkUrl: ad.link_url,
-          affiliateCode: ad.affiliate_code ?? "",
-          altText: ad.alt_text,
-          active: Boolean(ad.active),
-          sortOrder: Number(ad.sort_order ?? 100),
-          startsAt: ad.starts_at ?? null,
-          endsAt: ad.ends_at ?? null
-        })));
-        setAppearance(normalizeAppearanceConfig(data.appearance ?? defaultAppearanceConfig));
-        setMaintenanceMode({
-          enabled: Boolean(data.maintenance?.enabled),
-          updatedAt: data.maintenance?.updatedAt ?? null
-        });
+        applyAdminData(data);
+        writeAdminSessionCache(data);
+      } else {
+        clearAdminSessionCache();
+        setAuthenticated(Boolean(data.authenticated));
+        setAdministrator(Boolean(data.administrator));
+        setAdminDataLoaded(false);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Admin data unavailable.");
@@ -552,6 +616,7 @@ export function AdminConsole() {
     try {
       await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
     } finally {
+      clearAdminSessionCache();
       setAuthenticated(false);
       setAdministrator(false);
       setAdminMode("platform");
@@ -579,6 +644,7 @@ export function AdminConsole() {
       tab={tab}
       setTab={(nextTab) => {
         if (nextTab === "logs") setLogsRefreshKey((current) => current + 1);
+        writeAdminSessionTab(nextTab);
         setTab(nextTab);
       }}
       message={message}

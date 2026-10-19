@@ -229,6 +229,8 @@ export function AuthGateway() {
 
   async function signOut() {
     await fetch("/api/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
+    window.sessionStorage.removeItem("interclub:admin-session-data:v1");
+    window.sessionStorage.removeItem("interclub:admin-session-tab:v1");
     await refreshSession();
   }
 
