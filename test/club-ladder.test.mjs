@@ -49,11 +49,16 @@ test("players may challenge only the configured number of places above", () => {
   assert.equal(canChallengePosition(5, 6, 3), false);
 });
 
-test("players already in a ladder challenge are visibly unavailable", () => {
+test("ladder rows distinguish your challenge from another player's challenge", () => {
   assert.match(ladderApi, /active_challenge_status/);
   assert.match(ladderApi, /row\.active_challenge_status === null/);
   assert.match(ladderPage, /activeChallengeStatus/);
-  assert.match(ladderPage, /Already in a challenge/);
+  assert.match(ladderPage, /You challenged them/);
+  assert.match(ladderPage, /They challenged you/);
+  assert.match(ladderPage, /Challenge accepted · Play by/);
+  assert.doesNotMatch(ladderPage, /Arrange match|Match arranged/);
+  assert.match(ladderPage, /In another challenge/);
+  assert.match(ladderPage, /relatedChallenge/);
   assert.match(ladderPage, /challengeTargetId/);
   assert.match(ladderPage, /Setting up\.\.\./);
   assert.match(ladderPage, /Challenge sent/);

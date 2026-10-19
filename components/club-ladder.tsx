@@ -52,6 +52,22 @@ type LadderPayload = {
   ladders: LadderView[];
 };
 
+function challengeRelationshipLabel(challenge: LadderChallenge) {
+  if (challenge.status === "Pending") {
+    return challenge.isChallenger ? "You challenged them · Awaiting response" : "They challenged you · Reply needed";
+  }
+  if (["Accepted", "Scheduled"].includes(challenge.status)) return `Challenge accepted · Play by ${friendlyDate(challenge.playBy)}`;
+  if (challenge.status === "Result Pending") return "Result needs attention";
+  return "Challenge needs attention";
+}
+
+function challengeRelationshipBadge(challenge: LadderChallenge) {
+  if (challenge.status === "Pending") return challenge.isChallenger ? "Challenge sent" : "Reply needed";
+  if (["Accepted", "Scheduled"].includes(challenge.status)) return "Accepted";
+  if (challenge.status === "Result Pending") return "Result pending";
+  return "Attention";
+}
+
 export function ClubLadderHomePanel({ activeTeam, onOpen, className }: { activeTeam: TeamContext; onOpen: () => void; className?: string }) {
   const [data, setData] = useState<LadderPayload | null>(null);
   const [joining, setJoining] = useState(false);
@@ -470,6 +486,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
             const mine = entry.id === data.me?.entryId;
             const inChallengeRange = Boolean(data.me && data.me.position > entry.position && data.me.position - entry.position <= ladder.challengeRange);
             const settingUpChallenge = challengeTargetId === entry.id;
+            const relatedChallenge = activeChallenges.find((challenge) => challenge.challenger.entryId === entry.id || challenge.challenged.entryId === entry.id);
             return (
               <div key={entry.id} className={cn("grid min-h-14 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2 ring-1", mine ? "bg-[#eef9f5] ring-[#bfe9dc]" : "bg-white ring-[#eeeaf2]")}>
                 <span className={cn("grid h-9 w-9 place-items-center rounded-lg text-sm font-black", entry.position <= 3 ? "bg-[#10233f] text-white" : "bg-[#f0edf4] text-[#10233f]")}>{entry.position}</span>
@@ -480,8 +497,10 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                     <span className="text-[10px] font-black uppercase text-[#6c5a73]">
                       {mine
                         ? "Your position"
-                        : entry.activeChallengeStatus
-                          ? "Already in a challenge"
+                        : relatedChallenge
+                          ? challengeRelationshipLabel(relatedChallenge)
+                        : entry.activeChallengeStatus && inChallengeRange
+                          ? "In another challenge"
                         : entry.canChallenge
                           ? `Beat them to take #${entry.position}`
                           : entry.rechallengeAvailableAt && new Date(entry.rechallengeAvailableAt) > new Date()
@@ -496,7 +515,11 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                     {settingUpChallenge ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Swords className="h-4 w-4" />}
                     {settingUpChallenge ? "Setting up..." : `Play for #${entry.position}`}
                   </Button>
-                ) : mine ? <Badge variant="green">You</Badge> : entry.activeChallengeStatus && inChallengeRange ? <Badge variant="muted">In challenge</Badge> : null}
+                ) : mine ? <Badge variant="green">You</Badge> : relatedChallenge ? (
+                  <Badge variant={relatedChallenge.status === "Pending" && relatedChallenge.isChallenged ? "gold" : relatedChallenge.status === "Pending" ? "muted" : "green"}>
+                    {challengeRelationshipBadge(relatedChallenge)}
+                  </Badge>
+                ) : entry.activeChallengeStatus && inChallengeRange ? <Badge variant="muted">Unavailable</Badge> : null}
               </div>
             );
           })}
