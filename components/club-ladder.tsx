@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, CalendarClock, Check, ChevronDown, ChevronRight, Clock3, Crosshair, LogOut, Medal, RotateCcw, Scale, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
+import { BellRing, CalendarClock, Check, ChevronDown, ChevronRight, Clock3, Crosshair, LoaderCircle, LogOut, Medal, RotateCcw, Scale, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import type { TeamContext } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type LadderMatchFormat = "1 Frame" | "Best of 3" | "Best of 5";
-type LadderEntry = { id: string; personId: string; name: string; handicap: number | null; recentForm: Array<"W" | "L">; position: number; startingPosition: number; status: string; canChallenge: boolean; rechallengeAvailableAt: string | null };
+type LadderEntry = { id: string; personId: string; name: string; handicap: number | null; recentForm: Array<"W" | "L">; position: number; startingPosition: number; status: string; activeChallengeStatus: string | null; canChallenge: boolean; rechallengeAvailableAt: string | null };
 type LadderChallenge = {
   id: string;
   status: string;
@@ -245,10 +245,11 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
   const [message, setMessage] = useState("");
   const [rulesOpen, setRulesOpen] = useState(false);
   const [scores, setScores] = useState<Record<string, { challenger: number; challenged: number }>>({});
+  const [challengeTargetId, setChallengeTargetId] = useState<string | null>(null);
 
-  async function load() {
+  async function load({ preserveMessage = false }: { preserveMessage?: boolean } = {}) {
     setLoading(true);
-    setMessage("");
+    if (!preserveMessage) setMessage("");
     try {
       const response = await fetch(testAwarePath(`/api/club/ladder?club=${encodeURIComponent(activeTeam.club)}`), { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
@@ -269,7 +270,9 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
 
   useEffect(() => { void load(); }, [activeTeam.club]);
 
-  async function act(action: string, extra: Record<string, unknown> = {}) {
+  async function act(action: string, extra: Record<string, unknown> = {}, successMessage?: string) {
+    const challengedEntryId = action === "challenge" ? String(extra.challengedEntryId ?? "") : "";
+    if (challengedEntryId) setChallengeTargetId(challengedEntryId);
     setBusy(true);
     setMessage("");
     try {
@@ -280,11 +283,12 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Ladder action failed.");
-      setMessage(action === "join" ? "You have joined the ladder." : action === "leave" ? "You have left the ladder." : "Ladder updated.");
-      await load();
+      setMessage(successMessage ?? (action === "join" ? "You have joined the ladder." : action === "leave" ? "You have left the ladder." : "Ladder updated."));
+      await load({ preserveMessage: true });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Ladder action failed.");
     } finally {
+      if (challengedEntryId) setChallengeTargetId(null);
       setBusy(false);
     }
   }
@@ -464,6 +468,8 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
         <CardContent className="grid gap-2">
           {entries.map((entry) => {
             const mine = entry.id === data.me?.entryId;
+            const inChallengeRange = Boolean(data.me && data.me.position > entry.position && data.me.position - entry.position <= ladder.challengeRange);
+            const settingUpChallenge = challengeTargetId === entry.id;
             return (
               <div key={entry.id} className={cn("grid min-h-14 grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-2 ring-1", mine ? "bg-[#eef9f5] ring-[#bfe9dc]" : "bg-white ring-[#eeeaf2]")}>
                 <span className={cn("grid h-9 w-9 place-items-center rounded-lg text-sm font-black", entry.position <= 3 ? "bg-[#10233f] text-white" : "bg-[#f0edf4] text-[#10233f]")}>{entry.position}</span>
@@ -474,6 +480,8 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                     <span className="text-[10px] font-black uppercase text-[#6c5a73]">
                       {mine
                         ? "Your position"
+                        : entry.activeChallengeStatus
+                          ? "Already in a challenge"
                         : entry.canChallenge
                           ? `Beat them to take #${entry.position}`
                           : entry.rechallengeAvailableAt && new Date(entry.rechallengeAvailableAt) > new Date()
@@ -483,7 +491,12 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                     <RecentForm results={entry.recentForm} primaryColor={activeTeam.primaryColor} accentColor={activeTeam.accentColor} />
                   </div>
                 </div>
-                {entry.canChallenge && data.available ? <Button size="sm" onClick={() => void act("challenge", { challengedEntryId: entry.id })} disabled={busy}><Swords className="h-4 w-4" />Play for #{entry.position}</Button> : mine ? <Badge variant="green">You</Badge> : null}
+                {entry.canChallenge && data.available ? (
+                  <Button size="sm" onClick={() => void act("challenge", { challengedEntryId: entry.id }, `Challenge sent to ${entry.name}. Waiting for their response.`)} disabled={busy}>
+                    {settingUpChallenge ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Swords className="h-4 w-4" />}
+                    {settingUpChallenge ? "Setting up..." : `Play for #${entry.position}`}
+                  </Button>
+                ) : mine ? <Badge variant="green">You</Badge> : entry.activeChallengeStatus && inChallengeRange ? <Badge variant="muted">In challenge</Badge> : null}
               </div>
             );
           })}

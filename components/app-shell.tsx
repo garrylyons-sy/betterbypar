@@ -2737,6 +2737,14 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-3">
           <ClubActionTile
+            icon={Swords}
+            eyebrow="Challenge"
+            title="Club Ladders"
+            description="View rankings, make challenges and track your form."
+            colors={["#10233f", "#1b8a72"]}
+            onClick={() => onNavigate("Ladder")}
+          />
+          <ClubActionTile
             icon={CalendarPlus}
             eyebrow="Tables"
             title="Book a table"
@@ -2751,14 +2759,6 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
             description="Enter events and follow draws."
             colors={["#25002b", "#6d2c78"]}
             onClick={() => onNavigate("Competitions")}
-          />
-          <ClubActionTile
-            icon={Swords}
-            eyebrow="Challenge"
-            title="Club Ladders"
-            description="View rankings, make challenges and track your form."
-            colors={["#10233f", "#1b8a72"]}
-            onClick={() => onNavigate("Ladder")}
           />
         </CardContent>
       </Card>

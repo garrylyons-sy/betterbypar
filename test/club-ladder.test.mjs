@@ -49,6 +49,21 @@ test("players may challenge only the configured number of places above", () => {
   assert.equal(canChallengePosition(5, 6, 3), false);
 });
 
+test("players already in a ladder challenge are visibly unavailable", () => {
+  assert.match(ladderApi, /active_challenge_status/);
+  assert.match(ladderApi, /row\.active_challenge_status === null/);
+  assert.match(ladderPage, /activeChallengeStatus/);
+  assert.match(ladderPage, /Already in a challenge/);
+  assert.match(ladderPage, /challengeTargetId/);
+  assert.match(ladderPage, /Setting up\.\.\./);
+  assert.match(ladderPage, /Challenge sent/);
+});
+
+test("Club Ladders appears before Book a table in the club menu", () => {
+  const clubMenu = appShell.slice(appShell.indexOf("function ClubHubPage"), appShell.indexOf("function ClubActionTile"));
+  assert.ok(clubMenu.indexOf('title="Club Ladders"') < clubMenu.indexOf('title="Book a table"'));
+});
+
 test("a rejected challenge has a seven day rechallenge cooldown", () => {
   const rejectedAt = "2026-10-01T18:30:00.000Z";
   assert.equal(rechallengeAvailableAt(rejectedAt)?.toISOString(), "2026-10-08T18:30:00.000Z");
@@ -324,7 +339,7 @@ test("the ladder itself communicates challenge stakes and recent form", () => {
   assert.match(ladderApi, /challenge\.winner_entry_id = cle\.id then 'W' else 'L'/);
   assert.match(ladderApi, /limit 3/);
   assert.match(ladderPage, /Beat a player above you and take their position/);
-  assert.match(ladderPage, /Play for #\{entry\.position\}/);
+  assert.match(ladderPage, /Play for #\$\{entry\.position\}/);
   assert.match(ladderPage, /\{challenge\.challenger\.name\} wins: moves to #/);
   assert.match(ladderPage, /\{challenge\.challenged\.name\} wins: holds #/);
   assert.match(ladderPage, /function RecentForm/);

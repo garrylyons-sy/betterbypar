@@ -271,9 +271,11 @@ export async function GET(request: Request) {
       handicap: string | null;
       recent_form: string[] | null;
       latest_rejected_at: string | null;
+      active_challenge_status: string | null;
       }>(
       `select cle.id::text, cle.person_id::text, cle.position, cle.starting_position, cle.status, p.first_name, p.last_name,
-              membership.handicap::text, form.recent_form, rejection.latest_rejected_at
+              membership.handicap::text, form.recent_form, rejection.latest_rejected_at,
+              active_challenge.status as active_challenge_status
        from public.club_ladder_entry cle
        join public.person p on p.id = cle.person_id and p.active = true
        left join lateral (
@@ -309,9 +311,18 @@ export async function GET(request: Request) {
          order by challenge.updated_at desc
          limit 1
        ) rejection on true
+       left join lateral (
+         select challenge.status
+         from public.club_ladder_challenge challenge
+         where challenge.ladder_id = cle.ladder_id
+           and challenge.status = any($4::text[])
+           and (challenge.challenger_entry_id = cle.id or challenge.challenged_entry_id = cle.id)
+         order by challenge.created_at desc
+         limit 1
+       ) active_challenge on true
        where cle.ladder_id = $1 and cle.status in ('Active', 'Paused')
        order by cle.position`,
-      [ladder.id, ladder.club_id, user.personId]
+      [ladder.id, ladder.club_id, user.personId, activeChallengeStatuses]
       );
       const myEntry = entries.rows.find((row) => row.person_id === user.personId) ?? null;
       const challenges = myEntry ? await dbQuery<Record<string, unknown>>(
@@ -360,7 +371,8 @@ export async function GET(request: Request) {
           handicap: row.handicap === null ? null : Number(row.handicap),
           recentForm: Array.isArray(row.recent_form) ? row.recent_form : [], position: row.position,
           startingPosition: row.starting_position, status: row.status,
-          canChallenge: Boolean(myEntry && !hasActiveChallenge && row.status === "Active"
+          activeChallengeStatus: row.active_challenge_status,
+          canChallenge: Boolean(myEntry && !hasActiveChallenge && row.active_challenge_status === null && row.status === "Active"
             && canRechallenge(row.latest_rejected_at)
             && canChallengePosition(myEntry.position, row.position, ladder.challenge_range))
         })),
