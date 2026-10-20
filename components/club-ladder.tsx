@@ -271,7 +271,11 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || "Club ladder could not be loaded.");
       setCollection(payload);
-      setSelectedLadderId((current) => payload.ladders.some((item: LadderView) => item.ladder.id === current) ? current : payload.ladders[0]?.ladder.id ?? null);
+      setSelectedLadderId((current) => {
+        const challengeId = new URLSearchParams(window.location.search).get("challengeId");
+        const linkedLadder = payload.ladders.find((item: LadderView) => item.challenges.some((challenge) => challenge.id === challengeId));
+        return linkedLadder?.ladder.id ?? (payload.ladders.some((item: LadderView) => item.ladder.id === current) ? current : payload.ladders[0]?.ladder.id ?? null);
+      });
       const allChallenges = (payload.ladders ?? []).flatMap((item: LadderView) => item.challenges);
       setScores(Object.fromEntries(allChallenges.map((challenge: LadderChallenge) => [challenge.id, {
         challenger: challenge.challengerScore ?? 0,
@@ -311,6 +315,12 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
 
   const data = collection?.ladders.find((item) => item.ladder.id === selectedLadderId) ?? collection?.ladders[0] ?? null;
   const activeChallenges = useMemo(() => (data?.challenges ?? []).filter((challenge) => ["Pending", "Accepted", "Scheduled", "Result Pending", "Disputed"].includes(challenge.status)), [data?.challenges]);
+
+  useEffect(() => {
+    if (loading) return;
+    const challengeId = new URLSearchParams(window.location.search).get("challengeId");
+    if (challengeId) document.getElementById(`ladder-challenge-${challengeId}`)?.scrollIntoView({ block: "center" });
+  }, [loading, selectedLadderId]);
 
   if (loading) {
     return <Card><CardContent className="p-5 text-sm font-bold text-[#6c5a73]">Loading the club ladder...</CardContent></Card>;
@@ -419,7 +429,7 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
         const positionAtStake = challenge.challenged.position;
         const score = scores[challenge.id] ?? { challenger: winsRequired, challenged: 0 };
         return (
-          <Card key={challenge.id} className="overflow-hidden border-[#bfe9dc]">
+          <Card key={challenge.id} id={`ladder-challenge-${challenge.id}`} className="scroll-mt-36 overflow-hidden border-[#bfe9dc]">
             <CardHeader className="bg-[#eef9f5]">
               <div><CardTitle>Active Challenge</CardTitle><p className="mt-1 font-black text-[#10233f]">You v {opponent.name}</p></div>
               <Badge variant={challenge.status === "Disputed" ? "gold" : "green"}>{challenge.status}</Badge>

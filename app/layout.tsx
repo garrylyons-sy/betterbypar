@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { SystemSettingsProvider } from "@/components/system-settings-provider";
 import { PwaRegister } from "@/components/pwa-register";
 
 export const metadata: Metadata = {
@@ -31,7 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">
-        {children}
+        <SystemSettingsProvider>{children}</SystemSettingsProvider>
         <PwaRegister />
       </body>
     </html>

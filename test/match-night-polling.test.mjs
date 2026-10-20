@@ -30,9 +30,9 @@ test("match night does not poll the complete session payload", () => {
 });
 
 test("fixture and lineup polling is visible, adaptive and stops after completion", () => {
-  assert.match(appShell, /MATCH_POLL_ACTIVE_MS = 60_000/);
-  assert.match(appShell, /MATCH_POLL_IDLE_MS = 5 \* 60 \* 1000/);
-  assert.match(appShell, /MATCH_POLL_TICK_MS = 60_000/);
+  assert.match(appShell, /settings\.matchActiveSeconds \* 1000/);
+  assert.match(appShell, /settings\.matchIdleSeconds \* 1000/);
+  assert.match(appShell, /fixtureWeekPollInterval\(currentWeek, pollingSettingsRef\.current\)/);
   assert.match(appShell, /fixtureWeekPollInterval/);
   assert.match(appShell, /managerLineupPollInterval/);
   assert.match(appShell, /document\.visibilityState !== "visible"/);
@@ -46,6 +46,6 @@ test("fixture and lineup polling is visible, adaptive and stops after completion
 });
 
 test("read-only live indicators use a lower-frequency status poll", () => {
-  assert.match(liveDashboard, /LIVE_STATUS_POLL_MS = 60_000/);
-  assert.match(liveDashboard, /LIVE_DASHBOARD_POLL_MS = 60_000/);
+  assert.match(liveDashboard, /settings\.liveStatusSeconds \* 1000/);
+  assert.match(liveDashboard, /settings\.liveDashboardSeconds \* 1000/);
 });

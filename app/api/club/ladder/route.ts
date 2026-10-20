@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { canChallengePosition, canRechallenge, canRejectChallenge, rechallengeAvailableAt, resolveLadderResult } from "@/lib/club-ladder.mjs";
 import { currentUserFromRequest } from "@/lib/server/auth";
+import { scheduleNotificationPush } from "@/lib/server/notification-dispatch";
+import { expireLadderNotifications, notifyLadderChallenge } from "@/lib/server/notifications";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
@@ -210,6 +212,7 @@ async function expirePendingChallenges(ladderIds: string[]) {
       );
 
       for (const expired of expiredChallenges.rows) {
+        await expireLadderNotifications(client, expired.id);
         if (!expired.had_previous_rejection) {
           await client.query(
             "update public.club_ladder_challenge set status = 'Expired', updated_at = now() where id = $1",
@@ -518,6 +521,7 @@ export async function POST(request: Request) {
            returning id::text`,
           [ladder.id, myEntry.id, target.rows[0].id, ladder.response_hours]
         );
+        await notifyLadderChallenge(client, created.rows[0].id, [target.rows[0].person_id], "received");
         return { challengeId: created.rows[0].id, status: "Pending", opponentPersonId: target.rows[0].person_id };
       }
 
@@ -565,6 +569,7 @@ export async function POST(request: Request) {
             `update public.club_ladder_challenge set status = 'Rejected', rejection_number = 1, updated_at = now() where id = $1`,
             [row.id]
           );
+          await notifyLadderChallenge(client, row.id, [row.challenger_person_id], "rejected");
           return { challengeId: row.id, status: "Rejected", opponentPersonId: row.challenger_person_id };
         }
         if (response !== "accept") throw new Error("Choose accept or reject.");
@@ -582,6 +587,7 @@ export async function POST(request: Request) {
            where id = $1`,
           [row.id, scheduledAt?.toISOString() ?? null, ladder.play_within_days]
         );
+        await notifyLadderChallenge(client, row.id, [row.challenger_person_id], "accepted");
         return { challengeId: row.id, status: scheduledAt ? "Scheduled" : "Accepted", opponentPersonId: row.challenger_person_id };
       }
 
@@ -637,11 +643,13 @@ export async function POST(request: Request) {
            where id = $1`,
           [row.id, challengerScore, challengedScore, winnerEntryId, user.personId]
         );
+        await expireLadderNotifications(client, row.id);
         return { status: "Completed" };
       }
 
       if (action === "cancel" && isChallenger && row.status === "Pending") {
         await client.query("update public.club_ladder_challenge set status = 'Cancelled', updated_at = now() where id = $1", [row.id]);
+        await expireLadderNotifications(client, row.id);
         return { status: "Cancelled" };
       }
 
@@ -666,6 +674,7 @@ export async function POST(request: Request) {
         String(auditResult.opponentPersonId ?? "") || null
       ]
     );
+    if (action === "challenge" || action === "respond") scheduleNotificationPush();
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Ladder action failed." }, { status: 400 });

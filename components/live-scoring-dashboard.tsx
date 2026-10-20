@@ -8,12 +8,12 @@ import {
   liveFrameStatusLabel,
   type LiveFrameState
 } from "@/components/league-chair-live-scoring";
+import { useSystemSettings } from "@/components/system-settings-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const LIVE_STATUS_POLL_MS = 60_000;
-const LIVE_DASHBOARD_POLL_MS = 60_000;
+
 
 export type CompactLiveStatus = {
   fixture_id: string;
@@ -65,6 +65,7 @@ async function fetchLiveStatuses(fixtureIds: string[]) {
 }
 
 export function useLiveScoringStatuses(fixtureIds: string[], enabled = true) {
+  const {settings} = useSystemSettings();
   const fixtureKey = fixtureIds.join(",");
   const [statuses, setStatuses] = useState<CompactLiveStatus[]>([]);
 
@@ -82,14 +83,14 @@ export function useLiveScoringStatuses(fixtureIds: string[], enabled = true) {
       }).catch(() => undefined);
     };
     load();
-    const pollId = window.setInterval(load, LIVE_STATUS_POLL_MS);
+    const pollId = window.setInterval(load, settings.liveStatusSeconds * 1000);
     document.addEventListener("visibilitychange", load);
     return () => {
       active = false;
       window.clearInterval(pollId);
       document.removeEventListener("visibilitychange", load);
     };
-  }, [enabled, fixtureKey]);
+  }, [enabled, fixtureKey, settings.liveStatusSeconds]);
 
   return useMemo(() => groupStatuses(statuses), [statuses]);
 }
@@ -178,6 +179,7 @@ function LiveScoringFavicon({ active }: { active: boolean }) {
 }
 
 export function LiveScoringDashboard({ userName = "", embedded = false }: { userName?: string; embedded?: boolean }) {
+  const {settings} = useSystemSettings();
   const [payload, setPayload] = useState<DashboardPayload>({ fixtures: [], statuses: [] });
   const [selectedFixtureId, setSelectedFixtureId] = useState("");
   const [league, setLeague] = useState("All leagues");
@@ -207,13 +209,13 @@ export function LiveScoringDashboard({ userName = "", embedded = false }: { user
     const poll = () => {
       if (document.visibilityState === "visible") void load(true);
     };
-    const pollId = window.setInterval(poll, LIVE_DASHBOARD_POLL_MS);
+    const pollId = window.setInterval(poll, settings.liveDashboardSeconds * 1000);
     document.addEventListener("visibilitychange", poll);
     return () => {
       window.clearInterval(pollId);
       document.removeEventListener("visibilitychange", poll);
     };
-  }, [load]);
+  }, [load, settings.liveDashboardSeconds]);
 
   const statuses = useMemo(() => groupStatuses(payload.statuses), [payload.statuses]);
   const leagues = useMemo(() => Array.from(new Set(payload.fixtures.map((fixture) => fixture.league_name))), [payload.fixtures]);

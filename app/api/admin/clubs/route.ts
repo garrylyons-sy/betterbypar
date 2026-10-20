@@ -1,3 +1,5 @@
+import {notifyFixtureChanged} from "@/lib/server/notifications";
+import {scheduleNotificationPush} from "@/lib/server/notification-dispatch";
 import { NextResponse } from "next/server";
 
 import { changedClubFields, clubAuditLabel, clubMutationPolicy, normalizeClubInput, type ClubAdminMode, type ClubSettings } from "@/lib/server/admin-clubs";
@@ -127,6 +129,7 @@ export async function PATCH(request: Request) {
     const id = String(body.id ?? "").trim();
     if (!id) throw new Error("Club is required.");
 
+    let venueChanged = false;
     const result = await withTransaction(async (client) => {
       const existing = await client.query<ClubRow>(
         `select id::text, name, venue, address, logo_path, primary_color, accent_color, allow_unlimited_lower_team_players, active, updated_at::text
@@ -160,6 +163,12 @@ export async function PATCH(request: Request) {
          returning id::text, name, venue, address, logo_path, primary_color, accent_color, allow_unlimited_lower_team_players, active, updated_at::text`,
         [id, next.name, next.venue, next.address, next.logoPath, next.primaryColor, next.accentColor, next.allowUnlimitedLowerTeamPlayers, next.active]
       );
+      if (changes.includes("venue") || changes.includes("address")) {
+        const upcoming = await client.query<{id:string}>(`select f.id from public.fixture f join public.team t on t.id=f.home_team_id
+          where t.club_id=$1 and f.status='Scheduled' and f.fixture_date >= (now() at time zone 'Europe/Dublin')::date`, [id]);
+        for (const fixture of upcoming.rows) await notifyFixtureChanged(client,fixture.id,[],`Venue updated: ${next.venue || next.name}${next.address ? `, ${next.address}` : ""}`);
+        venueChanged = upcoming.rows.length > 0;
+      }
       const label = clubAuditLabel("update", changes, next.active);
       if (!label) return updated.rows[0];
       await client.query(
@@ -169,6 +178,7 @@ export async function PATCH(request: Request) {
       );
       return updated.rows[0];
     });
+    if (venueChanged) scheduleNotificationPush();
     return NextResponse.json({ club: clubResponse(result) });
   } catch (error) {
     const status = typeof error === "object" && error !== null && "status" in error && error.status === 403 ? 403 : 400;

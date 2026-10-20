@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Minus, Pause, Play, Plus, Radio, RotateCcw, Undo2, WifiOff, X } from "lucide-react";
 
+import { useSystemSettings } from "@/components/system-settings-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,8 +11,7 @@ import { cn } from "@/lib/utils";
 type Side = "home" | "away";
 type SaveState = "Saved" | "Saving" | "Offline" | "Conflict";
 
-const LIVE_SCORER_POLL_MS = 15_000;
-const LIVE_OBSERVER_POLL_MS = 30_000;
+
 
 export type LiveFrameState = {
   homeScore: number;
@@ -246,6 +246,7 @@ export function LeagueChairMatchControls({
   defaultOpen?: boolean;
   onDataRefresh?: () => void;
 }) {
+  const {settings} = useSystemSettings();
   const [controlsOpen, setControlsOpen] = useState(false);
   const [payload, setPayload] = useState<LiveFixturePayload | null>(null);
   const [selectedGameId, setSelectedGameId] = useState("");
@@ -305,7 +306,7 @@ export function LeagueChairMatchControls({
       poll();
     };
     const offline = () => setSaveState("Offline");
-    const pollId = window.setInterval(poll, selectedSessionCanControl ? LIVE_SCORER_POLL_MS : LIVE_OBSERVER_POLL_MS);
+    const pollId = window.setInterval(poll, (selectedSessionCanControl ? settings.liveScorerSeconds : settings.liveObserverSeconds) * 1000);
     document.addEventListener("visibilitychange", poll);
     window.addEventListener("online", online);
     window.addEventListener("offline", offline);
@@ -315,7 +316,7 @@ export function LeagueChairMatchControls({
       window.removeEventListener("online", online);
       window.removeEventListener("offline", offline);
     };
-  }, [controlsOpen, load, selectedGameId, selectedSessionCanControl]);
+  }, [controlsOpen, load, selectedGameId, selectedSessionCanControl, settings.liveScorerSeconds, settings.liveObserverSeconds]);
 
   const send = useCallback(async (action: LiveAction) => {
     if (!navigator.onLine) {

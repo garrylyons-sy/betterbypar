@@ -14,7 +14,8 @@ test("scheduled Last Man Standing processing is secured and configured for Hobby
 
   const config = JSON.parse(read("../vercel.json"));
   assert.ok(Array.isArray(config.crons));
-  assert.ok(config.crons.length >= 24);
-  assert.ok(config.crons.every((cron) => cron.path === "/api/cron/last-man-standing"));
-  assert.ok(config.crons.every((cron) => /^30 \d+ \* \* \*$/.test(cron.schedule)));
+  const jobs = config.crons.filter((cron) => cron.path === "/api/cron/last-man-standing");
+  assert.ok(jobs.length >= 24);
+  assert.ok(jobs.every((cron) => cron.path === "/api/cron/last-man-standing"));
+  assert.ok(jobs.every((cron) => /^30 \d+ \* \* \*$/.test(cron.schedule)));
 });

@@ -6,6 +6,7 @@ import { Mail, Send, UserPlus } from "lucide-react";
 import { AppShell, currentAppSeason } from "@/components/app-shell";
 import { AuthSelectField, AuthSignInForm, AuthTextAreaField, AuthTextField, GoogleAuthButton, authJsonFetch } from "@/components/auth-controls";
 import { PasswordChecklist } from "@/components/password-checklist";
+import { disconnectNotificationDevice } from "@/components/notification-center";
 import { SplashScreen } from "@/components/splash-screen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -228,6 +229,7 @@ export function AuthGateway() {
   }, []);
 
   async function signOut() {
+    await disconnectNotificationDevice();
     await fetch("/api/logout", { method: "POST", credentials: "same-origin" }).catch(() => {});
     window.sessionStorage.removeItem("interclub:admin-session-data:v1");
     window.sessionStorage.removeItem("interclub:admin-session-tab:v1");

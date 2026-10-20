@@ -6,6 +6,7 @@ import { advanceCupFixture } from "@/lib/server/cup-competitions";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import { recordOfficialGameResult } from "@/lib/server/game-results";
 import { processDueLastManStandingWork } from "@/lib/server/last-man-standing";
+import { refreshFixtureLineupNotifications } from "@/lib/server/notifications";
 import { fixturePlayerWinPercentage, loadFixturePlayerWinPercentages } from "@/lib/server/player-win-percentages";
 
 export const runtime = "nodejs";
@@ -390,6 +391,7 @@ export async function POST(request: NextRequest) {
 
       if (shouldPublish) {
         await generateGamesIfBothPublished(client, fixtureId, user.personId);
+        await refreshFixtureLineupNotifications(client, fixtureId);
       }
       await recordLineupActivity(
         client,

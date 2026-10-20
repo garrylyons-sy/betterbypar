@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@/lib/server/auth";
 import { advanceCupFixture } from "@/lib/server/cup-competitions";
 import { dbQuery, withTransaction } from "@/lib/server/db";
+import { scheduleNotificationPush } from "@/lib/server/notification-dispatch";
+import { notifyFixtureChanged } from "@/lib/server/notifications";
 import { processDueLastManStandingWork } from "@/lib/server/last-man-standing";
 
 export const runtime = "nodejs";
@@ -209,6 +211,7 @@ export async function PATCH(request: NextRequest) {
         season_id: string;
         league_id: string;
         fixture_date: string;
+        status: string;
         home_team_id: string;
         away_team_id: string;
         match_id: string | null;
@@ -222,6 +225,7 @@ export async function PATCH(request: NextRequest) {
            f.season_id,
            f.league_id,
            f.fixture_date::text,
+           f.status::text,
            f.home_team_id,
            f.away_team_id,
            m.id as match_id,
@@ -285,7 +289,7 @@ export async function PATCH(request: NextRequest) {
       const nextHomeTeamId = homeTeamId || fixture.home_team_id;
       const nextAwayTeamId = awayTeamId || fixture.away_team_id;
       const teamsChanged = nextHomeTeamId !== fixture.home_team_id || nextAwayTeamId !== fixture.away_team_id;
-      const dateChanged = Boolean(fixtureDate && fixture.fixture_date.slice(0, 10) !== fixtureDate.slice(0, 10));
+      const dateChanged = Boolean(fixtureDate && new Date(fixture.fixture_date).getTime() !== new Date(fixtureDate).getTime());
       if (nextHomeTeamId === nextAwayTeamId) throw new Error("Home and away teams must be different.");
 
       if (teamsChanged && (fixture.lineup_count > 0 || fixture.game_count > 0)) {
@@ -384,14 +388,18 @@ export async function PATCH(request: NextRequest) {
         [user.personId, fixtureId]
       );
 
-      return { matchId };
+      if (dateChanged || teamsChanged || (status && status !== fixture.status)) {
+        await notifyFixtureChanged(client, fixtureId, [fixture.home_team_id, fixture.away_team_id]);
+      }
+      return { matchId, notificationCreated: Boolean(dateChanged || teamsChanged || (status && status !== fixture.status)) };
     });
 
     await processDueLastManStandingWork({ actorPersonId: user.personId }).catch((error) => {
       console.error("last-man-standing:admin-match", error);
     });
 
-    return NextResponse.json({ ok: true, ...result });
+    if (result.notificationCreated) scheduleNotificationPush();
+    return NextResponse.json({ ok: true, matchId: result.matchId });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not update match." },

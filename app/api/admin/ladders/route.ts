@@ -1,3 +1,4 @@
+import { expireLadderNotifications, expireTerminalLadderNotifications } from "@/lib/server/notifications";
 import { NextResponse } from "next/server";
 
 import { normalizeLadderInitialOrder, normalizeLadderSettings, resolveLadderResult } from "@/lib/club-ladder.mjs";
@@ -352,6 +353,7 @@ export async function POST(request: Request) {
             [clubId, settings.name, settings.matchFormat, settings.challengeRange, settings.responseHours, settings.playWithinDays, settings.useHandicap, settings.active, access.personId]
           );
 
+      await expireTerminalLadderNotifications(client, saved.rows[0].id);
       await client.query("delete from public.club_ladder_eligible_team where ladder_id = $1", [saved.rows[0].id]);
       if (eligibleTeamIds.length) {
         await client.query(
@@ -388,6 +390,7 @@ export async function POST(request: Request) {
                and (challenger_entry_id = any($2::uuid[]) or challenged_entry_id = any($2::uuid[]))`,
             [saved.rows[0].id, ineligibleEntryIds]
           );
+          await expireTerminalLadderNotifications(client, saved.rows[0].id);
           await client.query("set constraints all deferred");
           await client.query(
             `update public.club_ladder_entry set status = 'Withdrawn', updated_at = now()
@@ -509,6 +512,7 @@ export async function PATCH(request: Request) {
                  'challenger_name', $7::text, 'challenged_name', $8::text))`,
             [access.personId, clubId, row.club_name, ladderId, row.ladder_name, row.id, row.challenger_name, row.challenged_name]
           );
+          await expireLadderNotifications(client, row.id);
           return { status: "Accepted" };
         }
 
@@ -570,6 +574,7 @@ export async function PATCH(request: Request) {
           [access.personId, clubId, row.club_name, ladderId, row.ladder_name, row.id,
             row.challenger_name, row.challenged_name, challengerScore, challengedScore]
         );
+        await expireLadderNotifications(client, row.id);
         return { status: "Completed" };
       });
 
@@ -733,6 +738,7 @@ export async function PATCH(request: Request) {
            and (challenger_entry_id = $2 or challenged_entry_id = $2)`,
         [ladderId, entryId]
       );
+      await expireTerminalLadderNotifications(client, ladderId);
       await client.query("set constraints all deferred");
       await client.query(
         `update public.club_ladder_entry

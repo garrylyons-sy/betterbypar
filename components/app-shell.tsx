@@ -37,9 +37,12 @@ import { Button } from "@/components/ui/button";
 import { LeagueChairLiveIndicator, LeagueChairLiveStatusList, useLiveScoringStatuses } from "@/components/live-scoring-dashboard";
 import { LastManStandingHomePanel, LastManStandingPage, loadLastManStandingSummaries } from "@/components/last-man-standing";
 import { ClubLadderHomePanel, ClubLadderPage } from "@/components/club-ladder";
+import { NotificationBell, NotificationCenter, useNotificationCenter } from "@/components/notification-center";
 import { ClubFeatureUnavailable } from "@/components/club-feature-unavailable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { shouldShowFixtureDates } from "@/lib/fixture-scheduling.mjs";
+import { useSystemSettings } from "@/components/system-settings-provider";
+import { isPollingTime, pollingFixtureDate, type SystemSettings } from "@/lib/system-settings.mjs";
 import { cn } from "@/lib/utils";
 
 type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Ladder" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop";
@@ -223,11 +226,13 @@ export function AppShell({
     const params = new URLSearchParams(window.location.search);
     const requestedTeam = params.get("team")?.trim().toLowerCase();
     const requestedRole = params.get("role")?.trim().toLowerCase();
-    if (!requestedTeam && !requestedRole) return availableContexts[0]?.id ?? teamContexts[0].id;
+    const requestedClub = params.get("club")?.trim().toLowerCase();
+    if (!requestedTeam && !requestedRole && !requestedClub) return availableContexts[0]?.id ?? teamContexts[0].id;
     return availableContexts.find((team) => {
       const teamMatches = requestedTeam ? normalizeLookupKey(team.name) === normalizeLookupKey(requestedTeam) : true;
       const roleMatches = requestedRole ? team.role.toLowerCase() === requestedRole : true;
-      return teamMatches && roleMatches;
+      const clubMatches = requestedClub ? team.club.toLowerCase() === requestedClub : true;
+      return teamMatches && roleMatches && clubMatches;
     })?.id ?? availableContexts[0]?.id ?? teamContexts[0].id;
   }, [appContexts, contexts]);
   const preferredContext = useMemo(
@@ -238,9 +243,9 @@ export function AppShell({
   const [activePage, setActivePage] = useState<AppPage>(() => {
     if (typeof window === "undefined") return "Home";
     const requestedPage = new URLSearchParams(window.location.search).get("page");
-    return requestedPage === "Competitions" || requestedPage === "Last Man Standing" ? requestedPage : "Home";
+    return requestedPage === "Competitions" || requestedPage === "Last Man Standing" || requestedPage === "Fixtures" || requestedPage === "Ladder" ? requestedPage : "Home";
   });
-  const [selectedFixtureId, setSelectedFixtureId] = useState("");
+  const [selectedFixtureId, setSelectedFixtureId] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("fixtureId") ?? "");
   const [simulatedRole, setSimulatedRole] = useState<Role>(contexts[0]?.role ?? teamContexts[0].role);
   const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
   const [teamSummaryOverrides, setTeamSummaryOverrides] = useState<Record<string, TeamSummaryUpdate>>({});
@@ -277,7 +282,7 @@ export function AppShell({
     if (typeof window === "undefined") return;
     if (hasAppliedUrlContext.current) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.has("team") || params.has("role") || params.has("season")) {
+    if (params.has("team") || params.has("role") || params.has("season") || params.has("club")) {
       hasAppliedUrlContext.current = true;
       setSelectedId(preferredContextId);
     }
@@ -622,6 +627,7 @@ function PageContent({
     return (
       <FixturesPage
         activeTeam={activeTeam}
+        selectedFixtureId={selectedFixtureId}
         matchResults={matchResults}
         leagueTeamCount={leagueTeamCount}
         onOpenFixture={onOpenFixture}
@@ -688,6 +694,7 @@ function Header({
   onSignOut?: () => void;
 }) {
   const [accountOpen, setAccountOpen] = useState(false);
+  const notificationCenter = useNotificationCenter(Boolean(userLabel && onSignOut) && !currentTestUserParam() && (typeof window === "undefined" || new URLSearchParams(window.location.search).get("embed") !== "1"));
 
   return (
     <header className="sticky top-0 z-50 w-full overflow-visible bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6 lg:px-10">
@@ -709,7 +716,11 @@ function Header({
               ) : null}
             </div>
           </div>
-          <AccountMenu userLabel={userLabel} onSignOut={onSignOut} accountOpen={accountOpen} setAccountOpen={setAccountOpen} />
+          <div className="flex shrink-0 items-center gap-2">
+            <NotificationBell center={notificationCenter} />
+            <AccountMenu userLabel={userLabel} onSignOut={onSignOut} accountOpen={accountOpen} setAccountOpen={setAccountOpen} onNotificationSettings={notificationCenter.state.eligible ? () => { setAccountOpen(false); notificationCenter.setPanel("settings"); } : undefined} />
+          </div>
+          <NotificationCenter center={notificationCenter} />
         </div>
         <div className="grid min-w-0 w-full gap-2 sm:w-[270px]">
           <ContextSwitcher
@@ -734,12 +745,14 @@ function AccountMenu({
   userLabel,
   onSignOut,
   accountOpen,
-  setAccountOpen
+  setAccountOpen,
+  onNotificationSettings
 }: {
   userLabel?: string;
   onSignOut?: () => void;
   accountOpen: boolean;
   setAccountOpen: (updater: boolean | ((open: boolean) => boolean)) => void;
+  onNotificationSettings?: () => void;
 }) {
   if (!userLabel) return null;
 
@@ -763,6 +776,7 @@ function AccountMenu({
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Signed in as</p>
             <p className="truncate text-sm font-extrabold">{userLabel}</p>
           </div>
+          {onNotificationSettings ? <button type="button" role="menuitem" onClick={onNotificationSettings} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-bold hover:bg-[#f7f5fa]">Notification settings</button> : null}
           {onSignOut ? (
             <button
               type="button"
@@ -3300,12 +3314,14 @@ function InterclubLeaguesPage({
 
 function FixturesPage({
   activeTeam,
+  selectedFixtureId,
   onOpenFixture,
   userCanShare,
   onDataRefresh,
   onTeamSummaryUpdate
 }: {
   activeTeam: TeamContext;
+  selectedFixtureId?: string;
   matchResults: MatchResult[];
   leagueTeamCount: number;
   onOpenFixture: (fixtureId: string) => void;
@@ -3330,6 +3346,7 @@ function FixturesPage({
           <FixtureWeekCarouselCard
             key={`${activeTeam.season}-${league}`}
             activeTeam={leagueContext}
+            selectedFixtureId={selectedFixtureId}
             onOpenFixture={league === activeTeam.league ? onOpenFixture : undefined}
             userCanShare={userCanShare}
             onDataRefresh={onDataRefresh}
@@ -5354,10 +5371,6 @@ function defaultFixtureWeekIndex(weeks: FixtureWeek[], league: TeamContext["leag
   )).index;
 }
 
-const MATCH_POLL_ACTIVE_MS = 60_000;
-const MATCH_POLL_IDLE_MS = 5 * 60 * 1000;
-const MATCH_POLL_TICK_MS = 60_000;
-
 type FixtureStatusSnapshot = {
   id: string;
   status: string;
@@ -5395,32 +5408,32 @@ async function loadFixtureStatuses(fixtureIds: string[]) {
   return (data.fixtures ?? []) as FixtureStatusSnapshot[];
 }
 
-function fixtureWeekPollInterval(week?: FixtureWeek) {
+function fixtureWeekPollInterval(week: FixtureWeek | undefined, settings: SystemSettings) {
   if (!week) return null;
-  const today = localIsoDate();
-  if (!isMatchPollingWindow()) return null;
+  const today = pollingFixtureDate(new Date(), settings);
+  if (!isMatchPollingWindow(settings)) return null;
   const activeFixtures = week.fixtures.filter((fixture) => (
     fixture.fixtureDate.slice(0, 10) === today && fixture.status !== "Completed"
   ));
   if (!activeFixtures.length) return null;
   return activeFixtures.some((fixture) => fixture.completedGames > 0)
-    ? MATCH_POLL_ACTIVE_MS
-    : MATCH_POLL_IDLE_MS;
+    ? settings.matchActiveSeconds * 1000
+    : settings.matchIdleSeconds * 1000;
 }
 
-function isMatchPollingWindow() {
+function isMatchPollingWindow(settings: SystemSettings) {
   const now = new Date();
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  return minutes >= 19 * 60 + 30 && minutes <= 23 * 60 + 30;
+  const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  return isPollingTime(time, settings);
 }
 
-function managerLineupPollInterval(payload: ManagerLineupPayload | null) {
+function managerLineupPollInterval(payload: ManagerLineupPayload | null, settings: SystemSettings) {
   if (!payload?.fixture || payload.fixture.status === "Completed") return null;
-  if (payload.fixture.fixtureDate.slice(0, 10) !== localIsoDate() || !isMatchPollingWindow()) return null;
+  if (payload.fixture.fixtureDate.slice(0, 10) !== pollingFixtureDate(new Date(), settings) || !isMatchPollingWindow(settings)) return null;
   const currentWeekFixture = payload.weekFixtures.find((fixture) => fixture.id === payload.fixture?.id);
   const hasStarted = payload.games.some((game) => Boolean(game.winner_team_id))
     || (currentWeekFixture?.completedGames ?? 0) > 0;
-  return hasStarted ? MATCH_POLL_ACTIVE_MS : MATCH_POLL_IDLE_MS;
+  return hasStarted ? settings.matchActiveSeconds * 1000 : settings.matchIdleSeconds * 1000;
 }
 
 function fixtureHasStarted(fixture: FixtureWeekFixture) {
@@ -5473,6 +5486,9 @@ function FixtureWeekCarouselCard({
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
   includeCups?: boolean;
 }) {
+  const {settings} = useSystemSettings();
+  const pollingSettingsRef = useRef(settings);
+  pollingSettingsRef.current = settings;
   const [weeks, setWeeks] = useState<FixtureWeek[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [expandedFixtureId, setExpandedFixtureId] = useState("");
@@ -5480,6 +5496,24 @@ function FixtureWeekCarouselCard({
   const [message, setMessage] = useState("");
   const activeIndexRef = useRef(0);
   const weeksRef = useRef<FixtureWeek[]>([]);
+  const appliedFixtureLink = useRef("");
+  const scrolledFixtureLink = useRef("");
+  useEffect(() => {
+    if (!selectedFixtureId || appliedFixtureLink.current === selectedFixtureId) return;
+    const index = weeks.findIndex((week) => week.fixtures.some((fixture) => fixture.id === selectedFixtureId));
+    if (index >= 0) {
+      appliedFixtureLink.current = selectedFixtureId;
+      setActiveIndex(index);
+    }
+  }, [selectedFixtureId, weeks]);
+  useEffect(() => {
+    if (!selectedFixtureId || scrolledFixtureLink.current === selectedFixtureId) return;
+    const target = document.getElementById(`fixture-${selectedFixtureId}`);
+    if (target) {
+      target.scrollIntoView({block: "center"});
+      scrolledFixtureLink.current = selectedFixtureId;
+    }
+  }, [activeIndex, selectedFixtureId, weeks]);
   const embeddedDemoMode = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1";
 
   useEffect(() => {
@@ -5524,10 +5558,10 @@ function FixtureWeekCarouselCard({
           if (document.visibilityState !== "visible") return;
           const currentWeek = weeksRef.current[activeIndexRef.current];
           const interval = embeddedDemoMode
-            ? MATCH_POLL_ACTIVE_MS
-            : fixtureWeekPollInterval(currentWeek);
+            ? pollingSettingsRef.current.matchActiveSeconds * 1000
+            : fixtureWeekPollInterval(currentWeek, pollingSettingsRef.current);
           if (!interval || Date.now() - lastPollAt < interval || statusPollInFlight) return;
-          const today = localIsoDate();
+          const today = pollingFixtureDate(new Date(), pollingSettingsRef.current);
           const visibleFixtures = (currentWeek?.fixtures ?? []).filter((fixture) => (
             fixture.fixtureDate.slice(0, 10) === today && fixture.status !== "Completed"
           ));
@@ -5542,7 +5576,7 @@ function FixtureWeekCarouselCard({
           } finally {
             statusPollInFlight = false;
           }
-        }, MATCH_POLL_TICK_MS);
+        }, 5_000);
       })
       .catch((error) => {
         if (active) setMessage(error instanceof Error ? error.message : "Fixtures unavailable.");
@@ -5665,7 +5699,8 @@ function FixtureWeekCarouselCard({
                   <Fragment key={fixture.id}>
                     {fixture.cupSectionStart && fixture.cupSectionLabel ? <CupFixtureSectionHeading label={fixture.cupSectionLabel} /> : null}
                     <article
-                      className={cn("border-b border-[#eeeaf2] last:border-b-0", fixture.isOwnFixture && "bg-[#f7f5fa]")}
+                      id={`fixture-${fixture.id}`}
+                      className={cn("scroll-mt-36 border-b border-[#eeeaf2] last:border-b-0", fixture.isOwnFixture && "bg-[#f7f5fa]")}
                       style={fixture.isOwnFixture ? { borderLeft: `5px solid ${activeTeam.primaryColor}` } : undefined}
                     >
                     <button
@@ -5797,6 +5832,9 @@ function ManagerLineupCard({
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
+  const {settings} = useSystemSettings();
+  const pollingSettingsRef = useRef(settings);
+  pollingSettingsRef.current = settings;
   const [payload, setPayload] = useState<ManagerLineupPayload | null>(null);
   const [slots, setSlots] = useState<ManagerLineupSlot[]>(() => defaultLineupSlotsForLeague(activeTeam.league));
   const [message, setMessage] = useState("");
@@ -5886,8 +5924,8 @@ function ManagerLineupCard({
     const poll = window.setInterval(async () => {
       if (document.visibilityState !== "visible") return;
       const interval = testManagerMode
-        ? MATCH_POLL_ACTIVE_MS
-        : managerLineupPollInterval(payloadRef.current);
+        ? pollingSettingsRef.current.matchActiveSeconds * 1000
+        : managerLineupPollInterval(payloadRef.current, pollingSettingsRef.current);
       if (!interval || Date.now() - lastPollAt < interval || statusPollInFlight) return;
       const fixtureId = payloadRef.current?.fixture?.id;
       const currentFixture = payloadRef.current?.weekFixtures.find((fixture) => fixture.id === fixtureId);
@@ -5902,7 +5940,7 @@ function ManagerLineupCard({
       } finally {
         statusPollInFlight = false;
       }
-    }, MATCH_POLL_TICK_MS);
+    }, 5_000);
     const refreshPanels = () => {
       lastPollAt = Date.now();
       loadLineup();
