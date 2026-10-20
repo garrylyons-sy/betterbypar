@@ -5445,6 +5445,15 @@ function CupFixtureSectionHeading({ label }: { label: string }) {
   );
 }
 
+function CupFixtureMatchLabel({ label }: { label: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 rounded-md bg-[#eaf1fb] px-2.5 py-2 text-[#10233f] ring-1 ring-[#cad8ea]">
+      <Trophy className="h-3.5 w-3.5 shrink-0" />
+      <span className="min-w-0 text-xs font-black uppercase leading-tight">{label}</span>
+    </div>
+  );
+}
+
 function FixtureWeekCarouselCard({
   activeTeam,
   selectedFixtureId,
@@ -5676,6 +5685,7 @@ function FixtureWeekCarouselCard({
                         setExpandedFixtureId((current) => current === fixture.id ? "" : fixture.id);
                       }}
                     >
+                      {fixture.cupSectionLabel ? <CupFixtureMatchLabel label={fixture.cupSectionLabel} /> : null}
                       {showFixtureDates ? (
                         <div className="flex flex-wrap items-center gap-2 text-[11px] font-extrabold uppercase text-[#6c5a73]">
                           <span>{formatFixtureDate(fixture.fixtureDate)}</span>

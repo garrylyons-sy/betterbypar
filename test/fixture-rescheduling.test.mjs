@@ -320,6 +320,13 @@ test("the fixtures page includes cup rounds in only its first league carousel", 
   assert.match(fixtureWeeksRoute, /const cupRows = includeCups \?/);
 });
 
+test("same-day cup fixture rows identify their competition and round", () => {
+  const appShell = source("../components/app-shell.tsx");
+
+  assert.match(appShell, /function CupFixtureMatchLabel/);
+  assert.match(appShell, /fixture\.cupSectionLabel \? <CupFixtureMatchLabel label=\{fixture\.cupSectionLabel\} \/> : null/);
+});
+
 test("the mobile navigation is outside the scrolling app main", () => {
   const appShell = source("../components/app-shell.tsx");
   const shellStart = appShell.indexOf('return (\n    <>');
