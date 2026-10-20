@@ -76,6 +76,26 @@ export function NotificationCenter({ center }: { center: Center }) {
   const [push, setPush] = useState<{ ready: boolean; publicKey: string | null; subscribed: boolean } | null>(null);
   const [pushMessage, setPushMessage] = useState("");
   const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const isOpen = state.eligible && panel !== null;
+  useEffect(() => {
+    if (!isOpen) return;
+    // Native modal dialogs do not lock page scrolling, particularly on iOS.
+    const { scrollX, scrollY } = window;
+    const body = document.body;
+    const root = document.documentElement;
+    const previous = { position: body.style.position, top: body.style.top, left: body.style.left, width: body.style.width, overflow: body.style.overflow };
+    const rootOverflow = root.style.overflow;
+    const scrollBehavior = root.style.scrollBehavior;
+    root.style.overflow = "hidden";
+    Object.assign(body.style, { position: "fixed", top: `-${scrollY}px`, left: `-${scrollX}px`, width: "100%", overflow: "hidden" });
+    return () => {
+      Object.assign(body.style, previous);
+      root.style.overflow = rootOverflow;
+      root.style.scrollBehavior = "auto";
+      window.scrollTo(scrollX, scrollY);
+      root.style.scrollBehavior = scrollBehavior;
+    };
+  }, [isOpen]);
   useEffect(() => {
     if (state.eligible && panel) dialog.current?.showModal();
     else dialog.current?.close();
@@ -163,9 +183,9 @@ export function NotificationCenter({ center }: { center: Center }) {
     setDraft((previous) => previous ? { ...previous, [key]: previous[key].includes(type) ? previous[key].filter((value) => value !== type) : [...previous[key], type] } : previous);
   }
   if (!state.eligible) return null;
-  return <dialog ref={dialog} aria-labelledby="notification-heading" onCancel={() => setPanel(null)} onClose={() => setPanel(null)} className="m-auto max-h-[85dvh] w-[calc(100%_-_2rem)] max-w-lg overflow-y-auto rounded-2xl bg-white p-0 text-[#10233f] shadow-2xl backdrop:bg-[#10233f]/60">
-    <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-white p-4"><h2 id="notification-heading" className="text-lg font-extrabold">{panel === "settings" ? "Notification settings" : "Notifications"}</h2><button type="button" autoFocus aria-label="Close notifications" onClick={() => setPanel(null)} className="grid h-11 w-11 place-items-center rounded-xl hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
-    <div className="space-y-4 p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
+  return <dialog ref={dialog} aria-labelledby="notification-heading" onCancel={() => setPanel(null)} onClose={() => setPanel(null)} className="m-auto max-h-[85dvh] w-[calc(100%_-_2rem)] max-w-lg flex-col overflow-hidden rounded-2xl bg-white p-0 text-[#10233f] shadow-2xl backdrop:bg-[#10233f]/60 open:flex">
+    <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b bg-white p-4"><h2 id="notification-heading" className="text-lg font-extrabold">{panel === "settings" ? "Notification settings" : "Notifications"}</h2><button type="button" autoFocus aria-label="Close notifications" onClick={() => setPanel(null)} className="grid h-11 w-11 place-items-center rounded-xl hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
+    <div className="min-h-0 overflow-y-auto overscroll-contain space-y-4 p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
       {error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
       {panel === "inbox" ? <>
         <div className="flex flex-wrap justify-between gap-2"><Button size="sm" variant="secondary" onClick={() => setPanel("settings")}><Settings className="h-4 w-4" />Settings</Button><Button size="sm" variant="secondary" disabled={!state.unreadCount || saving} onClick={async () => { setSaving(true); try { await markRead(); } catch (failure) { setError((failure as Error).message); } finally { setSaving(false); } }}><CheckCheck className="h-4 w-4" />Mark all read</Button></div>
