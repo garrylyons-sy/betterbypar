@@ -2850,6 +2850,7 @@ function PeoplePanel({
   const [clubFilter, setClubFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [emailFilter, setEmailFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [selectedPersonIds, setSelectedPersonIds] = useState<string[]>([]);
@@ -3140,6 +3141,12 @@ function PeoplePanel({
       return true;
     }
 
+    function matchesEmail(person: PersonOption) {
+      if (emailFilter === "has-email") return Boolean(person.email?.trim());
+      if (emailFilter === "no-email") return !person.email?.trim();
+      return true;
+    }
+
     function matchesRole(person: PersonOption) {
       if (roleFilter === "all") return true;
       if (roleFilter === "admin") return Boolean(person.admin);
@@ -3177,6 +3184,7 @@ function PeoplePanel({
           && (clubFilter === "all" || clubsForPerson.includes(clubFilter))
           && matchesTeam(person)
           && matchesRole(person)
+          && matchesEmail(person)
           && matchesStatus(person);
       })
       .sort((a, b) => {
@@ -3192,7 +3200,7 @@ function PeoplePanel({
         if (sortBy === "login") return Number(Boolean(b.loginActive)) - Number(Boolean(a.loginActive)) || a.name.localeCompare(b.name);
         return a.name.localeCompare(b.name);
       });
-  }, [clubFilter, people, roleFilter, searchTerm, sortBy, statusFilter, teamFilter]);
+  }, [clubFilter, emailFilter, people, roleFilter, searchTerm, sortBy, statusFilter, teamFilter]);
 
   function isPendingInvite(person: PersonOption) {
     return Boolean(person.invitationId && person.inviteStatus === "Pending");
@@ -3236,7 +3244,7 @@ function PeoplePanel({
           <Badge variant="muted">{visiblePeople.length} / {people.length}</Badge>
         </CardHeader>
         <CardContent className="grid min-w-0 gap-3">
-          <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-[minmax(180px,1.4fr)_repeat(5,minmax(0,1fr))]">
+          <div className="grid gap-2 rounded-xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2] md:grid-cols-[minmax(180px,1.4fr)_repeat(6,minmax(0,1fr))]">
             <label className="grid gap-1">
               <span className="text-xs font-bold uppercase text-[#6c5a73]">Search</span>
               <input
@@ -3286,6 +3294,16 @@ function PeoplePanel({
                 { value: "accepted", label: "Accepted invite" },
                 { value: "invited", label: "Any invite" },
                 { value: "no-invite", label: "No invite" }
+              ]}
+            />
+            <AdminSelect
+              label="Email"
+              value={emailFilter}
+              onChange={setEmailFilter}
+              options={[
+                { value: "all", label: "All email records" },
+                { value: "has-email", label: "Has email" },
+                { value: "no-email", label: "No email" }
               ]}
             />
             <AdminSelect

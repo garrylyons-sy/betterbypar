@@ -25,3 +25,12 @@ test("people invite selection requires an email address for new and resent invit
   const peoplePanelSource = source.slice(source.indexOf("function PeoplePanel"), source.indexOf("function InviteStatusBadge"));
   assert.match(peoplePanelSource, /Boolean\(person\.email && \(!person\.invitedAt \|\| isPendingInvite\(person\)\)\)/, "bulk resend eligibility should require an email");
 });
+
+test("people admin can filter records by email availability", () => {
+  const peoplePanelSource = source.slice(source.indexOf("function PeoplePanel"), source.indexOf("function InviteStatusBadge"));
+
+  assert.match(peoplePanelSource, /const \[emailFilter, setEmailFilter\] = useState\("all"\)/);
+  assert.match(peoplePanelSource, /label="Email"[\s\S]*Has email[\s\S]*No email/);
+  assert.match(peoplePanelSource, /emailFilter === "has-email"[\s\S]*person\.email\?\.trim\(\)/);
+  assert.match(peoplePanelSource, /emailFilter === "no-email"[\s\S]*!person\.email\?\.trim\(\)/);
+});
