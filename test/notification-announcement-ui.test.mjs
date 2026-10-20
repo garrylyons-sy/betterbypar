@@ -25,12 +25,13 @@ test('preview and sends lock immediately, edits reset preview, retries preserve 
   assert.match(source,/response\.status === 409/);
 });
 test('shows pilot exclusions, opted out recipients, disabled states and actual send history',()=>{
-  for(const text of ['League Chair','Excluded by rollout','Opted out / no enabled channel','Notifications are disabled','Announcements are disabled','Sent announcements']) assert.ok(source.includes(text),text);
+  for(const text of ['League Chair','Excluded by rollout','Opted out / no enabled channel','Notifications are disabled','Announcements are disabled']) assert.ok(source.includes(text),text);
   for(const field of ['matched','eligible','excluded','inbox','push','skipped']) assert.ok(source.includes(`counts.${field}`),field);
-  assert.match(source,/item\.summary/);
   assert.match(source,/data\.announcement/);
   const settings=readFileSync(new URL('../components/admin-notifications.tsx',import.meta.url),'utf8');
-  assert.match(settings,/<\/form>\}[\s\S]*<AdminNotificationComposer/);
+  assert.match(settings,/onSent=/);
+  assert.match(settings,/historyOpen &&/);
+  assert.match(settings,/settingsLoaded &&/);
 });
 
 // Small hook harness exercises the client component with mocked HTTP; no real sends.
@@ -40,6 +41,7 @@ const ts=require('typescript');
 const React=require('react');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 async function harness(post) {
+  let sentCount=0;
   const hooks=[];let index=0;let effect;
   const hookReact={
     useState(initial){const i=index++;if(!(i in hooks))hooks[i]=typeof initial==='function'?initial():initial;return [hooks[i],value=>{hooks[i]=typeof value==='function'?value(hooks[i]):value;}];},
@@ -55,7 +57,7 @@ async function harness(post) {
   const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const customRequire=name=>name==='react'?hookReact:name==='@/components/ui/button'?{Button:props=>React.createElement('button',props)}:name==='@/lib/notification-policy.mjs'?{notificationRoles:['Player','League Chair']}:require(name);
   new Function('require','exports','fetch','window','crypto',compiled)(customRequire,exports,fetch,{addEventListener(){},removeEventListener(){}},{randomUUID:()=>`request-${Math.random()}`});
-  const render=()=>{index=0;return exports.AdminNotificationComposer({onMessage(){}});};
+  const render=()=>{index=0;return exports.AdminNotificationComposer({onMessage(){},onSent(){sentCount++;}});};
   function all(tree,predicate,result=[]) {
     if(Array.isArray(tree)){for(const child of tree)all(child,predicate,result);return result;}
     if(!tree || typeof tree!=='object')return result;
@@ -68,7 +70,7 @@ async function harness(post) {
   const edit=(length,value)=>input(length).props.onChange({target:{value}});
   const preview=async()=>{find(node=>node.type==='form').props.onSubmit({preventDefault(){}});await flush();};
   const send=()=>find(node=>node.props?.onClick && node.props.type==='button');
-  return {find,edit,preview,send,requests};
+  return {find,edit,preview,send,requests,get sentCount(){return sentCount;}};
 }
 const counts={matched:5,eligible:3,excluded:2,inbox:2,push:1,skipped:1,previewToken:'token',enabled:true,announcementsEnabled:true};
 const response=(data,status=200)=>({ok:status===200,status,json:async()=>data});
@@ -103,6 +105,6 @@ test('mocked composer clears a stale preview on 409 and records successful sends
   ui.send().props.onClick();await flush();assert.equal(ui.send(),undefined);
   conflict=false;await ui.preview();ui.send().props.onClick();await flush();
   assert.equal(ui.send(),undefined);
-  assert.ok(ui.find(node=>node.type==='article' && node.key==='sent'));
+  assert.equal(ui.sentCount,1);
   assert.equal(ui.find(node=>node.props?.maxLength===120).props.value,'');
 });

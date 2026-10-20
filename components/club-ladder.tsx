@@ -1,5 +1,7 @@
 "use client";
 
+import {notificationDestination, notificationOpenEvent} from '@/lib/notification-navigation.mjs';
+
 import { BellRing, CalendarClock, Check, ChevronDown, ChevronRight, Clock3, Crosshair, LoaderCircle, LogOut, Medal, RotateCcw, Scale, ShieldCheck, Swords, Trophy, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -288,7 +290,17 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
     }
   }
 
-  useEffect(() => { void load(); }, [activeTeam.club]);
+  useEffect(() => {
+    void load();
+    const onNotification = (event: Event) => {
+      const href = (event as CustomEvent).detail?.href;
+      const target = notificationDestination(href);
+      const club = new URL(target.href, window.location.origin).searchParams.get('club');
+      if (target.page === 'Ladder' && (!club || club === activeTeam.club)) void load();
+    };
+    window.addEventListener(notificationOpenEvent, onNotification);
+    return () => window.removeEventListener(notificationOpenEvent, onNotification);
+  }, [activeTeam.club]);
 
   async function act(action: string, extra: Record<string, unknown> = {}, successMessage?: string) {
     const challengedEntryId = action === "challenge" ? String(extra.challengedEntryId ?? "") : "";
@@ -494,7 +506,6 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
         <CardContent className="grid gap-2">
           {entries.map((entry) => {
             const mine = entry.id === data.me?.entryId;
-            const inChallengeRange = Boolean(data.me && data.me.position > entry.position && data.me.position - entry.position <= ladder.challengeRange);
             const settingUpChallenge = challengeTargetId === entry.id;
             const relatedChallenge = activeChallenges.find((challenge) => challenge.challenger.entryId === entry.id || challenge.challenged.entryId === entry.id);
             return (
@@ -509,8 +520,6 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                         ? "Your position"
                         : relatedChallenge
                           ? challengeRelationshipLabel(relatedChallenge)
-                        : entry.activeChallengeStatus && inChallengeRange
-                          ? "In another challenge"
                         : entry.canChallenge
                           ? `Beat them to take #${entry.position}`
                           : entry.rechallengeAvailableAt && new Date(entry.rechallengeAvailableAt) > new Date()
@@ -529,7 +538,11 @@ export function ClubLadderPage({ activeTeam }: { activeTeam: TeamContext }) {
                   <Badge variant={relatedChallenge.status === "Pending" && relatedChallenge.isChallenged ? "gold" : relatedChallenge.status === "Pending" ? "muted" : "green"}>
                     {challengeRelationshipBadge(relatedChallenge)}
                   </Badge>
-                ) : entry.activeChallengeStatus && inChallengeRange ? <Badge variant="muted">Unavailable</Badge> : null}
+                ) : entry.activeChallengeStatus ? (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-[#f7f5fa] px-2 py-1 text-[10px] font-semibold text-[#6c5a73]" aria-label={`${entry.name}: in a ladder challenge (${entry.activeChallengeStatus})`} title={`In challenge · ${entry.activeChallengeStatus}`}>
+                    <Swords aria-hidden="true" className="h-3 w-3 shrink-0" />In challenge
+                  </span>
+                ) : null}
               </div>
             );
           })}

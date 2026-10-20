@@ -57,7 +57,9 @@ test("ladder rows distinguish your challenge from another player's challenge", (
   assert.match(ladderPage, /They challenged you/);
   assert.match(ladderPage, /Challenge accepted · Play by/);
   assert.doesNotMatch(ladderPage, /Arrange match|Match arranged/);
-  assert.match(ladderPage, /In another challenge/);
+  assert.match(ladderPage, /In challenge/);
+  assert.match(ladderPage, /in a ladder challenge/);
+  assert.doesNotMatch(ladderPage, /activeChallengeStatus && inChallengeRange/);
   assert.match(ladderPage, /relatedChallenge/);
   assert.match(ladderPage, /challengeTargetId/);
   assert.match(ladderPage, /Setting up\.\.\./);

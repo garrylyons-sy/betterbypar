@@ -44,6 +44,7 @@ import { shouldShowFixtureDates } from "@/lib/fixture-scheduling.mjs";
 import { useSystemSettings } from "@/components/system-settings-provider";
 import { isPollingTime, pollingFixtureDate, type SystemSettings } from "@/lib/system-settings.mjs";
 import { cn } from "@/lib/utils";
+import { notificationDestination, notificationOpenEvent } from "@/lib/notification-navigation.mjs";
 
 type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Ladder" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
@@ -246,6 +247,19 @@ export function AppShell({
     return requestedPage === "Competitions" || requestedPage === "Last Man Standing" || requestedPage === "Fixtures" || requestedPage === "Ladder" ? requestedPage : "Home";
   });
   const [selectedFixtureId, setSelectedFixtureId] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("fixtureId") ?? "");
+  useEffect(() => {
+    const openNotification = (event: Event) => {
+      const target = notificationDestination((event as CustomEvent).detail?.href, appContexts);
+      if (target.contextId) setSelectedId(target.contextId);
+      if (target.page) {
+        setActivePage(target.page);
+        setSelectedFixtureId(target.fixtureId);
+      }
+      window.dispatchEvent(new Event("interclub:refresh-panels"));
+    };
+    window.addEventListener(notificationOpenEvent, openNotification);
+    return () => window.removeEventListener(notificationOpenEvent, openNotification);
+  }, [appContexts]);
   const [simulatedRole, setSimulatedRole] = useState<Role>(contexts[0]?.role ?? teamContexts[0].role);
   const [simulatedClub, setSimulatedClub] = useState(contexts[0]?.club ?? teamContexts[0].club);
   const [teamSummaryOverrides, setTeamSummaryOverrides] = useState<Record<string, TeamSummaryUpdate>>({});

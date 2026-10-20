@@ -10,9 +10,11 @@ test('notification settings have a dedicated platform-only API', () => {
   assert.match(route,/status: 403/);
   assert.match(route,/validateNotificationConfig/);
 });
-test('System area exposes role audience and reminder controls', () => {
+test('Notifications has its own admin navigation section with role audience and reminder controls', () => {
   const panel = file('components/admin-notifications.tsx');
-  assert.match(file('components/admin-system.tsx'),/<AdminNotifications/);
+  assert.doesNotMatch(file('components/admin-system.tsx'),/AdminNotifications/);
+  assert.match(file('components/admin-console.tsx'),/id: "notifications"/);
+  assert.match(file('components/admin-console.tsx'),/props\.tab === "notifications"/);
   assert.match(panel,/eligibleRoles/);
   assert.match(panel,/League Chair/);
   assert.match(panel,/matchReminderHours/);

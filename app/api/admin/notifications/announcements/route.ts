@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {currentUser} from '@/lib/server/auth';
 import {isPlatformOperator} from '@/lib/server/maintenance';
-import {AnnouncementError,loadAnnouncementOptions,previewAnnouncement,sendAnnouncement} from '@/lib/server/notification-announcements';
+import {AnnouncementError,loadAnnouncementOptions,loadAnnouncementHistory,loadAnnouncementDetail,previewAnnouncement,sendAnnouncement} from '@/lib/server/notification-announcements';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 async function authorize(){
@@ -14,9 +14,13 @@ function failure(error:unknown){
  if(error instanceof AnnouncementError)return NextResponse.json({error:error.message},{status:error.status});
  return NextResponse.json({error:'Announcements could not be processed. Check the announcements database migration has been applied.'},{status:500});
 }
-export async function GET(){
+export async function GET(request:Request){
  try{const access=await authorize();if(access.error)return access.error;
- return NextResponse.json(await loadAnnouncementOptions(),{headers:{'Cache-Control':'no-store'}});
+ const params=new URL(request.url).searchParams;
+ const view=params.get('view');
+ const data=view==='history'?await loadAnnouncementHistory(params.get('page')??'1'):view==='detail'?{announcement:await loadAnnouncementDetail(params.get('id')??'')}:!view?await loadAnnouncementOptions():null;
+ if(!data)return NextResponse.json({error:'Choose a valid announcement view.'},{status:400});
+ return NextResponse.json(data,{headers:{'Cache-Control':'no-store'}});
  }catch(error){return failure(error);}
 }
 export async function POST(request:Request){

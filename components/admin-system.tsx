@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import { useSystemSettings } from '@/components/system-settings-provider';
 import { defaultSystemSettings, systemSettingFields, validateSystemSettings, type SystemSettings } from '@/lib/system-settings.mjs';
-import {AdminNotifications} from '@/components/admin-notifications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 export function AdminSystem({onMessage}: {onMessage: (message: string) => void}) {
@@ -53,5 +52,5 @@ export function AdminSystem({onMessage}: {onMessage: (message: string) => void})
         <p className="text-sm text-muted-foreground">Completed matches stop polling. Background tabs pause polling. The match-night window applies to fixtures and lineups; live scoring uses its own intervals.</p>
         <div className="flex flex-wrap gap-3"><Button type="submit" disabled={saving || !changed}>{saving ? 'Saving...' : 'Save settings'}</Button><Button type="button" variant="outline" disabled={saving} onClick={() => populate({...defaultSystemSettings})}>Restore defaults</Button><Button type="button" variant="outline" disabled={saving || !changed} onClick={() => { populate(saved); setError(''); }}>Discard changes</Button></div>
       </form>}
-    </CardContent></Card><AdminNotifications onMessage={onMessage}/></div>;
+    </CardContent></Card></div>;
 }

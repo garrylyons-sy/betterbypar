@@ -1,6 +1,7 @@
 'use client';
 import {useEffect, useState} from 'react';
 import {AdminNotificationComposer} from '@/components/admin-notification-composer';
+import {AdminAnnouncementHistory} from '@/components/admin-announcement-history';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {defaultNotificationConfig, validateNotificationConfig, notificationRoles} from '@/lib/notification-policy.mjs';
@@ -19,7 +20,7 @@ const reminderFields = [
   {key:'lineupReminderHours',label:'Missing lineup reminder — hours before match'},
   {key:'ladderReminderHours',label:'Ladder deadline reminder — hours before deadline'}
 ] as const;
-export function AdminNotifications({onMessage}:{onMessage:(message:string)=>void}) {
+function NotificationSettings({onMessage}:{onMessage:(message:string)=>void}) {
   const [draft,setDraft] = useState<Config>({...defaultNotificationConfig});
   const [saved,setSaved] = useState<Config | null>(null);
   const [ready,setReady] = useState(false);
@@ -69,6 +70,26 @@ export function AdminNotifications({onMessage}:{onMessage:(message:string)=>void
         <div className="rounded-lg bg-muted p-4"><p className="text-sm font-bold">Phone push: {ready ? 'Configured' : 'Not configured yet'}</p><p className="mt-1 text-sm text-muted-foreground">{ready ? 'People in the selected audience can enable notifications on each device.' : 'The inbox works without push. Phone delivery needs VAPID keys configured on the server.'}</p>{delivery && <p className="mt-2 text-xs text-muted-foreground">Push deliveries: {(delivery.Pending ?? 0)+(delivery.Sending ?? 0)} pending · {delivery.Sent ?? 0} sent · {delivery.Failed ?? 0} failed · {delivery.Skipped ?? 0} skipped</p>}</div>
         <div className="flex flex-wrap gap-3"><Button type="submit" disabled={saving || !changed}>{saving ? 'Saving...' : 'Save notification settings'}</Button><Button type="button" variant="outline" disabled={saving} onClick={()=>setDraft({...defaultNotificationConfig})}>Restore notification defaults</Button><Button type="button" variant="outline" disabled={saving || !changed} onClick={()=>{setDraft(saved);setError('');}}>Discard changes</Button></div>
       </form>}
-      <AdminNotificationComposer onMessage={onMessage}/>
     </CardContent></Card>;
+}
+
+export function AdminNotifications({onMessage}:{onMessage:(message:string)=>void}) {
+  const [historyOpen,setHistoryOpen]=useState(false);
+  const [settingsLoaded,setSettingsLoaded]=useState(false);
+  const [historyRevision,setHistoryRevision]=useState(0);
+  return <section className="space-y-4" aria-label="Notifications administration">
+    <div><h2 className="text-2xl font-extrabold">Notifications</h2><p className="mt-1 text-sm text-muted-foreground">Send announcements, review sent messages and manage notification settings.</p></div>
+    <details open className="rounded-xl border bg-white">
+      <summary className="cursor-pointer p-4 font-extrabold">Send an announcement</summary>
+      <div className="px-4 pb-4"><AdminNotificationComposer onMessage={onMessage} onSent={()=>setHistoryRevision(value=>value+1)}/></div>
+    </details>
+    <details className="rounded-xl border bg-white" onToggle={event=>setHistoryOpen(event.currentTarget.open)}>
+      <summary className="cursor-pointer p-4 font-extrabold">Sent announcements</summary>
+      {historyOpen && <div className="px-4 pb-4"><AdminAnnouncementHistory key={historyRevision}/></div>}
+    </details>
+    <details className="rounded-xl border bg-white" onToggle={event=>{if(event.currentTarget.open)setSettingsLoaded(true);}}>
+      <summary className="cursor-pointer p-4 font-extrabold">Notification settings</summary>
+      {settingsLoaded && <div className="px-4 pb-4"><NotificationSettings onMessage={onMessage}/></div>}
+    </details>
+  </section>;
 }

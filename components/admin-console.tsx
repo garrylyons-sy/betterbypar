@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, Building2, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, Radio, ShieldCheck, Smartphone, Swords, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
+import { AdminNotifications } from "@/components/admin-notifications";
 import { AdminSystem } from "@/components/admin-system";
 import { AdminLastManStanding } from "@/components/admin-last-man-standing";
 import { AdminCupCompetitions } from "@/components/admin-cup-competitions";
@@ -17,7 +18,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "system" | "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
+type AdminTab = "notifications" | "system" | "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type MaintenanceModeState = { enabled: boolean; updatedAt: string | null };
 type TeamRole = "Player" | "Manager";
@@ -308,6 +309,7 @@ const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPan
   { id: "permissions" as const, label: "Permissions", icon: Users },
   { id: "appearance" as const, label: "Appearance", icon: LayoutPanelTop },
   { id: "adverts" as const, label: "Adverts", icon: Megaphone },
+  { id: "notifications" as const, label: "Notifications", icon: Mail },
   { id: "system" as const, label: "System", icon: ShieldCheck },
   { id: "logs" as const, label: "Logs", icon: Activity }
 ];
@@ -765,6 +767,7 @@ function AdminTabPanel(props: {
   onRefresh: () => void;
 }) {
   if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
+  if (props.tab === "notifications") return <AdminNotifications onMessage={props.onMessage} />;
   if (props.tab === "system") return <AdminSystem onMessage={props.onMessage} />;
   if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} featureStats={props.featureStats} maintenanceMode={props.maintenanceMode} onMaintenanceChange={props.onMaintenanceChange} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;

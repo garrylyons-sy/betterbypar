@@ -5,14 +5,13 @@ import {notificationRoles} from '@/lib/notification-policy.mjs';
 
 type Audience = {roles:string[]; clubId:string|null; teamId:string|null};
 type Draft = {title:string; body:string; audience:Audience};
-type Counts = {matched:number; eligible:number; excluded:number; inbox:number; push:number; skipped:number};
+export type Counts = {matched:number; eligible:number; excluded:number; inbox:number; push:number; skipped:number};
 type Preview = Counts & {previewToken:string; enabled:boolean; announcementsEnabled:boolean};
-type Announcement = {id:string; title:string; body:string; audience:Audience; summary:Counts; createdAt:string; senderName?:string};
-type Options = {clubs:{id:string; name:string}[]; teams:{id:string; clubId:string; name:string; league:string; season:string}[]; history:Announcement[]; eligibleRoles:string[]; enabled:boolean; announcementsEnabled:boolean};
+type Options = {clubs:{id:string; name:string}[]; teams:{id:string; clubId:string; name:string; league:string; season:string}[]; eligibleRoles:string[]; enabled:boolean; announcementsEnabled:boolean};
 const endpoint = '/api/admin/notifications/announcements';
 const emptyDraft = ():Draft => ({title:'', body:'', audience:{roles: [], clubId:null, teamId:null}});
 const inputClass = 'w-full rounded-lg border bg-white px-3 py-2 text-sm';
-function DeliveryCounts({counts}:{counts:Counts}) {
+export function DeliveryCounts({counts}:{counts:Counts}) {
   return <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
     <div><dt className="text-muted-foreground">Matched people</dt><dd className="font-bold">{counts.matched}</dd></div>
     <div><dt className="text-muted-foreground">Eligible people</dt><dd className="font-bold">{counts.eligible}</dd></div>
@@ -22,7 +21,7 @@ function DeliveryCounts({counts}:{counts:Counts}) {
     <div><dt className="text-muted-foreground">Opted out / no enabled channel</dt><dd className="font-bold">{counts.skipped}</dd></div>
   </dl>;
 }
-export function AdminNotificationComposer({onMessage}:{onMessage:(message:string)=>void}) {
+export function AdminNotificationComposer({onMessage,onSent}:{onMessage:(message:string)=>void;onSent?:()=>void}) {
   const [options,setOptions] = useState<Options|null>(null);
   const [draft,setDraft] = useState<Draft>(emptyDraft);
   const [preview,setPreview] = useState<Preview|null>(null);
@@ -72,8 +71,7 @@ export function AdminNotificationComposer({onMessage}:{onMessage:(message:string
         setPreview(data.preview);
         setOptions(current=>current ? {...current,enabled:data.preview.enabled,announcementsEnabled:data.preview.announcementsEnabled} : current);
       } else {
-        const sent:Announcement = data.announcement;
-        setOptions(current=>current ? {...current,history:[sent,...current.history.filter(item=>item.id!==sent.id)]} : current);
+        if (data.announcement) onSent?.();
         setPreview(null);requestId.current = null;setDraft(emptyDraft());
         onMessage(data.duplicate ? 'This announcement was already sent. Its original result is shown in sent history.' : 'Announcement sent. Delivery counts are shown in sent history.');
       }
@@ -100,7 +98,7 @@ export function AdminNotificationComposer({onMessage}:{onMessage:(message:string
         </fieldset>
         {preview && <div className="space-y-4 rounded-lg border p-4" aria-live="polite"><h4 className="font-extrabold">Announcement preview</h4><div className="space-y-2 rounded-lg bg-muted p-3"><p className="whitespace-pre-wrap break-words font-bold">{draft.title}</p><p className="whitespace-pre-wrap break-words text-sm">{draft.body}</p></div><DeliveryCounts counts={preview}/><p className="text-xs text-muted-foreground">Phone push counts people, even if they have several devices. Delivery respects personal settings and quiet hours.</p>{recipientCount===0 && <p className="text-sm font-bold">No reachable recipients. Adjust your audience or notification settings.</p>}<Button type="button" disabled={busy || disabled || !preview.enabled || !preview.announcementsEnabled || recipientCount===0} onClick={()=>void submit('send')}>{operation==='send' ? 'Sending...' : <>Send to {recipientCount} recipient{recipientCount===1 ? '' : 's'}</>}</Button></div>}
       </form>
-      <div className="space-y-3"><h3 className="font-extrabold">Sent announcements</h3>{options.history.length===0 ? <p className="text-sm text-muted-foreground">No announcements sent yet.</p> : options.history.map(item=><article key={item.id} className="space-y-3 rounded-lg border p-4"><div><h4 className="whitespace-pre-wrap break-words font-bold">{item.title}</h4><p className="text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString('en-IE')}{item.senderName ? ` · ${item.senderName}` : ''}</p></div><p className="whitespace-pre-wrap break-words text-sm">{item.body}</p><DeliveryCounts counts={item.summary}/></article>)}</div>
+
     </>}
   </section>;
 }

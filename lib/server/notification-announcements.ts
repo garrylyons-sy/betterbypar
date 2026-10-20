@@ -46,8 +46,22 @@ export async function loadAnnouncementOptions(client:Queryable=database){
  const config=await loadNotificationConfig(client);
  const clubs=await client.query('select id,name from public.club where active order by name');
  const teams=await client.query(`select id,club_id as "clubId",name,league,season from (${announcementTeamsSql}) teams order by club_id,league,name`);
- const history=await client.query(`select a.id,a.title,a.body,a.audience,a.summary,a.created_at as "createdAt",coalesce(nullif(concat_ws(' ',p.first_name,p.last_name),''),'Former administrator') as "senderName" from public.notification_announcement a left join public.person p on p.id=a.sender_person_id order by a.created_at desc,a.id desc limit 30`);
- return {clubs:clubs.rows,teams:teams.rows,history:history.rows,eligibleRoles:config.eligibleRoles,enabled:config.enabled,announcementsEnabled:config.enabledTypes.includes('announcement')};
+ return {clubs:clubs.rows,teams:teams.rows,eligibleRoles:config.eligibleRoles,enabled:config.enabled,announcementsEnabled:config.enabledTypes.includes('announcement')};
+}
+const historyFields=`a.id,a.title,a.summary,a.created_at as "createdAt",coalesce(nullif(concat_ws(' ',p.first_name,p.last_name),''),'Former administrator') as "senderName"`;
+export async function loadAnnouncementHistory(value='1',client:Queryable=database){
+ if(!/^[1-9]\d*$/.test(value)||!Number.isSafeInteger(Number(value))||Number(value)>1000000)throw new AnnouncementError('Choose a valid history page.');
+ const count=await client.query('select count(*)::int as total from public.notification_announcement');
+ const total=Number(count.rows[0]?.total??0),pageSize=10,totalPages=Math.max(1,Math.ceil(total/pageSize));
+ const page=Math.min(Number(value),totalPages);
+ const result=await client.query(`select ${historyFields} from public.notification_announcement a left join public.person p on p.id=a.sender_person_id order by a.created_at desc,a.id desc limit $1 offset $2`,[pageSize,(page-1)*pageSize]);
+ return {items:result.rows,page,pageSize,total,totalPages};
+}
+export async function loadAnnouncementDetail(id:string,client:Queryable=database){
+ if(!announcementUuidPattern.test(id))throw new AnnouncementError('Choose a valid announcement.');
+ const result=await client.query(`select ${historyFields},a.body,a.audience,c.name as "clubName",t.name as "teamName" from public.notification_announcement a left join public.person p on p.id=a.sender_person_id left join public.club c on c.id::text=a.audience->>'clubId' left join public.team t on t.id::text=a.audience->>'teamId' where a.id=$1`,[id]);
+ if(!result.rows[0])throw new AnnouncementError('Announcement not found.',404);
+ return result.rows[0];
 }
 export async function sendAnnouncement(senderPersonId:string,input:unknown){
  const draft=validateAnnouncementDraft(input),v=input as {requestId?:unknown;previewToken?:unknown};

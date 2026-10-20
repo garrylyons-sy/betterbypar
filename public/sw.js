@@ -42,7 +42,22 @@ self.addEventListener("notificationclick", (event) => {
   const href=notificationHref(event.notification.data?.href);
   event.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:true}).then(async (windows)=>{
     for(const client of windows){
-      if(new URL(client.url).origin===self.location.origin){await client.navigate(href);return client.focus();}
+      const url=new URL(client.url);
+      if(url.origin===self.location.origin && url.pathname==="/"){
+        await client.focus();
+        const handled=await new Promise(resolve=>{
+          const channel=new MessageChannel();
+          const timer=setTimeout(()=>{channel.port1.close();resolve(false);},1500);
+          channel.port1.onmessage=event=>{
+            if(event.data?.handled!==true)return;
+            clearTimeout(timer);channel.port1.close();resolve(true);
+          };
+          client.postMessage({type:"interclub:open-notification",href},[channel.port2]);
+        });
+        // Older or still-loading app windows cannot handle in-app navigation yet.
+        if(!handled)await client.navigate(href);
+        return;
+      }
     }
     return self.clients.openWindow(href);
   }));

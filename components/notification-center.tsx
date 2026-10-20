@@ -4,6 +4,7 @@ import { Bell, CheckCheck, Settings, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { safeNotificationHref, type NotificationType, type Preferences } from "@/lib/notification-policy.mjs";
+import { notificationDestination, notificationOpenEvent, openNotificationHref } from "@/lib/notification-navigation.mjs";
 
 type InboxItem = { id: string; type: NotificationType; title: string; body: string; href: string; createdAt: string; readAt: string | null };
 type Inbox = { eligible: boolean; items: InboxItem[]; unreadCount: number; preferences?: Preferences };
@@ -42,6 +43,25 @@ export function useNotificationCenter(authenticated: boolean) {
   }, [authenticated]);
   useEffect(() => {
     if (!authenticated) return;
+    const onOpen = (event: Event) => {
+      const target = notificationDestination((event as CustomEvent).detail?.href);
+      setPanel(target.inbox ? "inbox" : null);
+      void refresh();
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type !== "interclub:open-notification" || typeof event.data.href !== "string") return;
+      openNotificationHref(event.data.href);
+      event.ports[0]?.postMessage({ handled: true });
+    };
+    window.addEventListener(notificationOpenEvent, onOpen);
+    navigator.serviceWorker?.addEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener(notificationOpenEvent, onOpen);
+      navigator.serviceWorker?.removeEventListener("message", onMessage);
+    };
+  }, [authenticated, refresh]);
+  useEffect(() => {
+    if (!authenticated) return;
     const visibleRefresh = () => {
       if (document.visibilityState !== "visible") return;
       void refresh();
@@ -71,6 +91,7 @@ export function NotificationBell({ center }: { center: Center }) {
 export function NotificationCenter({ center }: { center: Center }) {
   const { state, panel, setPanel, error, setError, refresh } = center;
   const dialog = useRef<HTMLDialogElement>(null);
+  const scrollContent = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<Preferences | null>(null);
   const [push, setPush] = useState<{ ready: boolean; publicKey: string | null; subscribed: boolean } | null>(null);
@@ -88,7 +109,28 @@ export function NotificationCenter({ center }: { center: Center }) {
     const scrollBehavior = root.style.scrollBehavior;
     root.style.overflow = "hidden";
     Object.assign(body.style, { position: "fixed", top: `-${scrollY}px`, left: `-${scrollX}px`, width: "100%", overflow: "hidden" });
+    // Stop touch gestures reaching the page through the backdrop or at either
+    // end of the list. CSS overflow locking alone does not cover mobile bounce.
+    let touchY = 0;
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length === 1) touchY = event.touches[0].clientY;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return; // Keep pinch zoom available.
+      const delta = event.touches[0].clientY - touchY;
+      touchY = event.touches[0].clientY;
+      const content = scrollContent.current;
+      const inside = content?.contains(event.target as Node | null);
+      const blocked = !inside || !content || content.scrollHeight <= content.clientHeight + 1
+        || (delta > 0 && content.scrollTop <= 0)
+        || (delta < 0 && content.scrollTop + content.clientHeight >= content.scrollHeight - 1);
+      if (blocked && event.cancelable) event.preventDefault();
+    };
+    document.addEventListener("touchstart", onTouchStart, { passive: true, capture: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: false, capture: true });
     return () => {
+      document.removeEventListener("touchstart", onTouchStart, true);
+      document.removeEventListener("touchmove", onTouchMove, true);
       Object.assign(body.style, previous);
       root.style.overflow = rootOverflow;
       root.style.scrollBehavior = "auto";
@@ -185,11 +227,11 @@ export function NotificationCenter({ center }: { center: Center }) {
   if (!state.eligible) return null;
   return <dialog ref={dialog} aria-labelledby="notification-heading" onCancel={() => setPanel(null)} onClose={() => setPanel(null)} className="m-auto max-h-[85dvh] w-[calc(100%_-_2rem)] max-w-lg flex-col overflow-hidden rounded-2xl bg-white p-0 text-[#10233f] shadow-2xl backdrop:bg-[#10233f]/60 open:flex">
     <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b bg-white p-4"><h2 id="notification-heading" className="text-lg font-extrabold">{panel === "settings" ? "Notification settings" : "Notifications"}</h2><button type="button" autoFocus aria-label="Close notifications" onClick={() => setPanel(null)} className="grid h-11 w-11 place-items-center rounded-xl hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
-    <div className="min-h-0 overflow-y-auto overscroll-contain space-y-4 p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
+    <div ref={scrollContent} className="min-h-0 overflow-y-auto overscroll-contain space-y-4 p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
       {error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
       {panel === "inbox" ? <>
         <div className="flex flex-wrap justify-between gap-2"><Button size="sm" variant="secondary" onClick={() => setPanel("settings")}><Settings className="h-4 w-4" />Settings</Button><Button size="sm" variant="secondary" disabled={!state.unreadCount || saving} onClick={async () => { setSaving(true); try { await markRead(); } catch (failure) { setError((failure as Error).message); } finally { setSaving(false); } }}><CheckCheck className="h-4 w-4" />Mark all read</Button></div>
-        {!state.items.length ? <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">You’re all caught up. New notifications will appear here.</p> : <ul className="space-y-2">{state.items.map((item) => <li key={item.id} className={`rounded-xl border p-3 ${item.readAt ? "border-slate-100" : "border-teal-200 bg-teal-50/60"}`}><a href={safeNotificationHref(item.href)} onClick={() => { if (!item.readAt) void markRead(item.id).catch(() => {}); }} className="block rounded focus-visible:outline focus-visible:outline-2"><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><p className="mt-1 text-sm text-slate-600">{item.body}</p><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></a>{!item.readAt ? <button type="button" className="mt-2 min-h-9 text-xs font-bold text-teal-800 underline" onClick={() => void markRead(item.id).catch((failure) => setError(failure.message))}>Mark read</button> : null}</li>)}</ul>}
+        {!state.items.length ? <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">You’re all caught up. New notifications will appear here.</p> : <ul className="space-y-2">{state.items.map((item) => <li key={item.id} className={`rounded-xl border p-3 ${item.readAt ? "border-slate-100" : "border-teal-200 bg-teal-50/60"}`}><a href={safeNotificationHref(item.href)} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); if (!item.readAt) void markRead(item.id).catch(() => {}); openNotificationHref(item.href); }} className="block rounded focus-visible:outline focus-visible:outline-2"><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><p className="mt-1 text-sm text-slate-600">{item.body}</p><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></a>{!item.readAt ? <button type="button" className="mt-2 min-h-9 text-xs font-bold text-teal-800 underline" onClick={() => void markRead(item.id).catch((failure) => setError(failure.message))}>Mark read</button> : null}</li>)}</ul>}
       </> : draft ? <>
         <p className="text-sm text-slate-600">Choose future inbox alerts and optional phone push separately. Existing inbox items stay available.</p>
         <fieldset className="space-y-2"><legend className="mb-2 font-extrabold">Inbox</legend>{categories.map(({ type, label }) => <label key={type} className="flex min-h-10 items-center gap-3 text-sm"><input type="checkbox" checked={draft.inboxTypes.includes(type)} onChange={() => toggleType("inboxTypes", type)} className="h-4 w-4" />{label}</label>)}</fieldset>

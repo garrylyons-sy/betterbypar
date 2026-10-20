@@ -54,7 +54,7 @@ try{
  await client.query('update public.notification_preference set preferences=$2::jsonb where person_id=$1',[chair,JSON.stringify({...policy.defaultNotificationPreferences,inboxTypes:[],pushTypes:[],pushEnabled:false})]);
  await assert.rejects(service.sendAnnouncement(sender.rows[0].person_id,{...draft,requestId:crypto.randomUUID(),previewToken:stalePreview.previewToken}),error=>error.status===409);
  await client.query('update public.notification_announcement set sender_person_id=null where id=$1',[requestId]);
- const former=(await service.loadAnnouncementOptions(client)).history.find(item=>item.id===requestId);assert.equal(former?.senderName,'Former administrator');
+ const former=await service.loadAnnouncementDetail(requestId,client);assert.equal(former?.senderName,'Former administrator');
  const privileges=await client.query("select has_table_privilege('anon','public.notification_announcement','SELECT') as anon,has_table_privilege('authenticated','public.notification_announcement','SELECT') as authenticated");assert.equal(privileges.rows[0].anon,false);assert.equal(privileges.rows[0].authenticated,false);
  console.log('Verified live schema, audience scopes, preview/send SQL, preference-change rejection, idempotent retries, and history permissions. All writes rolled back; real push dispatch was disabled.');
 }finally{await client.query('rollback');client.release();await pool.end();}
