@@ -929,31 +929,46 @@ function PwaPullToRefresh({ onRefresh }: { onRefresh: () => void }) {
   useEffect(() => {
     if (!isPwaContainer()) return;
 
+    function resetPull() {
+      trackingRef.current = false;
+      startYRef.current = null;
+      pullDistanceRef.current = 0;
+      setPullDistance(0);
+    }
+
+    function modalIsOpen() {
+      return Boolean(document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]'));
+    }
+
     function onTouchStart(event: TouchEvent) {
-      if (window.scrollY > 0 || event.touches.length !== 1) return;
+      resetPull();
+      if (event.defaultPrevented || modalIsOpen() || window.scrollY > 0 || event.touches.length !== 1) return;
       startYRef.current = event.touches[0].clientY;
       trackingRef.current = true;
     }
 
     function onTouchMove(event: TouchEvent) {
-      if (!trackingRef.current || startYRef.current == null || window.scrollY > 0) return;
+      // Page gestures must not compete with a dialog's own scroll handling.
+      if (event.defaultPrevented || modalIsOpen() || window.scrollY > 0 || event.touches.length !== 1) {
+        resetPull();
+        return;
+      }
+      if (!trackingRef.current || startYRef.current == null) return;
       const distance = Math.max(0, event.touches[0].clientY - startYRef.current);
-      if (distance < 8) return;
-      const nextDistance = Math.min(120, distance * 0.55);
+      const nextDistance = distance < 8 ? 0 : Math.min(120, distance * 0.55);
       pullDistanceRef.current = nextDistance;
       setPullDistance(nextDistance);
     }
 
-    function onTouchEnd() {
-      if (!trackingRef.current) return;
-      const shouldRefresh = pullDistanceRef.current >= threshold;
-      trackingRef.current = false;
-      startYRef.current = null;
-      pullDistanceRef.current = 0;
-      if (!shouldRefresh) {
-        setPullDistance(0);
+    function onTouchEnd(event: TouchEvent) {
+      if (event.defaultPrevented || modalIsOpen()) {
+        resetPull();
         return;
       }
+      if (!trackingRef.current) return;
+      const shouldRefresh = pullDistanceRef.current >= threshold;
+      resetPull();
+      if (!shouldRefresh) return;
       setRefreshing(true);
       setPullDistance(threshold);
       onRefreshRef.current();
@@ -966,13 +981,13 @@ function PwaPullToRefresh({ onRefresh }: { onRefresh: () => void }) {
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
-    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", resetPull, { passive: true });
 
     return () => {
       window.removeEventListener("touchstart", onTouchStart);
       window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onTouchEnd);
-      window.removeEventListener("touchcancel", onTouchEnd);
+      window.removeEventListener("touchcancel", resetPull);
     };
   }, []);
 
