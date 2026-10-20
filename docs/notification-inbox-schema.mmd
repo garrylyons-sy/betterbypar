@@ -1,0 +1,67 @@
+erDiagram
+    person ||--o| notification_preference : "person_id / CASCADE"
+    person ||--o{ app_notification : "person_id / CASCADE"
+    person ||--o{ notification_push_subscription : "person_id / CASCADE"
+    person |o--o| notification_config : "updated_by / SET NULL; singleton"
+    person |o--o{ notification_announcement : "sender_person_id / SET NULL"
+    app_notification ||--o{ notification_push_delivery : "notification_id / CASCADE"
+    notification_push_subscription ||--o{ notification_push_delivery : "subscription_id / CASCADE"
+
+    person {
+        uuid id PK
+    }
+    notification_config {
+        boolean singleton PK "CHECK singleton = true"
+        jsonb config
+        uuid updated_by FK "nullable"
+        timestamptz updated_at
+        timestamptz created_at
+    }
+    notification_preference {
+        uuid person_id PK,FK
+        jsonb preferences
+        timestamptz updated_at
+    }
+    app_notification {
+        uuid id PK
+        uuid person_id FK
+        text type "includes announcement"
+        text title
+        text body
+        text href
+        text event_key "UNIQUE person_id + event_key"
+        timestamptz created_at
+        timestamptz read_at "nullable"
+        timestamptz expires_at "nullable"
+        boolean inbox_visible
+    }
+    notification_push_subscription {
+        uuid id PK
+        uuid person_id FK
+        text endpoint UK
+        text p256dh
+        text auth
+        boolean active
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    notification_push_delivery {
+        uuid id PK
+        uuid notification_id FK "UNIQUE notification_id + subscription_id"
+        uuid subscription_id FK
+        text status "Pending / Sending / Sent / Failed / Skipped"
+        integer attempts
+        timestamptz available_at
+        timestamptz locked_at "nullable"
+        timestamptz sent_at "nullable"
+        text last_error "nullable"
+    }
+    notification_announcement {
+        uuid id PK "client request / idempotency ID"
+        uuid sender_person_id FK "nullable"
+        text title "1 to 120 characters"
+        text body "1 to 2000 characters"
+        jsonb audience
+        jsonb summary
+        timestamptz created_at
+    }

@@ -34,3 +34,25 @@ test('reminders never flood historical deadlines and reschedules get distinct ke
  assert.equal(reminderIsDue('2026-10-22T12:00:00Z',24,now),false);
  assert.notEqual(fixtureEventKey('x','2026-10-21T12:00:00Z'),fixtureEventKey('x','2026-10-22T12:00:00Z'));
 });
+
+test('announcements migrate inbox/config once without opting existing devices into new push category', async()=>{
+ const {normalizeNotificationConfig,normalizeNotificationPreferences,defaultNotificationPreferences}=await import('../lib/notification-policy.mjs');
+ const oldTypes=['fixture_change','match_reminder','lineup_reminder','ladder_challenge'];
+ const migrated=normalizeNotificationConfig({...config,version:undefined,enabledTypes:oldTypes});
+ assert.ok(migrated.enabledTypes.includes('announcement'));
+ assert.equal(migrated.version,2);
+ const preferences=normalizeNotificationPreferences({inboxTypes:oldTypes,pushTypes:oldTypes,pushEnabled:true});
+ assert.ok(preferences.inboxTypes.includes('announcement'));
+ assert.equal(preferences.pushTypes.includes('announcement'),false);
+ assert.equal(preferences.pushEnabled,true);
+ assert.equal(defaultNotificationPreferences.pushTypes.includes('announcement'),false);
+ assert.equal(normalizeNotificationPreferences({...preferences,inboxTypes:[],pushTypes:[]}).inboxTypes.includes('announcement'),false);
+ assert.equal(normalizeNotificationConfig({...migrated,enabledTypes:[]}).enabledTypes.includes('announcement'),false);
+});
+test('announcements still require role eligibility, account opt-in and per-type push opt-in',()=>{
+ const n={type:'announcement',expires_at:'2026-10-21T12:00:00Z'};
+ const now=new Date('2026-10-20T12:00:00Z');
+ assert.equal(canDeliverPush(n,{...prefs,pushEnabled:true},config,['League Chair'],now),false);
+ assert.equal(canDeliverPush(n,{...prefs,pushEnabled:true,pushTypes:['announcement']},config,['League Chair'],now),true);
+ assert.equal(canDeliverPush(n,{...prefs,pushEnabled:true,pushTypes:['announcement']},config,['Player'],now),false);
+});

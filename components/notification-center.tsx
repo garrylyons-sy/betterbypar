@@ -11,11 +11,13 @@ const categories: { type: NotificationType; label: string }[] = [
   { type: "fixture_change", label: "Fixture changes" },
   { type: "match_reminder", label: "Match reminders" },
   { type: "lineup_reminder", label: "Lineup reminders" },
-  { type: "ladder_challenge", label: "Ladder challenges and deadlines" }
+  { type: "ladder_challenge", label: "Ladder challenges and deadlines" },
+  { type: "announcement", label: "Announcements from administrators" }
 ];
 
 export function useNotificationCenter(authenticated: boolean) {
   const [state, setState] = useState<Inbox>({ eligible: false, items: [], unreadCount: 0 });
+  const openedInboxLink = useRef(false);
   const [panel, setPanel] = useState<"inbox" | "settings" | null>(null);
   const [error, setError] = useState("");
   const refresh = useCallback(async () => {
@@ -31,6 +33,10 @@ export function useNotificationCenter(authenticated: boolean) {
       const payload = await response.json() as Inbox;
       setState(payload.eligible ? payload : { eligible: false, items: [], unreadCount: 0 });
       if (!payload.eligible) setPanel(null);
+      if (payload.eligible && !openedInboxLink.current && new URLSearchParams(window.location.search).get("notifications") === "1") {
+        openedInboxLink.current = true;
+        setPanel("inbox");
+      }
       setError("");
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Notifications are unavailable."); }
   }, [authenticated]);
