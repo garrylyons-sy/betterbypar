@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { currentUserFromRequest } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
-import { cupPlaceholderForTie, organizeFixtureWeeks } from "@/lib/fixture-scheduling.mjs";
+import { cupPlaceholderForTie, mergeCupWeeksByDate, organizeFixtureWeeks } from "@/lib/fixture-scheduling.mjs";
 import { fixturePlayerWinPercentage, loadFixturePlayerWinPercentages } from "@/lib/server/player-win-percentages";
 
 export const runtime = "nodejs";
@@ -665,7 +665,8 @@ export async function GET(request: NextRequest) {
       cupWeeks.push(...organizedById.values());
     }
 
-    const weeks = [...leagueWeeks, ...cupWeeks].sort((left, right) => left.startsOn.localeCompare(right.startsOn));
+    const weeks = [...leagueWeeks, ...mergeCupWeeksByDate(cupWeeks)]
+      .sort((left, right) => left.startsOn.localeCompare(right.startsOn));
 
     return NextResponse.json({ weeks });
   } catch (error) {

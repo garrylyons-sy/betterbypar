@@ -185,6 +185,70 @@ test("cup rounds on different days in the same week retain their own headings", 
   ]);
 });
 
+test("cup rounds from different competitions on the same day share one carousel page", async () => {
+  const { mergeCupWeeksByDate } = await loadSchedulingModule();
+  assert.equal(typeof mergeCupWeeksByDate, "function", "mergeCupWeeksByDate must be implemented");
+
+  const weeks = mergeCupWeeksByDate([
+    {
+      id: "paddy-round",
+      weekNumber: null,
+      weekLabel: "Paddy O'Brien Test · Round of 16",
+      startsOn: "2026-12-10",
+      competitionType: "Cup",
+      fixtures: [{ id: "paddy-match" }],
+      postponedFixtures: [],
+      cupPlaceholders: []
+    },
+    {
+      id: "plate-round",
+      weekNumber: null,
+      weekLabel: "Test Plate · Quarter Final",
+      startsOn: "2026-12-10",
+      competitionType: "Cup",
+      fixtures: [{ id: "plate-match" }],
+      postponedFixtures: [],
+      cupPlaceholders: []
+    }
+  ]);
+
+  assert.equal(weeks.length, 1);
+  assert.equal(weeks[0].weekLabel, "Cup matches");
+  assert.deepEqual(weeks[0].fixtures.map((fixture) => fixture.id), ["paddy-match", "plate-match"]);
+  assert.deepEqual(weeks[0].cupSections.map((section) => section.weekLabel), [
+    "Paddy O'Brien Test · Round of 16",
+    "Test Plate · Quarter Final"
+  ]);
+});
+
+test("cup rounds on different dates remain separate carousel pages", async () => {
+  const { mergeCupWeeksByDate } = await loadSchedulingModule();
+  const weeks = mergeCupWeeksByDate([
+    {
+      id: "round-one",
+      weekNumber: null,
+      weekLabel: "Club Cup · Round 1",
+      startsOn: "2026-12-03",
+      competitionType: "Cup",
+      fixtures: [{ id: "first" }],
+      postponedFixtures: [],
+      cupPlaceholders: []
+    },
+    {
+      id: "round-two",
+      weekNumber: null,
+      weekLabel: "Club Cup · Round 2",
+      startsOn: "2026-12-10",
+      competitionType: "Cup",
+      fixtures: [{ id: "second" }],
+      postponedFixtures: [],
+      cupPlaceholders: []
+    }
+  ]);
+
+  assert.deepEqual(weeks.map((week) => week.weekLabel), ["Club Cup · Round 1", "Club Cup · Round 2"]);
+});
+
 test("fixture APIs preserve the original date and organize rows by effective week", () => {
   const schema = source("../supabase/schema.sql");
   const migration = source("../supabase/fixture_rescheduling.sql");

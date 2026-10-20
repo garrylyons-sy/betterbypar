@@ -5298,6 +5298,8 @@ type FixtureWeekFixture = {
   }>;
   games: ManagerLineupGame[];
   fixtureType?: "League" | "Friendly" | "Cup";
+  cupSectionLabel?: string;
+  cupSectionStart?: boolean;
 };
 
 type FixtureWeek = {
@@ -5311,12 +5313,20 @@ type FixtureWeek = {
     homeTeamName: string;
     awayTeamName: string;
     postponedTo: string;
+    cupSectionLabel?: string;
+    cupSectionStart?: boolean;
   }>;
   competitionType?: "League" | "Cup";
   cupPlaceholders?: Array<{
     tieId: string;
     homeLabel: string;
     awayLabel: string;
+    cupSectionLabel?: string;
+    cupSectionStart?: boolean;
+  }>;
+  cupSections?: Array<{
+    id: string;
+    weekLabel: string;
   }>;
 };
 
@@ -5425,6 +5435,14 @@ function fixtureOwnLineupPublished(fixture: FixtureWeekFixture, teamId?: string 
   if (!teamId || !fixture.isOwnFixture) return false;
   const ownStatus = fixture.homeTeamId === teamId ? fixture.homeLineupStatus : fixture.awayLineupStatus;
   return ownStatus === "Published";
+}
+
+function CupFixtureSectionHeading({ label }: { label: string }) {
+  return (
+    <div className="border-b border-[#ded7e5] bg-[#eef2f6] px-3 py-2">
+      <p className="text-xs font-black uppercase text-[#10233f]">{label}</p>
+    </div>
+  );
 }
 
 function FixtureWeekCarouselCard({
@@ -5593,26 +5611,32 @@ function FixtureWeekCarouselCard({
             </div>
             <div className="overflow-hidden rounded-xl bg-white ring-1 ring-[#eeeaf2]">
               {(week.cupPlaceholders ?? []).map((tie) => (
-                <div key={tie.tieId} className="grid gap-2 border-b border-[#eeeaf2] bg-[#f7f5fa] p-3">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-                    <span className="min-w-0 text-sm font-extrabold text-[#6c5a73]">{tie.homeLabel}</span>
-                    <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
-                    <span className="min-w-0 text-right text-sm font-extrabold text-[#6c5a73]">{tie.awayLabel}</span>
+                <Fragment key={tie.tieId}>
+                  {tie.cupSectionStart && tie.cupSectionLabel ? <CupFixtureSectionHeading label={tie.cupSectionLabel} /> : null}
+                  <div className="grid gap-2 border-b border-[#eeeaf2] bg-[#f7f5fa] p-3">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                      <span className="min-w-0 text-sm font-extrabold text-[#6c5a73]">{tie.homeLabel}</span>
+                      <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
+                      <span className="min-w-0 text-right text-sm font-extrabold text-[#6c5a73]">{tie.awayLabel}</span>
+                    </div>
+                    <span className="justify-self-start rounded-md bg-white px-2 py-1 text-[11px] font-extrabold uppercase text-[#6c5a73] ring-1 ring-[#ded7e5]">Awaiting previous result</span>
                   </div>
-                  <span className="justify-self-start rounded-md bg-white px-2 py-1 text-[11px] font-extrabold uppercase text-[#6c5a73] ring-1 ring-[#ded7e5]">Awaiting previous result</span>
-                </div>
+                </Fragment>
               ))}
               {week.postponedFixtures.map((fixture) => (
-                <div key={`postponed-${fixture.fixtureId}`} className="grid gap-2 border-b border-[#eeeaf2] bg-[#fffaf0] p-3">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-                    <span className="min-w-0 truncate text-sm font-extrabold text-[#10233f]">{fixture.homeTeamName}</span>
-                    <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
-                    <span className="min-w-0 truncate text-right text-sm font-extrabold text-[#10233f]">{fixture.awayTeamName}</span>
+                <Fragment key={`postponed-${fixture.fixtureId}`}>
+                  {fixture.cupSectionStart && fixture.cupSectionLabel ? <CupFixtureSectionHeading label={fixture.cupSectionLabel} /> : null}
+                  <div className="grid gap-2 border-b border-[#eeeaf2] bg-[#fffaf0] p-3">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                      <span className="min-w-0 truncate text-sm font-extrabold text-[#10233f]">{fixture.homeTeamName}</span>
+                      <span className="text-xs font-black uppercase text-[#6c5a73]">v</span>
+                      <span className="min-w-0 truncate text-right text-sm font-extrabold text-[#10233f]">{fixture.awayTeamName}</span>
+                    </div>
+                    <span className="justify-self-start rounded-md bg-[#fff1d6] px-2 py-1 text-[11px] font-extrabold uppercase text-[#8a5a00] ring-1 ring-[#ffb00055]">
+                      Postponed to {formatFixtureDate(fixture.postponedTo)}
+                    </span>
                   </div>
-                  <span className="justify-self-start rounded-md bg-[#fff1d6] px-2 py-1 text-[11px] font-extrabold uppercase text-[#8a5a00] ring-1 ring-[#ffb00055]">
-                    Postponed to {formatFixtureDate(fixture.postponedTo)}
-                  </span>
-                </div>
+                </Fragment>
               ))}
               {week.fixtures.map((fixture) => {
                 const hasScore = fixture.homeTeamScore !== null && fixture.awayTeamScore !== null;
@@ -5629,11 +5653,12 @@ function FixtureWeekCarouselCard({
                 const awayLineupStatus = visibleLineupStatus(fixture.awayLineupStatus, fixture.fixtureDate);
                 const lineupsPublished = fixtureHasPublishedLineups(fixture) && fixture.status !== "Completed" && fixture.completedGames === 0;
                 return (
-                  <article
-                    key={fixture.id}
-                    className={cn("border-b border-[#eeeaf2] last:border-b-0", fixture.isOwnFixture && "bg-[#f7f5fa]")}
-                    style={fixture.isOwnFixture ? { borderLeft: `5px solid ${activeTeam.primaryColor}` } : undefined}
-                  >
+                  <Fragment key={fixture.id}>
+                    {fixture.cupSectionStart && fixture.cupSectionLabel ? <CupFixtureSectionHeading label={fixture.cupSectionLabel} /> : null}
+                    <article
+                      className={cn("border-b border-[#eeeaf2] last:border-b-0", fixture.isOwnFixture && "bg-[#f7f5fa]")}
+                      style={fixture.isOwnFixture ? { borderLeft: `5px solid ${activeTeam.primaryColor}` } : undefined}
+                    >
                     <button
                       type="button"
                       disabled={!canOpenRow}
@@ -5724,7 +5749,8 @@ function FixtureWeekCarouselCard({
                         ) : null}
                       </div>
                     ) : null}
-                  </article>
+                    </article>
+                  </Fragment>
                 );
               })}
             </div>
