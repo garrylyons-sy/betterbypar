@@ -47,6 +47,26 @@ export function mergeCupWeeksByDate<TFixture = Record<string, unknown>, TPlaceho
   cupSections: Array<CupDisplayWeek<TFixture, TPlaceholder>>;
 }>;
 
+export function mergeFixturePagesByDate<
+  TLeagueFixture extends Record<string, unknown> = Record<string, unknown>,
+  TCupFixture extends Record<string, unknown> = Record<string, unknown>,
+  TPlaceholder extends Record<string, unknown> = Record<string, unknown>
+>(
+  leagueWeeks: Array<FixtureScheduleWeek & {
+    fixtures: TLeagueFixture[];
+    postponedFixtures: PostponedFixtureNotice[];
+    cupPlaceholders?: TPlaceholder[];
+    cupSections?: Array<CupDisplayWeek<TCupFixture, TPlaceholder>>;
+  }>,
+  cupWeeks: Array<CupDisplayWeek<TCupFixture, TPlaceholder>>
+): Array<FixtureScheduleWeek & {
+  competitionType?: "Cup";
+  fixtures: Array<TLeagueFixture | (TCupFixture & { cupSectionLabel?: string; cupSectionStart?: boolean })>;
+  postponedFixtures: Array<PostponedFixtureNotice & { cupSectionLabel?: string; cupSectionStart?: boolean }>;
+  cupPlaceholders: Array<TPlaceholder & { cupSectionLabel?: string; cupSectionStart?: boolean }>;
+  cupSections: Array<CupDisplayWeek<TCupFixture, TPlaceholder>>;
+}>;
+
 export function organizeFixtureWeeks<T extends FixtureScheduleItem>(input: {
   weeks: FixtureScheduleWeek[];
   fixtures: T[];

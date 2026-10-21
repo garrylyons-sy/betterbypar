@@ -221,6 +221,38 @@ test("cup rounds from different competitions on the same day share one carousel 
   ]);
 });
 
+test("a cup round shares the carousel page with a rescheduled league match on the same day", async () => {
+  const { mergeFixturePagesByDate } = await loadSchedulingModule();
+  assert.equal(typeof mergeFixturePagesByDate, "function", "mergeFixturePagesByDate must be implemented");
+
+  const weeks = mergeFixturePagesByDate([
+    {
+      id: "week-4",
+      weekNumber: 4,
+      weekLabel: "Week 4 - Break week",
+      startsOn: "2026-10-22",
+      fixtures: [{ id: "rescheduled-league", fixtureDate: "2026-10-22T19:30:00.000Z", fixtureType: "League", rescheduled: true }],
+      postponedFixtures: []
+    }
+  ], [
+    {
+      id: "cup-round",
+      weekNumber: null,
+      weekLabel: "Paddy O'Brien Cup · Round of 16",
+      startsOn: "2026-10-22",
+      competitionType: "Cup",
+      fixtures: [{ id: "cup-match", fixtureDate: "2026-10-22T19:30:00.000Z", fixtureType: "Cup" }],
+      postponedFixtures: [],
+      cupPlaceholders: []
+    }
+  ]);
+
+  assert.equal(weeks.length, 1);
+  assert.deepEqual(weeks[0].fixtures.map((fixture) => fixture.id), ["rescheduled-league", "cup-match"]);
+  assert.equal(weeks[0].fixtures[1].cupSectionLabel, "Paddy O'Brien Cup · Round of 16");
+  assert.equal(weeks[0].fixtures[1].cupSectionStart, true);
+});
+
 test("cup rounds on different dates remain separate carousel pages", async () => {
   const { mergeCupWeeksByDate } = await loadSchedulingModule();
   const weeks = mergeCupWeeksByDate([
@@ -258,6 +290,7 @@ test("fixture APIs preserve the original date and organize rows by effective wee
   assert.match(schema, /original_fixture_date timestamptz/);
   assert.match(migration, /add column if not exists original_fixture_date timestamptz/);
   assert.match(fixtureWeeksRoute, /organizeFixtureWeeks/);
+  assert.match(fixtureWeeksRoute, /mergeFixturePagesByDate/);
   assert.match(fixtureWeeksRoute, /from public\.fixture_week fw[\s\S]*where l\.name = \$1[\s\S]*and s\.name = \$2/);
   assert.match(adminMatchesRoute, /original_fixture_date = case[\s\S]*fixture_date::date is distinct from \$2::date/);
   assert.match(adminMatchesRoute, /update public\.fixture_lineup[\s\S]*set status = 'Draft'/);
