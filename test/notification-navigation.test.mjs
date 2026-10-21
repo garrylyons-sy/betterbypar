@@ -36,3 +36,11 @@ test('opening an inbox item prevents browser navigation and routes inside the mo
   link.props.onClick({button:0,ctrlKey:true,preventDefault(){assert.fail('modified click should retain browser behaviour');}});
   assert.equal(opened.length,1);
 });
+
+test('result links open Results and select the matching league and season context',()=>{
+ const contexts=[{id:'a',name:'Castle A',role:'Player',club:'Castle',league:'A League',season:'2026/27'},{id:'b',name:'Castle B',role:'Manager',club:'Castle',league:'B League',season:'2026/27'}];
+ const result=navigation.notificationDestination('/?page=Results&fixtureId=completed&league=B+League&season=2026%2F27',contexts);
+ assert.equal(result.page,'Results');assert.equal(result.fixtureId,'completed');assert.equal(result.contextId,'b');
+ const shell=readFileSync(new URL('../components/app-shell.tsx',import.meta.url),'utf8');
+ assert.match(shell,/requestedPage === "Results"/);assert.match(shell,/NotifiedResultCard key=\{selectedFixtureId\}/);
+});

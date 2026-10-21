@@ -70,33 +70,50 @@ export async function createNotification(client:Queryable,personId:string,event:
  if(inserted.rows[0]&&push)await client.query(`insert into public.notification_push_delivery(notification_id,subscription_id) select $1,id from public.notification_push_subscription where person_id=$2 and active on conflict do nothing`,[inserted.rows[0].id,personId]);
  return Boolean(inserted.rowCount);
 }
-async function fixtureRecipients(client:Queryable,teamIds:string[],managersOnly=false) {
+async function fixtureRecipients(client:Queryable,teamIds:string[],managersOnly=false,includeChairs=true) {
  const {rows}=await client.query(`select distinct person_id from (
  select tm.person_id from public.team_membership tm join public.team t on t.id=tm.team_id and t.active where tm.active and tm.team_id=any($1::uuid[]) and tm.role::text=any($2::text[])
  union select ptr.person_id from public.person_team_role ptr join public.club_membership cm on cm.id=ptr.club_membership_id and cm.active join public.team t on t.club_id=ptr.club_id and t.league_id=ptr.league_id and t.name=ptr.team_name and t.active where ptr.active and t.id=any($1::uuid[]) and ptr.role::text=any($2::text[])
- union select person_id from (${roleRowsSql}) roles where role='League Chair') recipients`,[teamIds,managersOnly?['Manager']:['Player','Manager']]);
+ ${includeChairs?`union select person_id from (${roleRowsSql}) roles where role='League Chair'`:''}) recipients`,[teamIds,managersOnly?['Manager']:['Player','Manager']]);
  return rows.map(row=>String(row.person_id));
 }
 // Date-only fixtures are stored at midnight UTC; match night starts at 19:30 Dublin.
 const kickoffSql=`case when (f.fixture_date at time zone 'UTC')::time = time '00:00' then (((f.fixture_date at time zone 'UTC')::date + time '19:30') at time zone 'Europe/Dublin') else f.fixture_date end`;
-export async function notifyFixtureChanged(client:Queryable,fixtureId:string,previousTeamIds:string[]=[],changeReason?:string) {
+function notificationDate(value:string|Date){return new Date(value).toLocaleString('en-IE',{timeZone:'Europe/Dublin',weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}
+export async function notifyOpponentLineupPublished(client:Queryable,fixtureId:string,publishingTeamId:string){
+ const {rows}=await client.query(`select f.*,ht.name as home_name,at.name as away_name,${kickoffSql} as kickoff,fl.published_at from public.fixture f join public.team ht on ht.id=f.home_team_id join public.team at on at.id=f.away_team_id join public.fixture_lineup fl on fl.fixture_id=f.id and fl.team_id=$2 and fl.status='Published' where f.id=$1`,[fixtureId,publishingTeamId]);
+ const f=rows[0];if(!f||f.status!=='Scheduled'||![f.home_team_id,f.away_team_id].includes(publishingTeamId))return;
+ const opponentId=publishingTeamId===f.home_team_id?f.away_team_id:f.home_team_id;
+ const name=publishingTeamId===f.home_team_id?f.home_name:f.away_name;
+ const managers=await fixtureRecipients(client,[opponentId],true,false);
+ for(const personId of managers)await createNotification(client,personId,{type:'lineup_published',title:'Opponents published',body:`${name} have published their line up.`,href:await fixtureRecipientHref(client,fixtureId,personId,[opponentId],true),eventKey:`lineup-published:${fixtureId}:${publishingTeamId}`,expiresAt:f.kickoff});
+}
+export async function notifyMatchCompleted(client:Queryable,fixtureId:string){
+ const {rows}=await client.query(`select f.*,ht.name as home_name,at.name as away_name,m.home_team_score,m.away_team_score,l.name as league_name,s.name as season_name from public.fixture f join public.team ht on ht.id=f.home_team_id join public.team at on at.id=f.away_team_id join public.match m on m.fixture_id=f.id join public.league l on l.id=f.league_id join public.season s on s.id=f.season_id where f.id=$1`,[fixtureId]);
+ const f=rows[0];if(!f||f.status!=='Completed')return;
+ const chairs=await client.query(`select distinct person_id from (${roleRowsSql}) roles where role='League Chair'`);
+ const params=new URLSearchParams({page:'Results',fixtureId,league:f.league_name,season:f.season_name});
+ for(const row of chairs.rows)await createNotification(client,String(row.person_id),{type:'match_result',title:'Match completed',body:`${f.home_name} ${f.home_team_score}–${f.away_team_score} ${f.away_name}. ${f.league_name} result.`,href:`/?${params}`,eventKey:`result:${fixtureId}:${f.home_team_score}:${f.away_team_score}`});
+}
+export async function notifyFixtureChanged(client:Queryable,fixtureId:string,previousTeamIds:string[]=[],changeReason?:string,changeKind='updated') {
  const {rows}=await client.query(`select f.*,ht.name as home_name,at.name as away_name,${kickoffSql} as kickoff from public.fixture f join public.team ht on ht.id=f.home_team_id join public.team at on at.id=f.away_team_id where f.id=$1`,[fixtureId]);
  const f=rows[0];if(!f)return;
  // Preserve current scheduled reminders on venue edits. Only obsolete schedules/status expire.
  await client.query(`update public.app_notification set expires_at=now() where event_key like $1 and type in ('match_reminder','lineup_reminder') and ($3::text <> 'Scheduled' or event_key not like $2) and (expires_at is null or expires_at>now())`,[`fixture:${fixtureId}:%`,`${fixtureEventKey(fixtureId,f.fixture_date)}:%`,f.status]);
+ if(f.status==='Completed'){await notifyMatchCompleted(client,fixtureId);return;}
  const recipients=await fixtureRecipients(client,[...new Set([...previousTeamIds,f.home_team_id,f.away_team_id])]);
  // Include the previous schedule in the caller's transition key so A->B->A remains a real new change.
  const transition=await client.query("select txid_current()::text as revision");
- for(const personId of recipients)await createNotification(client,personId,{type:'fixture_change',title:'Fixture updated',body:`${changeReason ? `${changeReason}. ` : ""}${f.home_name} v ${f.away_name}: ${new Date(f.kickoff).toLocaleString('en-IE',{timeZone:'Europe/Dublin'})} (${f.status}).`,href:`/?page=Fixtures&fixtureId=${fixtureId}`,eventKey:`${fixtureEventKey(fixtureId,f.fixture_date)}:change:${transition.rows[0].revision}${changeReason ? "" : ":schedule"}`,expiresAt:new Date(Math.max(new Date(f.kickoff).getTime(),Date.now()+86400000))});
+ for(const personId of recipients)await createNotification(client,personId,{type:'fixture_change',title:changeReason?'Venue updated':f.status==='Cancelled'?'Match cancelled':changeKind==='rescheduled'?'Match rescheduled':'Fixture updated',body:changeReason?`${changeReason}. ${f.home_name} v ${f.away_name} is scheduled for ${notificationDate(f.kickoff)}.`:f.status==='Cancelled'?`The match between ${f.home_name} and ${f.away_name} on ${notificationDate(f.kickoff)} has been cancelled.`:changeKind==='rescheduled'?`${f.home_name} v ${f.away_name} has been rescheduled to ${notificationDate(f.kickoff)}.`:`The fixture for ${f.home_name} v ${f.away_name} has been updated. It is scheduled for ${notificationDate(f.kickoff)}.`,href:await fixtureRecipientHref(client,fixtureId,personId,[f.home_team_id,f.away_team_id],false),eventKey:`${fixtureEventKey(fixtureId,f.fixture_date)}:change:${transition.rows[0].revision}${changeReason ? "" : ":schedule"}`,expiresAt:new Date(Math.max(new Date(f.kickoff).getTime(),Date.now()+86400000))});
 }
 export async function expireLadderNotifications(client:Queryable,challengeId:string) {
  await client.query(`update public.app_notification set expires_at=now() where event_key like $1 and (expires_at is null or expires_at>now())`,[`ladder:${challengeId}:%`]);
 }
 export async function notifyLadderChallenge(client:Queryable,challengeId:string,personIds:string[],kind:string) {
- const {rows}=await client.query(`select l.name,c.name as club_name,ch.response_due_at,ch.play_by from public.club_ladder_challenge ch join public.club_ladder l on l.id=ch.ladder_id join public.club c on c.id=l.club_id where ch.id=$1`,[challengeId]);
+ const {rows}=await client.query(`select l.name,c.name as club_name,ch.response_due_at,ch.play_by,concat_ws(' ',cp.first_name,cp.last_name) as challenger_name,concat_ws(' ',dp.first_name,dp.last_name) as challenged_name from public.club_ladder_challenge ch join public.club_ladder_entry a on a.id=ch.challenger_entry_id join public.person cp on cp.id=a.person_id join public.club_ladder_entry b on b.id=ch.challenged_entry_id join public.person dp on dp.id=b.person_id join public.club_ladder l on l.id=ch.ladder_id join public.club c on c.id=l.club_id where ch.id=$1`,[challengeId]);
  if(!rows[0])return;
  if(kind!=='received')await client.query(`update public.app_notification set expires_at=now() where event_key in ($1,$2) or event_key like $3`,[`ladder:${challengeId}:received`,`ladder:${challengeId}:deadline:response`,`ladder:${challengeId}:deadline:response:%`]);
- for(const id of [...new Set(personIds)])await createNotification(client,id,{type:'ladder_challenge',title:kind==='received'?'New ladder challenge':'Ladder challenge updated',body:`${rows[0].name}: ${kind}.`,href:`/?page=Ladder&challengeId=${challengeId}&club=${encodeURIComponent(rows[0].club_name)}`,eventKey:`ladder:${challengeId}:${kind}`,expiresAt:kind==='received'?rows[0].response_due_at:(rows[0].play_by??rows[0].response_due_at??new Date(Date.now()+86400000))});
+ for(const id of [...new Set(personIds)])await createNotification(client,id,{type:'ladder_challenge',title:kind==='received'?'New ladder challenge':kind==='accepted'?'Challenge accepted':'Challenge declined',body:kind==='received'?`You have been challenged by ${rows[0].challenger_name} on ${rows[0].name}. Open the ladder to respond.`:`${rows[0].challenged_name} has ${kind==='accepted'?'accepted':'declined'} your challenge on ${rows[0].name}.`,href:`/?page=Ladder&challengeId=${challengeId}&club=${encodeURIComponent(rows[0].club_name)}`,eventKey:`ladder:${challengeId}:${kind}`,expiresAt:kind==='received'?rows[0].response_due_at:kind==='accepted'?rows[0].play_by:null});
 }
 export async function processNotificationReminders() {
  return withTransaction(async client=>{
@@ -117,14 +134,7 @@ export async function processNotificationReminders() {
  teams=teams.filter(t=>!published.rows.some(p=>p.team_id===t));if(!teams.length)continue;
  }
  const recipients=await fixtureRecipients(client,teams,type==='lineup_reminder');
- for(const personId of recipients)if(await createNotification(client,personId,{type,title:type==='match_reminder'?'Upcoming fixture':'Lineup still required',body:`${f.home_name} v ${f.away_name} starts ${new Date(f.kickoff).toLocaleString('en-IE',{timeZone:'Europe/Dublin'})}.`,href:await fixtureRecipientHref(client,f.id,personId,teams,type==='lineup_reminder'),eventKey:`${fixtureEventKey(f.id,f.fixture_date)}:${type}:${scheduleRevision}`,expiresAt:f.kickoff}))created++;
- }
- }
- if(config.enabledTypes.includes('ladder_challenge')){
- const challenges=await client.query(`select ch.id,ch.status,case when ch.status='Pending' then ch.response_due_at else ch.play_by end as deadline,a.person_id as challenger,b.person_id as challenged,l.name,c.name as club_name from public.club_ladder_challenge ch join public.club_ladder_entry a on a.id=ch.challenger_entry_id join public.club_ladder_entry b on b.id=ch.challenged_entry_id join public.club_ladder l on l.id=ch.ladder_id and l.active join public.club c on c.id=l.club_id and c.active where ch.status in ('Pending','Accepted','Scheduled') and case when ch.status='Pending' then ch.response_due_at else ch.play_by end>now() and case when ch.status='Pending' then ch.response_due_at else ch.play_by end<=now()+($1::text||' hours')::interval`,[config.ladderReminderHours]);
- for(const ch of challenges.rows){
- const recipients=ch.status==='Pending'?[ch.challenged]:[ch.challenger,ch.challenged];
- for(const id of recipients)if(await createNotification(client,id,{type:'ladder_challenge',title:ch.status==='Pending'?'Challenge response due':'Ladder match deadline',body:`${ch.name}: ${ch.status==='Pending'?'respond to your challenge':'complete your match'} by ${new Date(ch.deadline).toLocaleString('en-IE',{timeZone:'Europe/Dublin'})}.`,href:`/?page=Ladder&challengeId=${ch.id}&club=${encodeURIComponent(ch.club_name)}`,eventKey:`ladder:${ch.id}:deadline:${ch.status==='Pending'?'response':'play'}:${new Date(ch.deadline).toISOString()}`,expiresAt:ch.deadline}))created++;
+ for(const personId of recipients)if(await createNotification(client,personId,{type,title:type==='match_reminder'?'Upcoming match':'Line up needed',body:type==='match_reminder'?`${f.home_name} v ${f.away_name} starts ${notificationDate(f.kickoff)}.`:`A line up is still needed for ${f.home_name} v ${f.away_name} on ${notificationDate(f.kickoff)}. Open Fixtures to check.`,href:await fixtureRecipientHref(client,f.id,personId,teams,type==='lineup_reminder'),eventKey:`${fixtureEventKey(f.id,f.fixture_date)}:${type}:${scheduleRevision}`,expiresAt:f.kickoff}))created++;
  }
  }
  return {created};
@@ -135,7 +145,10 @@ async function fixtureRecipientHref(client:Queryable,fixtureId:string,personId:s
  const {rows}=await client.query(`select t.name,c.name as club_name,tm.role::text as role from public.team t join public.club c on c.id=t.club_id join public.team_membership tm on tm.team_id=t.id and tm.active where t.id=any($1::uuid[]) and tm.person_id=$2 and tm.role::text=any($3::text[])
  union select t.name,c.name,ptr.role::text from public.team t join public.club c on c.id=t.club_id join public.person_team_role ptr on ptr.club_id=t.club_id and ptr.league_id=t.league_id and ptr.team_name=t.name and ptr.active join public.club_membership cm on cm.id=ptr.club_membership_id and cm.active where t.id=any($1::uuid[]) and ptr.person_id=$2 and ptr.role::text=any($3::text[]) order by role limit 1`,[teamIds,personId,managerOnly?['Manager']:['Manager','Player']]);
  const params=new URLSearchParams({page:'Fixtures',fixtureId});
- if(rows[0]){params.set('team',rows[0].name);params.set('role',rows[0].role);params.set('club',rows[0].club_name);}else params.set('role','League Chair');
+ if(rows[0]){params.set('team',rows[0].name);params.set('role',rows[0].role);params.set('club',rows[0].club_name);}else {
+ const metadata=await client.query('select l.name as league_name,s.name as season_name from public.fixture f join public.league l on l.id=f.league_id join public.season s on s.id=f.season_id where f.id=$1',[fixtureId]);
+ if(metadata.rows[0]){params.set('league',metadata.rows[0].league_name);params.set('season',metadata.rows[0].season_name);}else params.set('role','League Chair');
+ }
  return `/?${params}`;
 }
 export async function refreshFixtureLineupNotifications(client:Queryable,fixtureId:string) {
@@ -152,8 +165,21 @@ type NotificationSource = {type:string;event_key:string;createdAt?:string|Date;e
 export async function notificationSourceIsCurrent(notificationId:string,personId:string,client:Queryable=database,preloaded?:NotificationSource,retentionDays?:number):Promise<boolean> {
  const n=preloaded??(await client.query('select type,event_key,expires_at,created_at as "createdAt" from public.app_notification where id=$1 and person_id=$2',[notificationId,personId])).rows[0];
  if(!n)return false;
+ if(/^ladder:.*:deadline:/.test(n.event_key))return false;
  if(n.createdAt&&!isNotificationWithinLifetime(n.createdAt,Date.now(),(retentionDays??(await loadNotificationConfig(client)).retentionDays)))return false;
  if(n.expires_at&&new Date(n.expires_at).getTime()<=Date.now())return false;
+ const publication=/^lineup-published:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(n.event_key);
+ if(publication){
+  const result=await client.query(`select f.home_team_id,f.away_team_id,f.status,fl.status as lineup_status from public.fixture f join public.fixture_lineup fl on fl.fixture_id=f.id and fl.team_id=$2 where f.id=$1`,[publication[1],publication[2]]);
+  const f=result.rows[0];if(!f||f.status!=='Scheduled'||f.lineup_status!=='Published'||![f.home_team_id,f.away_team_id].includes(publication[2]))return false;
+  const opponent=publication[2]===f.home_team_id?f.away_team_id:f.home_team_id;
+  return (await fixtureRecipients(client,[opponent],true,false)).includes(personId);
+ }
+ const completed=/^result:([0-9a-f-]{36}):(\d+):(\d+)$/.exec(n.event_key);
+ if(completed){
+  const result=await client.query(`select f.status,m.home_team_score,m.away_team_score from public.fixture f join public.match m on m.fixture_id=f.id where f.id=$1 and exists(select 1 from (${roleRowsSql}) roles where roles.person_id=$2 and role='League Chair')`,[completed[1],personId]);
+  const f=result.rows[0];return Boolean(f&&f.status==='Completed'&&Number(f.home_team_score)===Number(completed[2])&&Number(f.away_team_score)===Number(completed[3]));
+ }
  const fixtureMatch=/^fixture:([0-9a-f-]{36}):(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z):/.exec(n.event_key);
  if(fixtureMatch){
  const result=await client.query(`select f.*,${kickoffSql} as kickoff from public.fixture f where f.id=$1`,[fixtureMatch[1]]);const f=result.rows[0];

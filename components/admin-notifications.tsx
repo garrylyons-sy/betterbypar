@@ -10,15 +10,16 @@ type Config = typeof defaultNotificationConfig;
 const roles = notificationRoles;
 const categories = [
   {key:'announcement',label:'Announcements',description:'Messages sent by platform administrators to selected role groups, clubs or teams.'},
+  {key:'lineup_published',label:'Opponents published',description:'Tell opposing managers when a team first publishes its line up.'},
+  {key:'match_result',label:'Match results',description:'Final scores for League Chairs when a match is completed.'},
   {key:'fixture_change',label:'Fixture changes',description:'Date changes, postponements and cancellations for affected teams, plus League Chair oversight.'},
   {key:'match_reminder',label:'Match reminders',description:'Upcoming matches for affected players and managers, plus League Chairs.'},
   {key:'lineup_reminder',label:'Lineup reminders',description:'Missing lineups for managers and League Chair oversight.'},
-  {key:'ladder_challenge',label:'Ladder challenges',description:'New challenges and approaching deadlines for the players involved.'}
+  {key:'ladder_challenge',label:'Ladder challenges',description:'New challenges and responses for the players involved.'}
 ] as const;
 const reminderFields = [
   {key:'matchReminderHours',label:'Match reminder — hours before match'},
-  {key:'lineupReminderHours',label:'Missing lineup reminder — hours before match'},
-  {key:'ladderReminderHours',label:'Ladder deadline reminder — hours before deadline'}
+  {key:'lineupReminderHours',label:'Missing lineup reminder — hours before match'}
 ] as const;
 function NotificationSettings({onMessage}:{onMessage:(message:string)=>void}) {
   const [draft,setDraft] = useState<Config>({...defaultNotificationConfig});

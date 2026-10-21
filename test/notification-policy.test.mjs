@@ -40,7 +40,7 @@ test('announcements migrate inbox/config once without opting existing devices in
  const oldTypes=['fixture_change','match_reminder','lineup_reminder','ladder_challenge'];
  const migrated=normalizeNotificationConfig({...config,version:undefined,enabledTypes:oldTypes});
  assert.ok(migrated.enabledTypes.includes('announcement'));
- assert.equal(migrated.version,2);
+ assert.equal(migrated.version,3);
  const preferences=normalizeNotificationPreferences({inboxTypes:oldTypes,pushTypes:oldTypes,pushEnabled:true});
  assert.ok(preferences.inboxTypes.includes('announcement'));
  assert.equal(preferences.pushTypes.includes('announcement'),false);
@@ -82,4 +82,14 @@ test('notification retention is configurable with a compatible ten-day default a
  const inbox={items:[{createdAt:created,readAt:null}],unreadCount:1,config:{retentionDays:30}};
  assert.equal(pruneNotificationInbox(inbox,now).items.length,1);
  assert.equal(pruneNotificationInbox({...inbox,config:{retentionDays:3}},now).items.length,0);
+});
+
+test('new event types upgrade once without expanding existing push opt-ins',async()=>{
+ const {normalizeNotificationConfig,normalizeNotificationPreferences}=await import('../lib/notification-policy.mjs');
+ const old={version:2,enabledTypes:['fixture_change']};const config=normalizeNotificationConfig(old);
+ assert.ok(config.enabledTypes.includes('lineup_published'));assert.ok(config.enabledTypes.includes('match_result'));
+ const prefs=normalizeNotificationPreferences({version:2,inboxTypes:['fixture_change'],pushTypes:['fixture_change'],pushEnabled:true});
+ assert.ok(prefs.inboxTypes.includes('lineup_published'));assert.ok(prefs.inboxTypes.includes('match_result'));assert.deepEqual(prefs.pushTypes,['fixture_change']);
+ assert.deepEqual(normalizeNotificationPreferences({...prefs,inboxTypes:[]}).inboxTypes,[]);
+ assert.deepEqual(normalizeNotificationConfig({...config,enabledTypes:[]}).enabledTypes,[]);
 });

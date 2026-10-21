@@ -12,8 +12,10 @@ const categories: { type: NotificationType; label: string }[] = [
   { type: "fixture_change", label: "Fixture changes" },
   { type: "match_reminder", label: "Match reminders" },
   { type: "lineup_reminder", label: "Lineup reminders" },
-  { type: "ladder_challenge", label: "Ladder challenges and deadlines" },
-  { type: "announcement", label: "Announcements from administrators" }
+  { type: "ladder_challenge", label: "Ladder challenges" },
+  { type: "announcement", label: "Announcements from administrators" },
+  { type: "lineup_published", label: "Opponents published their line up" },
+  { type: "match_result", label: "Completed match results (League Chairs)" }
 ];
 
 export function useNotificationCenter(authenticated: boolean) {

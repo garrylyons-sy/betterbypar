@@ -1,6 +1,6 @@
-export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_reminder' | 'ladder_challenge' | 'announcement';
-export type Config = {version:2;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
-export type Preferences = {version:2;inboxTypes:NotificationType[];pushTypes:NotificationType[];pushEnabled:boolean};
+export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_reminder' | 'ladder_challenge' | 'announcement' | 'lineup_published' | 'match_result';
+export type Config = {version:3;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
+export type Preferences = {version:3;inboxTypes:NotificationType[];pushTypes:NotificationType[];pushEnabled:boolean};
 export const notificationTypes: NotificationType[];
 export const notificationRoles: string[];
 export const defaultNotificationConfig: Config;

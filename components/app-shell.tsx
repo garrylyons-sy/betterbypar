@@ -228,12 +228,14 @@ export function AppShell({
     const requestedTeam = params.get("team")?.trim().toLowerCase();
     const requestedRole = params.get("role")?.trim().toLowerCase();
     const requestedClub = params.get("club")?.trim().toLowerCase();
-    if (!requestedTeam && !requestedRole && !requestedClub) return availableContexts[0]?.id ?? teamContexts[0].id;
+    const requestedLeague = params.get("league")?.trim().toLowerCase();
+    const requestedSeason = params.get("season")?.trim().toLowerCase();
+    if (!requestedTeam && !requestedRole && !requestedClub && !requestedLeague && !requestedSeason) return availableContexts[0]?.id ?? teamContexts[0].id;
     return availableContexts.find((team) => {
       const teamMatches = requestedTeam ? normalizeLookupKey(team.name) === normalizeLookupKey(requestedTeam) : true;
       const roleMatches = requestedRole ? team.role.toLowerCase() === requestedRole : true;
       const clubMatches = requestedClub ? team.club.toLowerCase() === requestedClub : true;
-      return teamMatches && roleMatches && clubMatches;
+      return teamMatches && roleMatches && clubMatches && (!requestedLeague || team.league.toLowerCase() === requestedLeague) && (!requestedSeason || team.season.toLowerCase() === requestedSeason);
     })?.id ?? availableContexts[0]?.id ?? teamContexts[0].id;
   }, [appContexts, contexts]);
   const preferredContext = useMemo(
@@ -244,7 +246,7 @@ export function AppShell({
   const [activePage, setActivePage] = useState<AppPage>(() => {
     if (typeof window === "undefined") return "Home";
     const requestedPage = new URLSearchParams(window.location.search).get("page");
-    return requestedPage === "Competitions" || requestedPage === "Last Man Standing" || requestedPage === "Fixtures" || requestedPage === "Ladder" ? requestedPage : "Home";
+    return requestedPage === "Competitions" || requestedPage === "Last Man Standing" || requestedPage === "Fixtures" || requestedPage === "Ladder" || requestedPage === "Results" ? requestedPage : "Home";
   });
   const [selectedFixtureId, setSelectedFixtureId] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("fixtureId") ?? "");
   useEffect(() => {
@@ -296,7 +298,7 @@ export function AppShell({
     if (typeof window === "undefined") return;
     if (hasAppliedUrlContext.current) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.has("team") || params.has("role") || params.has("season") || params.has("club")) {
+    if (params.has("team") || params.has("role") || params.has("season") || params.has("club") || params.has("league")) {
       hasAppliedUrlContext.current = true;
       setSelectedId(preferredContextId);
     }
@@ -661,7 +663,7 @@ function PageContent({
       />
     );
   }
-  if (activePage === "Results") return <ResultsPage activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} userCanShare={userCanShare} />;
+  if (activePage === "Results") return <ResultsPage selectedFixtureId={selectedFixtureId} activeTeam={activeTeam} playerGameResults={playerGameResults} matchResults={matchResults} userCanShare={userCanShare} />;
   if (activePage === "Table") return <TablesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} userCanShare={userCanShare} />;
   if (activePage === "Players") return <PlayersPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
@@ -3425,16 +3427,30 @@ function MatchPage({
   );
 }
 
-function ResultsPage({ activeTeam, playerGameResults, matchResults, userCanShare }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[]; userCanShare: boolean }) {
+function ResultsPage({ activeTeam, playerGameResults, matchResults, userCanShare, selectedFixtureId }: { selectedFixtureId?:string; activeTeam: TeamContext; playerGameResults: PlayerGameResult[]; matchResults: MatchResult[]; userCanShare: boolean }) {
   const playerView = activeTeam.role === "Player";
 
   return (
     <section className="grid gap-4 md:grid-cols-2">
+      {selectedFixtureId ? <NotifiedResultCard key={selectedFixtureId} fixtureId={selectedFixtureId} activeTeam={activeTeam}/> : null}
       <LatestTeamResultCard activeTeam={activeTeam} matchResults={matchResults} />
       <SeasonResultsCard activeTeam={activeTeam} results={matchResults} />
       {playerView ? <PlayerGameResultsCard activeTeam={activeTeam} results={playerGameResults} userCanShare={userCanShare} /> : null}
     </section>
   );
+}
+
+function NotifiedResultCard({fixtureId,activeTeam}:{fixtureId:string;activeTeam:TeamContext}){
+  const [result,setResult]=useState<MatchResult|null>(null);
+  const [error,setError]=useState("");
+  useEffect(()=>{
+    const controller=new AbortController();
+    void fetch(`/api/notifications/result?fixtureId=${encodeURIComponent(fixtureId)}`,{credentials:"same-origin",cache:"no-store",signal:controller.signal})
+      .then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||"Could not load this result.");if(!controller.signal.aborted)setResult(data.result);})
+      .catch(reason=>{if(!controller.signal.aborted)setError(reason.message);});
+    return ()=>controller.abort();
+  },[fixtureId]);
+  return <Card className="md:col-span-2 border-teal-200"><CardHeader><CardTitle>Notified match result</CardTitle></CardHeader><CardContent>{result?<ResultRow result={result} activeTeam={activeTeam}/>:<p role={error?"alert":"status"} className="text-sm">{error||"Loading match result…"}</p>}</CardContent></Card>;
 }
 
 function PlayersPage({ activeTeam, playerGameResults }: { activeTeam: TeamContext; playerGameResults: PlayerGameResult[] }) {

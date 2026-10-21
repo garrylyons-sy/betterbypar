@@ -6,7 +6,8 @@ import { advanceCupFixture } from "@/lib/server/cup-competitions";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import { recordOfficialGameResult } from "@/lib/server/game-results";
 import { processDueLastManStandingWork } from "@/lib/server/last-man-standing";
-import { refreshFixtureLineupNotifications } from "@/lib/server/notifications";
+import { refreshFixtureLineupNotifications, notifyOpponentLineupPublished, notifyMatchCompleted } from "@/lib/server/notifications";
+import { scheduleNotificationPush } from "@/lib/server/notification-dispatch";
 import { fixturePlayerWinPercentage, loadFixturePlayerWinPercentages } from "@/lib/server/player-win-percentages";
 
 export const runtime = "nodejs";
@@ -289,8 +290,10 @@ export async function POST(request: NextRequest) {
         await ensureFixtureTeam(client, fixtureId, teamId);
         await completeMatch(client, fixtureId);
         await advanceCupFixture(client, fixtureId, user.personId);
+        await notifyMatchCompleted(client, fixtureId);
         await recordLineupActivity(client, user.personId, fixtureId, teamId, "Completed match");
       });
+      scheduleNotificationPush();
 
       await processDueLastManStandingWork({ actorPersonId: user.personId }).catch((error) => {
         console.error("last-man-standing:manager-complete", error);
@@ -341,7 +344,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, ...payload, canManage: true });
     }
 
-    await withTransaction(async (client) => {
+    const notificationCreated = await withTransaction(async (client) => {
       await ensureFixtureTeam(client, fixtureId, teamId, { allowCompleted: adminOverride });
       const existingStatus = await loadLineupStatus(client, fixtureId, teamId);
       if (existingStatus === "Published" && !adminOverride) {
@@ -392,6 +395,7 @@ export async function POST(request: NextRequest) {
       if (shouldPublish) {
         await generateGamesIfBothPublished(client, fixtureId, user.personId);
         await refreshFixtureLineupNotifications(client, fixtureId);
+        if (existingStatus !== "Published") await notifyOpponentLineupPublished(client, fixtureId, teamId);
       }
       await recordLineupActivity(
         client,
@@ -401,8 +405,10 @@ export async function POST(request: NextRequest) {
         shouldPublish ? (existingStatus === "Published" ? "Updated published lineup" : "Published lineup") : "Saved lineup draft",
         { adminOverride }
       );
+      return shouldPublish && existingStatus !== "Published";
     });
 
+    if (notificationCreated) scheduleNotificationPush();
     const payload = await loadLineupPayload(teamId, fixtureId, { ignorePlayUpLimit: adminOverride });
     return NextResponse.json({ ok: true, ...payload, canManage: true });
   } catch (error) {

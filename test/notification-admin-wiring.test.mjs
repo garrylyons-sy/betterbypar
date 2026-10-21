@@ -19,7 +19,9 @@ test('Notifications has its own admin navigation section with role audience and 
   assert.match(panel,/League Chair/);
   assert.match(panel,/matchReminderHours/);
   assert.match(panel,/lineupReminderHours/);
-  assert.match(panel,/ladderReminderHours/);
+  assert.doesNotMatch(panel,/ladderReminderHours/);
+  assert.match(panel,/lineup_published/);
+  assert.match(panel,/match_result/);
   assert.match(panel,/quietStart/);
 });
 test('scheduled notification worker requires secret and is registered', () => {

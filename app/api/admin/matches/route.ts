@@ -389,7 +389,7 @@ export async function PATCH(request: NextRequest) {
       );
 
       if (dateChanged || teamsChanged || (status && status !== fixture.status)) {
-        await notifyFixtureChanged(client, fixtureId, [fixture.home_team_id, fixture.away_team_id]);
+        await notifyFixtureChanged(client, fixtureId, [fixture.home_team_id, fixture.away_team_id], undefined, dateChanged ? "rescheduled" : teamsChanged ? "teams" : "updated");
       }
       return { matchId, notificationCreated: Boolean(dateChanged || teamsChanged || (status && status !== fixture.status)) };
     });
