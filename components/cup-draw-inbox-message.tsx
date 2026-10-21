@@ -20,5 +20,6 @@ export function CupDrawInboxMessage({body,onOpen}:{body:string;onOpen:()=>void})
         {draw.notes.map((note,i)=><p key={i} className="whitespace-pre-wrap text-slate-600">{note}</p>)}
       </div>
     </details>
+    {draw.footer?<p className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500">{draw.footer}</p>:null}
   </div>;
 }

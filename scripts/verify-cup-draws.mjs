@@ -1,3 +1,4 @@
+import * as cupInbox from '../lib/cup-draw-inbox.mjs';
 import * as presentation from '../lib/cup-draw-presentation.mjs';
 // Exercises actual draw workflow + fixture publication in one rolled-back transaction.
 import fs from 'node:fs';
@@ -12,7 +13,7 @@ const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauth
 const client=await pool.connect();
 function load(file,deps){const compiled=ts.transpileModule(fs.readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const api={};new Function('require','exports',compiled)(name=>name==='@/lib/cup-draw-presentation.mjs'?presentation:deps[name]??require(name),api);return api;}
 const publication=load('../lib/server/cup-competitions.ts',{});
-const notificationCore=load('../lib/server/notifications.ts',{'@/lib/notification-policy.mjs':policy,'@/lib/server/db':{dbQuery:(...args)=>client.query(...args),withTransaction:fn=>fn(client)}});
+const notificationCore=load('../lib/server/notifications.ts',{'@/lib/cup-draw-inbox.mjs':cupInbox,'@/lib/notification-policy.mjs':policy,'@/lib/server/db':{dbQuery:(...args)=>client.query(...args),withTransaction:fn=>fn(client)}});
 const cupNotifications=load('../lib/server/cup-draw-notifications.ts',{'@/lib/server/notifications':notificationCore,'@/lib/cup-draw-notification-policy.mjs':cupPolicy});
 const workflow=load('../lib/server/cup-draw-workflow.ts',{'@/lib/server/cup-draw-notifications':cupNotifications,'@/lib/cup-draw-notification-policy.mjs':cupPolicy,'@/lib/server/cup-draw.mjs':draw,'@/lib/server/cup-competitions':publication});
 try{
@@ -80,7 +81,22 @@ try{
  assert.equal((await client.query('select count(*)::int as n from public.app_notification where event_key=$1',[eventKey])).rows[0].n,notices.length);
  assert.equal((await client.query('select count(*)::int as n from public.notification_push_delivery d join public.app_notification n on n.id=d.notification_id where n.event_key=$1 and n.person_id=$2',[eventKey,manager])).rows[0].n,1);
  assert.deepEqual(confirmed.notification_audience,['chairs','admins','managers','players']);assert.equal(confirmed.notification_summary.notified,notices.length);
+ // Footer enrichment for an existing saved message is read-only.
+ assert.match(managerNotice.body,/Draw made at .*witnessed by Test Witness/);
+ await client.query("update public.app_notification set body=split_part(body,E'\\n\\nDraw made at ',1) where id=$1",[managerNotice.id]);
+ const legacyView=await notificationCore.loadNotificationInbox(manager);
+ assert.match(legacyView.items.find(n=>n.id===managerNotice.id).body,/Draw made at .*witnessed by Test Witness/);
+ assert.equal((await client.query("select position('Draw made at ' in body) as footer from public.app_notification where id=$1",[managerNotice.id])).rows[0].footer,0);
+ // Deleting somebody else's ID changes nothing; owner deletion hides without removing history.
+ await notificationCore.dismissNotification(admin,managerNotice.id);
+ assert.equal((await client.query('select inbox_visible from public.app_notification where id=$1',[managerNotice.id])).rows[0].inbox_visible,true);
+ await notificationCore.dismissNotification(manager,managerNotice.id);
+ const hidden=(await client.query('select inbox_visible,read_at,expires_at<=clock_timestamp() as expired from public.app_notification where id=$1',[managerNotice.id])).rows[0];
+ assert.equal(hidden.inbox_visible,false);assert.ok(hidden.read_at);assert.equal(hidden.expired,true);
+ assert.equal((await notificationCore.loadNotificationInbox(manager)).items.some(n=>n.id===managerNotice.id),false);
+ assert.equal((await client.query('select status from public.notification_push_delivery where notification_id=$1',[managerNotice.id])).rows[0].status,'Skipped');
+ assert.equal((await client.query('select inbox_visible from public.app_notification where event_key=$1 and person_id=$2',[eventKey,player])).rows[0].inbox_visible,true);
  const privileges=(await client.query("select has_table_privilege('anon','public.cup_draw_attempt','select') as anon_read,has_table_privilege('authenticated','public.cup_draw_attempt','select') as auth_read")).rows[0];
  assert.equal(privileges.anon_read,false);assert.equal(privileges.auth_read,false);
- console.log('Verified provisional draw, redraw history, byes, reveal retries, saved-pairing confirmation, fixture publication, failed-confirmation rollback, private history access, optional scoped audiences, inactive accounts, opt-outs, deduplication, durable push queue and confirmed lock. All changes rolled back.');
+ console.log('Verified provisional draw, redraw history, byes, reveal retries, saved-pairing confirmation, fixture publication, failed-confirmation rollback, private history access, optional scoped audiences, inactive accounts, opt-outs, deduplication, durable push queue, witness footers, owner-scoped inbox deletion, retained history, cancelled pending push and confirmed lock. All changes rolled back.');
 }finally{await client.query('rollback');client.release();await pool.end();}

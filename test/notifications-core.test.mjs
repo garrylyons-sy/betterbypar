@@ -1,3 +1,4 @@
+import * as cupInbox from '../lib/cup-draw-inbox.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,7 +10,7 @@ function server(query) {
  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const exports={};
  const db={dbQuery:query,withTransaction:callback=>callback({query})};
- new Function('require','exports',compiled)(name=>name.includes('notification-policy')?policy:db,exports);
+ new Function('require','exports',compiled)(name=>name.endsWith('cup-draw-inbox.mjs')?cupInbox:name.includes('notification-policy')?policy:db,exports);
  return exports;
 }
 function handler(overrides={}) {
@@ -300,4 +301,19 @@ test('schedule revision changes reminder identity even when fixture-change notif
  };
  await server(query).processNotificationReminders();revision=2;await server(query).processNotificationReminders();
  const keys=base.calls.filter(c=>c.sql.includes('insert into public.app_notification')).map(c=>c.args[5]);assert.equal(keys.length,2);assert.equal(new Set(keys).size,2);
+});
+test('deleting an inbox message scopes to its owner, hides it and suppresses pending phone delivery',async()=>{
+ const {query,calls}=handler();await server(query).dismissNotification('person-a','notice-a');
+ const write=calls.find(c=>c.sql.includes('set inbox_visible=false'));assert.deepEqual(write.args,['person-a','notice-a']);assert.match(write.sql,/person_id=\$1 and id=\$2/);assert.match(write.sql,/read_at=coalesce/);assert.match(write.sql,/expires_at=/);assert.doesNotMatch(write.sql,/delete from/i);
+});
+test('existing cup inbox messages receive saved draw time and witness with no extra source read or database rewrite',async()=>{
+ const base=handler();let sourceReads=0;
+ const query=async(sql,args)=>{
+ if(sql.startsWith('select id,type,title'))return {rows:[{id:'cup-notice',type:'cup_draw',title:'Draw',body:'Cup confirmed.',href:'/?notifications=1',event_key:`cup-draw:${fixtureId}:${challengeId}`,createdAt:new Date(),readAt:null,expires_at:null}]};
+ if(sql.includes('from public.cup_draw_attempt')){sourceReads++;return {rows:[{drawnAt:new Date('2026-10-21T15:22:00Z'),witnessName:'Pat Witness'}]};}
+ if(sql.includes('count(*)::integer'))return {rows:[{count:1}]};
+ return base.query(sql,args);
+ };
+ const inbox=await server(query).loadNotificationInbox('chair');assert.match(inbox.items[0].body,/Draw made at .*16:22.*witnessed by Pat Witness/);assert.equal(sourceReads,1);
+ assert.equal(base.calls.some(c=>c.sql.includes('update public.app_notification')),false);
 });

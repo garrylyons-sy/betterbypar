@@ -1,3 +1,4 @@
+import * as cupInbox from '../lib/cup-draw-inbox.mjs';
 // Real SQL verification with all changes rolled back and no push dispatcher.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
@@ -9,7 +10,7 @@ const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauth
 const client=await pool.connect();
 const db={dbQuery:(sql,args)=>client.query(sql,args),withTransaction:fn=>fn(client)};
 const compiled=ts.transpileModule(fs.readFileSync(new URL('../lib/server/notifications.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-const core={};new Function('require','exports',compiled)(name=>name.endsWith('notification-policy.mjs')?policy:db,core);
+const core={};new Function('require','exports',compiled)(name=>name.endsWith('cup-draw-inbox.mjs')?cupInbox:name.endsWith('notification-policy.mjs')?policy:db,core);
 try{
  await client.query('begin');
  const initial=await core.loadNotificationConfig(client);

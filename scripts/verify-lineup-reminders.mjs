@@ -1,3 +1,4 @@
+import * as cupInbox from '../lib/cup-draw-inbox.mjs';
 // Actual scheduling, source freshness and publication SQL; no push dispatcher and all writes rolled back.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
@@ -7,7 +8,7 @@ import * as policy from '../lib/notification-policy.mjs';
 for(const file of ['.env.local','.env'])if(fs.existsSync(file))for(const line of fs.readFileSync(file,'utf8').split(/\r?\n/)){const m=line.match(/^([A-Z_][A-Z_0-9]*)=(.*)$/);if(m&&!process.env[m[1]])process.env[m[1]]=m[2].replace(/^["']|["']$/g,'');}
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false},connectionTimeoutMillis:10000});const client=await pool.connect();
 const source=ts.transpileModule(fs.readFileSync(new URL('../lib/server/notifications.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-const core={};new Function('require','exports',source)(name=>name.includes('notification-policy')?policy:{dbQuery:(...args)=>client.query(...args),withTransaction:fn=>fn(client)},core);
+const core={};new Function('require','exports',source)(name=>name.endsWith('cup-draw-inbox.mjs')?cupInbox:name.includes('notification-policy')?policy:{dbQuery:(...args)=>client.query(...args),withTransaction:fn=>fn(client)},core);
 try{
  await client.query('begin');
  const initial=await core.loadNotificationConfig(client);

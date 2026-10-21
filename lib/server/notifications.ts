@@ -1,9 +1,11 @@
+import { withCupDrawWitness } from "@/lib/cup-draw-inbox.mjs";
 import type { PoolClient } from "pg";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import { notificationPreferenceType, lineupReminderTiming, isNotificationWithinLifetime, normalizeNotificationConfig, normalizeNotificationPreferences, validateNotificationConfig, validateNotificationPreferences, isNotificationEligible, safeNotificationHref, fixtureEventKey, type Config, type NotificationType } from "@/lib/notification-policy.mjs";
 
 type Queryable = Pick<PoolClient, "query">;
 const database = { query: dbQuery } as Queryable;
+const cupDrawSourceSql=`select da.created_at as "drawnAt",da.witness_name as "witnessName" from public.cup_draw_attempt da join public.cup_competition cc on cc.id=da.competition_id where da.competition_id=$1 and da.id=$2 and da.status='Confirmed' and cc.status in ('In Progress','Complete')`;
 export async function loadNotificationConfig(client: Queryable = database): Promise<Config> {
  const {rows}=await client.query('select config from public.notification_config where singleton = true');
  return normalizeNotificationConfig(rows[0]?.config);
@@ -41,7 +43,15 @@ export async function loadNotificationInbox(personId:string) {
  for(let offset=0;offset<rows.length;offset+=5){
  const checked=await Promise.all(rows.slice(offset,offset+5).map(async item=>({item,current:await notificationSourceIsCurrent(item.id,personId,sourceClient,item,access.config.retentionDays)})));
  for(const {item,current} of checked){
- if(current){const {event_key: _eventKey,expires_at: _expiresAt,...visible}=item;currentRows.push(visible);}
+ if(current){
+ const {event_key: _eventKey,expires_at: _expiresAt,...visible}=item;
+ const cup=/^cup-draw:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(item.event_key);
+ if(cup&&!/(?:^|\n)Draw made at /.test(visible.body)){
+ const metadata=await sourceClient.query(cupDrawSourceSql,[cup[1],cup[2]]);
+ visible.body=withCupDrawWitness(visible.body,metadata.rows[0]);
+ }
+ currentRows.push(visible);
+ }
  else staleIds.push(item.id);
  }
  }
@@ -58,6 +68,14 @@ export async function saveNotificationPreferences(personId:string,input:unknown)
 export async function markNotificationsRead(personId:string,id?:string) {
  if(!(await notificationAccess(personId)).eligible)throw new Error('Notification access required.');
  await dbQuery(`update public.app_notification set read_at=coalesce(read_at,now()) where person_id=$1 and ($2::uuid is null or id=$2::uuid)`,[personId,id??null]);
+}
+export async function dismissNotification(personId:string,id:string) {
+ if(!(await notificationAccess(personId)).eligible)throw new Error('Notification access required.');
+ await dbQuery(`with dismissed as (
+ update public.app_notification set inbox_visible=false,read_at=coalesce(read_at,now()),expires_at=least(coalesce(expires_at,now()),now())
+ where person_id=$1 and id=$2::uuid returning id
+ ) update public.notification_push_delivery set status='Skipped',last_error=null,locked_at=null
+ where notification_id in(select id from dismissed) and status='Pending'`,[personId,id]);
 }
 export type NotificationEvent={type:NotificationType;title:string;body:string;href:string;eventKey:string;expiresAt?:string|Date|null};
 export async function createNotification(client:Queryable,personId:string,event:NotificationEvent) {
@@ -171,7 +189,7 @@ export async function notificationSourceIsCurrent(notificationId:string,personId
  if(n.expires_at&&new Date(n.expires_at).getTime()<=Date.now())return false;
  const cupDraw=/^cup-draw:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(n.event_key);
  if(cupDraw){
-  const source=await client.query(`select 1 from public.cup_draw_attempt da join public.cup_competition cc on cc.id=da.competition_id where da.competition_id=$1 and da.id=$2 and da.status='Confirmed' and cc.status in ('In Progress','Complete')`,[cupDraw[1],cupDraw[2]]);
+  const source=await client.query(cupDrawSourceSql,[cupDraw[1],cupDraw[2]]);
   return Boolean(source.rows.length);
  }
  const publication=/^lineup-published:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(n.event_key);

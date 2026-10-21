@@ -25,7 +25,7 @@ where p.active and exists(select 1 from public.user_account ua where ua.person_i
  and p.id in(select person_id from recipients) order by p.id`;
 
 export async function notifyCupDrawConfirmed(client:Queryable,competitionId:string,attemptId:string){
- const {rows}=await client.query(`select da.snapshot,da.notification_audience,cc.name from public.cup_draw_attempt da join public.cup_competition cc on cc.id=da.competition_id where da.id=$1 and da.competition_id=$2 and da.status='Confirmed' and cc.status in ('In Progress','Complete')`,[attemptId,competitionId]);
+ const {rows}=await client.query(`select da.snapshot,da.notification_audience,da.created_at as drawn_at,da.witness_name,cc.name from public.cup_draw_attempt da join public.cup_competition cc on cc.id=da.competition_id where da.id=$1 and da.competition_id=$2 and da.status='Confirmed' and cc.status in ('In Progress','Complete')`,[attemptId,competitionId]);
  const draw=rows[0];
  if(!draw)throw new Error('Only a confirmed cup draw can be notified.');
  const audience=validateCupDrawAudience(draw.notification_audience);
@@ -41,6 +41,6 @@ export async function notifyCupDrawConfirmed(client:Queryable,competitionId:stri
  ) insert into public.notification_push_delivery(notification_id,subscription_id)
  select n.id,s.id from inserted n join recipients r on r."personId"=n.person_id and r.push
  join public.notification_push_subscription s on s.person_id=n.person_id and s.active on conflict do nothing`,
- [JSON.stringify(recipients),cupDrawMessage(draw.name,draw.snapshot),`cup-draw:${competitionId}:${attemptId}`]);
+ [JSON.stringify(recipients),cupDrawMessage(draw.name,draw.snapshot,{drawnAt:draw.drawn_at,witnessName:draw.witness_name}),`cup-draw:${competitionId}:${attemptId}`]);
  return summary;
 }

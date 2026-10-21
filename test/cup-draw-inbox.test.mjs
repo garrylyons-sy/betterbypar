@@ -24,3 +24,10 @@ test('draw card starts collapsed, separates pairings and dates, and opening it m
  function find(node){if(!node||typeof node!=='object')return null;if(node.type==='details')return node;for(const child of React.Children.toArray(node.props?.children)){const result=find(child);if(result)return result;}return null;}
  const details=find(tree);details.props.onToggle({currentTarget:{open:false}});assert.equal(opened,0);details.props.onToggle({currentTarget:{open:true}});assert.equal(opened,1);
 });
+test('draw footer uses actual draw time in Ireland and the saved witness without duplication',()=>{
+ const footer=inbox.withCupDrawWitness(body,{drawnAt:'2026-10-21T15:22:00Z',witnessName:'Pat Witness'});
+ assert.match(footer,/Draw made at .*21 October 2026.*16:22.*witnessed by Pat Witness/);
+ assert.equal(inbox.withCupDrawWitness(footer,{drawnAt:'2026-10-21T15:22:00Z',witnessName:'Pat Witness'}),footer);
+ const view=cupDrawInboxContent(footer);assert.match(view.footer,/witnessed by Pat Witness/);assert.equal(view.notes.length,0);
+ assert.equal(inbox.withCupDrawWitness(body,{}),body);
+});

@@ -53,3 +53,12 @@ test('person summary is compact, read only and folds saved category preferences 
   const console=readFileSync(new URL('../components/admin-console.tsx',import.meta.url),'utf8');
   assert.match(console,/canManageLeagueChair \? <AdminPersonNotifications key=\{person.personId\} personId=\{person.personId\}/);
 });
+
+test('admin person summary shows only active alert types and omits retired or globally disabled rows',()=>{
+ const data={eligible:true,enabled:true,activeAccount:true,preferences:policy.defaultNotificationPreferences,enabledTypes:['announcement','match_reminder','cup_draw'],devices:1,pushReady:true};
+ let index=0;
+ const component=compile('../components/admin-person-notifications.tsx',{'react':{useEffect(){},useState:()=>index++===0?[{personId:id,data,error:''},()=>{}]:[0,()=>{}]}});
+ const html=require('react-dom/server').renderToStaticMarkup(component.AdminPersonNotifications({personId:id}));
+ assert.match(html,/Announcements &amp; cup draws/);
+ assert.doesNotMatch(html,/disabled globally|Match reminders|Ladder deadline|Fixture changes|Opponents published|Team publication deadlines|Ladder challenges|Match results/);
+});
