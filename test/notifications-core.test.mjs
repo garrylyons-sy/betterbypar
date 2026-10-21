@@ -83,7 +83,7 @@ test('ladder creation hooks target actual challenged person and response targets
  assert.match(source,/notifyLadderChallenge\(client, row.id, \[row.challenger_person_id\], "accepted"\)/);
 });
 test('reminders reach managers of unpublished teams only and never broadcast ladder deadlines',async()=>{
- const base=handler();const calls=base.calls;const kickoff=new Date(Date.now()+2*3600000);
+ const base=handler();const calls=base.calls;const kickoff=new Date(Date.now()+2.5*3600000);
  const query=async(sql,args=[])=>{
  if(sql.includes("where f.status='Scheduled'")) {calls.push({sql,args});return {rows:[{id:'fixture',home_team_id:'home',away_team_id:'away',home_name:'Home',away_name:'Away',fixture_date:kickoff,kickoff}]};}
  if(sql.includes('select team_id from public.fixture_lineup')){calls.push({sql,args});return {rows:[{team_id:'home'}]};}
@@ -92,10 +92,10 @@ test('reminders reach managers of unpublished teams only and never broadcast lad
  };
  await server(query).processNotificationReminders();
  const recipients=calls.filter(c=>c.sql.includes('select distinct person_id from ('));
- assert.deepEqual(recipients.map(c=>c.args),[[['home','away'],['Player','Manager']],[['away'],['Manager']]]);
- assert.ok(recipients.every(c=>c.sql.includes("where role='League Chair'")));
+ assert.deepEqual(recipients.map(c=>c.args),[[['away'],['Manager']]]);
+ assert.ok(recipients.every(c=>!c.sql.includes("where role='League Chair'")));
  const inserted=calls.filter(c=>c.sql.includes('insert into public.app_notification'));
- assert.equal(inserted.length,2);assert.ok(inserted.every(c=>c.args[0]==='chair'));
+ assert.equal(inserted.length,1);assert.ok(inserted.every(c=>c.args[0]==='chair'));
 });
 test('fixture changes and completed ladders invalidate stale pending notifications',async()=>{
  const {query,calls}=handler();await server(query).expireLadderNotifications({query},'challenge-a');
@@ -141,12 +141,14 @@ test('lineup publication expires only recipients with no remaining unpublished s
  assert.deepEqual(updated.args,[`fixture:${fixtureId}:%`,remaining]);assert.match(updated.sql,/not\(person_id=any\(\$2::uuid\[\]\)\)/);
  }
 });
-test('source freshness rejects rescheduled/completed fixtures and published lineup reminders',async()=>{
- for(const variant of ['changed-date','completed','published','current']){
+test('source freshness rejects rescheduled/completed fixtures, published teams and changed deadlines',async()=>{
+ const kickoff=new Date(Date.now()+2.5*3600000),team='33333333-3333-4333-8333-333333333333',deadline=new Date(kickoff.getTime()-2*3600000);
+ for(const variant of ['changed-date','completed','published','deadline-changed','current']){
  const query=async(sql)=>{
- if(sql.startsWith('select type,event_key'))return {rows:[{type:'lineup_reminder',event_key:`fixture:${fixtureId}:${future.toISOString()}:lineup_reminder:initial`,expires_at:future}]};
- if(sql.includes('select f.*'))return {rows:[{id:fixtureId,fixture_date:variant==='changed-date'?new Date(future.getTime()+3600000):future,kickoff:future,status:variant==='completed'?'Completed':'Scheduled',home_team_id:'home',away_team_id:'away'}]};
- if(sql.startsWith('select team_id'))return {rows:variant==='published'?[{team_id:'home'},{team_id:'away'}]:[]};
+ if(sql.startsWith('select type,event_key'))return {rows:[{type:'lineup_reminder',event_key:`fixture:${fixtureId}:${kickoff.toISOString()}:lineup_reminder:schedule:0:team:${team}:deadline:${deadline.toISOString()}`,expires_at:deadline}]};
+ if(sql.includes('select f.*'))return {rows:[{id:fixtureId,fixture_date:variant==='changed-date'?new Date(kickoff.getTime()+3600000):kickoff,kickoff,status:variant==='completed'?'Completed':'Scheduled',home_team_id:team,away_team_id:'away'}]};
+ if(sql==='select config from public.notification_config where singleton = true')return {rows:[{config:{...policy.defaultNotificationConfig,lineupDeadlineHours:variant==='deadline-changed'?3:2}}]};
+ if(sql.startsWith('select team_id'))return {rows:variant==='published'?[{team_id:team}]:[]};
  if(sql.includes('select distinct person_id'))return {rows:[{person_id:'manager'}]};
  return {rows:[]};
  };
@@ -169,9 +171,9 @@ test('received ladder notification expires exactly at response deadline',async()
  assert.equal(base.calls.find(c=>c.sql.includes('insert into public.app_notification')).args[6],future);
 });
 test('manager reminder links include their specific team, club and role and schedule revision changes identity',async()=>{
- const base=handler();
+ const base=handler();const kickoff=new Date(Date.now()+2.5*3600000);
  const query=async(sql,args=[])=>{
- if(sql.includes("where f.status='Scheduled'"))return {rows:[{id:fixtureId,fixture_date:future,kickoff:future,status:'Scheduled',home_team_id:'home',away_team_id:'away'}]};
+ if(sql.includes("where f.status='Scheduled'"))return {rows:[{id:fixtureId,fixture_date:kickoff,kickoff,status:'Scheduled',notification_schedule_revision:2,home_team_id:'home',away_team_id:'away'}]};
  if(sql.includes("select event_key from public.app_notification"))return {rows:[{event_key:'schedule-revision-2'}]};
  if(sql.includes('select distinct person_id'))return {rows:[{person_id:'manager'}]};
  if(sql.startsWith('select t.name'))return {rows:[{name:'Team B',club_name:'Club B',role:'Manager'}]};
@@ -180,22 +182,23 @@ test('manager reminder links include their specific team, club and role and sche
  await server(query).processNotificationReminders();
  const saved=base.calls.filter(c=>c.sql.includes('insert into public.app_notification'));
  assert.equal(saved.length,2);
- for(const call of saved){const url=new URL(call.args[4],'https://app.test');assert.equal(url.searchParams.get('team'),'Team B');assert.equal(url.searchParams.get('club'),'Club B');assert.equal(url.searchParams.get('role'),'Manager');assert.ok(call.args[5].endsWith(':schedule-revision-2'));}
+ for(const call of saved){const url=new URL(call.args[4],'https://app.test');assert.equal(url.searchParams.get('team'),'Team B');assert.equal(url.searchParams.get('club'),'Club B');assert.equal(url.searchParams.get('role'),'Manager');assert.ok(call.args[5].includes(':schedule:2:team:'));}
 });
 test('inbox reuses preloaded notification rows and caches identical source reads per request',async()=>{
+ const kickoff=new Date(Date.now()+2.5*3600000),team='33333333-3333-4333-8333-333333333333',deadline=new Date(kickoff.getTime()-2*3600000);
  const base=handler();let fixtureReads=0,lineupReads=0,recipientReads=0,notificationReloads=0;
- const items=Array.from({length:20},(_,i)=>({id:`item-${i}`,type:'lineup_reminder',title:'Lineup',body:'Due',href:'/',event_key:`fixture:${fixtureId}:${future.toISOString()}:lineup_reminder:revision-${i}`,expires_at:future,createdAt:future,readAt:null}));
+ const items=Array.from({length:20},(_,i)=>({id:`item-${i}`,type:'lineup_reminder',title:'Lineup',body:'Due',href:'/',event_key:`fixture:${fixtureId}:${kickoff.toISOString()}:lineup_reminder:schedule:${i}:team:${team}:deadline:${deadline.toISOString()}`,expires_at:deadline,createdAt:new Date(),readAt:null}));
  const query=async(sql,args=[])=>{
  if(sql.startsWith('select id,type,title'))return {rows:items};
  if(sql.startsWith('select type,event_key'))notificationReloads++;
- if(sql.includes('select f.*')){fixtureReads++;return {rows:[{id:fixtureId,fixture_date:future,kickoff:future,status:'Scheduled',home_team_id:'home',away_team_id:'away'}]};}
+ if(sql.includes('select f.*')){fixtureReads++;return {rows:[{id:fixtureId,fixture_date:kickoff,kickoff,status:'Scheduled',notification_schedule_revision:19,home_team_id:team,away_team_id:'away'}]};}
  if(sql.startsWith('select team_id')){lineupReads++;return {rows:[]};}
  if(sql.includes('select distinct person_id')){recipientReads++;return {rows:[{person_id:'manager'}]};}
- if(sql.startsWith('select count(*)::integer'))return {rows:[{count:20}]};
+ if(sql.startsWith('select count(*)::integer'))return {rows:[{count:1}]};
  return base.query(sql,args);
  };
  const result=await server(query).loadNotificationInbox('manager');
- assert.equal(result.items.length,20);assert.equal(result.unreadCount,20);
+ assert.equal(result.items.length,1);assert.equal(result.unreadCount,1);
  assert.equal(fixtureReads,1);assert.equal(lineupReads,1);assert.equal(recipientReads,1);assert.equal(notificationReloads,0);
  assert.ok(result.items.every(item=>!('event_key' in item)&&!('expires_at' in item)));
 });
@@ -262,4 +265,39 @@ test('cup draw notices remain current only while their confirmed source exists',
   const api=server(async sql=>sql.includes('from public.cup_draw_attempt')?{rows:current?[{exists:1}]:[]}:{rows:[{type:'cup_draw',event_key:`cup-draw:${fixtureId}:${challengeId}`,expires_at:null}]});
   assert.equal(await api.notificationSourceIsCurrent('notice','chair'),current);
  }
+});
+test('only unpublished-team managers are reminded in the hour before the configured deadline',async()=>{
+ for(const enabled of [true,false]){
+  const config={...policy.defaultNotificationConfig,lineupDeadlineHours:2,eligibleRoles:['Manager'],enabledTypes:enabled?['lineup_reminder']:[]};
+  const base=handler({config,roles:['Manager']});const kickoff=new Date(Date.now()+2.5*3600000);
+  const query=async(sql,args=[])=>{
+   if(sql.includes("where f.status='Scheduled'")){base.calls.push({sql,args});return {rows:[{id:fixtureId,home_team_id:'home',away_team_id:'away',home_name:'Home',away_name:'Away',fixture_date:kickoff,kickoff}]};}
+   if(sql.includes('select team_id from public.fixture_lineup'))return {rows:[{team_id:'home'}]};
+   if(sql.includes('select distinct person_id from (')){base.calls.push({sql,args});return {rows:[{person_id:'manager'}]};}
+   return base.query(sql,args);
+  };
+  await server(query).processNotificationReminders();
+  const writes=base.calls.filter(c=>c.sql.includes('insert into public.app_notification'));assert.equal(writes.length,enabled?1:0);
+  if(enabled){const saved=writes[0];assert.equal(saved.args[1],'lineup_reminder');assert.match(saved.args[3],/You need to publish your team by/);assert.match(saved.args[3],/Away/);assert.equal(new Date(saved.args[6]).getTime(),kickoff.getTime()-2*3600000);
+   const audience=base.calls.find(c=>c.sql.includes('select distinct person_id from ('));assert.deepEqual(audience.args,[['away'],['Manager']]);assert.doesNotMatch(audience.sql,/where role='League Chair'/);
+  }
+ }
+});
+
+test('old match and obsolete lineup reminders cannot return to the inbox or phone queue',async()=>{
+ for(const type of ['match_reminder','lineup_reminder']){
+ const api=server(async()=>({rows:[{type,event_key:`fixture:${fixtureId}:${future.toISOString()}:${type}:initial`,expires_at:future}]}));
+ assert.equal(await api.notificationSourceIsCurrent('old','manager'),false);
+ }
+});
+test('schedule revision changes reminder identity even when fixture-change notifications are disabled',async()=>{
+ const base=handler({config:{...policy.defaultNotificationConfig,enabledTypes:['lineup_reminder']}});let revision=0;const kickoff=new Date(Date.now()+2.5*3600000);
+ const query=async(sql,args=[])=>{
+ if(sql.includes("where f.status='Scheduled'"))return {rows:[{id:fixtureId,fixture_date:kickoff,kickoff,home_team_id:'home',away_team_id:'away',home_name:'Home',away_name:'Away',notification_schedule_revision:revision}]};
+ if(sql.startsWith('select team_id'))return {rows:[{team_id:'home'}]};
+ if(sql.includes('select distinct person_id'))return {rows:[{person_id:'manager'}]};
+ return base.query(sql,args);
+ };
+ await server(query).processNotificationReminders();revision=2;await server(query).processNotificationReminders();
+ const keys=base.calls.filter(c=>c.sql.includes('insert into public.app_notification')).map(c=>c.args[5]);assert.equal(keys.length,2);assert.equal(new Set(keys).size,2);
 });

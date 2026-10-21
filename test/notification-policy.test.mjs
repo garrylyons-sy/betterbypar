@@ -102,3 +102,21 @@ test('cup draw category upgrades once and keeps push opt-in and Admin role eligi
  const prefs=p.normalizeNotificationPreferences({version:3,inboxTypes:[],pushTypes:[],pushEnabled:true});assert.ok(prefs.inboxTypes.includes('cup_draw'));assert.equal(prefs.pushTypes.includes('cup_draw'),false);
  assert.equal(p.normalizeNotificationPreferences({...prefs,inboxTypes:[]}).inboxTypes.includes('cup_draw'),false);
 });
+
+test('lineup reminder targets one hour before a configurable publishing deadline and stops at deadline',async()=>{
+ const p=await import('../lib/notification-policy.mjs');
+ const kickoff='2026-10-22T18:30:00Z';
+ const t=p.lineupReminderTiming(kickoff,2,new Date('2026-10-22T15:30:00Z'));
+ assert.equal(t.deadlineAt.toISOString(),'2026-10-22T16:30:00.000Z');assert.equal(t.remindAt.toISOString(),'2026-10-22T15:30:00.000Z');assert.equal(t.due,true);
+ assert.equal(p.lineupReminderTiming(kickoff,2,new Date('2026-10-22T15:29:59Z')).due,false);
+ assert.equal(p.lineupReminderTiming(kickoff,2,new Date('2026-10-22T16:30:00Z')).due,false);
+ assert.equal(p.lineupReminderTiming(kickoff,0.5,new Date('2026-10-22T17:00:00Z')).deadlineAt.toISOString(),'2026-10-22T18:00:00.000Z');
+ assert.equal(p.lineupReminderTiming('invalid',2).due,false);
+});
+test('match reminders are retired even for stored opt-ins and lineup cutoff is validated independently',async()=>{
+ const p=await import('../lib/notification-policy.mjs');
+ const c=p.normalizeNotificationConfig({...config,enabledTypes:['match_reminder','lineup_reminder']});assert.equal(c.enabledTypes.includes('match_reminder'),false);assert.equal(c.lineupDeadlineHours,2);
+ assert.equal(p.normalizeNotificationPreferences({...prefs,inboxTypes:['match_reminder'],pushTypes:['match_reminder']}).pushTypes.includes('match_reminder'),false);
+ for(const value of [-1,169,NaN,'2',null])assert.throws(()=>p.validateNotificationConfig({...config,lineupDeadlineHours:value}),/deadline/i);
+ for(const value of [0,0.5,2,168])assert.equal(p.validateNotificationConfig({...config,lineupDeadlineHours:value}).lineupDeadlineHours,value);
+});

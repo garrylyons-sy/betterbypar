@@ -1,5 +1,5 @@
 export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_reminder' | 'ladder_challenge' | 'announcement' | 'lineup_published' | 'match_result' | 'cup_draw';
-export type Config = {version:4;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
+export type Config = {version:4;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];lineupDeadlineHours:number;matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
 export type Preferences = {version:4;inboxTypes:NotificationType[];pushTypes:NotificationType[];pushEnabled:boolean};
 export const notificationTypes: NotificationType[];
 export const notificationRoles: string[];
@@ -21,3 +21,5 @@ export function isNotificationWithinLifetime(createdAt:string|Date,now?:number,d
 export function pruneNotificationInbox<T extends {items:{createdAt:string;readAt:unknown}[];unreadCount:number;config?:{retentionDays?:number}}>(state:T,now?:number):T;
 
 export function notificationRoleLabel(role:string):string;
+
+export function lineupReminderTiming(kickoff:string|Date,deadlineHours?:number,now?:Date):{deadlineAt:Date;remindAt:Date;due:boolean};

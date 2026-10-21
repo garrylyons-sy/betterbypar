@@ -15,7 +15,7 @@ function worker({eligible=true,read=false,pushEnabled=true,failure,endpointOwned
   const env={VAPID_SUBJECT:'mailto:test@example.com',VAPID_PUBLIC_KEY:key.getPublicKey().toString('base64url'),VAPID_PRIVATE_KEY:key.getPrivateKey().toString('base64url')};
   const updates=[],payloads=[],options=[];let sends=0,claims=0,freshChecks=0,elapsed=0;
   class Clock extends Date {static now(){return Date.now()+elapsed;}}
-  const job={id:'delivery',notification_id:'notification',subscription_id:'device',person_id:'person',endpoint:'https://fcm.googleapis.com/fcm/send/device',p256dh:key.getPublicKey().toString('base64url'),auth:Buffer.alloc(16).toString('base64url'),active:true,type:'match_reminder',title:'Match reminder',body:'Tomorrow',href:'//evil.com',read_at:null,expires_at:null,attempts:1,lock_token:'2026-10-20 12:00:00.123456+00'};
+  const job={id:'delivery',notification_id:'notification',subscription_id:'device',person_id:'person',endpoint:'https://fcm.googleapis.com/fcm/send/device',p256dh:key.getPublicKey().toString('base64url'),auth:Buffer.alloc(16).toString('base64url'),active:true,type:'fixture_change',title:'Fixture updated',body:'Tomorrow',href:'//evil.com',read_at:null,expires_at:null,attempts:1,lock_token:'2026-10-20 12:00:00.123456+00'};
   const dbQuery=async(sql,args)=>{
     if(sql.includes('with due as')){assert.match(sql,/for update skip locked/i);assert.match(sql,/locked_at<now\(\)-interval '10 minutes'/);return {rows:claims++<batches?Array.from({length:jobsPerBatch},(_,i)=>({...job,id:`delivery-${claims}-${i}`})):[]};}
     if(sql.includes('select n.read_at')){freshChecks++;return {rows:[{read_at:read?new Date():null,expires_at:expiresAt,active}]};}

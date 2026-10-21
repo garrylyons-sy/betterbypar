@@ -17,8 +17,8 @@ test('Notifications has its own admin navigation section with role audience and 
   assert.match(file('components/admin-console.tsx'),/props\.tab === "notifications"/);
   assert.match(panel,/eligibleRoles/);
   assert.match(panel,/League Chair/);
-  assert.match(panel,/matchReminderHours/);
-  assert.match(panel,/lineupReminderHours/);
+  assert.doesNotMatch(panel,/matchReminderHours/);
+  assert.match(panel,/lineupDeadlineHours/);
   assert.doesNotMatch(panel,/ladderReminderHours/);
   assert.match(panel,/lineup_published/);
   assert.match(panel,/match_result/);

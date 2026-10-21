@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import { dbQuery, withTransaction } from "@/lib/server/db";
-import { isNotificationWithinLifetime, normalizeNotificationConfig, normalizeNotificationPreferences, validateNotificationConfig, validateNotificationPreferences, isNotificationEligible, safeNotificationHref, fixtureEventKey, type Config, type NotificationType } from "@/lib/notification-policy.mjs";
+import { lineupReminderTiming, isNotificationWithinLifetime, normalizeNotificationConfig, normalizeNotificationPreferences, validateNotificationConfig, validateNotificationPreferences, isNotificationEligible, safeNotificationHref, fixtureEventKey, type Config, type NotificationType } from "@/lib/notification-policy.mjs";
 
 type Queryable = Pick<PoolClient, "query">;
 const database = { query: dbQuery } as Queryable;
@@ -101,6 +101,7 @@ export async function notifyFixtureChanged(client:Queryable,fixtureId:string,pre
  // Preserve current scheduled reminders on venue edits. Only obsolete schedules/status expire.
  await client.query(`update public.app_notification set expires_at=now() where event_key like $1 and type in ('match_reminder','lineup_reminder') and ($3::text <> 'Scheduled' or event_key not like $2) and (expires_at is null or expires_at>now())`,[`fixture:${fixtureId}:%`,`${fixtureEventKey(fixtureId,f.fixture_date)}:%`,f.status]);
  if(f.status==='Completed'){await notifyMatchCompleted(client,fixtureId);return;}
+ if(!changeReason)await client.query('update public.fixture set notification_schedule_revision=notification_schedule_revision+1 where id=$1',[fixtureId]);
  const recipients=await fixtureRecipients(client,[...new Set([...previousTeamIds,f.home_team_id,f.away_team_id])]);
  // Include the previous schedule in the caller's transition key so A->B->A remains a real new change.
  const transition=await client.query("select txid_current()::text as revision");
@@ -119,22 +120,17 @@ export async function processNotificationReminders() {
  return withTransaction(async client=>{
  await client.query("select pg_advisory_xact_lock(hashtext('notification-reminders'))");
  const config=await loadNotificationConfig(client);let created=0;
- if(!config.enabled)return {created};
- const fixtures=await client.query(`select f.*,ht.name as home_name,at.name as away_name,${kickoffSql} as kickoff from public.fixture f join public.team ht on ht.id=f.home_team_id and ht.active join public.team at on at.id=f.away_team_id and at.active where f.status='Scheduled' and ${kickoffSql}>now() and ${kickoffSql}<=now()+($1::text||' hours')::interval`,[Math.max(config.matchReminderHours,config.lineupReminderHours)]);
+ if(!config.enabled||!config.enabledTypes.includes('lineup_reminder'))return {created};
+ const fixtures=await client.query(`select f.*,ht.name as home_name,at.name as away_name,${kickoffSql} as kickoff from public.fixture f join public.team ht on ht.id=f.home_team_id and ht.active join public.team at on at.id=f.away_team_id and at.active where f.status='Scheduled' and ${kickoffSql}>now() and ${kickoffSql}<=now()+($1::text||' hours')::interval`,[config.lineupDeadlineHours+1]);
  for(const f of fixtures.rows){
- // A schedule transition gets a fresh reminder identity, including A -> B -> A.
- const revision=await client.query(`select event_key from public.app_notification where type='fixture_change' and event_key like $1 order by created_at desc limit 1`,[`${fixtureEventKey(f.id,f.fixture_date)}:change:%:schedule`]);
- const scheduleRevision=revision.rows[0]?.event_key??'initial';
- for(const type of ['match_reminder','lineup_reminder'] as const){
- const hours=type==='match_reminder'?config.matchReminderHours:config.lineupReminderHours;
- if(!config.enabledTypes.includes(type)||new Date(f.kickoff).getTime()-Date.now()>hours*3600000)continue;
- let teams=[f.home_team_id,f.away_team_id];
- if(type==='lineup_reminder'){
+ const timing=lineupReminderTiming(f.kickoff,config.lineupDeadlineHours);
+ if(!timing.due)continue;
+ const scheduleRevision=String(f.notification_schedule_revision??0);
  const published=await client.query("select team_id from public.fixture_lineup where fixture_id=$1 and status='Published'",[f.id]);
- teams=teams.filter(t=>!published.rows.some(p=>p.team_id===t));if(!teams.length)continue;
- }
- const recipients=await fixtureRecipients(client,teams,type==='lineup_reminder');
- for(const personId of recipients)if(await createNotification(client,personId,{type,title:type==='match_reminder'?'Upcoming match':'Line up needed',body:type==='match_reminder'?`${f.home_name} v ${f.away_name} starts ${notificationDate(f.kickoff)}.`:`A line up is still needed for ${f.home_name} v ${f.away_name} on ${notificationDate(f.kickoff)}. Open Fixtures to check.`,href:await fixtureRecipientHref(client,f.id,personId,teams,type==='lineup_reminder'),eventKey:`${fixtureEventKey(f.id,f.fixture_date)}:${type}:${scheduleRevision}`,expiresAt:f.kickoff}))created++;
+ for(const teamId of [f.home_team_id,f.away_team_id].filter(id=>!published.rows.some(p=>p.team_id===id))){
+ const teamName=teamId===f.home_team_id?f.home_name:f.away_name;
+ const recipients=await fixtureRecipients(client,[teamId],true,false);
+ for(const personId of recipients)if(await createNotification(client,personId,{type:'lineup_reminder',title:'Publish your team',body:`You need to publish your team by ${notificationDate(timing.deadlineAt)}. ${teamName} — ${f.home_name} v ${f.away_name}.`,href:await fixtureRecipientHref(client,f.id,personId,[teamId],true),eventKey:`${fixtureEventKey(f.id,f.fixture_date)}:lineup_reminder:schedule:${scheduleRevision}:team:${teamId}:deadline:${timing.deadlineAt.toISOString()}`,expiresAt:timing.deadlineAt}))created++;
  }
  }
  return {created};
@@ -155,8 +151,9 @@ export async function refreshFixtureLineupNotifications(client:Queryable,fixture
  const fixture=await client.query('select home_team_id,away_team_id from public.fixture where id=$1',[fixtureId]);if(!fixture.rows[0])return;
  const published=await client.query("select team_id from public.fixture_lineup where fixture_id=$1 and status='Published'",[fixtureId]);
  const missing=[fixture.rows[0].home_team_id,fixture.rows[0].away_team_id].filter(id=>!published.rows.some(p=>p.team_id===id));
- const recipients=missing.length?await fixtureRecipients(client,missing,true):[];
+ const recipients=missing.length?await fixtureRecipients(client,missing,true,false):[];
  await client.query(`update public.app_notification set expires_at=now() where type='lineup_reminder' and event_key like $1 and not(person_id=any($2::uuid[])) and (expires_at is null or expires_at>now())`,[`fixture:${fixtureId}:%`,recipients]);
+ for(const row of published.rows)await client.query(`update public.app_notification set expires_at=now() where type='lineup_reminder' and event_key like $1 and (expires_at is null or expires_at>now())`,[`fixture:${fixtureId}:%:team:${row.team_id}:deadline:%`]);
 }
 export async function expireTerminalLadderNotifications(client:Queryable,ladderId:string) {
  await client.query(`update public.app_notification n set expires_at=now() from public.club_ladder_challenge ch join public.club_ladder l on l.id=ch.ladder_id where ch.ladder_id=$1 and n.event_key like ('ladder:'||ch.id::text||':%') and (not l.active or ch.status in ('Cancelled','Completed','Expired','Walkover')) and (n.expires_at is null or n.expires_at>now())`,[ladderId]);
@@ -165,6 +162,9 @@ type NotificationSource = {type:string;event_key:string;createdAt?:string|Date;e
 export async function notificationSourceIsCurrent(notificationId:string,personId:string,client:Queryable=database,preloaded?:NotificationSource,retentionDays?:number):Promise<boolean> {
  const n=preloaded??(await client.query('select type,event_key,expires_at,created_at as "createdAt" from public.app_notification where id=$1 and person_id=$2',[notificationId,personId])).rows[0];
  if(!n)return false;
+ if(n.type==='match_reminder')return false;
+ const lineupTarget=n.type==='lineup_reminder'?/^fixture:[0-9a-f-]{36}:\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z:lineup_reminder:schedule:(\d+):team:([0-9a-f-]{36}):deadline:(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z)$/.exec(n.event_key):null;
+ if(n.type==='lineup_reminder'&&!lineupTarget)return false;
  if(/^ladder:.*:deadline:/.test(n.event_key))return false;
  if(n.createdAt&&!isNotificationWithinLifetime(n.createdAt,Date.now(),(retentionDays??(await loadNotificationConfig(client)).retentionDays)))return false;
  if(n.expires_at&&new Date(n.expires_at).getTime()<=Date.now())return false;
@@ -191,11 +191,17 @@ export async function notificationSourceIsCurrent(notificationId:string,personId
  if(!f||new Date(f.fixture_date).toISOString()!==fixtureMatch[2])return false;
  if(n.type==='fixture_change')return true;
  if(f.status!=='Scheduled'||new Date(f.kickoff).getTime()<=Date.now())return false;
- let teams=[f.home_team_id,f.away_team_id];
  if(n.type==='lineup_reminder'){
- const published=await client.query("select team_id from public.fixture_lineup where fixture_id=$1 and status='Published'",[f.id]);teams=teams.filter(id=>!published.rows.some(p=>p.team_id===id));if(!teams.length)return false;
+ const target=lineupTarget;
+ if(!target||Number(target[1])!==Number(f.notification_schedule_revision??0)||![f.home_team_id,f.away_team_id].includes(target[2]))return false;
+ const config=await loadNotificationConfig(client);
+ const timing=lineupReminderTiming(f.kickoff,config.lineupDeadlineHours);
+ if(!config.enabledTypes.includes('lineup_reminder')||!timing.due||timing.deadlineAt.toISOString()!==target[3])return false;
+ const published=await client.query("select team_id from public.fixture_lineup where fixture_id=$1 and status='Published'",[f.id]);
+ if(published.rows.some(p=>p.team_id===target[2]))return false;
+ return (await fixtureRecipients(client,[target[2]],true,false)).includes(personId);
  }
- return (await fixtureRecipients(client,teams,n.type==='lineup_reminder')).includes(personId);
+ return false;
  }
  const ladderMatch=/^ladder:([0-9a-f-]{36}):(.*)$/.exec(n.event_key);
  if(ladderMatch){
