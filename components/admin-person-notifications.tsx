@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import type {Preferences,NotificationType} from '@/lib/notification-policy.mjs';
 type Summary={eligible:boolean;enabled:boolean;activeAccount:boolean;preferences:Preferences;enabledTypes:NotificationType[];devices:number;pushReady:boolean};
-const types:{key:NotificationType;label:string}[]=[{key:'lineup_published',label:'Opponents published'},{key:'match_result',label:'Match results'},{key:'announcement',label:'Announcements & cup draws'},{key:'fixture_change',label:'Fixture changes'},{key:'lineup_reminder',label:'Team publication deadlines'},{key:'ladder_challenge',label:'Ladder challenges'}];
+const types:{key:NotificationType;label:string}[]=[{key:'announcement',label:'Announcements & cup draws'},{key:'fixture_change',label:'Fixture changes'},{key:'lineup_reminder',label:'Team publication deadlines'},{key:'ladder_challenge',label:'Ladder challenges'}];
 export function AdminPersonNotifications({personId}:{personId:string}){
   const [state,setState]=useState<{personId:string;data:Summary|null;error:string}|null>(null);
   const [revision,setRevision]=useState(0);

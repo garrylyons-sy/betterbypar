@@ -54,6 +54,13 @@ test('person summary is compact, read only and folds saved category preferences 
   assert.match(console,/canManageLeagueChair \? <AdminPersonNotifications key=\{person.personId\} personId=\{person.personId\}/);
 });
 
+test('transient opponent and result alerts are not exposed as player-managed settings',()=>{
+ const source=readFileSync(new URL('../components/notification-center.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(source,/Completed match results|Opponents published their line up|type: "match_result"|type: "lineup_published"/);
+ const adminSource=readFileSync(new URL('../components/admin-person-notifications.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(adminSource,/key:'match_result'|key:'lineup_published'/);
+});
+
 test('admin person summary shows only active alert types and omits retired or globally disabled rows',()=>{
  const data={eligible:true,enabled:true,activeAccount:true,preferences:policy.defaultNotificationPreferences,enabledTypes:['announcement','match_reminder','cup_draw'],devices:1,pushReady:true};
  let index=0;

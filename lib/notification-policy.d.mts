@@ -2,6 +2,7 @@ export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_rem
 export type Config = {version:4;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];lineupDeadlineHours:number;matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
 export type Preferences = {version:4;inboxTypes:NotificationType[];pushTypes:NotificationType[];pushEnabled:boolean};
 export const notificationTypes: NotificationType[];
+export const transientPushNotificationTypes: NotificationType[];
 export const notificationRoles: string[];
 export const defaultNotificationConfig: Config;
 export const defaultNotificationPreferences: Preferences;

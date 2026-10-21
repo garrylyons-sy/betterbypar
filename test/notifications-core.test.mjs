@@ -213,7 +213,7 @@ test('inbox SQL uses the configured retention for both downloads and unread coun
 });
 
 test('opponent publication alerts target only opposing managers with a fixture link',async()=>{
- const base=handler({config:{...policy.defaultNotificationConfig,eligibleRoles:['Manager']},roles:['Manager'],preferences:{...policy.defaultNotificationPreferences,inboxTypes:['lineup_published']}});
+ const base=handler({config:{...policy.defaultNotificationConfig,eligibleRoles:['Manager']},roles:['Manager'],preferences:{...policy.defaultNotificationPreferences,pushEnabled:true}});
  const query=async(sql,args=[])=>{
   if(sql.includes('select f.*'))return {rows:[{id:fixtureId,home_team_id:'home',away_team_id:'away',home_name:'Castle A',away_name:'Elm Park A',fixture_date:future,kickoff:future,status:'Scheduled',published_at:future}]};
   if(sql.includes('select distinct person_id from (')){base.calls.push({sql,args});return {rows:[{person_id:'opposing-manager'}]};}
@@ -226,9 +226,11 @@ test('opponent publication alerts target only opposing managers with a fixture l
  assert.equal(saved.args[0],'opposing-manager');assert.equal(saved.args[2],'Opponents published');
  assert.equal(saved.args[3],'Castle A have published their line up.');
  assert.match(saved.args[4],/page=Fixtures/);assert.match(saved.args[5],/lineup-published:/);
+ assert.equal(saved.args[7],false);
+ assert.ok(base.calls.some(c=>c.sql.includes('insert into public.notification_push_delivery')));
 });
 test('completed match notifications include the score, target League Chairs and open Results',async()=>{
- const base=handler({preferences:{...policy.defaultNotificationPreferences,inboxTypes:['match_result']}});
+ const base=handler({preferences:{...policy.defaultNotificationPreferences,pushEnabled:true}});
  const query=async(sql,args=[])=>{
   if(sql.includes('select f.*'))return {rows:[{id:fixtureId,status:'Completed',home_name:'Castle A',away_name:'Elm Park A',home_team_score:4,away_team_score:3,league_name:'A League',season_name:'2026/27',fixture_date:future}]};
   if(sql.includes("where role='League Chair'")){base.calls.push({sql,args});return {rows:[{person_id:'chair'}]};}
@@ -237,6 +239,20 @@ test('completed match notifications include the score, target League Chairs and 
  await server(query).notifyMatchCompleted({query},fixtureId);
  const saved=base.calls.find(c=>c.sql.includes('insert into public.app_notification'));
  assert.equal(saved.args[0],'chair');assert.equal(saved.args[2],'Match completed');assert.match(saved.args[3],/Castle A 4–3 Elm Park A/);assert.match(saved.args[4],/page=Results/);
+ assert.equal(saved.args[7],false);
+ assert.ok(base.calls.some(c=>c.sql.includes('insert into public.notification_push_delivery')));
+});
+
+test('the inbox query excludes transient lineup and result alerts, including legacy rows',async()=>{
+ const base=handler();
+ const query=async(sql,args)=>{
+  if(sql.includes('count(*)::integer')){base.calls.push({sql,args});return {rows:[{count:0}]};}
+  return base.query(sql,args);
+ };
+ await server(query).loadNotificationInbox('person-a');
+ const reads=base.calls.filter(c=>c.sql.includes('from public.app_notification'));
+ assert.equal(reads.length,2);
+ for(const read of reads)assert.match(read.sql,/type not in \('lineup_published','match_result'\)/);
 });
 test('ladder deadline messages are no longer generated or considered current',async()=>{
  const base=handler();await server(base.query).processNotificationReminders();

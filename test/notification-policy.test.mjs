@@ -21,6 +21,15 @@ test('push needs opt-in unread unexpired eligible item and independent push cate
  assert.equal(canDeliverPush({...n,expires_at:'2026-10-19T12:00:00Z'},{...prefs,pushEnabled:true},config,['League Chair'],now),false);
  assert.equal(canDeliverPush({...n,expires_at:'invalid'},{...prefs,pushEnabled:true},config,['League Chair'],now),false);
 });
+test('transient match updates are push-only and do not become saved per-type preferences', async()=>{
+ const p=await import('../lib/notification-policy.mjs');
+ for(const type of ['lineup_published','match_result']){
+  const normalized=p.normalizeNotificationPreferences({version:4,inboxTypes:[type,'announcement'],pushTypes:[type,'announcement'],pushEnabled:true});
+  assert.deepEqual(normalized.inboxTypes,['announcement']);
+  assert.deepEqual(normalized.pushTypes,['announcement']);
+  assert.equal(p.canDeliverPush({type,expires_at:'2026-10-21T12:00:00Z'},normalized,{...config,enabledTypes:[type]},['League Chair'],new Date('2026-10-20T12:00:00Z')),true);
+ }
+});
 test('safe destinations and strict config validation',()=>{
  for(const href of ['https://evil.test','//evil.test','/\\evil.test','/x\n']) assert.equal(safeNotificationHref(href),'/');
  assert.equal(safeNotificationHref('/club/ladder?club=Test'),'/club/ladder?club=Test');
@@ -89,7 +98,7 @@ test('new event types upgrade once without expanding existing push opt-ins',asyn
  const old={version:2,enabledTypes:['fixture_change']};const config=normalizeNotificationConfig(old);
  assert.ok(config.enabledTypes.includes('lineup_published'));assert.ok(config.enabledTypes.includes('match_result'));
  const prefs=normalizeNotificationPreferences({version:2,inboxTypes:['fixture_change'],pushTypes:['fixture_change'],pushEnabled:true});
- assert.ok(prefs.inboxTypes.includes('lineup_published'));assert.ok(prefs.inboxTypes.includes('match_result'));assert.deepEqual(prefs.pushTypes,['fixture_change']);
+ assert.equal(prefs.inboxTypes.includes('lineup_published'),false);assert.equal(prefs.inboxTypes.includes('match_result'),false);assert.deepEqual(prefs.pushTypes,['fixture_change']);
  assert.deepEqual(normalizeNotificationPreferences({...prefs,inboxTypes:[]}).inboxTypes,[]);
  assert.deepEqual(normalizeNotificationConfig({...config,enabledTypes:[]}).enabledTypes,[]);
 });
