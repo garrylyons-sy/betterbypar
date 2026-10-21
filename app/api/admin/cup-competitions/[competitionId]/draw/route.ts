@@ -14,7 +14,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ com
     if (!administrator.rowCount) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
     const { competitionId } = await params;
 
-    const body = await request.json();
+    // Older open admin screens sent a bodyless POST to publish a draw immediately.
+    // Require a refresh rather than interpreting that request as any new draw action.
+    const rawBody = await request.text();
+    if (!rawBody.trim()) {
+      return NextResponse.json({ error: "This draw screen is out of date. Refresh the page, then choose Run provisional draw. No fixtures have been published." }, { status: 409 });
+    }
+    let body;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: "Invalid draw request. Refresh the page and try again." }, { status: 400 });
+    }
+    if (!body || Array.isArray(body) || !["draw", "redraw", "reveal", "confirm"].includes(body.action)) {
+      return NextResponse.json({ error: "Invalid draw request. Refresh the page and try again." }, { status: 400 });
+    }
     if (!/^[0-9a-f-]{36}$/i.test(competitionId)) return NextResponse.json({ error: "Invalid competition." }, { status: 400 });
     await withTransaction(async (client) => {
       await changeCupDraw(client, competitionId, user.personId, body);

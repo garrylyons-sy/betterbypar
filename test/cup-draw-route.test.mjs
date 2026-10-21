@@ -20,3 +20,15 @@ test('cup draw route passes the exact attempt and witness to the transaction and
  const r=route({user:{personId:'chair'},admin:true});const response=await r.api.POST(request(),{params:Promise.resolve({competitionId:id})});
  assert.equal(response.status,200);assert.equal(r.changes[0][1],id);assert.equal(r.changes[0][2],'chair');assert.deepEqual(r.changes[0][3],{action:'confirm',attemptId:'attempt-2',witnessName:'Pat'});assert.deepEqual(r.audit[0][1],['chair',id,'confirm','attempt-2']);
 });
+test('old Perform Draw screen receives a refresh instruction without creating or publishing a draw',async()=>{
+ const r=route({user:{personId:'chair'},admin:true});
+ const response=await r.api.POST(new Request('https://app.test/api/draw',{method:'POST'}),{params:Promise.resolve({competitionId:id})});
+ assert.equal(response.status,409,JSON.stringify(response.body));assert.match(response.body.error,/refresh/i);assert.equal(r.changes.length,0);assert.equal(r.audit.length,0);
+});
+test('malformed or incomplete draw requests return a useful error before opening a transaction',async()=>{
+ for(const body of ['{','null','[]','{}','{"action":"publish"}']){
+  const r=route({user:{personId:'chair'},admin:true});
+  const response=await r.api.POST(new Request('https://app.test/api/draw',{method:'POST',body}),{params:Promise.resolve({competitionId:id})});
+  assert.equal(response.status,400);assert.match(response.body.error,/invalid draw request/i);assert.equal(r.changes.length,0);assert.equal(r.audit.length,0);
+ }
+});
