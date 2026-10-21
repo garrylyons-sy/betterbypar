@@ -19,7 +19,8 @@ export async function DELETE(request:Request){
  const user=await currentUser();if(!user)return NextResponse.json({error:'Sign in required.'},{status:401});
  if(!(await notificationAccess(user.personId)).eligible)return NextResponse.json({error:'Notification access required.'},{status:403});
  const body=await request.json();
- if(typeof body?.id!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.id))return NextResponse.json({error:'Choose a notification to delete.'},{status:400});
- await dismissNotification(user.personId,body.id);return NextResponse.json({ok:true});
+ if(body?.allRead!==true&&(typeof body?.id!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.id)))return NextResponse.json({error:'Choose a notification to delete.'},{status:400});
+ if(body.allRead===true&&body.id!==undefined)return NextResponse.json({error:'Choose one notification or all read notifications.'},{status:400});
+ const ids=await dismissNotification(user.personId,body.allRead===true?undefined:body.id);return NextResponse.json({ok:true,ids});
  }catch{return NextResponse.json({error:'Could not delete notification.'},{status:400});}
 }

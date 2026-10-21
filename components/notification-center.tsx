@@ -96,12 +96,13 @@ export function useNotificationCenter(authenticated: boolean) {
       window.removeEventListener("interclub:notification-settings-changed", visibleRefresh);
     };
   }, [authenticated, refresh]);
-  const dismissLocally = useCallback((id: string) => {
+  const dismissLocally = useCallback((ids: string | string[]) => {
+    const removedIds = new Set(Array.isArray(ids) ? ids : [ids]);
     // Ignore refreshes started before the server confirmed this deletion.
     inboxRevision.current += 1;
     setState(previous => {
-      const removed = previous.items.find(item => item.id === id);
-      return { ...previous, items: previous.items.filter(item => item.id !== id), unreadCount: Math.max(0, previous.unreadCount - (removed && !removed.readAt ? 1 : 0)) };
+      const removedUnread = previous.items.filter(item => removedIds.has(item.id) && !item.readAt).length;
+      return { ...previous, items: previous.items.filter(item => !removedIds.has(item.id)), unreadCount: Math.max(0, previous.unreadCount - removedUnread) };
     });
   }, []);
   return { state, setState, panel, setPanel, refresh, dismissLocally, error, setError };
@@ -199,7 +200,7 @@ export function NotificationCenter({ center }: { center: Center }) {
 
   async function markRead(id?: string) {
     const key = id ?? "all";
-    if (pendingReads.current.has(key) || pendingReads.current.has("all")) return;
+    if (pendingDeletes.current.has("all-read") || pendingReads.current.has(key) || pendingReads.current.has("all")) return;
     pendingReads.current.add(key);
     setReadingIds([...pendingReads.current]);
     setError("");
@@ -213,7 +214,7 @@ export function NotificationCenter({ center }: { center: Center }) {
     }
   }
   async function deleteNotification(id: string) {
-    if (pendingDeletes.current.has(id)) return;
+    if (pendingDeletes.current.has(id) || pendingDeletes.current.has("all-read")) return;
     pendingDeletes.current.add(id);
     setDeletingIds([...pendingDeletes.current]);
     setError("");
@@ -225,6 +226,23 @@ export function NotificationCenter({ center }: { center: Center }) {
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Could not delete notification."); }
     finally {
       pendingDeletes.current.delete(id);
+      setDeletingIds([...pendingDeletes.current]);
+    }
+  }
+  async function deleteAllRead() {
+    if (pendingDeletes.current.size || pendingReads.current.size) return;
+    pendingDeletes.current.add("all-read");
+    setDeletingIds([...pendingDeletes.current]);
+    setError("");
+    try {
+      const response = await fetch("/api/notifications", { method: "DELETE", keepalive: true, credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ allRead: true }) });
+      if (!response.ok) throw new Error("Could not delete read notifications. Please try again.");
+      const payload = await response.json() as { ids: string[] };
+      center.dismissLocally(payload.ids);
+      void refresh();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "Could not delete read notifications."); }
+    finally {
+      pendingDeletes.current.delete("all-read");
       setDeletingIds([...pendingDeletes.current]);
     }
   }
@@ -293,8 +311,9 @@ export function NotificationCenter({ center }: { center: Center }) {
     <div ref={scrollContent} className="min-h-0 overflow-y-auto overscroll-contain space-y-4 p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
       {error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
       {panel === "inbox" ? <>
-        <div className="flex flex-wrap justify-between gap-2"><Button size="sm" variant="secondary" onClick={() => setPanel("settings")}><Settings className="h-4 w-4" />Settings</Button><Button size="sm" variant="secondary" disabled={!state.unreadCount || saving} onClick={async () => { setSaving(true); try { await markRead(); } catch (failure) { setError((failure as Error).message); } finally { setSaving(false); } }}><CheckCheck className="h-4 w-4" />Mark all read</Button></div>
-        {!state.items.length ? <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">You’re all caught up. New notifications will appear here.</p> : <ul className="space-y-2">{state.items.map((item) => <li key={item.id} className={`relative rounded-xl border p-3 pr-14 ${item.readAt ? "border-slate-100" : "border-teal-200 bg-teal-50/60"}`}><button type="button" aria-label={`Delete notification: ${item.title}`} title="Delete notification" disabled={deletingIds.includes(item.id)} aria-busy={deletingIds.includes(item.id)} onClick={() => void deleteNotification(item.id)} className="absolute right-1 top-1 grid h-11 w-11 touch-manipulation place-items-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>{item.type === "cup_draw" ? <><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><CupDrawInboxMessage body={item.body} onOpen={() => { if (!item.readAt) void markRead(item.id).catch(() => {}); }}/><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></> : <a href={safeNotificationHref(item.href)} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); if (!item.readAt) void markRead(item.id).catch(() => {}); openNotificationHref(item.href); }} className="block rounded focus-visible:outline focus-visible:outline-2"><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{item.body}</p><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></a>}{!item.readAt ? <button type="button" className="mt-2 inline-flex min-h-11 touch-manipulation items-center rounded-lg px-3 text-sm font-bold text-teal-800 underline disabled:opacity-60" disabled={readingIds.includes(item.id) || readingIds.includes("all")} aria-busy={readingIds.includes(item.id) || readingIds.includes("all")} onClick={() => void markRead(item.id).catch((failure) => setError(failure.message))}>{readingIds.includes(item.id) || readingIds.includes("all") ? "Marking…" : "Mark read"}</button> : null}</li>)}</ul>}
+        <div className="flex flex-wrap justify-between gap-2"><Button size="sm" variant="secondary" onClick={() => setPanel("settings")}><Settings className="h-4 w-4" />Settings</Button><Button size="sm" variant="secondary" disabled={!state.unreadCount || saving || deletingIds.includes("all-read")} onClick={async () => { setSaving(true); try { await markRead(); } catch (failure) { setError((failure as Error).message); } finally { setSaving(false); } }}><CheckCheck className="h-4 w-4" />Mark all read</Button></div>
+        <Button size="sm" variant="ghost" aria-label="Delete all read notifications" disabled={!state.items.length || deletingIds.length > 0 || readingIds.length > 0 || saving} onClick={() => void deleteAllRead()}><Trash2 className="h-4 w-4" />{deletingIds.includes("all-read") ? "Deleting…" : "Delete all read"}</Button>
+        {!state.items.length ? <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">You’re all caught up. New notifications will appear here.</p> : <ul className="space-y-2">{state.items.map((item) => <li key={item.id} className={`relative rounded-xl border p-3 pr-14 ${item.readAt ? "border-slate-100" : "border-teal-200 bg-teal-50/60"}`}><button type="button" aria-label={`Delete notification: ${item.title}`} title="Delete notification" disabled={deletingIds.includes(item.id)} aria-busy={deletingIds.includes(item.id)} onClick={() => void deleteNotification(item.id)} className="absolute right-1 top-1 grid h-11 w-11 touch-manipulation place-items-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>{item.type === "cup_draw" ? <><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><CupDrawInboxMessage body={item.body} onOpen={() => { if (!item.readAt) void markRead(item.id).catch(() => {}); }}/><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></> : <a href={safeNotificationHref(item.href)} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); if (!item.readAt) void markRead(item.id).catch(() => {}); openNotificationHref(item.href); }} className="block rounded focus-visible:outline focus-visible:outline-2"><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{item.body}</p><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></a>}{!item.readAt ? <button type="button" className="mt-2 inline-flex min-h-11 touch-manipulation items-center rounded-lg px-3 text-sm font-bold text-teal-800 underline disabled:opacity-60" disabled={readingIds.includes(item.id) || readingIds.includes("all") || deletingIds.includes("all-read")} aria-busy={readingIds.includes(item.id) || readingIds.includes("all")} onClick={() => void markRead(item.id).catch((failure) => setError(failure.message))}>{readingIds.includes(item.id) || readingIds.includes("all") ? "Marking…" : "Mark read"}</button> : null}</li>)}</ul>}
       </> : draft ? <>
         <p className="text-sm text-slate-600">Choose future inbox alerts and optional phone push separately. Existing inbox items stay available.</p>
         <fieldset className="space-y-2"><legend className="mb-2 font-extrabold">Inbox</legend>{categories.map(({ type, label }) => <label key={type} className="flex min-h-10 items-center gap-3 text-sm"><input type="checkbox" checked={draft.inboxTypes.includes(type)} onChange={() => toggleType("inboxTypes", type)} className="h-4 w-4" />{label}</label>)}</fieldset>

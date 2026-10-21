@@ -96,7 +96,20 @@ try{
  assert.equal((await notificationCore.loadNotificationInbox(manager)).items.some(n=>n.id===managerNotice.id),false);
  assert.equal((await client.query('select status from public.notification_push_delivery where notification_id=$1',[managerNotice.id])).rows[0].status,'Skipped');
  assert.equal((await client.query('select inbox_visible from public.app_notification where event_key=$1 and person_id=$2',[eventKey,player])).rows[0].inbox_visible,true);
+ // Bulk clearing covers all read records, preserving unread and other recipients.
+ const bulkIds=[];
+ for(const read of [true,false])bulkIds.push((await client.query("insert into public.app_notification(person_id,type,title,body,href,event_key,read_at,inbox_visible) values($1,'announcement','Bulk clear test','Test','/?notifications=1',gen_random_uuid()::text,case when $2 then now() else null end,true) returning id",[manager,read])).rows[0].id);
+ await client.query("insert into public.notification_push_delivery(notification_id,subscription_id) select $1,subscription_id from public.notification_push_delivery where notification_id=$2",[bulkIds[0],managerNotice.id]);
+ const cleared=await notificationCore.dismissNotification(manager);
+ assert.deepEqual(cleared,[bulkIds[0]]);
+ const bulkRows=(await client.query('select id,inbox_visible,read_at from public.app_notification where id=any($1::uuid[])',[bulkIds])).rows;
+ assert.equal(bulkRows.find(n=>n.id===bulkIds[0]).inbox_visible,false);
+ assert.equal(bulkRows.find(n=>n.id===bulkIds[1]).inbox_visible,true);
+ assert.equal(bulkRows.find(n=>n.id===bulkIds[1]).read_at,null);
+ assert.equal((await client.query('select status from public.notification_push_delivery where notification_id=$1',[bulkIds[0]])).rows[0].status,'Skipped');
+ assert.equal((await client.query('select inbox_visible from public.app_notification where event_key=$1 and person_id=$2',[eventKey,player])).rows[0].inbox_visible,true);
+ assert.deepEqual(await notificationCore.dismissNotification(manager),[]);
  const privileges=(await client.query("select has_table_privilege('anon','public.cup_draw_attempt','select') as anon_read,has_table_privilege('authenticated','public.cup_draw_attempt','select') as auth_read")).rows[0];
  assert.equal(privileges.anon_read,false);assert.equal(privileges.auth_read,false);
- console.log('Verified provisional draw, redraw history, byes, reveal retries, saved-pairing confirmation, fixture publication, failed-confirmation rollback, private history access, optional scoped audiences, inactive accounts, opt-outs, deduplication, durable push queue, witness footers, owner-scoped inbox deletion, retained history, cancelled pending push and confirmed lock. All changes rolled back.');
+ console.log('Verified provisional draw, redraw history, byes, reveal retries, saved-pairing confirmation, fixture publication, failed-confirmation rollback, private history access, optional scoped audiences, inactive accounts, opt-outs, deduplication, durable push queue, witness footers, owner-scoped single and bulk read inbox deletion, unread preservation, retained history, cancelled pending push and confirmed lock. All changes rolled back.');
 }finally{await client.query('rollback');client.release();await pool.end();}

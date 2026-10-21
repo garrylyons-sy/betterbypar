@@ -304,7 +304,7 @@ test('schedule revision changes reminder identity even when fixture-change notif
 });
 test('deleting an inbox message scopes to its owner, hides it and suppresses pending phone delivery',async()=>{
  const {query,calls}=handler();await server(query).dismissNotification('person-a','notice-a');
- const write=calls.find(c=>c.sql.includes('set inbox_visible=false'));assert.deepEqual(write.args,['person-a','notice-a']);assert.match(write.sql,/person_id=\$1 and id=\$2/);assert.match(write.sql,/read_at=coalesce/);assert.match(write.sql,/expires_at=/);assert.doesNotMatch(write.sql,/delete from/i);
+ const write=calls.find(c=>c.sql.includes('set inbox_visible=false'));assert.deepEqual(write.args,['person-a','notice-a']);assert.match(write.sql,/person_id=\$1/);assert.match(write.sql,/read_at=coalesce/);assert.match(write.sql,/expires_at=/);assert.doesNotMatch(write.sql,/delete from/i);
 });
 test('existing cup inbox messages receive saved draw time and witness with no extra source read or database rewrite',async()=>{
  const base=handler();let sourceReads=0;
@@ -316,4 +316,10 @@ test('existing cup inbox messages receive saved draw time and witness with no ex
  };
  const inbox=await server(query).loadNotificationInbox('chair');assert.match(inbox.items[0].body,/Draw made at .*16:22.*witnessed by Pat Witness/);assert.equal(sourceReads,1);
  assert.equal(base.calls.some(c=>c.sql.includes('update public.app_notification')),false);
+});
+
+test('bulk inbox deletion only selects the owner read messages and retains records and unread messages',async()=>{
+ const {query,calls}=handler();await server(query).dismissNotification('person-a');
+ const write=calls.find(c=>c.sql.includes('set inbox_visible=false'));
+ assert.deepEqual(write.args,['person-a',null]);assert.match(write.sql,/person_id=\$1/);assert.match(write.sql,/\$2::uuid is null and read_at is not null/);assert.match(write.sql,/status='Pending'/);assert.doesNotMatch(write.sql,/delete from/i);
 });

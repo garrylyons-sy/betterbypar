@@ -69,13 +69,14 @@ export async function markNotificationsRead(personId:string,id?:string) {
  if(!(await notificationAccess(personId)).eligible)throw new Error('Notification access required.');
  await dbQuery(`update public.app_notification set read_at=coalesce(read_at,now()) where person_id=$1 and ($2::uuid is null or id=$2::uuid)`,[personId,id??null]);
 }
-export async function dismissNotification(personId:string,id:string) {
+export async function dismissNotification(personId:string,id?:string) {
  if(!(await notificationAccess(personId)).eligible)throw new Error('Notification access required.');
- await dbQuery(`with dismissed as (
+ const result=await dbQuery<{id:string}>(`with dismissed as (
  update public.app_notification set inbox_visible=false,read_at=coalesce(read_at,now()),expires_at=least(coalesce(expires_at,now()),now())
- where person_id=$1 and id=$2::uuid returning id
- ) update public.notification_push_delivery set status='Skipped',last_error=null,locked_at=null
- where notification_id in(select id from dismissed) and status='Pending'`,[personId,id]);
+ where person_id=$1 and (($2::uuid is not null and id=$2::uuid) or ($2::uuid is null and read_at is not null)) and inbox_visible returning id
+ ), skipped as (update public.notification_push_delivery set status='Skipped',last_error=null,locked_at=null
+ where notification_id in(select id from dismissed) and status='Pending' returning id) select id from dismissed`,[personId,id??null]);
+ return result.rows.map(row=>row.id);
 }
 export type NotificationEvent={type:NotificationType;title:string;body:string;href:string;eventKey:string;expiresAt?:string|Date|null};
 export async function createNotification(client:Queryable,personId:string,event:NotificationEvent) {

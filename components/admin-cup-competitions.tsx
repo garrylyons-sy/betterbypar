@@ -240,7 +240,7 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
               </div>
               <p className={`mt-2 text-xs font-bold ${validTeamCount ? "text-[#168f72]" : "text-[#6c5a73]"}`}>{validTeamCount ? `${teamIds.length} teams selected for this ${capacity}-team draw.` : teamCountError}</p>
             </section>
-            <div className="flex justify-end"><Button disabled={busy} onClick={() => void createCompetition()}>{busy ? "Creating..." : "Create competition"}</Button></div>
+            <div className="flex justify-end gap-2"><Button type="button" variant="secondary" disabled={busy} onClick={() => setShowCreate(false)}>Cancel</Button><Button disabled={busy} onClick={() => void createCompetition()}>{busy ? "Creating..." : "Create competition"}</Button></div>
           </CardContent>
         ) : null}
       </Card>
