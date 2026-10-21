@@ -1,3 +1,4 @@
+import { scheduleNotificationPush } from "@/lib/server/notification-dispatch";
 import { NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
@@ -30,15 +31,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ com
       return NextResponse.json({ error: "Invalid draw request. Refresh the page and try again." }, { status: 400 });
     }
     if (!/^[0-9a-f-]{36}$/i.test(competitionId)) return NextResponse.json({ error: "Invalid competition." }, { status: 400 });
-    await withTransaction(async (client) => {
-      await changeCupDraw(client, competitionId, user.personId, body);
+    const result = await withTransaction(async (client) => {
+      const result = await changeCupDraw(client, competitionId, user.personId, body);
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
          values ($1, 'Page Visit', '/admin/cup-competitions', 'Cup draw action', jsonb_build_object('competition_id', $2::uuid, 'action', $3::text, 'attempt_id', $4::text))`,
         [user.personId, competitionId, body.action, body.attemptId ?? null]
       );
+      return result;
     });
-    return NextResponse.json({ ok: true });
+    const notificationSummary = result && "notificationSummary" in result ? result.notificationSummary : null;
+    if (notificationSummary?.push) scheduleNotificationPush();
+    return NextResponse.json({ ok: true, notificationSummary });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not perform cup draw." }, { status: 400 });
   }

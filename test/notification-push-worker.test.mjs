@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { createECDH } from 'node:crypto';
 import ts from 'typescript';
+import * as cupPolicy from '../lib/cup-draw-notification-policy.mjs';
 import * as policy from '../lib/notification-policy.mjs';
 import * as pushPolicy from '../lib/notification-push-policy.mjs';
 
@@ -24,6 +25,7 @@ function worker({eligible=true,read=false,pushEnabled=true,failure,endpointOwned
     'web-push':{sendNotification:async(_subscription,payload,settings)=>{sends++;elapsed+=sendElapsed;payloads.push(JSON.parse(payload));options.push(settings);assert.equal(JSON.parse(payload).href,'/');if(failure)throw {statusCode:failure};}},
     'node:crypto':{createECDH},
     '@/lib/notification-policy.mjs':policy,
+    '@/lib/cup-draw-notification-policy.mjs':cupPolicy,
     '@/lib/notification-push-policy.mjs':pushPolicy,
     '@/lib/server/db':{dbQuery},
     '@/lib/server/notifications':{notificationSourceIsCurrent:async()=>sourceCurrent,notificationAccess:async()=>({eligible,roles:eligible?['League Chair']:[],config:{...policy.defaultNotificationConfig,quietStart:'00:00',quietEnd:'00:00'},preferences:{...policy.defaultNotificationPreferences,pushEnabled}})}

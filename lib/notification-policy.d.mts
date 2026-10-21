@@ -1,6 +1,6 @@
-export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_reminder' | 'ladder_challenge' | 'announcement' | 'lineup_published' | 'match_result';
-export type Config = {version:3;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
-export type Preferences = {version:3;inboxTypes:NotificationType[];pushTypes:NotificationType[];pushEnabled:boolean};
+export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_reminder' | 'ladder_challenge' | 'announcement' | 'lineup_published' | 'match_result' | 'cup_draw';
+export type Config = {version:4;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
+export type Preferences = {version:4;inboxTypes:NotificationType[];pushTypes:NotificationType[];pushEnabled:boolean};
 export const notificationTypes: NotificationType[];
 export const notificationRoles: string[];
 export const defaultNotificationConfig: Config;
@@ -19,3 +19,5 @@ export const notificationLifetimeMs:number;
 export function notificationLifetimeMsFor(days?:number):number;
 export function isNotificationWithinLifetime(createdAt:string|Date,now?:number,days?:number):boolean;
 export function pruneNotificationInbox<T extends {items:{createdAt:string;readAt:unknown}[];unreadCount:number;config?:{retentionDays?:number}}>(state:T,now?:number):T;
+
+export function notificationRoleLabel(role:string):string;

@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
+import {validateCupDrawAudience} from '../lib/cup-draw-notification-policy.mjs';
 import {buildCupBracket} from '../lib/server/cup-draw.mjs';
 const ts=createRequire(import.meta.url)('typescript');
 function setup(){
- const state={competition:{status:'Draft',round_count:1},attempts:[],published:[]};
+ const state={competition:{status:'Draft',round_count:1},attempts:[],published:[],notifications:[]};
  const client={query:async(sql,args=[])=>{
   if(sql.includes('from public.cup_competition where'))return {rows:[state.competition]};
   if(sql.includes('from public.cup_competition_entry'))return {rows:[{team_id:'a',team_name:'Alpha'},{team_id:'b',team_name:'Beta'}]};
@@ -18,19 +19,20 @@ function setup(){
   return {rows:[]};
  }};
  const source=ts.transpileModule(readFileSync(new URL('../lib/server/cup-draw-workflow.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
- const api={};new Function('require','exports',source)(name=> name==='@/lib/server/cup-draw.mjs'?{buildCupBracket}:name==='@/lib/server/cup-competitions'?{publishCupBracket:async(_c,_id,_actor,bracket)=>{state.published.push(bracket);state.competition.status='In Progress';}}:createRequire(import.meta.url)(name),api);
+ const api={};new Function('require','exports',source)(name=> name==='@/lib/cup-draw-notification-policy.mjs'?{validateCupDrawAudience}:name==='@/lib/server/cup-draw-notifications'?{notifyCupDrawConfirmed:async(_c,_id,attempt)=>{state.notifications.push(attempt);return {notified:0,push:0};}}:name==='@/lib/server/cup-draw.mjs'?{buildCupBracket}:name==='@/lib/server/cup-competitions'?{publishCupBracket:async(_c,_id,_actor,bracket)=>{state.published.push(bracket);state.competition.status='In Progress';}}:createRequire(import.meta.url)(name),api);
  return {state,client,api};
 }
 test('provisional draw and reveal never publish fixtures; confirmation publishes the saved snapshot',async()=>{
  const {state,client,api}=setup();await api.changeCupDraw(client,'cup','actor',{action:'draw'});
- assert.equal(state.attempts.length,1);assert.equal(state.published.length,0);
+ assert.equal(state.attempts.length,1);assert.equal(state.published.length,0);assert.equal(state.notifications.length,0);
  const snapshot=structuredClone(state.attempts[0].snapshot);
  await assert.rejects(api.changeCupDraw(client,'cup','actor',{action:'confirm',attemptId:'attempt-1',witnessName:'Pat'}),/reveal/i);
  await api.changeCupDraw(client,'cup','actor',{action:'reveal',attemptId:'attempt-1'});
- assert.equal(state.attempts[0].revealed_count,1);assert.equal(state.published.length,0);
+ assert.equal(state.attempts[0].revealed_count,1);assert.equal(state.published.length,0);assert.equal(state.notifications.length,0);
  await assert.rejects(api.changeCupDraw(client,'cup','actor',{action:'confirm',attemptId:'attempt-1',witnessName:' '}),/witness/i);
+ await assert.rejects(api.changeCupDraw(client,'cup','actor',{action:'confirm',attemptId:'attempt-1',witnessName:'Pat',notificationAudience:['everyone']}),/audience/);assert.equal(state.published.length,0);
  await api.changeCupDraw(client,'cup','actor',{action:'confirm',attemptId:'attempt-1',witnessName:' Pat Murphy '});
- assert.deepEqual(state.published,[snapshot.bracket]);assert.equal(state.attempts[0].witness_name,'Pat Murphy');
+ assert.deepEqual(state.published,[snapshot.bracket]);assert.equal(state.attempts[0].witness_name,'Pat Murphy');assert.equal(state.notifications.length,1);
  await assert.rejects(api.changeCupDraw(client,'cup','actor',{action:'redraw',attemptId:'attempt-1',reason:'Again'}),/confirmed|published/i);
 });
 test('redraw requires a reason, preserves discarded pairings and rejects stale browser actions',async()=>{
@@ -51,5 +53,5 @@ test('reveal retries cannot hide ties or skip ahead; invalid actions do not publ
  await assert.rejects(api.changeCupDraw(client,'cup','actor',{action:'reveal',attemptId:'attempt-1',revealedCount:2}),/next match/);
  await api.changeCupDraw(client,'cup','actor',{action:'reveal',attemptId:'attempt-1',revealedCount:1});
  await api.changeCupDraw(client,'cup','actor',{action:'reveal',attemptId:'attempt-1',revealedCount:0});
- assert.equal(state.attempts[0].revealed_count,1);assert.equal(state.published.length,0);
+ assert.equal(state.attempts[0].revealed_count,1);assert.equal(state.published.length,0);assert.equal(state.notifications.length,0);
 });

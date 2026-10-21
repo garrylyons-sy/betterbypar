@@ -40,7 +40,7 @@ test('announcements migrate inbox/config once without opting existing devices in
  const oldTypes=['fixture_change','match_reminder','lineup_reminder','ladder_challenge'];
  const migrated=normalizeNotificationConfig({...config,version:undefined,enabledTypes:oldTypes});
  assert.ok(migrated.enabledTypes.includes('announcement'));
- assert.equal(migrated.version,3);
+ assert.equal(migrated.version,4);
  const preferences=normalizeNotificationPreferences({inboxTypes:oldTypes,pushTypes:oldTypes,pushEnabled:true});
  assert.ok(preferences.inboxTypes.includes('announcement'));
  assert.equal(preferences.pushTypes.includes('announcement'),false);
@@ -92,4 +92,13 @@ test('new event types upgrade once without expanding existing push opt-ins',asyn
  assert.ok(prefs.inboxTypes.includes('lineup_published'));assert.ok(prefs.inboxTypes.includes('match_result'));assert.deepEqual(prefs.pushTypes,['fixture_change']);
  assert.deepEqual(normalizeNotificationPreferences({...prefs,inboxTypes:[]}).inboxTypes,[]);
  assert.deepEqual(normalizeNotificationConfig({...config,enabledTypes:[]}).enabledTypes,[]);
+});
+
+test('cup draw category upgrades once and keeps push opt-in and Admin role eligibility independent',async()=>{
+ const p=await import('../lib/notification-policy.mjs');
+ const c=p.normalizeNotificationConfig({version:3,enabledTypes:[],eligibleRoles:['Administrator']});
+ assert.ok(c.enabledTypes.includes('cup_draw'));assert.equal(p.isNotificationEligible(['Administrator'],c),true);assert.equal(p.isNotificationEligible(['Manager'],c),false);
+ assert.equal(p.normalizeNotificationConfig({...c,enabledTypes:[]}).enabledTypes.includes('cup_draw'),false);
+ const prefs=p.normalizeNotificationPreferences({version:3,inboxTypes:[],pushTypes:[],pushEnabled:true});assert.ok(prefs.inboxTypes.includes('cup_draw'));assert.equal(prefs.pushTypes.includes('cup_draw'),false);
+ assert.equal(p.normalizeNotificationPreferences({...prefs,inboxTypes:[]}).inboxTypes.includes('cup_draw'),false);
 });

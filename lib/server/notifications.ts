@@ -14,7 +14,7 @@ export async function saveNotificationConfig(input:unknown,personId:string) {
  return config;
 }
 // All roles are recomputed from active database assignments, including legacy team memberships.
-const roleRowsSql = `select cm.person_id, cm.role::text as role from public.club_membership cm join public.club c on c.id=cm.club_id and c.active where cm.active
+export const roleRowsSql = `select cm.person_id, cm.role::text as role from public.club_membership cm join public.club c on c.id=cm.club_id and c.active where cm.active
  union select cm.person_id,'Club Admin' from public.club_membership cm join public.club c on c.id=cm.club_id and c.active where cm.active and cm.is_club_admin
  union select tm.person_id,tm.role::text from public.team_membership tm join public.team t on t.id=tm.team_id and t.active join public.club c on c.id=t.club_id and c.active where tm.active
  union select ptr.person_id,ptr.role::text from public.person_team_role ptr join public.club_membership cm on cm.id=ptr.club_membership_id and cm.active join public.club c on c.id=ptr.club_id and c.active where ptr.active
@@ -168,6 +168,11 @@ export async function notificationSourceIsCurrent(notificationId:string,personId
  if(/^ladder:.*:deadline:/.test(n.event_key))return false;
  if(n.createdAt&&!isNotificationWithinLifetime(n.createdAt,Date.now(),(retentionDays??(await loadNotificationConfig(client)).retentionDays)))return false;
  if(n.expires_at&&new Date(n.expires_at).getTime()<=Date.now())return false;
+ const cupDraw=/^cup-draw:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(n.event_key);
+ if(cupDraw){
+  const source=await client.query(`select 1 from public.cup_draw_attempt da join public.cup_competition cc on cc.id=da.competition_id where da.competition_id=$1 and da.id=$2 and da.status='Confirmed' and cc.status in ('In Progress','Complete')`,[cupDraw[1],cupDraw[2]]);
+  return Boolean(source.rows.length);
+ }
  const publication=/^lineup-published:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(n.event_key);
  if(publication){
   const result=await client.query(`select f.home_team_id,f.away_team_id,f.status,fl.status as lineup_status from public.fixture f join public.fixture_lineup fl on fl.fixture_id=f.id and fl.team_id=$2 where f.id=$1`,[publication[1],publication[2]]);

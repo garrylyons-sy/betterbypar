@@ -45,6 +45,7 @@ type CupCompetition = {
   draws: CupDrawAttempt[];
 };
 type CupData = {
+  notifications?: {eligibleRoles:string[];enabled:boolean;enabledTypes:string[]};
   competitions: CupCompetition[];
   seasons: Array<{ id: string; name: string }>;
   teams: CupTeam[];
@@ -244,7 +245,7 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
               <CardContent className="grid gap-3 border-t border-[#ebe6ef] pt-4">
                 <CupVisibilityEditor competition={competition} leagues={data.leagues} onMessage={onMessage} onSaved={load} />
                 <details className="rounded-lg border border-[#ebe6ef] p-3 text-sm"><summary className="cursor-pointer font-bold">Entered teams ({competition.entries.length})</summary><p className="mt-2 text-[#6c5a73]">{competition.entries.map(entry => entry.team_name).join(" · ")}</p></details>
-                <CupDrawReview competitionId={competition.id} name={competition.name} status={competition.status} draws={competition.draws ?? []} onSaved={() => load(false)} onMessage={onMessage}/>
+                <CupDrawReview competitionId={competition.id} name={competition.name} status={competition.status} draws={competition.draws ?? []} notificationConfig={data.notifications} onSaved={() => load(false)} onMessage={onMessage}/>
 
                 <div className="grid gap-3 xl:grid-cols-3">
                   {competition.rounds.map((round) => (

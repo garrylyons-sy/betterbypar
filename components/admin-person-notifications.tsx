@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import type {Preferences,NotificationType} from '@/lib/notification-policy.mjs';
 type Summary={eligible:boolean;enabled:boolean;activeAccount:boolean;preferences:Preferences;enabledTypes:NotificationType[];devices:number;pushReady:boolean};
-const types:{key:NotificationType;label:string}[]=[{key:'lineup_published',label:'Opponents published'},{key:'match_result',label:'Match results'},{key:'announcement',label:'Announcements'},{key:'fixture_change',label:'Fixture changes'},{key:'match_reminder',label:'Match reminders'},{key:'lineup_reminder',label:'Lineup reminders'},{key:'ladder_challenge',label:'Ladder challenges'}];
+const types:{key:NotificationType;label:string}[]=[{key:'cup_draw',label:'Cup draws'},{key:'lineup_published',label:'Opponents published'},{key:'match_result',label:'Match results'},{key:'announcement',label:'Announcements'},{key:'fixture_change',label:'Fixture changes'},{key:'match_reminder',label:'Match reminders'},{key:'lineup_reminder',label:'Lineup reminders'},{key:'ladder_challenge',label:'Ladder challenges'}];
 export function AdminPersonNotifications({personId}:{personId:string}){
   const [state,setState]=useState<{personId:string;data:Summary|null;error:string}|null>(null);
   const [revision,setRevision]=useState(0);

@@ -1,3 +1,4 @@
+import {cupDrawPushPayload} from '@/lib/cup-draw-notification-policy.mjs';
 import webpush from 'web-push';
 import { createECDH } from 'node:crypto';
 import { canDeliverPush, isQuietTime, safeNotificationHref } from '@/lib/notification-policy.mjs';
@@ -67,7 +68,8 @@ export async function processNotificationPush() {
       const timeout=Math.min(5000,deadline-Date.now()-1000);
       if(timeout<1000){await finish('Pending',null,30);stats.retried++;return;}
       const subscription=validatePushSubscription({endpoint:job.endpoint,keys:{p256dh:job.p256dh,auth:job.auth}});
-      await webpush.sendNotification(subscription,JSON.stringify({title:job.title,body:job.body,href:safeNotificationHref(job.href),tag:job.notification_id,expiresAt:fresh.expires_at ? new Date(fresh.expires_at).toISOString() : null}),{
+      const payload={title:job.title,body:job.body,href:safeNotificationHref(job.href),tag:job.notification_id,expiresAt:fresh.expires_at ? new Date(fresh.expires_at).toISOString() : null};
+      await webpush.sendNotification(subscription,JSON.stringify(job.type==='cup_draw'?cupDrawPushPayload(payload):payload),{
         vapidDetails:details,TTL:Math.min(3600,remaining),timeout
       });
       await finish('Sent');stats.sent++;

@@ -1,9 +1,11 @@
+import { notifyCupDrawConfirmed } from "@/lib/server/cup-draw-notifications";
+import { validateCupDrawAudience } from "@/lib/cup-draw-notification-policy.mjs";
 import { randomInt } from "node:crypto";
 import type { PoolClient } from "pg";
 import { buildCupBracket } from "@/lib/server/cup-draw.mjs";
 import { publishCupBracket } from "@/lib/server/cup-competitions";
 
-type DrawInput = { action: string; attemptId?: string; reason?: string; witnessName?: string; revealedCount?: number };
+type DrawInput = { action: string; attemptId?: string; reason?: string; witnessName?: string; revealedCount?: number; notificationAudience?: unknown };
 type Snapshot = { entries: {team_id:string;team_name:string}[]; rounds: {round_number:number;name:string;fixture_date:string}[]; bracket: ReturnType<typeof buildCupBracket> };
 type Attempt = {id:string;attempt_number:number;status:string;revealed_count:number;snapshot:Snapshot};
 
@@ -40,6 +42,10 @@ export async function changeCupDraw(client: PoolClient, competitionId: string, a
   const witnessName = String(input.witnessName??"").trim();
   if (!witnessName || witnessName.length > 120) throw new Error("Enter the witness name (up to 120 characters).");
   if (attempt.revealed_count < count) throw new Error("Reveal all matches before confirming the draw.");
+  const audience = validateCupDrawAudience(input.notificationAudience);
   await publishCupBracket(client,competitionId,actorPersonId,attempt.snapshot.bracket);
-  await client.query(`update public.cup_draw_attempt set status = 'Confirmed', witness_name = $2, confirmed_by = $3, confirmed_at = now() where id = $1`, [attempt.id,witnessName,actorPersonId]);
+  await client.query(`update public.cup_draw_attempt set status = 'Confirmed', witness_name = $2, confirmed_by = $3, confirmed_at = now(), notification_audience = $4::text[] where id = $1`, [attempt.id,witnessName,actorPersonId,audience]);
+  const notificationSummary = await notifyCupDrawConfirmed(client,competitionId,attempt.id);
+  await client.query(`update public.cup_draw_attempt set notification_summary = $2::jsonb where id=$1`, [attempt.id,JSON.stringify(notificationSummary)]);
+  return {notificationSummary};
 }

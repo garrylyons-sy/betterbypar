@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { loadNotificationConfig } from "@/lib/server/notifications";
 import { currentUser } from "@/lib/server/auth";
 import { cupRoundDateError } from "@/lib/cup-round-dates.mjs";
 import { cupRoundName } from "@/lib/server/cup-competitions";
@@ -20,7 +21,7 @@ function validDate(value: unknown) {
 }
 
 async function loadAdminCupData() {
-  const [competitions, formats, entries, visibilityLeagues, rounds, ties, seasons, teams, leagues, draws] = await Promise.all([
+  const [competitions, formats, entries, visibilityLeagues, rounds, ties, seasons, teams, leagues, draws, notifications] = await Promise.all([
     dbQuery(`select id, season_id, name, round_count, status, audience, created_at::text from public.cup_competition order by created_at desc`),
     dbQuery(`select competition_id, slot_number, game_type::text, points_awarded from public.cup_competition_format_slot order by competition_id, slot_number`),
     dbQuery(`select ce.competition_id, ce.team_id, t.name as team_name from public.cup_competition_entry ce join public.team t on t.id = ce.team_id order by t.name`),
@@ -58,10 +59,12 @@ async function loadAdminCupData() {
       concat_ws(' ', sp.first_name, sp.last_name) as superseded_by_name
       from public.cup_draw_attempt da left join public.person p on p.id=da.created_by
       left join public.person cp on cp.id=da.confirmed_by left join public.person sp on sp.id=da.superseded_by
-      order by da.competition_id, da.attempt_number desc`)
+      order by da.competition_id, da.attempt_number desc`),
+    loadNotificationConfig()
   ]);
 
   return {
+    notifications,
     competitions: competitions.rows.map((competition: Record<string, unknown>) => ({
       ...competition,
       draws: draws.rows.filter((row: Record<string, unknown>) => row.competition_id === competition.id),

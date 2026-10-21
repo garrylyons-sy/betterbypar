@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync, existsSync} from 'node:fs';
 import test from 'node:test';
+import * as notificationPolicy from '../lib/notification-policy.mjs';
 const path=new URL('../components/admin-notification-composer.tsx',import.meta.url);
 const source=existsSync(path) ? readFileSync(path,'utf8') : '';
 test('composer supplies intersecting role and club/team audience controls and plain text preview',()=>{
@@ -55,7 +56,7 @@ async function harness(post) {
     const payload=JSON.parse(init.body);requests.push(payload);return post(payload,requests.length);
   };
   const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
-  const customRequire=name=>name==='react'?hookReact:name==='@/components/ui/button'?{Button:props=>React.createElement('button',props)}:name==='@/lib/notification-policy.mjs'?{notificationRoles:['Player','League Chair']}:require(name);
+  const customRequire=name=>name==='react'?hookReact:name==='@/components/ui/button'?{Button:props=>React.createElement('button',props)}:name==='@/lib/notification-policy.mjs'?notificationPolicy:require(name);
   new Function('require','exports','fetch','window','crypto',compiled)(customRequire,exports,fetch,{addEventListener(){},removeEventListener(){}},{randomUUID:()=>`request-${Math.random()}`});
   const render=()=>{index=0;return exports.AdminNotificationComposer({onMessage(){},onSent(){sentCount++;}});};
   function all(tree,predicate,result=[]) {

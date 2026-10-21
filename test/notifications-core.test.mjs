@@ -257,3 +257,9 @@ test('lineup routes notify first publication and completion within transactions 
  assert.match(source,/await completeMatch\(client, fixtureId\);[\s\S]*?await notifyMatchCompleted\(client, fixtureId\)/);
  assert.match(source,/if \(notificationCreated\) scheduleNotificationPush\(\)/);
 });
+test('cup draw notices remain current only while their confirmed source exists',async()=>{
+ for(const current of [false,true]){
+  const api=server(async sql=>sql.includes('from public.cup_draw_attempt')?{rows:current?[{exists:1}]:[]}:{rows:[{type:'cup_draw',event_key:`cup-draw:${fixtureId}:${challengeId}`,expires_at:null}]});
+  assert.equal(await api.notificationSourceIsCurrent('notice','chair'),current);
+ }
+});
