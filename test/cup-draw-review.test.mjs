@@ -1,3 +1,4 @@
+import {buildCupBracket} from '../lib/server/cup-draw.mjs';
 import * as presentation from '../lib/cup-draw-presentation.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -45,4 +46,15 @@ test('confirm request carries only the notification groups selected by the organ
  checks[0].props.onChange({target:{checked:true}});inputs().filter(n=>n.props.type==='checkbox')[2].props.onChange({target:{checked:true}});
  all(render(),n=>n.type===Button&&n.props.children==='Confirm and publish draw')[0].props.onClick();
  await new Promise(resolve=>setImmediate(resolve));assert.equal(sent.length,1);assert.equal(sent[0].action,'confirm');assert.deepEqual(sent[0].notificationAudience,['chairs','managers']);
+});
+
+test('nine-team review reveals one pairing per step and withholds confirmation until every bye pairing is shown',()=>{
+ const entries=Array.from({length:9},(_,i)=>({team_id:String(i+1),team_name:`Team ${i+1}`}));
+ const snapshot={entries,bracket:buildCupBracket({teamIds:entries.map(e=>e.team_id),roundCount:4,random:()=>0.999}),revealOrder:[8],rounds:[{round_number:1,name:'Round of 16',fixture_date:'2027-01-01'},{round_number:2,name:'Quarter Final',fixture_date:'2027-01-08'},{round_number:3,name:'Semi Final',fixture_date:'2027-01-15'},{round_number:4,name:'Final',fixture_date:'2027-01-22'}]};
+ for(const [revealed_count,byes] of [[1,0],[2,2],[3,4],[4,6],[5,7]]){
+  const html=render([{...attempt,snapshot,revealed_count}]);
+  assert.equal((html.match(/\(bye\)/g)??[]).length,byes);
+  if(revealed_count<5){assert.doesNotMatch(html,/Confirm and publish draw/);assert.match(html,new RegExp(`${revealed_count} of 5 matches revealed`));}
+  else assert.match(html,/Confirm and publish draw/);
+ }
 });

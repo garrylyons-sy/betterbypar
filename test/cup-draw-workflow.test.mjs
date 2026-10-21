@@ -64,5 +64,11 @@ test('new nine-team snapshots save preliminary-first reveal order without moving
   return original(sql,args);
  };
  await api.changeCupDraw(client,'cup','actor',{action:'draw'});
- assert.deepEqual(state.attempts[0].snapshot.revealOrder,[8]);assert.equal(state.attempts[0].snapshot.bracket[0].matchNumber,1);assert.equal(state.published.length,0);
+ assert.deepEqual(state.attempts[0].snapshot.revealOrder,[8,9,10,11,12]);assert.equal(state.attempts[0].snapshot.bracket[0].matchNumber,1);assert.equal(state.published.length,0);
+ await api.changeCupDraw(client,'cup','actor',{action:'reveal',attemptId:'attempt-1',revealedCount:1});
+ await assert.rejects(api.changeCupDraw(client,'cup','actor',{action:'confirm',attemptId:'attempt-1',witnessName:'Pat'}),/Reveal all/);
+ await assert.rejects(api.changeCupDraw(client,'cup','actor',{action:'reveal',attemptId:'attempt-1',revealedCount:3}),/next match/);
+ for(let count=2;count<=5;count++)await api.changeCupDraw(client,'cup','actor',{action:'reveal',attemptId:'attempt-1',revealedCount:count});
+ await api.changeCupDraw(client,'cup','actor',{action:'confirm',attemptId:'attempt-1',witnessName:'Pat'});
+ assert.equal(state.published.length,1);
 });
