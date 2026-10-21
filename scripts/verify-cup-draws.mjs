@@ -38,7 +38,7 @@ try{
  for(const id of [manager,chair])await client.query("insert into public.club_membership(person_id,club_id,role) values($1,$2,'League Chair')",[id,teams[0].club_id]);
  for(const id of [manager,admin])await client.query('insert into public.app_operator(person_id) values($1)',[id]);
  await client.query('insert into public.notification_preference(person_id,preferences) values($1,$2::jsonb)',[optout,JSON.stringify({version:4,inboxTypes:[],pushTypes:[],pushEnabled:false})]);
- await client.query('insert into public.notification_preference(person_id,preferences) values($1,$2::jsonb)',[manager,JSON.stringify({...policy.defaultNotificationPreferences,pushEnabled:true,pushTypes:['cup_draw']})]);
+ await client.query('insert into public.notification_preference(person_id,preferences) values($1,$2::jsonb)',[manager,JSON.stringify({...policy.defaultNotificationPreferences,pushEnabled:true,pushTypes:['announcement']})]);
  await client.query("insert into public.notification_push_subscription(person_id,endpoint,p256dh,auth) values($1::uuid,'https://fcm.googleapis.com/fcm/send/cup-draw-test-'||$1::uuid::text,'test','test')",[manager]);
  const managers=(await client.query(cupNotifications.cupDrawAudienceSql,[cup,['managers']])).rows.map(r=>r.personId);
  assert.ok(managers.includes(manager));assert.ok(managers.includes(legacy));for(const id of [outsider,inactive,player,chair,admin])assert.ok(!managers.includes(id));
@@ -51,9 +51,10 @@ try{
  const prior=(await client.query('select * from public.cup_draw_attempt where competition_id=$1 and attempt_number=1',[cup])).rows[0];
  assert.equal(prior.status,'Superseded');assert.deepEqual(prior.snapshot,oldSnapshot);
  await assert.rejects(workflow.changeCupDraw(client,cup,actor,{action:'confirm',attemptId:prior.id,witnessName:'Witness'}),/changed/);
- for(let n=1;n<=2;n++)await workflow.changeCupDraw(client,cup,actor,{action:'reveal',attemptId:a.id,revealedCount:n});
+ const revealCount=a.snapshot.revealOrder?.length??a.snapshot.bracket.filter(t=>t.roundNumber===1).length;
+ for(let n=1;n<=revealCount;n++)await workflow.changeCupDraw(client,cup,actor,{action:'reveal',attemptId:a.id,revealedCount:n});
  await workflow.changeCupDraw(client,cup,actor,{action:'reveal',attemptId:a.id,revealedCount:1}); // retry cannot hide already revealed matches
- assert.equal((await client.query('select revealed_count from public.cup_draw_attempt where id=$1',[a.id])).rows[0].revealed_count,2);
+ assert.equal((await client.query('select revealed_count from public.cup_draw_attempt where id=$1',[a.id])).rows[0].revealed_count,revealCount);
  assert.equal(await fixtureCount(),0);
  await client.query('savepoint failed_confirmation');
  const missingActor=(await client.query('select gen_random_uuid() as id')).rows[0].id;

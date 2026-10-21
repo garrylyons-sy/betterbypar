@@ -9,8 +9,7 @@ import {defaultNotificationConfig, validateNotificationConfig, notificationRoles
 type Config = typeof defaultNotificationConfig;
 const roles = notificationRoles;
 const categories = [
-  {key:'cup_draw',label:'Cup draws',description:'Confirmed cup draws for audiences selected by the organiser.'},
-  {key:'announcement',label:'Announcements',description:'Messages sent by platform administrators to selected role groups, clubs or teams.'},
+  {key:'announcement',label:'Announcements',description:'Messages from administrators, including confirmed cup draws, sent to selected audiences.'},
   {key:'lineup_published',label:'Opponents published',description:'Tell opposing managers when a team first publishes its line up.'},
   {key:'match_result',label:'Match results',description:'Final scores for League Chairs when a match is completed.'},
   {key:'fixture_change',label:'Fixture changes',description:'Date changes, postponements and cancellations for affected teams, plus League Chair oversight.'},

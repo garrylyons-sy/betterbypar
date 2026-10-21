@@ -1,3 +1,4 @@
+import {CupDrawInboxMessage} from './helpers/cup-draw-inbox-component.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {existsSync} from 'node:fs';
@@ -27,7 +28,7 @@ test('opening an inbox item prevents browser navigation and routes inside the mo
   const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const opened=[],exports={};
   const hooks={useEffect(){},useRef:()=>({current:null}),useState:value=>[value,()=>{}]};
-  new Function('require','exports',compiled)(name=>name==='react'?hooks:name==='@/components/ui/button'?{Button:()=>null}:name==='@/lib/notification-policy.mjs'?{safeNotificationHref:value=>value}:name==='@/lib/notification-navigation.mjs'?{...navigation,openNotificationHref:href=>opened.push(href)}:require(name),exports);
+  new Function('require','exports',compiled)(name=>name==='@/components/cup-draw-inbox-message'?{CupDrawInboxMessage}:name==='react'?hooks:name==='@/components/ui/button'?{Button:()=>null}:name==='@/lib/notification-policy.mjs'?{safeNotificationHref:value=>value}:name==='@/lib/notification-navigation.mjs'?{...navigation,openNotificationHref:href=>opened.push(href)}:require(name),exports);
   const tree=exports.NotificationCenter({center:{state:{eligible:true,items:[{id:'item',type:'announcement',title:'Title',body:'Message',href:'/?notifications=1',createdAt:'2026-10-20',readAt:'2026-10-20'}],unreadCount:0},panel:'inbox',setPanel(){},setError(){},refresh(){}}});
   function find(node){if(Array.isArray(node))return node.map(find).find(Boolean);if(!node||typeof node!=='object')return null;return node.type==='a'?node:find(node.props?.children);}
   const link=find(tree);let prevented=0;

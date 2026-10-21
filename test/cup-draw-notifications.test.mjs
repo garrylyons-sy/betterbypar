@@ -16,7 +16,7 @@ test('cup notices reject provisional source and no audience creates no inbox or 
  const empty=setup({audience:[]});const result=await empty.api.notifyCupDrawConfirmed(empty.client,'cup','attempt');assert.equal(result.notified,0);assert.equal(empty.calls.length,1);
 });
 test('confirmed cup notification saves full draw once per eligible account and queues only opted-in phones',async()=>{
- const r=setup({people:[{personId:'manager',roles:['Manager'],preferences:{...policy.defaultNotificationPreferences,pushEnabled:true,pushTypes:['cup_draw']},hasPush:true},{personId:'admin',roles:['Administrator']}]});
+ const r=setup({people:[{personId:'manager',roles:['Manager'],preferences:{...policy.defaultNotificationPreferences,pushEnabled:true,pushTypes:['announcement']},hasPush:true},{personId:'admin',roles:['Administrator']}]});
  const result=await r.api.notifyCupDrawConfirmed(r.client,'cup','attempt');assert.equal(result.notified,2);assert.equal(result.push,1);
  const read=r.calls.find(c=>c.sql.startsWith('with competition_teams'));assert.deepEqual(read.args,['cup',['managers','admins']]);
  const write=r.calls.find(c=>c.sql.includes('insert into public.app_notification'));assert.equal(JSON.parse(write.args[0]).length,2);assert.match(write.args[1],/Alpha v Beta/);assert.equal(write.args[2],'cup-draw:cup:attempt');assert.match(write.sql,/on conflict\(person_id,event_key\) do nothing/);

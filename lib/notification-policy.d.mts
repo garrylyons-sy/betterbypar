@@ -23,3 +23,5 @@ export function pruneNotificationInbox<T extends {items:{createdAt:string;readAt
 export function notificationRoleLabel(role:string):string;
 
 export function lineupReminderTiming(kickoff:string|Date,deadlineHours?:number,now?:Date):{deadlineAt:Date;remindAt:Date;due:boolean};
+
+export function notificationPreferenceType(type:NotificationType):NotificationType;

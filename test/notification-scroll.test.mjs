@@ -1,3 +1,4 @@
+import {CupDrawInboxMessage} from './helpers/cup-draw-inbox-component.mjs';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -22,7 +23,7 @@ function modalHarness(){
   const hooks={useState:value=>[value,()=>{}],useRef:()=>({current:refIndex++===0?dialog:content}),useEffect:fn=>effects.push(fn)};
   const exports={};
   const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
-  new Function('require','exports','window','document','navigator','fetch',compiled)(name=>name==='react'?hooks:name==='@/components/ui/button'?{Button:()=>null}:name.startsWith('@/lib/notification-')?{}:require(name),exports,window,document,{},async()=>({ok:true,json:async()=>({})}));
+  new Function('require','exports','window','document','navigator','fetch',compiled)(name=>name==='@/components/cup-draw-inbox-message'?{CupDrawInboxMessage}:name==='react'?hooks:name==='@/components/ui/button'?{Button:()=>null}:name.startsWith('@/lib/notification-')?{}:require(name),exports,window,document,{},async()=>({ok:true,json:async()=>({})}));
   exports.NotificationCenter({center:{state:{eligible:true,items:[],unreadCount:0},panel:'settings',setPanel(){},setError(){},refresh(){}}});
   const cleanups=effects.map(effect=>effect());
   return {document,initial,scrolls,content,inside,listeners,cleanup(){for(const cleanup of cleanups)cleanup?.();}};

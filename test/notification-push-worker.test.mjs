@@ -9,13 +9,13 @@ import * as policy from '../lib/notification-policy.mjs';
 import * as pushPolicy from '../lib/notification-push-policy.mjs';
 
 const source=ts.transpileModule(readFileSync(new URL('../lib/server/notification-push.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true}}).outputText;
-function worker({eligible=true,read=false,pushEnabled=true,failure,endpointOwned=true,active=true,sourceCurrent=true,expiresAt=null,batches=1,jobsPerBatch=1,sendElapsed=0}={}) {
+function worker({eligible=true,read=false,pushEnabled=true,failure,endpointOwned=true,active=true,sourceCurrent=true,expiresAt=null,batches=1,jobsPerBatch=1,sendElapsed=0,notificationType='fixture_change',pushTypes}={}) {
   // Fixed test-only key; never configure application env or contact providers.
   const key=createECDH('prime256v1');key.setPrivateKey(Buffer.alloc(32,1));
   const env={VAPID_SUBJECT:'mailto:test@example.com',VAPID_PUBLIC_KEY:key.getPublicKey().toString('base64url'),VAPID_PRIVATE_KEY:key.getPrivateKey().toString('base64url')};
   const updates=[],payloads=[],options=[];let sends=0,claims=0,freshChecks=0,elapsed=0;
   class Clock extends Date {static now(){return Date.now()+elapsed;}}
-  const job={id:'delivery',notification_id:'notification',subscription_id:'device',person_id:'person',endpoint:'https://fcm.googleapis.com/fcm/send/device',p256dh:key.getPublicKey().toString('base64url'),auth:Buffer.alloc(16).toString('base64url'),active:true,type:'fixture_change',title:'Fixture updated',body:'Tomorrow',href:'//evil.com',read_at:null,expires_at:null,attempts:1,lock_token:'2026-10-20 12:00:00.123456+00'};
+  const job={id:'delivery',notification_id:'notification',subscription_id:'device',person_id:'person',endpoint:'https://fcm.googleapis.com/fcm/send/device',p256dh:key.getPublicKey().toString('base64url'),auth:Buffer.alloc(16).toString('base64url'),active:true,type:notificationType,title:'Fixture updated',body:'Tomorrow',href:'//evil.com',read_at:null,expires_at:null,attempts:1,lock_token:'2026-10-20 12:00:00.123456+00'};
   const dbQuery=async(sql,args)=>{
     if(sql.includes('with due as')){assert.match(sql,/for update skip locked/i);assert.match(sql,/locked_at<now\(\)-interval '10 minutes'/);return {rows:claims++<batches?Array.from({length:jobsPerBatch},(_,i)=>({...job,id:`delivery-${claims}-${i}`})):[]};}
     if(sql.includes('select n.read_at')){freshChecks++;return {rows:[{read_at:read?new Date():null,expires_at:expiresAt,active}]};}
@@ -28,7 +28,7 @@ function worker({eligible=true,read=false,pushEnabled=true,failure,endpointOwned
     '@/lib/cup-draw-notification-policy.mjs':cupPolicy,
     '@/lib/notification-push-policy.mjs':pushPolicy,
     '@/lib/server/db':{dbQuery},
-    '@/lib/server/notifications':{notificationSourceIsCurrent:async()=>sourceCurrent,notificationAccess:async()=>({eligible,roles:eligible?['League Chair']:[],config:{...policy.defaultNotificationConfig,quietStart:'00:00',quietEnd:'00:00'},preferences:{...policy.defaultNotificationPreferences,pushEnabled}})}
+    '@/lib/server/notifications':{notificationSourceIsCurrent:async()=>sourceCurrent,notificationAccess:async()=>({eligible,roles:eligible?['League Chair']:[],config:{...policy.defaultNotificationConfig,quietStart:'00:00',quietEnd:'00:00'},preferences:{...policy.defaultNotificationPreferences,pushEnabled,pushTypes:pushTypes??policy.defaultNotificationPreferences.pushTypes}})}
   };
   const exports={};vm.runInNewContext(source,{exports,require:id=>deps[id],process:{env},Buffer,URL,Date:Clock,console});
   return {run:exports.processNotificationPush,subscribe:exports.subscribeNotificationPush,updates,payloads,options,get freshChecks(){return freshChecks;},get sends(){return sends;}};
@@ -69,4 +69,9 @@ test('device upsert never transfers another account endpoint',async()=>{
   const owned=worker();assert.equal(await owned.subscribe('owner',subscription),true);
   assert.equal(owned.updates[0].args[0],'owner');assert.match(owned.updates[0].sql,/where notification_push_subscription.person_id=excluded.person_id/);
   const other=worker({endpointOwned:false});assert.equal(await other.subscribe('other',subscription),false);
+});
+
+test('cup draw phone delivery follows Announcements opt-in with no cup-specific preference',async()=>{
+ const on=worker({notificationType:'cup_draw',pushTypes:['announcement']});assert.equal((await on.run()).sent,1);assert.equal(on.sends,1);
+ const off=worker({notificationType:'cup_draw',pushTypes:[]});assert.equal((await off.run()).skipped,1);assert.equal(off.sends,0);
 });

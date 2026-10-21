@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import { dbQuery, withTransaction } from "@/lib/server/db";
-import { lineupReminderTiming, isNotificationWithinLifetime, normalizeNotificationConfig, normalizeNotificationPreferences, validateNotificationConfig, validateNotificationPreferences, isNotificationEligible, safeNotificationHref, fixtureEventKey, type Config, type NotificationType } from "@/lib/notification-policy.mjs";
+import { notificationPreferenceType, lineupReminderTiming, isNotificationWithinLifetime, normalizeNotificationConfig, normalizeNotificationPreferences, validateNotificationConfig, validateNotificationPreferences, isNotificationEligible, safeNotificationHref, fixtureEventKey, type Config, type NotificationType } from "@/lib/notification-policy.mjs";
 
 type Queryable = Pick<PoolClient, "query">;
 const database = { query: dbQuery } as Queryable;
@@ -62,9 +62,10 @@ export async function markNotificationsRead(personId:string,id?:string) {
 export type NotificationEvent={type:NotificationType;title:string;body:string;href:string;eventKey:string;expiresAt?:string|Date|null};
 export async function createNotification(client:Queryable,personId:string,event:NotificationEvent) {
  const access=await notificationAccess(personId,client);
- if(!access.eligible||!access.config.enabledTypes.includes(event.type))return false;
- const inbox=access.preferences.inboxTypes.includes(event.type);
- const push=access.preferences.pushEnabled&&access.preferences.pushTypes.includes(event.type);
+ const category=notificationPreferenceType(event.type);
+ if(!access.eligible||!access.config.enabledTypes.includes(category))return false;
+ const inbox=access.preferences.inboxTypes.includes(category);
+ const push=access.preferences.pushEnabled&&access.preferences.pushTypes.includes(category);
  if(!inbox&&!push)return false;
  const inserted=await client.query(`insert into public.app_notification(person_id,type,title,body,href,event_key,expires_at,inbox_visible) values($1,$2,$3,$4,$5,$6,$7,$8) on conflict(person_id,event_key) do nothing returning id`,[personId,event.type,event.title,event.body,safeNotificationHref(event.href),event.eventKey,event.expiresAt??null,inbox]);
  if(inserted.rows[0]&&push)await client.query(`insert into public.notification_push_delivery(notification_id,subscription_id) select $1,id from public.notification_push_subscription where person_id=$2 and active on conflict do nothing`,[inserted.rows[0].id,personId]);

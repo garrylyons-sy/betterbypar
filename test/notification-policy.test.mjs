@@ -94,13 +94,13 @@ test('new event types upgrade once without expanding existing push opt-ins',asyn
  assert.deepEqual(normalizeNotificationConfig({...config,enabledTypes:[]}).enabledTypes,[]);
 });
 
-test('cup draw category upgrades once and keeps push opt-in and Admin role eligibility independent',async()=>{
+test('cup draws share announcement preferences and no longer expose separate configuration',async()=>{
  const p=await import('../lib/notification-policy.mjs');
- const c=p.normalizeNotificationConfig({version:3,enabledTypes:[],eligibleRoles:['Administrator']});
- assert.ok(c.enabledTypes.includes('cup_draw'));assert.equal(p.isNotificationEligible(['Administrator'],c),true);assert.equal(p.isNotificationEligible(['Manager'],c),false);
- assert.equal(p.normalizeNotificationConfig({...c,enabledTypes:[]}).enabledTypes.includes('cup_draw'),false);
- const prefs=p.normalizeNotificationPreferences({version:3,inboxTypes:[],pushTypes:[],pushEnabled:true});assert.ok(prefs.inboxTypes.includes('cup_draw'));assert.equal(prefs.pushTypes.includes('cup_draw'),false);
- assert.equal(p.normalizeNotificationPreferences({...prefs,inboxTypes:[]}).inboxTypes.includes('cup_draw'),false);
+ const c=p.normalizeNotificationConfig({...config,enabledTypes:['announcement','cup_draw'],eligibleRoles:['Administrator']});
+ assert.deepEqual(c.enabledTypes,['announcement']);assert.equal(p.isNotificationEligible(['Administrator'],c),true);
+ const prefs=p.normalizeNotificationPreferences({version:4,inboxTypes:['announcement','cup_draw'],pushTypes:['announcement'],pushEnabled:true});
+ assert.deepEqual(prefs.inboxTypes,['announcement']);assert.deepEqual(prefs.pushTypes,['announcement']);
+ const disabled=p.normalizeNotificationPreferences({version:4,inboxTypes:[],pushTypes:['cup_draw'],pushEnabled:true});assert.deepEqual(disabled.pushTypes,[]);
 });
 
 test('lineup reminder targets one hour before a configurable publishing deadline and stops at deadline',async()=>{
