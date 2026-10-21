@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, Building2, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, Radio, ShieldCheck, Smartphone, Swords, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { AdminNotifications } from "@/components/admin-notifications";
+import { AdminPersonNotifications } from "@/components/admin-person-notifications";
 import { AdminSystem } from "@/components/admin-system";
 import { AdminLastManStanding } from "@/components/admin-last-man-standing";
 import { AdminCupCompetitions } from "@/components/admin-cup-competitions";
@@ -3732,6 +3733,7 @@ function EditPersonModal({
             </Button>
           </div>
         ) : null}
+        {canManageLeagueChair ? <AdminPersonNotifications key={person.personId} personId={person.personId}/> : null}
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <AdminInput label="First name" value={firstName} onChange={setFirstName} />
           <AdminInput label="Last name" value={lastName} onChange={setLastName} />

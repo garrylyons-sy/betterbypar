@@ -51,6 +51,8 @@ test('phone swipes cannot move the background or escape the panel at its scroll 
       return prevented;
     }
     assert.equal(swipe({},200,100),true,'backdrop and header swipes must be blocked');
+    assert.equal(swipe(ui.inside,100,102),false,'small finger movement on Mark read must not cancel the tap');
+    assert.equal(swipe({},100,102),false,'small finger movement on header buttons must not cancel the tap');
     assert.equal(swipe(ui.inside,100,200),true,'pulling past the top must be blocked');
     assert.equal(swipe(ui.inside,200,100),false,'scrolling down within the list must work');
     ui.content.scrollTop=800;

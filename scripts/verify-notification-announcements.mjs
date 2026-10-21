@@ -55,6 +55,13 @@ try{
  await assert.rejects(service.sendAnnouncement(sender.rows[0].person_id,{...draft,requestId:crypto.randomUUID(),previewToken:stalePreview.previewToken}),error=>error.status===409);
  await client.query('update public.notification_announcement set sender_person_id=null where id=$1',[requestId]);
  const former=await service.loadAnnouncementDetail(requestId,client);assert.equal(former?.senderName,'Former administrator');
+ const aged=await client.query("update public.app_notification set created_at=now()-interval '11 days',expires_at=now()+interval '30 days' where event_key=$1 returning id,person_id",[`announcement:${requestId}`]);
+ const agedIds=new Set(aged.rows.map(row=>row.id));
+ const inbox=await core.loadNotificationInbox(chair);
+ assert.equal(inbox.items.some(item=>agedIds.has(item.id)),false,'Old notifications must not be returned to the phone.');
+ const chaired=aged.rows.find(row=>row.person_id===chair);assert.ok(chaired);
+ assert.equal(await core.notificationSourceIsCurrent(chaired.id,chair),false,'Old notifications must not be delivered by push.');
+ const retained=await client.query('select count(*)::int as count from public.app_notification where event_key=$1',[`announcement:${requestId}`]);assert.equal(retained.rows[0].count,aged.rows.length,'Hidden records must remain in the database.');
  const privileges=await client.query("select has_table_privilege('anon','public.notification_announcement','SELECT') as anon,has_table_privilege('authenticated','public.notification_announcement','SELECT') as authenticated");assert.equal(privileges.rows[0].anon,false);assert.equal(privileges.rows[0].authenticated,false);
  console.log('Verified live schema, audience scopes, preview/send SQL, preference-change rejection, idempotent retries, and history permissions. All writes rolled back; real push dispatch was disabled.');
 }finally{await client.query('rollback');client.release();await pool.end();}

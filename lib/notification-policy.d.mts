@@ -15,3 +15,6 @@ export function canDeliverPush(notification:{type:string;readAt?:unknown;read_at
 export function safeNotificationHref(href:unknown):string;
 export function reminderIsDue(deadline:string|Date,hours:number,now?:Date):boolean;
 export function fixtureEventKey(id:string,date:string|Date):string;
+export const notificationLifetimeMs:number;
+export function isNotificationWithinLifetime(createdAt:string|Date,now?:number):boolean;
+export function pruneNotificationInbox<T extends {items:{createdAt:string;readAt:unknown}[];unreadCount:number}>(state:T,now?:number):T;

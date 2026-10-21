@@ -3,7 +3,7 @@
 import { Bell, CheckCheck, Settings, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { safeNotificationHref, type NotificationType, type Preferences } from "@/lib/notification-policy.mjs";
+import { safeNotificationHref, pruneNotificationInbox, notificationLifetimeMs, type NotificationType, type Preferences } from "@/lib/notification-policy.mjs";
 import { notificationDestination, notificationOpenEvent, openNotificationHref } from "@/lib/notification-navigation.mjs";
 
 type InboxItem = { id: string; type: NotificationType; title: string; body: string; href: string; createdAt: string; readAt: string | null };
@@ -32,7 +32,7 @@ export function useNotificationCenter(authenticated: boolean) {
       }
       if (!response.ok) throw new Error("Notifications could not be refreshed.");
       const payload = await response.json() as Inbox;
-      setState(payload.eligible ? payload : { eligible: false, items: [], unreadCount: 0 });
+      setState(payload.eligible ? pruneNotificationInbox(payload) : { eligible: false, items: [], unreadCount: 0 });
       if (!payload.eligible) setPanel(null);
       if (payload.eligible && !openedInboxLink.current && new URLSearchParams(window.location.search).get("notifications") === "1") {
         openedInboxLink.current = true;
@@ -41,6 +41,12 @@ export function useNotificationCenter(authenticated: boolean) {
       setError("");
     } catch (failure) { setError(failure instanceof Error ? failure.message : "Notifications are unavailable."); }
   }, [authenticated]);
+  useEffect(() => {
+    if (!state.items.length) return;
+    const nextExpiry = Math.min(...state.items.map(item => new Date(item.createdAt).getTime() + notificationLifetimeMs));
+    const timer = window.setTimeout(() => setState(current => pruneNotificationInbox(current)), Math.max(1, nextExpiry - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [state.items]);
   useEffect(() => {
     if (!authenticated) return;
     const onOpen = (event: Event) => {
@@ -64,6 +70,7 @@ export function useNotificationCenter(authenticated: boolean) {
     if (!authenticated) return;
     const visibleRefresh = () => {
       if (document.visibilityState !== "visible") return;
+      setState(current => pruneNotificationInbox(current));
       void refresh();
     };
     visibleRefresh();
@@ -96,6 +103,8 @@ export function NotificationCenter({ center }: { center: Center }) {
   const [draft, setDraft] = useState<Preferences | null>(null);
   const [push, setPush] = useState<{ ready: boolean; publicKey: string | null; subscribed: boolean } | null>(null);
   const [pushMessage, setPushMessage] = useState("");
+  const pendingReads = useRef(new Set<string>());
+  const [readingIds, setReadingIds] = useState<string[]>([]);
   const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   const isOpen = state.eligible && panel !== null;
   useEffect(() => {
@@ -112,13 +121,20 @@ export function NotificationCenter({ center }: { center: Center }) {
     // Stop touch gestures reaching the page through the backdrop or at either
     // end of the list. CSS overflow locking alone does not cover mobile bounce.
     let touchY = 0;
+    let startTouchY = 0;
+    let scrolling = false;
     const onTouchStart = (event: TouchEvent) => {
-      if (event.touches.length === 1) touchY = event.touches[0].clientY;
+      scrolling = false;
+      if (event.touches.length === 1) startTouchY = touchY = event.touches[0].clientY;
     };
     const onTouchMove = (event: TouchEvent) => {
       if (event.touches.length !== 1) return; // Keep pinch zoom available.
       const delta = event.touches[0].clientY - touchY;
       touchY = event.touches[0].clientY;
+      // A finger rarely stays perfectly still when tapping a button. Cancelling
+      // these tiny moves also cancels the browser's synthesized click on iOS.
+      if (!scrolling && Math.abs(touchY - startTouchY) < 8) return;
+      scrolling = true;
       const content = scrollContent.current;
       const inside = content?.contains(event.target as Node | null);
       const blocked = !inside || !content || content.scrollHeight <= content.clientHeight + 1
@@ -161,9 +177,19 @@ export function NotificationCenter({ center }: { center: Center }) {
   }, [panel, state.eligible]); // Refreshes must not overwrite unsaved preference edits.
 
   async function markRead(id?: string) {
-    const response = await fetch("/api/notifications", { method: "PATCH", keepalive: true, credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(id ? { id } : { all: true }) });
-    if (!response.ok) throw new Error("Could not mark notifications as read.");
-    await refresh();
+    const key = id ?? "all";
+    if (pendingReads.current.has(key) || pendingReads.current.has("all")) return;
+    pendingReads.current.add(key);
+    setReadingIds([...pendingReads.current]);
+    setError("");
+    try {
+      const response = await fetch("/api/notifications", { method: "PATCH", keepalive: true, credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(id ? { id } : { all: true }) });
+      if (!response.ok) throw new Error("Could not mark notifications as read.");
+      await refresh();
+    } finally {
+      pendingReads.current.delete(key);
+      setReadingIds([...pendingReads.current]);
+    }
   }
   async function savePreferences() {
     if (!draft) return;
@@ -231,7 +257,7 @@ export function NotificationCenter({ center }: { center: Center }) {
       {error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
       {panel === "inbox" ? <>
         <div className="flex flex-wrap justify-between gap-2"><Button size="sm" variant="secondary" onClick={() => setPanel("settings")}><Settings className="h-4 w-4" />Settings</Button><Button size="sm" variant="secondary" disabled={!state.unreadCount || saving} onClick={async () => { setSaving(true); try { await markRead(); } catch (failure) { setError((failure as Error).message); } finally { setSaving(false); } }}><CheckCheck className="h-4 w-4" />Mark all read</Button></div>
-        {!state.items.length ? <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">You’re all caught up. New notifications will appear here.</p> : <ul className="space-y-2">{state.items.map((item) => <li key={item.id} className={`rounded-xl border p-3 ${item.readAt ? "border-slate-100" : "border-teal-200 bg-teal-50/60"}`}><a href={safeNotificationHref(item.href)} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); if (!item.readAt) void markRead(item.id).catch(() => {}); openNotificationHref(item.href); }} className="block rounded focus-visible:outline focus-visible:outline-2"><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><p className="mt-1 text-sm text-slate-600">{item.body}</p><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></a>{!item.readAt ? <button type="button" className="mt-2 min-h-9 text-xs font-bold text-teal-800 underline" onClick={() => void markRead(item.id).catch((failure) => setError(failure.message))}>Mark read</button> : null}</li>)}</ul>}
+        {!state.items.length ? <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">You’re all caught up. New notifications will appear here.</p> : <ul className="space-y-2">{state.items.map((item) => <li key={item.id} className={`rounded-xl border p-3 ${item.readAt ? "border-slate-100" : "border-teal-200 bg-teal-50/60"}`}><a href={safeNotificationHref(item.href)} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); if (!item.readAt) void markRead(item.id).catch(() => {}); openNotificationHref(item.href); }} className="block rounded focus-visible:outline focus-visible:outline-2"><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><p className="mt-1 text-sm text-slate-600">{item.body}</p><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></a>{!item.readAt ? <button type="button" className="mt-2 inline-flex min-h-11 touch-manipulation items-center rounded-lg px-3 text-sm font-bold text-teal-800 underline disabled:opacity-60" disabled={readingIds.includes(item.id) || readingIds.includes("all")} aria-busy={readingIds.includes(item.id) || readingIds.includes("all")} onClick={() => void markRead(item.id).catch((failure) => setError(failure.message))}>{readingIds.includes(item.id) || readingIds.includes("all") ? "Marking…" : "Mark read"}</button> : null}</li>)}</ul>}
       </> : draft ? <>
         <p className="text-sm text-slate-600">Choose future inbox alerts and optional phone push separately. Existing inbox items stay available.</p>
         <fieldset className="space-y-2"><legend className="mb-2 font-extrabold">Inbox</legend>{categories.map(({ type, label }) => <label key={type} className="flex min-h-10 items-center gap-3 text-sm"><input type="checkbox" checked={draft.inboxTypes.includes(type)} onChange={() => toggleType("inboxTypes", type)} className="h-4 w-4" />{label}</label>)}</fieldset>

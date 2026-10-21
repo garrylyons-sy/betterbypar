@@ -4,7 +4,7 @@ import { loadNotificationInbox, markNotificationsRead, notificationAccess } from
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 export async function GET(){
- try{const user=await currentUser();if(!user)return NextResponse.json({error:'Sign in required.'},{status:401});return NextResponse.json(await loadNotificationInbox(user.personId));}
+ try{const user=await currentUser();if(!user)return NextResponse.json({error:'Sign in required.'},{status:401});return NextResponse.json(await loadNotificationInbox(user.personId),{headers:{'Cache-Control':'no-store'}});}
  catch(error){console.error('notification-inbox',error);return NextResponse.json({error:'Could not load notifications.'},{status:500});}
 }
 export async function PATCH(request:Request){

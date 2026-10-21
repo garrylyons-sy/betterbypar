@@ -53,7 +53,7 @@ export async function processNotificationPush() {
       }
       // Read immediately before sending: another device may have read this inbox item
       // or unsubscribed while the job was waiting for an earlier provider request.
-      const freshResult=await dbQuery<{read_at:Date|null;expires_at:Date|null;active:boolean}>(`select n.read_at,n.expires_at,s.active
+      const freshResult=await dbQuery<{read_at:Date|null;expires_at:Date|null;active:boolean}>(`select n.read_at,least(coalesce(n.expires_at,n.created_at+interval '10 days'),n.created_at+interval '10 days') as expires_at,s.active
         from public.app_notification n join public.notification_push_subscription s on s.id=$2 and s.person_id=n.person_id
         where n.id=$1 and n.person_id=$3`,[job.notification_id,job.subscription_id,job.person_id]);
       const fresh=freshResult.rows[0];

@@ -24,6 +24,22 @@ function handler(overrides={}) {
  return {calls,query};
 }
 const event={type:'fixture_change',title:'Changed',body:'Fixture changed',href:'//evil.test',eventKey:'fixture-1'};
+test('inbox downloads and unread counts both exclude notifications ten days old without deleting records',async()=>{
+ const base=handler();
+ const query=async(sql,args)=>{
+ if(sql.includes('count(*)::integer')){base.calls.push({sql,args});return {rows:[{count:0}]};}
+ return base.query(sql,args);
+ };
+ await server(query).loadNotificationInbox('person-a');
+ const reads=base.calls.filter(c=>c.sql.includes('from public.app_notification'));
+ assert.equal(reads.length,2);
+ for(const read of reads)assert.match(read.sql,/created_at>now\(\)-interval '10 days'/);
+ assert.equal(base.calls.some(c=>/delete from/i.test(c.sql)),false);
+});
+test('old announcements cannot be delivered by the push worker even with a later expiry',async()=>{
+ const api=server(async()=>({rows:[{type:'announcement',event_key:'announcement:any',createdAt:new Date(Date.now()-11*86400000),expires_at:new Date(Date.now()+86400000)}]}));
+ assert.equal(await api.notificationSourceIsCurrent('old','person-a'),false);
+});
 test('creation rejects disabled, wrong role and inactive accounts without writing',async()=>{
  for(const overrides of [{config:{...policy.defaultNotificationConfig,enabled:false}},{roles:['Player']},{inactive:true}]){
  const {query,calls}=handler(overrides);assert.equal(await server(query).createNotification({query},'person-a',event),false);

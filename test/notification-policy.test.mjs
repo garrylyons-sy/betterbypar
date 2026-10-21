@@ -56,3 +56,17 @@ test('announcements still require role eligibility, account opt-in and per-type 
  assert.equal(canDeliverPush(n,{...prefs,pushEnabled:true,pushTypes:['announcement']},config,['League Chair'],now),true);
  assert.equal(canDeliverPush(n,{...prefs,pushEnabled:true,pushTypes:['announcement']},config,['Player'],now),false);
 });
+
+test('ten-day lifetime removes messages and their unread badges at the exact boundary without mutating saved data',async()=>{
+ const {notificationLifetimeMs,isNotificationWithinLifetime,pruneNotificationInbox}=await import('../lib/notification-policy.mjs');
+ const now=Date.parse('2026-10-21T12:00:00Z');
+ assert.equal(notificationLifetimeMs,864000000);
+ assert.equal(isNotificationWithinLifetime(new Date(now-notificationLifetimeMs+1),now),true);
+ assert.equal(isNotificationWithinLifetime(new Date(now-notificationLifetimeMs),now),false);
+ const old=new Date(now-notificationLifetimeMs).toISOString(),recent=new Date(now-1000).toISOString();
+ const state={eligible:true,unreadCount:2,items:[{id:'old-unread',createdAt:old,readAt:null},{id:'old-read',createdAt:old,readAt:old},{id:'recent',createdAt:recent,readAt:null}]};
+ const filtered=pruneNotificationInbox(state,now);
+ assert.deepEqual(filtered.items.map(item=>item.id),['recent']);assert.equal(filtered.unreadCount,1);
+ assert.equal(state.items.length,3);assert.equal(state.unreadCount,2);
+ assert.equal(pruneNotificationInbox(filtered,now),filtered);
+});

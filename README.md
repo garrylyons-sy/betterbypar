@@ -161,3 +161,5 @@ Apply `supabase/notification_announcements.sql` after the base notifications mig
 `node scripts/verify-notification-announcements.mjs` checks the live schema and audience/send/idempotency SQL using a rolled-back transaction and a disabled push dispatcher. No test announcement is committed or sent.
 
 Sent announcements are loaded on demand from **Admin → Notifications → Sent announcements**, with 10 summary rows per page. Expand a row to load its message body and audience details. Notification settings are a separate accordion loaded on first opening.
+
+Recipient notifications disappear 10 days after creation, or earlier if their event expires. The inbox API filters old rows before returning messages and unread counts; open inboxes also remove ageing items locally. Old notifications cannot be delivered by push. Historical database rows and admin sent-announcement history are retained.
