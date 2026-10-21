@@ -64,5 +64,5 @@ test('new nine-team snapshots save preliminary-first reveal order without moving
   return original(sql,args);
  };
  await api.changeCupDraw(client,'cup','actor',{action:'draw'});
- assert.deepEqual(state.attempts[0].snapshot.revealOrder,[8,1,2,3,4,5,6,7]);assert.equal(state.attempts[0].snapshot.bracket[0].matchNumber,1);assert.equal(state.published.length,0);
+ assert.deepEqual(state.attempts[0].snapshot.revealOrder,[8]);assert.equal(state.attempts[0].snapshot.bracket[0].matchNumber,1);assert.equal(state.published.length,0);
 });

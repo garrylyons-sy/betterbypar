@@ -7,6 +7,7 @@ import { CupDrawReview, type CupDrawAttempt } from "@/components/cup-draw-review
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cupTeamCountError, toggleCupTeamSelection } from "@/lib/cup-competition-form.mjs";
 import { cupRoundDateError } from "@/lib/cup-round-dates.mjs";
 
 type CupAudience = "Everyone" | "All Players" | "All Managers" | "All Players and Managers" | "Specific Leagues" | "League Chairs";
@@ -110,7 +111,8 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
 
   const availableTeams = useMemo(() => data.teams.filter((team) => team.season_id === seasonId), [data.teams, seasonId]);
   const capacity = 2 ** roundCount;
-  const validTeamCount = teamIds.length >= 2 && teamIds.length <= capacity && (roundCount === 1 || teamIds.length > capacity / 2);
+  const teamCountError = cupTeamCountError({ teamCount: teamIds.length, roundCount });
+  const validTeamCount = !teamCountError;
   const roundDatesError = cupRoundDateError(roundDates, roundCount);
 
   async function createCompetition() {
@@ -118,8 +120,16 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
       onMessage(roundDatesError);
       return;
     }
-    if (!name.trim() || !validTeamCount || format.length % 2 === 0) {
-      onMessage("Add a name, an odd match format, valid round dates and enough teams for the selected number of rounds.");
+    if (!name.trim()) {
+      onMessage("Add a competition name.");
+      return;
+    }
+    if (!format.length || format.length > 15 || format.length % 2 === 0) {
+      onMessage("Use an odd match format containing between 1 and 15 matches.");
+      return;
+    }
+    if (teamCountError) {
+      onMessage(teamCountError);
       return;
     }
     setBusy(true);
@@ -222,8 +232,13 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
             <section>
               <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-black text-[#25002b]">Teams</h3><Badge variant={validTeamCount ? "green" : "muted"}>{teamIds.length} / {capacity}</Badge></div>
               <div className="grid max-h-60 gap-1 overflow-auto rounded-lg border border-[#ebe6ef] p-2 sm:grid-cols-2 lg:grid-cols-3">
-                {availableTeams.map((team) => <label key={team.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-bold text-[#10233f] hover:bg-[#f7f5fa]"><input type="checkbox" checked={teamIds.includes(team.id)} onChange={() => setTeamIds((ids) => ids.includes(team.id) ? ids.filter((id) => id !== team.id) : [...ids, team.id])} /><span className="truncate">{team.name}</span><span className="ml-auto text-xs text-[#6c5a73]">{team.league_name}</span></label>)}
+                {availableTeams.map((team) => {
+                  const checked = teamIds.includes(team.id);
+                  const disabled = !checked && teamIds.length >= capacity;
+                  return <label key={team.id} className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-bold ${disabled ? "cursor-not-allowed text-[#9b8fa0]" : "text-[#10233f] hover:bg-[#f7f5fa]"}`}><input type="checkbox" checked={checked} disabled={disabled} onChange={() => setTeamIds((ids) => toggleCupTeamSelection({ teamIds: ids, teamId: team.id, capacity }))} /><span className="truncate">{team.name}</span><span className="ml-auto text-xs text-[#6c5a73]">{team.league_name}</span></label>;
+                })}
               </div>
+              <p className={`mt-2 text-xs font-bold ${validTeamCount ? "text-[#168f72]" : "text-[#6c5a73]"}`}>{validTeamCount ? `${teamIds.length} teams selected for this ${capacity}-team draw.` : teamCountError}</p>
             </section>
             <div className="flex justify-end"><Button disabled={busy} onClick={() => void createCompetition()}>{busy ? "Creating..." : "Create competition"}</Button></div>
           </CardContent>

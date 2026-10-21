@@ -32,7 +32,7 @@ export async function changeCupDraw(client: PoolClient, competitionId: string, a
     return (await client.query<Attempt>(`insert into public.cup_draw_attempt (competition_id, attempt_number, snapshot, created_by) values ($1, $2, $3::jsonb, $4) returning *`, [competitionId,(latest?.attempt_number??0)+1,JSON.stringify({entries,rounds,bracket,revealOrder:cupDrawRevealOrder(bracket)}),actorPersonId])).rows[0];
   }
   const attempt = latest!;
-  const count = attempt.snapshot.bracket.filter(t=>t.roundNumber===1).length;
+  const count = cupDrawRevealOrder(attempt.snapshot.bracket).length;
   if (input.action === "reveal") {
     // An absolute expected count makes retries/double taps idempotent.
     const next = input.revealedCount ?? attempt.revealed_count+1;

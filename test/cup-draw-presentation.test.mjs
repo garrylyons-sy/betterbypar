@@ -6,12 +6,13 @@ const entries=Array.from({length:9},(_,i)=>({team_id:String(i+1),team_name:`Team
 const bracket=buildCupBracket({teamIds:entries.map(e=>e.team_id),roundCount:4,random:()=>0.999});
 const snapshot={entries,bracket,rounds:[{round_number:1,name:'Round of 16',fixture_date:'2027-01-01'},{round_number:2,name:'Quarter Final',fixture_date:'2027-01-08'},{round_number:3,name:'Semi Final',fixture_date:'2027-01-15'},{round_number:4,name:'Final',fixture_date:'2027-01-22'}]};
 test('nine-team draw reveals its one actual preliminary match before seven bye teams',()=>{
- assert.deepEqual(cupDrawRevealOrder(bracket),[8,1,2,3,4,5,6,7]);
+ assert.deepEqual(cupDrawRevealOrder(bracket),[8]);
  assert.equal(bracket[0].matchNumber,1);
  const view=cupDrawPresentation({...snapshot,revealOrder:cupDrawRevealOrder(bracket)},1);
  assert.equal(view.rounds[0].name,'Preliminary round');assert.equal(view.rounds[0].ties.length,1);
  assert.equal(view.rounds[0].ties[0].home,'Team 8');assert.equal(view.rounds[0].ties[0].away,'Team 9');
- assert.equal(view.rounds[1].ties[0].home,'Team not revealed');assert.equal(view.rounds[1].ties[0].away,'Team not revealed');
+ assert.equal(view.rounds[1].ties[0].home,'Team 1');assert.equal(view.rounds[1].ties[0].away,'Team 2');
+ assert.equal(view.total,1);assert.equal(view.nextLabel,null);
 });
 test('bye recipients are paired explicitly in the next round with preliminary winner routes',()=>{
  const view=cupDrawPresentation(snapshot);
@@ -21,9 +22,9 @@ test('bye recipients are paired explicitly in the next round with preliminary wi
  assert.equal(quarter.ties[3].home,'Team 7');assert.equal(quarter.ties[3].away,'Winner of Preliminary match 1');
  assert.equal(view.preliminaryMatches,1);assert.equal(view.byes,7);
 });
-test('legacy partially revealed draws retain their original order without leaking unrevealed names',()=>{
- const view=cupDrawPresentation(snapshot,2);
- assert.equal(view.rounds[0].ties[0].home,'Team not revealed');assert.equal(view.rounds[1].ties[0].home,'Team 1');assert.equal(view.rounds[1].ties[0].away,'Team 2');assert.equal(view.rounds[1].ties[1].home,'Team not revealed');
+test('legacy draws without a saved reveal order still reveal only playable matches',()=>{
+ const hidden=cupDrawPresentation(snapshot,0);assert.equal(hidden.rounds[0].ties[0].home,'Team not revealed');assert.equal(hidden.rounds[1].ties[0].home,'Team not revealed');
+ const revealed=cupDrawPresentation(snapshot,1);assert.equal(revealed.rounds[0].ties[0].home,'Team 8');assert.equal(revealed.rounds[1].ties[0].home,'Team 1');assert.equal(revealed.rounds[1].ties[0].away,'Team 2');
 });
 test('full brackets without byes retain normal round naming and match numbering',()=>{
  const s={...snapshot,entries:entries.slice(0,8),bracket:buildCupBracket({teamIds:entries.slice(0,8).map(e=>e.team_id),roundCount:3,random:()=>0.999}),rounds:snapshot.rounds.slice(1).map((r,i)=>({...r,round_number:i+1}))};

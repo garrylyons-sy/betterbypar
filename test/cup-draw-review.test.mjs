@@ -11,6 +11,12 @@ const {Button}=load('../components/ui/button.tsx',{'@/lib/utils':{cn:(...v)=>v.f
 const {CupDrawReview}=load('../components/cup-draw-review.tsx',{'@/lib/cup-draw-notification-policy.mjs':cupPolicy,'@/lib/notification-policy.mjs':notificationPolicy,'@/components/ui/button':{Button},'@/lib/cup-draw-record':load('../lib/cup-draw-record.ts')});
 const attempt={id:'a',attempt_number:1,status:'Provisional',revealed_count:0,created_at:'2026-10-21T12:00:00Z',created_by_name:'Organiser',snapshot:{entries:[{team_id:'a',team_name:'Alpha'},{team_id:'b',team_name:'Beta'}],rounds:[{round_number:1,name:'Final',fixture_date:'2027-01-01'}],bracket:[{roundNumber:1,matchNumber:1,homeTeamId:'a',awayTeamId:'b',status:'Scheduled'}]}};
 const render=(draws,status='Draft')=>renderToStaticMarkup(React.createElement(CupDrawReview,{competitionId:'cup',name:'Cup',status,draws,onSaved:async()=>{},onMessage:()=>{}}));
+test('redraw is a secondary action button and reveal language refers only to matches',()=>{
+ const source=fs.readFileSync(new URL('../components/cup-draw-review.tsx',import.meta.url),'utf8');
+ assert.match(source,/variant="secondary"[^\n]*Redraw…/);
+ assert.doesNotMatch(source,/Reveal next team|draw positions revealed/);
+ assert.match(source,/matches revealed/);
+});
 test('provisional presentation hides unrevealed pairings and cannot confirm until every match is revealed',()=>{
  const hidden=render([attempt]);assert.match(hidden,/Reveal match 1/);assert.doesNotMatch(hidden,/Confirm and publish draw/);assert.doesNotMatch(hidden,/<li/);
  const revealed=render([{...attempt,revealed_count:1}]);assert.match(revealed,/<li/);assert.match(revealed,/Confirm and publish draw/);assert.match(revealed,/Witness name/);

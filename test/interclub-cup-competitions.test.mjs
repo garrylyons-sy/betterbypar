@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { cupTeamCountError, toggleCupTeamSelection } from "../lib/cup-competition-form.mjs";
 import { buildCupBracket, nextCupTieTarget } from "../lib/server/cup-draw.mjs";
 
 const migration = readFileSync(new URL("../supabase/interclub_cup_competitions.sql", import.meta.url), "utf8");
@@ -37,6 +38,21 @@ test("cup bracket rejects a round count that cannot exactly contain the entrants
     () => buildCupBracket({ teamIds: ["a", "b"], roundCount: 3 }),
     /fewer rounds/
   );
+});
+
+test("cup setup prevents selecting more teams than the chosen draw can hold", () => {
+  const selected = ["a", "b", "c", "d", "e", "f", "g", "h"];
+
+  assert.deepEqual(toggleCupTeamSelection({ teamIds: selected, teamId: "i", capacity: 8 }), selected);
+  assert.deepEqual(toggleCupTeamSelection({ teamIds: selected, teamId: "h", capacity: 8 }), ["a", "b", "c", "d", "e", "f", "g"]);
+  assert.deepEqual(toggleCupTeamSelection({ teamIds: selected.slice(0, 7), teamId: "h", capacity: 8 }), selected);
+});
+
+test("cup setup explains team-count errors for the selected number of rounds", () => {
+  assert.equal(cupTeamCountError({ teamCount: 9, roundCount: 3 }), "A 3-round cup can include no more than 8 teams. Remove 1 team.");
+  assert.equal(cupTeamCountError({ teamCount: 4, roundCount: 3 }), "A 3-round cup needs between 5 and 8 teams.");
+  assert.equal(cupTeamCountError({ teamCount: 5, roundCount: 3 }), "");
+  assert.equal(cupTeamCountError({ teamCount: 8, roundCount: 3 }), "");
 });
 
 test("cup schema stores format, entrants, dated rounds, ties and fixture links", () => {

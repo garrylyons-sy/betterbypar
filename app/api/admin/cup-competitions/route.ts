@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadNotificationConfig } from "@/lib/server/notifications";
 import { currentUser } from "@/lib/server/auth";
 import { cupRoundDateError } from "@/lib/cup-round-dates.mjs";
+import { cupTeamCountError } from "@/lib/cup-competition-form.mjs";
 import { cupRoundName } from "@/lib/server/cup-competitions";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
@@ -117,10 +118,8 @@ export async function POST(request: NextRequest) {
     if (!["Everyone", "All Players", "All Managers", "All Players and Managers", "Specific Leagues", "League Chairs"].includes(audience)) return NextResponse.json({ error: "Choose a valid audience." }, { status: 400 });
     if (audience === "Specific Leagues" && !visibilityLeagueIds.length) return NextResponse.json({ error: "Choose at least one visible league." }, { status: 400 });
     if (!Number.isInteger(roundCount) || roundCount < 1 || roundCount > 6) return NextResponse.json({ error: "Choose between 1 and 6 rounds." }, { status: 400 });
-    const capacity = 2 ** roundCount;
-    if (teamIds.length < 2 || teamIds.length > capacity || (roundCount > 1 && teamIds.length <= capacity / 2)) {
-      return NextResponse.json({ error: `${teamIds.length} teams do not fit an exact ${roundCount}-round knockout.` }, { status: 400 });
-    }
+    const teamCountError = cupTeamCountError({ teamCount: teamIds.length, roundCount });
+    if (teamCountError) return NextResponse.json({ error: teamCountError }, { status: 400 });
     if (!format.length || format.length > 15 || format.length % 2 === 0) {
       return NextResponse.json({ error: "Cup format must contain an odd number of 1 to 15 matches." }, { status: 400 });
     }
