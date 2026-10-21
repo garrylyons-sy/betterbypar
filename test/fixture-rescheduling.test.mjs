@@ -253,6 +253,40 @@ test("a cup round shares the carousel page with a rescheduled league match on th
   assert.equal(weeks[0].fixtures[1].cupSectionStart, true);
 });
 
+test("mixed fixture pages keep each cup round together behind one heading", async () => {
+  const { fixtureCarouselRows } = await loadSchedulingModule();
+  assert.equal(typeof fixtureCarouselRows, "function", "fixtureCarouselRows must be implemented");
+
+  const rows = fixtureCarouselRows({
+    fixtures: [
+      { id: "league-one" },
+      { id: "cup-one", cupSectionLabel: "Blah · Quarter Final" },
+      { id: "league-two" },
+      { id: "cup-two", cupSectionLabel: "Blah · Quarter Final" }
+    ],
+    postponedFixtures: [],
+    cupPlaceholders: [
+      { tieId: "cup-placeholder", cupSectionLabel: "Blah · Quarter Final" }
+    ],
+    cupSections: [
+      { id: "blah-quarter-final", weekLabel: "Blah · Quarter Final" }
+    ]
+  });
+
+  assert.deepEqual(rows.map((row) => (
+    row.kind === "section"
+      ? `section:${row.label}`
+      : `${row.kind}:${row.item.id ?? row.item.tieId ?? row.item.fixtureId}`
+  )), [
+    "fixture:league-one",
+    "fixture:league-two",
+    "section:Blah · Quarter Final",
+    "placeholder:cup-placeholder",
+    "fixture:cup-one",
+    "fixture:cup-two"
+  ]);
+});
+
 test("cup rounds on different dates remain separate carousel pages", async () => {
   const { mergeCupWeeksByDate } = await loadSchedulingModule();
   const weeks = mergeCupWeeksByDate([
@@ -353,11 +387,11 @@ test("the fixtures page includes cup rounds in only its first league carousel", 
   assert.match(fixtureWeeksRoute, /const cupRows = includeCups \?/);
 });
 
-test("same-day cup fixture rows identify their competition and round", () => {
+test("same-day cup fixture rows use one section heading instead of repeated match labels", () => {
   const appShell = source("../components/app-shell.tsx");
 
-  assert.match(appShell, /function CupFixtureMatchLabel/);
-  assert.match(appShell, /fixture\.cupSectionLabel \? <CupFixtureMatchLabel label=\{fixture\.cupSectionLabel\} \/> : null/);
+  assert.match(appShell, /fixtureCarouselRows\(week\)/);
+  assert.doesNotMatch(appShell, /function CupFixtureMatchLabel/);
 });
 
 test("the mobile navigation is outside the scrolling app main", () => {

@@ -67,6 +67,24 @@ export function mergeFixturePagesByDate<
   cupSections: Array<CupDisplayWeek<TCupFixture, TPlaceholder>>;
 }>;
 
+export type FixtureCarouselRow<TFixture, TPlaceholder, TPostponed> =
+  | { kind: "section"; label: string }
+  | { kind: "placeholder"; item: TPlaceholder }
+  | { kind: "postponed"; item: TPostponed }
+  | { kind: "fixture"; item: TFixture };
+
+export function fixtureCarouselRows<
+  TFixture extends { cupSectionLabel?: string } = Record<string, unknown> & { cupSectionLabel?: string },
+  TPlaceholder extends { cupSectionLabel?: string } = Record<string, unknown> & { cupSectionLabel?: string },
+  TPostponed extends { cupSectionLabel?: string } = PostponedFixtureNotice & { cupSectionLabel?: string }
+>(week: {
+  competitionType?: "League" | "Cup";
+  fixtures: TFixture[];
+  postponedFixtures: TPostponed[];
+  cupPlaceholders?: TPlaceholder[];
+  cupSections?: Array<{ weekLabel: string }>;
+}): Array<FixtureCarouselRow<TFixture, TPlaceholder, TPostponed>>;
+
 export function organizeFixtureWeeks<T extends FixtureScheduleItem>(input: {
   weeks: FixtureScheduleWeek[];
   fixtures: T[];
