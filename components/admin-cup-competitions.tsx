@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Plus, Shuffle, Trash2, Trophy } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2, Trophy } from "lucide-react";
 
+import { CupDrawReview, type CupDrawAttempt } from "@/components/cup-draw-review";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ type CupCompetition = {
   format: Array<{ slot_number: number; game_type: "Singles" | "Doubles" }>;
   entries: Array<{ team_id: string; team_name: string }>;
   rounds: CupRound[];
+  draws: CupDrawAttempt[];
 };
 type CupData = {
   competitions: CupCompetition[];
@@ -84,8 +86,8 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
   const [format, setFormat] = useState<Array<"Singles" | "Doubles">>(["Doubles", "Doubles", "Doubles", "Doubles", "Doubles"]);
   const [roundDates, setRoundDates] = useState([nextThursday(0), nextThursday(1), nextThursday(2)]);
 
-  async function load() {
-    setLoading(true);
+  async function load(showLoading = true) {
+    if (showLoading) setLoading(true);
     try {
       const response = await fetch("/api/admin/cup-competitions", { credentials: "same-origin", cache: "no-store" });
       const body = await response.json();
@@ -137,21 +139,6 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
       onMessage("Cup competition created. Perform the draw when the setup is ready.");
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not create cup competition.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function performDraw(competitionId: string) {
-    setBusy(true);
-    try {
-      const response = await fetch(`/api/admin/cup-competitions/${competitionId}/draw`, { method: "POST", credentials: "same-origin" });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error ?? "Could not perform cup draw.");
-      onMessage("Draw completed. First-round fixtures are now in the calendar.");
-      await load();
-    } catch (error) {
-      onMessage(error instanceof Error ? error.message : "Could not perform cup draw.");
     } finally {
       setBusy(false);
     }
@@ -250,19 +237,21 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
             <button type="button" className="flex w-full items-center gap-3 p-4 text-left" onClick={() => setOpenCompetitionId(open ? null : competition.id)}>
               <Trophy className="h-5 w-5 text-[#168f72]" />
               <span className="min-w-0 flex-1"><span className="block truncate font-black text-[#10233f]">{competition.name}</span><span className="block text-xs font-semibold text-[#6c5a73]">{competition.entries.length} teams · {competition.round_count} rounds · {competition.format.map((row) => row.game_type[0]).join(" · ")} · {competition.audience}</span></span>
-              <Badge variant={competition.status === "Complete" ? "green" : competition.status === "Draft" ? "muted" : "cyan"}>{competition.status}</Badge>
+              <Badge variant={competition.status === "Complete" ? "green" : competition.status === "Draft" ? "muted" : "cyan"}>{competition.draws?.[0]?.status === "Provisional" ? "Provisional draw" : competition.status}</Badge>
               {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {open ? (
               <CardContent className="grid gap-3 border-t border-[#ebe6ef] pt-4">
                 <CupVisibilityEditor competition={competition} leagues={data.leagues} onMessage={onMessage} onSaved={load} />
-                {competition.status === "Draft" ? <div className="flex items-center justify-between rounded-lg bg-[#f7f5fa] p-3"><span className="text-sm font-semibold text-[#6c5a73]">Ready to randomise the selected teams and create the first fixtures.</span><Button disabled={busy} onClick={() => void performDraw(competition.id)}><Shuffle className="h-4 w-4" /> Perform Draw</Button></div> : null}
+                <details className="rounded-lg border border-[#ebe6ef] p-3 text-sm"><summary className="cursor-pointer font-bold">Entered teams ({competition.entries.length})</summary><p className="mt-2 text-[#6c5a73]">{competition.entries.map(entry => entry.team_name).join(" · ")}</p></details>
+                <CupDrawReview competitionId={competition.id} name={competition.name} status={competition.status} draws={competition.draws ?? []} onSaved={() => load(false)} onMessage={onMessage}/>
+
                 <div className="grid gap-3 xl:grid-cols-3">
                   {competition.rounds.map((round) => (
                     <section key={round.id} className="rounded-lg border border-[#ebe6ef] p-3">
                       <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-black text-[#25002b]">{round.name}</h3><span className="text-xs font-bold text-[#6c5a73]">{new Date(`${round.fixture_date}T12:00:00`).toLocaleDateString("en-IE", { day: "numeric", month: "short" })}</span></div>
                       <div className="grid gap-2">
-                        {round.ties.length ? round.ties.map((tie) => <div key={tie.id} className="rounded-md bg-[#f7f5fa] p-2 text-xs font-bold text-[#10233f]"><div className="flex justify-between gap-2"><span className="truncate">{tie.home_team_name ?? sourceLabel(round, tie.home_source_match_number)}</span><span>{tie.home_team_score ?? ""}</span></div><div className="flex justify-between gap-2"><span className="truncate">{tie.away_team_name ?? sourceLabel(round, tie.away_source_match_number)}</span><span>{tie.away_team_score ?? ""}</span></div>{tie.winner_team_name ? <p className="mt-1 text-[#168f72]">Winner: {tie.winner_team_name}</p> : null}</div>) : <p className="text-xs font-semibold text-[#6c5a73]">Draw not performed.</p>}
+                        {round.ties.length ? round.ties.map((tie) => <div key={tie.id} className="rounded-md bg-[#f7f5fa] p-2 text-xs font-bold text-[#10233f]"><div className="flex justify-between gap-2"><span className="truncate">{tie.home_team_name ?? sourceLabel(round, tie.home_source_match_number)}</span><span>{tie.home_team_score ?? ""}</span></div><div className="flex justify-between gap-2"><span className="truncate">{tie.away_team_name ?? sourceLabel(round, tie.away_source_match_number)}</span><span>{tie.away_team_score ?? ""}</span></div>{tie.winner_team_name ? <p className="mt-1 text-[#168f72]">Winner: {tie.winner_team_name}</p> : null}</div>) : <p className="text-xs font-semibold text-[#6c5a73]">Fixtures will appear after the draw is confirmed.</p>}
                       </div>
                     </section>
                   ))}
@@ -288,7 +277,7 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
               <Badge variant="muted">{deleteTarget.status}</Badge>
             </div>
             <p className="mt-3 rounded-xl bg-[#fff3f3] p-3 text-sm font-semibold text-[#6c5a73] ring-1 ring-[#f3b7b2]">
-              This permanently removes the cup, its draw, rounds, fixtures, lineups, results, breaks and live-scoring data. This cannot be undone.
+              This permanently removes the cup, its full draw history, rounds, fixtures, lineups, results, breaks and live-scoring data. This cannot be undone.
             </p>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={busy}>Cancel</Button>

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
-import { performCupDraw } from "@/lib/server/cup-competitions";
+import { changeCupDraw } from "@/lib/server/cup-draw-workflow";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
-export async function POST(_request: Request, { params }: { params: Promise<{ competitionId: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ competitionId: string }> }) {
   try {
     const user = await currentUser();
     if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
@@ -14,12 +14,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ co
     if (!administrator.rowCount) return NextResponse.json({ error: "Administrator access required." }, { status: 403 });
     const { competitionId } = await params;
 
+    const body = await request.json();
+    if (!/^[0-9a-f-]{36}$/i.test(competitionId)) return NextResponse.json({ error: "Invalid competition." }, { status: 400 });
     await withTransaction(async (client) => {
-      await performCupDraw(client, competitionId, user.personId);
+      await changeCupDraw(client, competitionId, user.personId, body);
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
-         values ($1, 'Page Visit', '/admin/cup-competitions', 'Performed cup draw', jsonb_build_object('competition_id', $2::uuid))`,
-        [user.personId, competitionId]
+         values ($1, 'Page Visit', '/admin/cup-competitions', 'Cup draw action', jsonb_build_object('competition_id', $2::uuid, 'action', $3::text, 'attempt_id', $4::text))`,
+        [user.personId, competitionId, body.action, body.attemptId ?? null]
       );
     });
     return NextResponse.json({ ok: true });

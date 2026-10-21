@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 
-import { buildCupBracket } from "@/lib/server/cup-draw.mjs";
+import type { buildCupBracket } from "@/lib/server/cup-draw.mjs";
 
 export function cupRoundName(roundNumber: number, totalRounds: number) {
   const teamsAtStart = 2 ** (totalRounds - roundNumber + 1);
@@ -79,26 +79,13 @@ async function placeCupWinner(client: PoolClient, sourceTieId: string, winnerTea
   }
 }
 
-export async function performCupDraw(client: PoolClient, competitionId: string, actorPersonId: string) {
+// Called only by the locked confirmation workflow, using its saved bracket.
+export async function publishCupBracket(client: PoolClient, competitionId: string, actorPersonId: string, bracket: ReturnType<typeof buildCupBracket>) {
   const competitionResult = await client.query<{ round_count: number; status: string }>(
-    `select round_count, status
-     from public.cup_competition
-     where id = $1
-     for update`,
-    [competitionId]
+    `select round_count, status from public.cup_competition where id = $1 for update`, [competitionId]
   );
   const competition = competitionResult.rows[0];
-  if (!competition) throw new Error("Cup competition not found.");
-  if (competition.status !== "Draft") throw new Error("This cup draw has already been performed.");
-
-  const teamIds = (await client.query<{ team_id: string }>(
-    `select team_id
-     from public.cup_competition_entry
-     where competition_id = $1
-     order by created_at, team_id`,
-    [competitionId]
-  )).rows.map((row) => row.team_id);
-  const bracket = buildCupBracket({ teamIds, roundCount: competition.round_count });
+  if (!competition || competition.status !== "Draft") throw new Error("This cup draw has already been confirmed.");
   const rounds = (await client.query<{ id: string; round_number: number }>(
     `select id, round_number
      from public.cup_competition_round
