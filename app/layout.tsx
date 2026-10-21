@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SystemSettingsProvider } from "@/components/system-settings-provider";
 import { PwaRegister } from "@/components/pwa-register";
+import { deploymentAppVersion } from "@/lib/app-version.mjs";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.interclubsnooker.com"),
@@ -29,11 +30,12 @@ export const viewport: Viewport = {
 export default function RootLayout({
   children
 }: Readonly<{ children: React.ReactNode }>) {
+  const deploymentVersion = deploymentAppVersion();
   return (
     <html lang="en">
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">
         <SystemSettingsProvider>{children}</SystemSettingsProvider>
-        <PwaRegister />
+        <PwaRegister deploymentVersion={deploymentVersion} />
       </body>
     </html>
   );
