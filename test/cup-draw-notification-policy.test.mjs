@@ -8,10 +8,10 @@ test('cup draw audience defaults to nobody and rejects unknown roles',()=>{
  assert.deepEqual(validateCupDrawAudience(['managers','chairs','managers']),['managers','chairs']);
  for(const v of ['all',null,['Player'],['everyone']])assert.throws(()=>validateCupDrawAudience(v),/audience/i);
 });
-const snapshot={entries:[{team_id:'a',team_name:'Alpha'},{team_id:'b',team_name:'Beta'},{team_id:'c',team_name:'Castle'}],rounds:[{round_number:1,name:'Semi Final',fixture_date:'2027-01-01'},{round_number:2,name:'Final',fixture_date:'2027-01-08'}],bracket:[{roundNumber:1,matchNumber:1,homeTeamId:'a',awayTeamId:null,status:'Bye'},{roundNumber:1,matchNumber:2,homeTeamId:'b',awayTeamId:'c',status:'Scheduled'}]};
+const snapshot={entries:[{team_id:'a',team_name:'Alpha'},{team_id:'b',team_name:'Beta'},{team_id:'c',team_name:'Castle'}],rounds:[{round_number:1,name:'Semi Final',fixture_date:'2027-01-01'},{round_number:2,name:'Final',fixture_date:'2027-01-08'}],bracket:[{roundNumber:1,matchNumber:1,homeTeamId:'a',awayTeamId:null,status:'Bye'},{roundNumber:1,matchNumber:2,homeTeamId:'b',awayTeamId:'c',status:'Scheduled'},{roundNumber:2,matchNumber:1,homeTeamId:null,awayTeamId:null,homeSourceMatchNumber:1,awaySourceMatchNumber:2,status:'Awaiting Teams'}]};
 test('draw message contains competition, every saved pairing, bye and round dates',()=>{
  const text=cupDrawMessage('Interclub Cup',snapshot);
- assert.match(text,/Interclub Cup draw is confirmed/);assert.match(text,/1\. Alpha — Bye/);assert.match(text,/2\. Beta v Castle/);assert.match(text,/Semi Final/);assert.match(text,/Final/);assert.match(text,/2027/);
+ assert.match(text,/Interclub Cup draw is confirmed/);assert.match(text,/Alpha \(bye\) v Winner of Preliminary match 1/);assert.match(text,/1\. Beta v Castle/);assert.match(text,/Preliminary round/);assert.match(text,/Final/);assert.match(text,/2027/);
 });
 test('cup recipient union deduplicates people and applies rollout, channel opt-outs and active push subscription',()=>{
  const config={...policy.defaultNotificationConfig,eligibleRoles:['League Chair','Manager','Player','Administrator']};

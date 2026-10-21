@@ -1,3 +1,4 @@
+import * as presentation from '../lib/cup-draw-presentation.mjs';
 // Exercises actual draw workflow + fixture publication in one rolled-back transaction.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
@@ -9,7 +10,7 @@ const require=createRequire(import.meta.url),ts=require('typescript'),{Pool}=req
 for(const file of ['.env.local','.env'])if(fs.existsSync(file))for(const line of fs.readFileSync(file,'utf8').split(/\r?\n/)){const m=line.match(/^([A-Z_][A-Z_0-9]*)=(.*)$/);if(m&&!process.env[m[1]])process.env[m[1]]=m[2].replace(/^["']|["']$/g,'');}
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false},connectionTimeoutMillis:10000});
 const client=await pool.connect();
-function load(file,deps){const compiled=ts.transpileModule(fs.readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const api={};new Function('require','exports',compiled)(name=>deps[name]??require(name),api);return api;}
+function load(file,deps){const compiled=ts.transpileModule(fs.readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const api={};new Function('require','exports',compiled)(name=>name==='@/lib/cup-draw-presentation.mjs'?presentation:deps[name]??require(name),api);return api;}
 const publication=load('../lib/server/cup-competitions.ts',{});
 const notificationCore=load('../lib/server/notifications.ts',{'@/lib/notification-policy.mjs':policy,'@/lib/server/db':{dbQuery:(...args)=>client.query(...args),withTransaction:fn=>fn(client)}});
 const cupNotifications=load('../lib/server/cup-draw-notifications.ts',{'@/lib/server/notifications':notificationCore,'@/lib/cup-draw-notification-policy.mjs':cupPolicy});
@@ -71,7 +72,7 @@ try{
  const notices=(await client.query('select * from public.app_notification where event_key=$1',[eventKey])).rows;
  for(const id of [manager,player,legacy,chair,admin])assert.equal(notices.filter(n=>n.person_id===id).length,1);
  for(const id of [outsider,inactive,optout])assert.equal(notices.filter(n=>n.person_id===id).length,0);
- const managerNotice=notices.find(n=>n.person_id===manager);assert.ok(managerNotice.body.includes('draw is confirmed'));assert.ok(managerNotice.body.includes('— Bye'));
+ const managerNotice=notices.find(n=>n.person_id===manager);assert.ok(managerNotice.body.includes('draw is confirmed'));assert.ok(managerNotice.body.includes('(bye)'));
  assert.equal(await notificationCore.notificationSourceIsCurrent(managerNotice.id,manager,client),true);
  const deliveries=(await client.query('select d.* from public.notification_push_delivery d join public.app_notification n on n.id=d.notification_id where n.event_key=$1 and n.person_id=$2',[eventKey,manager])).rows;assert.equal(deliveries.length,1);
  await cupNotifications.notifyCupDrawConfirmed(client,cup,a.id);

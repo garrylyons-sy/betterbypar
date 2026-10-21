@@ -1,3 +1,4 @@
+import * as presentation from '../lib/cup-draw-presentation.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as cupPolicy from '../lib/cup-draw-notification-policy.mjs';
@@ -5,7 +6,7 @@ import * as notificationPolicy from '../lib/notification-policy.mjs';
 import fs from 'node:fs';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),ts=require('typescript'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
-function load(file,deps={}){const source=ts.transpileModule(fs.readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;const exports={};new Function('require','exports',source)(name=>deps[name]??require(name),exports);return exports;}
+function load(file,deps={}){const source=ts.transpileModule(fs.readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;const exports={};new Function('require','exports',source)(name=>name==='@/lib/cup-draw-presentation.mjs'?presentation:deps[name]??require(name),exports);return exports;}
 const {Button}=load('../components/ui/button.tsx',{'@/lib/utils':{cn:(...v)=>v.filter(Boolean).join(' ')}});
 const {CupDrawReview}=load('../components/cup-draw-review.tsx',{'@/lib/cup-draw-notification-policy.mjs':cupPolicy,'@/lib/notification-policy.mjs':notificationPolicy,'@/components/ui/button':{Button},'@/lib/cup-draw-record':load('../lib/cup-draw-record.ts')});
 const attempt={id:'a',attempt_number:1,status:'Provisional',revealed_count:0,created_at:'2026-10-21T12:00:00Z',created_by_name:'Organiser',snapshot:{entries:[{team_id:'a',team_name:'Alpha'},{team_id:'b',team_name:'Beta'}],rounds:[{round_number:1,name:'Final',fixture_date:'2027-01-01'}],bracket:[{roundNumber:1,matchNumber:1,homeTeamId:'a',awayTeamId:'b',status:'Scheduled'}]}};
@@ -29,7 +30,7 @@ test('confirm request carries only the notification groups selected by the organ
  const hookReact={useState(initial){const i=index++;if(!(i in hooks))hooks[i]=initial;return [hooks[i],v=>hooks[i]=typeof v==='function'?v(hooks[i]):v];}};
  const source=ts.transpileModule(fs.readFileSync(new URL('../components/cup-draw-review.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const exports={};const deps={'react':hookReact,'@/lib/cup-draw-notification-policy.mjs':cupPolicy,'@/lib/notification-policy.mjs':notificationPolicy,'@/components/ui/button':{Button},'@/lib/cup-draw-record':{}};
- new Function('require','exports','fetch',source)(name=>deps[name]??require(name),exports,async(_url,init)=>{sent.push(JSON.parse(init.body));return {ok:true,json:async()=>({notificationSummary:{notified:1}})};});
+ new Function('require','exports','fetch',source)(name=>name==='@/lib/cup-draw-presentation.mjs'?presentation:deps[name]??require(name),exports,async(_url,init)=>{sent.push(JSON.parse(init.body));return {ok:true,json:async()=>({notificationSummary:{notified:1}})};});
  const render=()=>{index=0;return exports.CupDrawReview({competitionId:'cup',name:'Cup',status:'Draft',draws:[{...attempt,revealed_count:1}],onSaved:async()=>{},onMessage:()=>{}});};
  function all(tree,match,result=[]){if(Array.isArray(tree)){for(const t of tree)all(t,match,result);}else if(tree&&typeof tree==='object'){if(match(tree))result.push(tree);all(tree.props?.children,match,result);}return result;}
  const inputs=()=>all(render(),n=>n.type==='input');

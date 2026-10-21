@@ -1,3 +1,4 @@
+import * as presentation from '../lib/cup-draw-presentation.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
@@ -19,7 +20,7 @@ function setup(){
   return {rows:[]};
  }};
  const source=ts.transpileModule(readFileSync(new URL('../lib/server/cup-draw-workflow.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
- const api={};new Function('require','exports',source)(name=> name==='@/lib/cup-draw-notification-policy.mjs'?{validateCupDrawAudience}:name==='@/lib/server/cup-draw-notifications'?{notifyCupDrawConfirmed:async(_c,_id,attempt)=>{state.notifications.push(attempt);return {notified:0,push:0};}}:name==='@/lib/server/cup-draw.mjs'?{buildCupBracket}:name==='@/lib/server/cup-competitions'?{publishCupBracket:async(_c,_id,_actor,bracket)=>{state.published.push(bracket);state.competition.status='In Progress';}}:createRequire(import.meta.url)(name),api);
+ const api={};new Function('require','exports',source)(name=> name==='@/lib/cup-draw-presentation.mjs'?presentation:name==='@/lib/cup-draw-notification-policy.mjs'?{validateCupDrawAudience}:name==='@/lib/server/cup-draw-notifications'?{notifyCupDrawConfirmed:async(_c,_id,attempt)=>{state.notifications.push(attempt);return {notified:0,push:0};}}:name==='@/lib/server/cup-draw.mjs'?{buildCupBracket}:name==='@/lib/server/cup-competitions'?{publishCupBracket:async(_c,_id,_actor,bracket)=>{state.published.push(bracket);state.competition.status='In Progress';}}:createRequire(import.meta.url)(name),api);
  return {state,client,api};
 }
 test('provisional draw and reveal never publish fixtures; confirmation publishes the saved snapshot',async()=>{
@@ -54,4 +55,14 @@ test('reveal retries cannot hide ties or skip ahead; invalid actions do not publ
  await api.changeCupDraw(client,'cup','actor',{action:'reveal',attemptId:'attempt-1',revealedCount:1});
  await api.changeCupDraw(client,'cup','actor',{action:'reveal',attemptId:'attempt-1',revealedCount:0});
  assert.equal(state.attempts[0].revealed_count,1);assert.equal(state.published.length,0);assert.equal(state.notifications.length,0);
+});
+test('new nine-team snapshots save preliminary-first reveal order without moving bracket slots',async()=>{
+ const {state,client,api}=setup();state.competition.round_count=4;
+ const original=client.query;client.query=async(sql,args)=>{
+  if(sql.includes('from public.cup_competition_entry'))return {rows:Array.from({length:9},(_,i)=>({team_id:`team-${i+1}`,team_name:`Team ${i+1}`}))};
+  if(sql.includes('from public.cup_competition_round'))return {rows:Array.from({length:4},(_,i)=>({round_number:i+1,name:`Round ${i+1}`,fixture_date:'2027-01-01'}))};
+  return original(sql,args);
+ };
+ await api.changeCupDraw(client,'cup','actor',{action:'draw'});
+ assert.deepEqual(state.attempts[0].snapshot.revealOrder,[8,1,2,3,4,5,6,7]);assert.equal(state.attempts[0].snapshot.bracket[0].matchNumber,1);assert.equal(state.published.length,0);
 });

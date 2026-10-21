@@ -1,12 +1,13 @@
 import { notifyCupDrawConfirmed } from "@/lib/server/cup-draw-notifications";
 import { validateCupDrawAudience } from "@/lib/cup-draw-notification-policy.mjs";
+import { cupDrawRevealOrder } from "@/lib/cup-draw-presentation.mjs";
 import { randomInt } from "node:crypto";
 import type { PoolClient } from "pg";
 import { buildCupBracket } from "@/lib/server/cup-draw.mjs";
 import { publishCupBracket } from "@/lib/server/cup-competitions";
 
 type DrawInput = { action: string; attemptId?: string; reason?: string; witnessName?: string; revealedCount?: number; notificationAudience?: unknown };
-type Snapshot = { entries: {team_id:string;team_name:string}[]; rounds: {round_number:number;name:string;fixture_date:string}[]; bracket: ReturnType<typeof buildCupBracket> };
+type Snapshot = { entries: {team_id:string;team_name:string}[]; rounds: {round_number:number;name:string;fixture_date:string}[]; bracket: ReturnType<typeof buildCupBracket>; revealOrder?: number[] };
 type Attempt = {id:string;attempt_number:number;status:string;revealed_count:number;snapshot:Snapshot};
 
 export async function changeCupDraw(client: PoolClient, competitionId: string, actorPersonId: string, input: DrawInput) {
@@ -28,7 +29,7 @@ export async function changeCupDraw(client: PoolClient, competitionId: string, a
     if (rounds.length !== competition.round_count) throw new Error("Cup round dates are incomplete.");
     const bracket = buildCupBracket({teamIds:entries.map(e=>e.team_id),roundCount:competition.round_count,random:()=>randomInt(0x100000000)/0x100000000});
     if (latest) await client.query(`update public.cup_draw_attempt set status = 'Superseded', redraw_reason = $2, superseded_by = $3, superseded_at = now() where id = $1`, [latest.id,reason,actorPersonId]);
-    return (await client.query<Attempt>(`insert into public.cup_draw_attempt (competition_id, attempt_number, snapshot, created_by) values ($1, $2, $3::jsonb, $4) returning *`, [competitionId,(latest?.attempt_number??0)+1,JSON.stringify({entries,rounds,bracket}),actorPersonId])).rows[0];
+    return (await client.query<Attempt>(`insert into public.cup_draw_attempt (competition_id, attempt_number, snapshot, created_by) values ($1, $2, $3::jsonb, $4) returning *`, [competitionId,(latest?.attempt_number??0)+1,JSON.stringify({entries,rounds,bracket,revealOrder:cupDrawRevealOrder(bracket)}),actorPersonId])).rows[0];
   }
   const attempt = latest!;
   const count = attempt.snapshot.bracket.filter(t=>t.roundNumber===1).length;
