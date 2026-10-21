@@ -73,3 +73,9 @@ set description = excluded.description,
 create index if not exists product_active_sort_idx on public.product (active, sort_order, product_name);
 create index if not exists shop_order_person_created_idx on public.shop_order (person_id, created_at desc);
 create index if not exists shop_order_item_order_idx on public.shop_order_item (order_id);
+
+-- Access is through app-managed server routes, not the public Data API.
+alter table public.product enable row level security;
+alter table public.shop_order enable row level security;
+alter table public.shop_order_item enable row level security;
+revoke all privileges on table public.product, public.shop_order, public.shop_order_item from public, anon, authenticated;

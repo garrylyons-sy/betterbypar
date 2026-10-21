@@ -2264,3 +2264,10 @@ update public.app_notification set expires_at=now()
  where (type='match_reminder' or (type='lineup_reminder' and event_key not like '%:team:%:deadline:%'))
  and (expires_at is null or expires_at>now());
 commit;
+
+-- Access is through app-managed server routes, not the public Data API.
+alter table public.ads enable row level security;
+alter table public.product enable row level security;
+alter table public.shop_order enable row level security;
+alter table public.shop_order_item enable row level security;
+revoke all privileges on table public.ads, public.product, public.shop_order, public.shop_order_item from public, anon, authenticated;

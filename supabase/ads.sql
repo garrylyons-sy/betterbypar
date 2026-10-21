@@ -24,3 +24,7 @@ comment on column public.ads.affiliate_code is 'Optional affiliate code, used to
 
 create index if not exists ads_active_placement_idx
 on public.ads (active, placement, audience, sort_order);
+
+-- Access is through app-managed server routes, not the public Data API.
+alter table public.ads enable row level security;
+revoke all privileges on table public.ads from public, anon, authenticated;
