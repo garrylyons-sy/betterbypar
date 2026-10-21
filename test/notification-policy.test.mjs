@@ -70,3 +70,16 @@ test('ten-day lifetime removes messages and their unread badges at the exact bou
  assert.equal(state.items.length,3);assert.equal(state.unreadCount,2);
  assert.equal(pruneNotificationInbox(filtered,now),filtered);
 });
+
+test('notification retention is configurable with a compatible ten-day default and strict limits',async()=>{
+ const {normalizeNotificationConfig,validateNotificationConfig,notificationLifetimeMsFor,isNotificationWithinLifetime,pruneNotificationInbox}=await import('../lib/notification-policy.mjs');
+ assert.equal(normalizeNotificationConfig({}).retentionDays,10);
+ assert.equal(normalizeNotificationConfig({retentionDays:30}).retentionDays,30);
+ for(const retentionDays of [0,366,1.5,'10',null])assert.throws(()=>validateNotificationConfig({...config,retentionDays}),/Retention/);
+ assert.equal(notificationLifetimeMsFor(30),30*86400000);
+ const now=Date.now(),created=new Date(now-15*86400000).toISOString();
+ assert.equal(isNotificationWithinLifetime(created,now,30),true);
+ const inbox={items:[{createdAt:created,readAt:null}],unreadCount:1,config:{retentionDays:30}};
+ assert.equal(pruneNotificationInbox(inbox,now).items.length,1);
+ assert.equal(pruneNotificationInbox({...inbox,config:{retentionDays:3}},now).items.length,0);
+});

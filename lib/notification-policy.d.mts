@@ -1,5 +1,5 @@
 export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_reminder' | 'ladder_challenge' | 'announcement';
-export type Config = {version:2;enabled:boolean;eligibleRoles:string[];enabledTypes:NotificationType[];matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
+export type Config = {version:2;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
 export type Preferences = {version:2;inboxTypes:NotificationType[];pushTypes:NotificationType[];pushEnabled:boolean};
 export const notificationTypes: NotificationType[];
 export const notificationRoles: string[];
@@ -16,5 +16,6 @@ export function safeNotificationHref(href:unknown):string;
 export function reminderIsDue(deadline:string|Date,hours:number,now?:Date):boolean;
 export function fixtureEventKey(id:string,date:string|Date):string;
 export const notificationLifetimeMs:number;
-export function isNotificationWithinLifetime(createdAt:string|Date,now?:number):boolean;
-export function pruneNotificationInbox<T extends {items:{createdAt:string;readAt:unknown}[];unreadCount:number}>(state:T,now?:number):T;
+export function notificationLifetimeMsFor(days?:number):number;
+export function isNotificationWithinLifetime(createdAt:string|Date,now?:number,days?:number):boolean;
+export function pruneNotificationInbox<T extends {items:{createdAt:string;readAt:unknown}[];unreadCount:number;config?:{retentionDays?:number}}>(state:T,now?:number):T;

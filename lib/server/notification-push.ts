@@ -48,14 +48,14 @@ export async function processNotificationPush() {
       where id=$1 and status='Sending' and locked_at=$2::timestamptz`,[job.id,job.lock_token,status,error,delay]);
     try {
       const access=await notificationAccess(job.person_id);
-      if(!access.eligible || !await notificationSourceIsCurrent(job.notification_id,job.person_id)){
+      if(!access.eligible || !await notificationSourceIsCurrent(job.notification_id,job.person_id,undefined,undefined,access.config.retentionDays)){
         await finish('Skipped');stats.skipped++;return;
       }
       // Read immediately before sending: another device may have read this inbox item
       // or unsubscribed while the job was waiting for an earlier provider request.
-      const freshResult=await dbQuery<{read_at:Date|null;expires_at:Date|null;active:boolean}>(`select n.read_at,least(coalesce(n.expires_at,n.created_at+interval '10 days'),n.created_at+interval '10 days') as expires_at,s.active
+      const freshResult=await dbQuery<{read_at:Date|null;expires_at:Date|null;active:boolean}>(`select n.read_at,least(coalesce(n.expires_at,n.created_at+($3::int*interval '24 hours')),n.created_at+($3::int*interval '24 hours')) as expires_at,s.active
         from public.app_notification n join public.notification_push_subscription s on s.id=$2 and s.person_id=n.person_id
-        where n.id=$1 and n.person_id=$3`,[job.notification_id,job.subscription_id,job.person_id]);
+        where n.id=$1 and n.person_id=$4`,[job.notification_id,job.subscription_id,access.config.retentionDays,job.person_id]);
       const fresh=freshResult.rows[0];
       if(!fresh?.active || !canDeliverPush({...job,...fresh},access.preferences,{...access.config,quietStart:'00:00',quietEnd:'00:00'},access.roles)){
         await finish('Skipped');stats.skipped++;return;

@@ -33,7 +33,7 @@ test('inbox downloads and unread counts both exclude notifications ten days old 
  await server(query).loadNotificationInbox('person-a');
  const reads=base.calls.filter(c=>c.sql.includes('from public.app_notification'));
  assert.equal(reads.length,2);
- for(const read of reads)assert.match(read.sql,/created_at>now\(\)-interval '10 days'/);
+ for(const read of reads){assert.match(read.sql,/created_at>now\(\)-\(\$2::int\*interval '24 hours'\)/);assert.equal(read.args[1],10);};
  assert.equal(base.calls.some(c=>/delete from/i.test(c.sql)),false);
 });
 test('old announcements cannot be delivered by the push worker even with a later expiry',async()=>{
@@ -198,4 +198,12 @@ test('inbox reuses preloaded notification rows and caches identical source reads
  assert.equal(result.items.length,20);assert.equal(result.unreadCount,20);
  assert.equal(fixtureReads,1);assert.equal(lineupReads,1);assert.equal(recipientReads,1);assert.equal(notificationReloads,0);
  assert.ok(result.items.every(item=>!('event_key' in item)&&!('expires_at' in item)));
+});
+
+test('inbox SQL uses the configured retention for both downloads and unread counts',async()=>{
+ const base=handler({config:{...policy.defaultNotificationConfig,retentionDays:30}});
+ const query=async(sql,args)=>{if(sql.includes('count(*)::integer')){base.calls.push({sql,args});return {rows:[{count:0}]};}return base.query(sql,args);};
+ await server(query).loadNotificationInbox('person-a');
+ const reads=base.calls.filter(c=>c.sql.includes('from public.app_notification'));
+ assert.equal(reads.length,2);for(const read of reads)assert.equal(read.args[1],30);
 });

@@ -62,6 +62,10 @@ try{
  const chaired=aged.rows.find(row=>row.person_id===chair);assert.ok(chaired);
  assert.equal(await core.notificationSourceIsCurrent(chaired.id,chair),false,'Old notifications must not be delivered by push.');
  const retained=await client.query('select count(*)::int as count from public.app_notification where event_key=$1',[`announcement:${requestId}`]);assert.equal(retained.rows[0].count,aged.rows.length,'Hidden records must remain in the database.');
+ await client.query("update public.notification_config set config=jsonb_set(config,'{retentionDays}','30'::jsonb) where singleton=true");
+ const extendedInbox=await core.loadNotificationInbox(chair);
+ assert.equal(extendedInbox.items.some(item=>agedIds.has(item.id)),true,'Increasing retention must apply to existing messages.');
+ assert.equal(await core.notificationSourceIsCurrent(chaired.id,chair),true);
  const privileges=await client.query("select has_table_privilege('anon','public.notification_announcement','SELECT') as anon,has_table_privilege('authenticated','public.notification_announcement','SELECT') as authenticated");assert.equal(privileges.rows[0].anon,false);assert.equal(privileges.rows[0].authenticated,false);
  console.log('Verified live schema, audience scopes, preview/send SQL, preference-change rejection, idempotent retries, and history permissions. All writes rolled back; real push dispatch was disabled.');
 }finally{await client.query('rollback');client.release();await pool.end();}

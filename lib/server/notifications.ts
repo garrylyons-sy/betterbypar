@@ -29,7 +29,7 @@ export async function notificationAccess(personId:string,client:Queryable=databa
 export async function loadNotificationInbox(personId:string) {
  const access=await notificationAccess(personId);
  if(!access.eligible)return {eligible:false,items:[],unreadCount:0};
- const {rows}=await dbQuery<{id:string;type:string;title:string;body:string;href:string;event_key:string;expires_at:Date|null;createdAt:Date;readAt:Date|null}>(`select id,type,title,body,href,event_key,expires_at,created_at as "createdAt",read_at as "readAt" from public.app_notification where person_id=$1 and inbox_visible and created_at>now()-interval '10 days' and (expires_at is null or expires_at>now()) order by created_at desc limit 100`,[personId]);
+ const {rows}=await dbQuery<{id:string;type:string;title:string;body:string;href:string;event_key:string;expires_at:Date|null;createdAt:Date;readAt:Date|null}>(`select id,type,title,body,href,event_key,expires_at,created_at as "createdAt",read_at as "readAt" from public.app_notification where person_id=$1 and inbox_visible and created_at>now()-($2::int*interval '24 hours') and (expires_at is null or expires_at>now()) order by created_at desc limit 100`,[personId,access.config.retentionDays]);
  // Cache source reads for this request only; multiple items can refer to one fixture or ladder.
  const sourceQueries=new Map<string,Promise<unknown>>();
  const sourceClient={query:(sql:string,params:unknown[]=[])=>{
@@ -39,14 +39,14 @@ export async function loadNotificationInbox(personId:string) {
  }} as Queryable;
  const currentRows=[];const staleIds:string[]=[];
  for(let offset=0;offset<rows.length;offset+=5){
- const checked=await Promise.all(rows.slice(offset,offset+5).map(async item=>({item,current:await notificationSourceIsCurrent(item.id,personId,sourceClient,item)})));
+ const checked=await Promise.all(rows.slice(offset,offset+5).map(async item=>({item,current:await notificationSourceIsCurrent(item.id,personId,sourceClient,item,access.config.retentionDays)})));
  for(const {item,current} of checked){
  if(current){const {event_key: _eventKey,expires_at: _expiresAt,...visible}=item;currentRows.push(visible);}
  else staleIds.push(item.id);
  }
  }
  if(staleIds.length)await dbQuery('update public.app_notification set expires_at=now() where id=any($1::uuid[]) and person_id=$2',[staleIds,personId]);
- const count=await dbQuery(`select count(*)::integer as count from public.app_notification where person_id=$1 and inbox_visible and created_at>now()-interval '10 days' and read_at is null and (expires_at is null or expires_at>now())`,[personId]);
+ const count=await dbQuery(`select count(*)::integer as count from public.app_notification where person_id=$1 and inbox_visible and created_at>now()-($2::int*interval '24 hours') and read_at is null and (expires_at is null or expires_at>now())`,[personId,access.config.retentionDays]);
  return {eligible:true,items:currentRows,unreadCount:count.rows[0].count,preferences:access.preferences,config:access.config};
 }
 export async function saveNotificationPreferences(personId:string,input:unknown) {
@@ -149,10 +149,10 @@ export async function expireTerminalLadderNotifications(client:Queryable,ladderI
  await client.query(`update public.app_notification n set expires_at=now() from public.club_ladder_challenge ch join public.club_ladder l on l.id=ch.ladder_id where ch.ladder_id=$1 and n.event_key like ('ladder:'||ch.id::text||':%') and (not l.active or ch.status in ('Cancelled','Completed','Expired','Walkover')) and (n.expires_at is null or n.expires_at>now())`,[ladderId]);
 }
 type NotificationSource = {type:string;event_key:string;createdAt?:string|Date;expires_at?:string|Date|null};
-export async function notificationSourceIsCurrent(notificationId:string,personId:string,client:Queryable=database,preloaded?:NotificationSource):Promise<boolean> {
+export async function notificationSourceIsCurrent(notificationId:string,personId:string,client:Queryable=database,preloaded?:NotificationSource,retentionDays?:number):Promise<boolean> {
  const n=preloaded??(await client.query('select type,event_key,expires_at,created_at as "createdAt" from public.app_notification where id=$1 and person_id=$2',[notificationId,personId])).rows[0];
  if(!n)return false;
- if(n.createdAt&&!isNotificationWithinLifetime(n.createdAt))return false;
+ if(n.createdAt&&!isNotificationWithinLifetime(n.createdAt,Date.now(),(retentionDays??(await loadNotificationConfig(client)).retentionDays)))return false;
  if(n.expires_at&&new Date(n.expires_at).getTime()<=Date.now())return false;
  const fixtureMatch=/^fixture:([0-9a-f-]{36}):(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z):/.exec(n.event_key);
  if(fixtureMatch){

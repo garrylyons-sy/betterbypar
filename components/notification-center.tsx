@@ -3,11 +3,11 @@
 import { Bell, CheckCheck, Settings, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { safeNotificationHref, pruneNotificationInbox, notificationLifetimeMs, type NotificationType, type Preferences } from "@/lib/notification-policy.mjs";
+import { safeNotificationHref, pruneNotificationInbox, notificationLifetimeMsFor, type NotificationType, type Preferences, type Config } from "@/lib/notification-policy.mjs";
 import { notificationDestination, notificationOpenEvent, openNotificationHref } from "@/lib/notification-navigation.mjs";
 
 type InboxItem = { id: string; type: NotificationType; title: string; body: string; href: string; createdAt: string; readAt: string | null };
-type Inbox = { eligible: boolean; items: InboxItem[]; unreadCount: number; preferences?: Preferences };
+type Inbox = { eligible: boolean; items: InboxItem[]; unreadCount: number; preferences?: Preferences; config?: Config };
 const categories: { type: NotificationType; label: string }[] = [
   { type: "fixture_change", label: "Fixture changes" },
   { type: "match_reminder", label: "Match reminders" },
@@ -43,10 +43,15 @@ export function useNotificationCenter(authenticated: boolean) {
   }, [authenticated]);
   useEffect(() => {
     if (!state.items.length) return;
-    const nextExpiry = Math.min(...state.items.map(item => new Date(item.createdAt).getTime() + notificationLifetimeMs));
-    const timer = window.setTimeout(() => setState(current => pruneNotificationInbox(current)), Math.max(1, nextExpiry - Date.now()));
+    const nextExpiry = Math.min(...state.items.map(item => new Date(item.createdAt).getTime() + notificationLifetimeMsFor(state.config?.retentionDays)));
+    let timer: number;
+    const expire = () => {
+      if (Date.now() >= nextExpiry) setState(current => pruneNotificationInbox(current));
+      else timer = window.setTimeout(expire, Math.min(2_147_483_647, Math.max(1, nextExpiry - Date.now())));
+    };
+    expire();
     return () => window.clearTimeout(timer);
-  }, [state.items]);
+  }, [state.items, state.config?.retentionDays]);
   useEffect(() => {
     if (!authenticated) return;
     const onOpen = (event: Event) => {
