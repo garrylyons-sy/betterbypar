@@ -949,6 +949,8 @@ export async function loadSessionPayload(user: AppUser) {
 
   const hasPublisherAccess = Boolean((await dbQuery<{allowed:boolean}>(`select exists(select 1 from public.app_publisher ap join public.person p on p.id=ap.person_id and p.active where ap.person_id=$1 and ap.active and exists(select 1 from public.user_account ua where ua.person_id=p.id and ua.active)) as allowed`,[user.personId])).rows[0]?.allowed);
   const hasViewingAccess = Boolean((await dbQuery<{allowed:boolean}>(`select exists(select 1 from public.app_viewer av join public.person p on p.id=av.person_id and p.active where av.person_id=$1 and av.active and exists(select 1 from public.user_account ua where ua.person_id=p.id and ua.active)) as allowed`,[user.personId])).rows[0]?.allowed);
+  const hasVideoAccess = Boolean((await dbQuery<{allowed:boolean}>(`select exists(select 1 from public.app_video av join public.person p on p.id=av.person_id and p.active where av.person_id=$1 and av.active and exists(select 1 from public.user_account ua where ua.person_id=p.id and ua.active)) as allowed`,[user.personId])).rows[0]?.allowed);
+  const videoContext: TeamContext = {id:`video:${user.personId}`,personId:user.personId,name:"Interclub Snooker",club:"Interclub Snooker",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Video",leaguePosition:0,hasVideoAccess:true};
   const viewerContext: TeamContext = {id:`viewer:${user.personId}`,personId:user.personId,name:"Interclub Snooker",club:"Interclub Snooker",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Viewer",leaguePosition:0,hasViewingAccess:true};
   const publisherContext: TeamContext = {id:`publisher:${user.personId}`,personId:user.personId,name:"Interclub Snooker",club:"Interclub Snooker",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Publisher",leaguePosition:0,hasPublisherAccess:true};
   const baseContexts: TeamContext[] = [
@@ -962,11 +964,12 @@ export async function loadSessionPayload(user: AppUser) {
     ? baseContexts.map((context) => ({
       ...context,
       hasPublisherAccess,
+      hasVideoAccess,
       hasViewingAccess,
       hasLeagueChairAccess: leagueChairMemberships.length > 0 || context.hasLeagueChairAccess,
       hasLiveScoringAccess: leagueChairMemberships.length > 0 || isAppOperator
     }))
-    : [...baseContexts, ...leagueChairFallbackContexts, ...(hasPublisherAccess && !leagueChairFallbackContexts.length ? [publisherContext] : []), ...(!hasPublisherAccess && hasViewingAccess && !leagueChairFallbackContexts.length ? [viewerContext] : [])].map(context=>({...context,hasPublisherAccess,hasViewingAccess}));
+    : [...baseContexts, ...leagueChairFallbackContexts, ...(hasPublisherAccess && !leagueChairFallbackContexts.length ? [publisherContext] : []), ...(!hasPublisherAccess && hasVideoAccess && !leagueChairFallbackContexts.length ? [videoContext] : []), ...(!hasPublisherAccess && !hasVideoAccess && hasViewingAccess && !leagueChairFallbackContexts.length ? [viewerContext] : [])].map(context=>({...context,hasPublisherAccess,hasVideoAccess,hasViewingAccess}));
   const standings = (await dbQuery<{
     position: number;
     team_name: string;

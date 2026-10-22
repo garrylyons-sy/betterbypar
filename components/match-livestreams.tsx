@@ -5,9 +5,9 @@ import {Card,CardHeader,CardTitle,CardContent} from '@/components/ui/card';
 import {formatFixtureDateTime} from '@/lib/fixture-scheduling.mjs';
 import type {LiveFixture,LivestreamResponse} from '@/lib/livestream-types';
 
-const empty:LivestreamResponse={streams:[],canPublish:false,canView:false};
+const empty:LivestreamResponse={streams:[],canBroadcast:false,canView:false};
 const dateLabel=formatFixtureDateTime;
-export function MatchLivestreams({publisher,viewer}:{publisher:boolean;viewer:boolean}){
+export function MatchLivestreams({video,viewer}:{video:boolean;viewer:boolean}){
  const [data,setData]=useState<LivestreamResponse>(empty),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [managing,setManaging]=useState(false),[playing,setPlaying]=useState<string|null>(null),[busy,setBusy]=useState(false);
  const [searchInput,setSearchInput]=useState(''),[search,setSearch]=useState(''),[page,setPage]=useState(1),[fixtures,setFixtures]=useState<LiveFixture[]>([]),[hasMore,setHasMore]=useState(false),[fixturesLoading,setFixturesLoading]=useState(false),[fixtureError,setFixtureError]=useState('');
@@ -39,14 +39,14 @@ export function MatchLivestreams({publisher,viewer}:{publisher:boolean;viewer:bo
   return ()=>clearTimeout(timer);
  },[stream?.streamId,stream?.expiresAt]);
  useEffect(()=>{
-  if(!managing||!data.canPublish){setFixtures([]);return;}
+  if(!managing||!data.canBroadcast){setFixtures([]);return;}
   const controller=new AbortController();setFixturesLoading(true);setFixtureError('');if(page===1)setFixtures([]);
   void (async()=>{
    try{const response=await fetch(`/api/livestreams?view=fixtures&q=${encodeURIComponent(search)}&page=${page}`,{cache:'no-store',signal:controller.signal}),body=await response.json();if(controller.signal.aborted)return;if(!response.ok)throw new Error(body.error||'Unable to load matches.');setFixtures(previous=>page===1?body.items:[...previous,...body.items.filter((item:LiveFixture)=>!previous.some(existing=>existing.id===item.id))]);setHasMore(body.hasMore);}
    catch(reason){if(!controller.signal.aborted)setFixtureError(reason instanceof Error?reason.message:'Unable to load matches.');}
    finally{if(!controller.signal.aborted)setFixturesLoading(false);}
   })();return ()=>controller.abort();
- },[managing,data.canPublish,search,page,revision,fixtureRevision]);
+ },[managing,data.canBroadcast,search,page,revision,fixtureRevision]);
  async function mutate(payload:object){
   if(busyRef.current)return;busyRef.current=true;setBusy(true);setError('');setNotice('');
   try{
@@ -59,12 +59,12 @@ export function MatchLivestreams({publisher,viewer}:{publisher:boolean;viewer:bo
   }catch(reason){if(mounted.current)setError(reason instanceof Error?reason.message:'Unable to update the live stream.');}
   finally{busyRef.current=false;if(mounted.current)setBusy(false);}
  }
- if(!publisher&&!viewer)return null;
- return <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Live matches</CardTitle>{data.canPublish?<Button type="button" variant="dark" aria-label="Manage livestreams" onClick={()=>{if(!managing)setPage(1);setManaging(value=>!value);}}>{managing?'Close publishing':'Make a match live'}</Button>:null}</div></CardHeader><CardContent className="space-y-4">
+ if(!video&&!viewer)return null;
+ return <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle>Live matches</CardTitle>{data.canBroadcast?<Button type="button" variant="dark" aria-label="Manage livestreams" onClick={()=>{if(!managing)setPage(1);setManaging(value=>!value);}}>{managing?'Close publishing':'Make a match live'}</Button>:null}</div></CardHeader><CardContent className="space-y-4">
   {loading?<p role="status" className="text-sm text-slate-600">Loading live matches…</p>:null}
   {error?<div role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}<button type="button" className="ml-2 underline" onClick={()=>setRevision(value=>value+1)}>Retry</button></div>:null}
   {notice?<p role="status" className="rounded-lg bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>:null}
-  {managing&&data.canPublish?<section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+  {managing&&data.canBroadcast?<section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
    <h3 className="font-extrabold">Make a match live</h3>
    <p className="text-sm text-slate-700">Start or schedule your broadcast in YouTube first, then paste its video link here. This makes it available to people with Viewing permission in Interclub Snooker.</p>
    <p className="text-xs text-slate-600">YouTube controls access to the video itself: someone with its link may watch outside this app. Listings expire after 12 hours.</p>
@@ -90,8 +90,8 @@ export function MatchLivestreams({publisher,viewer}:{publisher:boolean;viewer:bo
     <Button type="submit" variant="dark" disabled={busy||!selectedFixture||choosingMatch||!youtubeUrl.trim()}>{busy?'Saving…':'Make live'}</Button>
    </form>
   </section>:null}
-  {!loading&&!error&&!data.streams.length?<p className="text-sm text-slate-600">{data.canPublish&&!data.canView?'None of your matches are live. Viewing permission is needed to watch other Publishers’ streams.':'No matches are live at the moment.'}</p>:null}
+  {!loading&&!error&&!data.streams.length?<p className="text-sm text-slate-600">{data.canBroadcast&&!data.canView?'None of your matches are live. Viewing permission is needed to watch other people’s streams.':'No matches are live at the moment.'}</p>:null}
   {stream?<section aria-label="Live match viewer" className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="flex items-center justify-between gap-3 p-3"><h3 className="font-extrabold">{stream.homeTeam} v {stream.awayTeam}</h3><Button type="button" variant="secondary" aria-label="Close viewer" onClick={()=>setPlaying(null)}>Close</Button></div><iframe key={stream.streamId} title={`${stream.homeTeam} v ${stream.awayTeam} live stream`} src={`https://www.youtube.com/embed/${stream.videoId}?autoplay=0`} className="aspect-video min-h-[200px] w-full border-0" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/><a href={`https://www.youtube.com/watch?v=${stream.videoId}`} target="_blank" rel="noopener noreferrer" className="block p-3 text-sm font-bold underline">Watch on YouTube</a></section>:null}
-  <div className="grid gap-3">{data.streams.map(item=><article key={item.streamId} className="rounded-xl border border-teal-200 bg-teal-50 p-3"><span className="text-xs font-black uppercase tracking-wide text-red-700">● Live now</span><h3 className="mt-1 font-extrabold">{item.homeTeam} v {item.awayTeam}</h3><p className="mt-1 text-sm text-slate-600">{item.competition} · {dateLabel(item.fixtureDate)}</p><p className="mt-1 text-xs text-slate-600">Published by {item.publisherName}</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="dark" aria-label={`Watch ${item.homeTeam} v ${item.awayTeam}`} onClick={()=>setPlaying(item.streamId)}>Watch match</Button>{item.canEnd?<Button type="button" variant="secondary" disabled={busy} aria-label={`End ${item.homeTeam} v ${item.awayTeam}`} onClick={()=>void mutate({action:'end',id:item.streamId})}>End live listing</Button>:null}</div></article>)}</div>
+  <div className="grid gap-3">{data.streams.map(item=><article key={item.streamId} className="rounded-xl border border-teal-200 bg-teal-50 p-3"><span className="text-xs font-black uppercase tracking-wide text-red-700">● Live now</span><h3 className="mt-1 font-extrabold">{item.homeTeam} v {item.awayTeam}</h3><p className="mt-1 text-sm text-slate-600">{item.competition} · {dateLabel(item.fixtureDate)}</p><p className="mt-1 text-xs text-slate-600">Made live by {item.broadcasterName}</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="dark" aria-label={`Watch ${item.homeTeam} v ${item.awayTeam}`} onClick={()=>setPlaying(item.streamId)}>Watch match</Button>{item.canEnd?<Button type="button" variant="secondary" disabled={busy} aria-label={`End ${item.homeTeam} v ${item.awayTeam}`} onClick={()=>void mutate({action:'end',id:item.streamId})}>End live listing</Button>:null}</div></article>)}</div>
  </CardContent></Card>;
 }

@@ -2342,3 +2342,18 @@ revoke all privileges on public.app_viewer, public.match_livestream from public,
 comment on table public.app_viewer is 'Standalone Viewing permission for livestreams, assigned by platform administrators only.';
 comment on table public.match_livestream is 'Publisher-owned YouTube fixture listings; no video is hosted or proxied by the app.';
 commit;
+
+-- Separate Video role for match livestream management.
+-- Video is independent of Publisher (messaging) and Viewing (playback).
+-- Nobody receives this permission automatically.
+begin;
+create table if not exists public.app_video (
+ person_id uuid primary key references public.person(id) on delete cascade,
+ active boolean not null default true,
+ assigned_by uuid references public.person(id) on delete set null,
+ updated_at timestamptz not null default now()
+);
+alter table public.app_video enable row level security;
+revoke all privileges on public.app_video from public, anon, authenticated;
+comment on table public.app_video is 'Standalone permission to create/manage owned YouTube match livestream listings, assigned only by platform administrators. Independent of Publisher and Viewing.';
+commit;

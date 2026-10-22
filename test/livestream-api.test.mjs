@@ -5,7 +5,7 @@ import ts from 'typescript';
 function harness(user={personId:'real-user'},allowed=true){
  const calls=[];class LiveStreamError extends Error{constructor(message,status){super(message);this.status=status;}}
  const exports={};const service={LiveStreamError};
- for(const name of ['listLiveStreams','listPublisherFixtures','makeFixtureLive','endLiveStream'])service[name]=async(...args)=>{calls.push([name,...args]);if(!allowed)throw new LiveStreamError('Access required.',403);return name==='listPublisherFixtures'?{items:[],page:1,hasMore:false}:{streams:[],canPublish:false,canView:true};};
+ for(const name of ['listLiveStreams','listVideoFixtures','makeFixtureLive','endLiveStream'])service[name]=async(...args)=>{calls.push([name,...args]);if(!allowed)throw new LiveStreamError('Access required.',403);return name==='listVideoFixtures'?{items:[],page:1,hasMore:false}:{streams:[],canBroadcast:false,canView:true};};
  const deps={'next/server':{NextResponse:{json:(body,options={})=>({body,status:options.status??200,headers:options.headers})}},'@/lib/server/auth':{currentUser:async()=>user},'@/lib/server/livestreams':service};
  const code=ts.transpileModule(fs.readFileSync(new URL('../app/api/livestreams/route.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
  new Function('require','exports',code)(name=>deps[name],exports);return {api:exports,calls};
@@ -22,7 +22,7 @@ test('API binds reads and writes to signed-in identity and returns private uncac
  await api.GET(new Request('https://app.test/api/livestreams?view=fixtures&q=Club&page=2'));
  await api.POST(request({action:'make-live',personId:'spoof',fixtureId:'fixture',youtubeUrl:'url'}));
  await api.POST(request({action:'end',personId:'spoof',id:'stream'}));
- assert.equal(calls[0][1],'real-user');assert.deepEqual(calls[1],['listPublisherFixtures','real-user','Club','2']);
+ assert.equal(calls[0][1],'real-user');assert.deepEqual(calls[1],['listVideoFixtures','real-user','Club','2']);
  assert.equal(calls[2][1],'real-user');assert.equal(calls[3][1],'real-user');assert.equal(calls[3][2],'stream');
 });
 test('denied viewers and invalid requests return controlled errors',async()=>{

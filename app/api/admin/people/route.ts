@@ -280,6 +280,7 @@ export async function PATCH(request: NextRequest) {
             })
             .filter((row: SubmittedTeamRole | null): row is SubmittedTeamRole => Boolean(row))
         : null;
+      const submittedVideo = typeof body.video === "boolean" ? body.video : null;
       const submittedViewing = typeof body.viewing === "boolean" ? body.viewing : null;
       const submittedPublisher = typeof body.publisher === "boolean" ? body.publisher : null;
       const submittedLeagueChair: boolean | null = typeof body.leagueChair === "boolean" ? Boolean(body.leagueChair) : null;
@@ -306,7 +307,7 @@ export async function PATCH(request: NextRequest) {
         if (!access.platformAdmin && !editableClubIds.length) {
           throw new Error("Club administrator access is required for this person.");
         }
-        if (submittedLeagueChair !== null || submittedPublisher !== null || submittedViewing !== null) assertPlatformAdmin(access);
+        if (submittedLeagueChair !== null || submittedPublisher !== null || submittedViewing !== null || submittedVideo !== null) assertPlatformAdmin(access);
 
         if (emailInput) {
           const duplicateResult = await client.query<{ id: string }>(
@@ -447,6 +448,10 @@ export async function PATCH(request: NextRequest) {
           }
         }
 
+        if (submittedVideo !== null) {
+          await client.query(`insert into public.app_video(person_id,active,assigned_by) values($1,$2,$3)
+            on conflict(person_id) do update set active=excluded.active,assigned_by=excluded.assigned_by,updated_at=now()`,[personId,submittedVideo,user.personId]);
+        }
         if (submittedViewing !== null) {
           await client.query(`insert into public.app_viewer(person_id,active,assigned_by) values($1,$2,$3)
             on conflict(person_id) do update set active=excluded.active,assigned_by=excluded.assigned_by,updated_at=now()`,[personId,submittedViewing,user.personId]);

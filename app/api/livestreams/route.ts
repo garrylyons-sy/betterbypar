@@ -1,6 +1,6 @@
 import {NextResponse} from 'next/server';
 import {currentUser} from '@/lib/server/auth';
-import {LiveStreamError,listLiveStreams,listPublisherFixtures,makeFixtureLive,endLiveStream} from '@/lib/server/livestreams';
+import {LiveStreamError,listLiveStreams,listVideoFixtures,makeFixtureLive,endLiveStream} from '@/lib/server/livestreams';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private, no-store'};
@@ -13,7 +13,7 @@ export async function GET(request:Request){
   const user=await currentUser();if(!user)return NextResponse.json({error:'Sign in required.'},{status:401,headers});
   const params=new URL(request.url).searchParams,view=params.get('view');
   if(view&&view!=='fixtures')throw new LiveStreamError('Choose a valid view.',400);
-  const data=view==='fixtures'?await listPublisherFixtures(user.personId,params.get('q')??'',params.get('page')??'1'):await listLiveStreams(user.personId);
+  const data=view==='fixtures'?await listVideoFixtures(user.personId,params.get('q')??'',params.get('page')??'1'):await listLiveStreams(user.personId);
   return NextResponse.json(data,{headers});
  }catch(error){return failure(error);}
 }

@@ -53,6 +53,7 @@ type PersonOption = {
   inviteAcceptedAt?: string | null;
   admin?: boolean;
   publisher?: boolean;
+  video?: boolean;
   viewing?: boolean;
   clubHandicaps?: Array<{ club_id: string; club_name: string; role?: string; handicap: number | string | null }>;
   clubAdmins?: Array<{ club_id: string; club_name: string }>;
@@ -552,6 +553,7 @@ export function AdminConsole() {
         inviteSentAt: person.invite_sent_at ?? null,
         inviteAcceptedAt: person.invite_accepted_at ?? null,
         publisher: Boolean(person.publisher),
+        video: Boolean(person.video),
         viewing: Boolean(person.viewing),
         clubHandicaps: person.club_handicaps ?? [],
         clubAdmins: person.club_admins ?? [],
@@ -2990,7 +2992,7 @@ function PeoplePanel({
     }
   }
 
-  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean }) {
+  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean; video?: boolean }) {
     if (demo) {
       onMessage("Person details updated.");
       setEditTarget(null);
@@ -3579,7 +3581,7 @@ function InviteStatusBadge({ person }: { person: PersonOption }) {
 function visiblePersonRoleLabels(person: PersonOption) {
   const teamLabels = (person.teamRoles ?? []).map((role) => `${role.role} - ${role.team_name}`);
   const clubAdminLabels = (person.clubAdmins ?? []).map((club) => `Club Admin - ${shortClubName(club.club_name)}`);
-  const publisherLabels = [...(person.publisher ? ["Publisher"] : []), ...(person.viewing ? ["Viewing"] : [])];
+  const publisherLabels = [...(person.publisher ? ["Publisher"] : []), ...(person.video ? ["Video"] : []), ...(person.viewing ? ["Viewing"] : [])];
   const leagueChairLabels = (person.clubHandicaps ?? []).some((club) => club.role === "League Chair")
     ? ["Interclub League Chair"]
     : [];
@@ -3637,7 +3639,7 @@ function EditPersonModal({
   canManageLeagueChair: boolean;
   busy: boolean;
   onCancel: () => void;
-  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean }) => void;
+  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean; video?: boolean }) => void;
   onSetLoginAccess: (loginActive: boolean) => void;
 }) {
   const firstHandicap = person.clubHandicaps?.find((item) => item.handicap !== null && item.handicap !== undefined)?.handicap;
@@ -3665,6 +3667,7 @@ function EditPersonModal({
   const [handicap, setHandicap] = useState(firstHandicap === null || firstHandicap === undefined ? "" : String(firstHandicap));
   const [roleRows, setRoleRows] = useState<EditRoleRow[]>(initialRoles);
   const [viewing, setViewing] = useState(Boolean(person.viewing));
+  const [video, setVideo] = useState(Boolean(person.video));
   const [publisher, setPublisher] = useState(Boolean(person.publisher));
   const [leagueChair, setLeagueChair] = useState(() => (person.clubHandicaps ?? []).some((club) => club.role === "League Chair"));
   const canSave = Boolean(firstName.trim() && lastName.trim());
@@ -3790,8 +3793,9 @@ function EditPersonModal({
         {canManageLeagueChair ? (
           <div className="mt-4 rounded-2xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
             <p className="text-xs font-black uppercase text-[#6c5a73]">Standalone roles</p>
-            <AdminCheckbox label="Viewing" checked={viewing} onChange={setViewing} description="Can see and watch live matches in the core app. This permission is separate from Publisher access." />
-            <AdminCheckbox label="Publisher" checked={publisher} onChange={setPublisher} description="Can send messages and make matches live using YouTube in the core app. No team membership or admin access required." />
+            <AdminCheckbox label="Video" checked={video} onChange={setVideo} description="Can make matches live using YouTube and manage their own live listings. Separate from messaging and Viewing permissions." />
+            <AdminCheckbox label="Viewing" checked={viewing} onChange={setViewing} description="Can see and watch live matches in the core app. This permission is separate from Video access." />
+            <AdminCheckbox label="Publisher" checked={publisher} onChange={setPublisher} description="Can send audience-targeted inbox messages and optional phone notifications in the core app. No team membership or admin access required." />
             <p className="mt-1 text-xs font-semibold text-[#6c5a73]">
               Interclub League Chair gives this person Contacts access without adding a selectable role in the app.
             </p>
@@ -3817,6 +3821,7 @@ function EditPersonModal({
               handicap: handicap.trim(),
               leagueChair,
               publisher: canManageLeagueChair ? publisher : undefined,
+              video: canManageLeagueChair ? video : undefined,
               viewing: canManageLeagueChair ? viewing : undefined,
               roles: roleRows
                 .filter((row) => row.teamId && (row.role === "Player" || row.role === "Manager"))

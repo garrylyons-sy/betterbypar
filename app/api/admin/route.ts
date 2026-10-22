@@ -64,6 +64,7 @@ export async function GET() {
            coalesce(tr.team_roles, '[]'::jsonb) as team_roles,
            coalesce(ao.active, false) as admin,
            exists(select 1 from public.app_publisher ap where ap.person_id=p.id and ap.active) as publisher,
+           exists(select 1 from public.app_video av where av.person_id=p.id and av.active) as video,
            exists(select 1 from public.app_viewer av where av.person_id=p.id and av.active) as viewing
          from public.person p
          left join public.app_operator ao on ao.person_id = p.id
