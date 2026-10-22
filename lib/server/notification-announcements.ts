@@ -83,6 +83,10 @@ export async function sendAnnouncement(senderPersonId:string,input:unknown,autho
  if(selected.previewToken!==v.previewToken)throw new AnnouncementError('Audience or notification settings changed. Preview the announcement again.',409);
  if(!selected.recipients.length)throw new AnnouncementError('No recipients can receive this announcement.');
  const saved=await client.query(`insert into public.notification_announcement(id,sender_person_id,title,body,audience,summary) values($1,$2,$3,$4,$5::jsonb,$6::jsonb) returning id,title,body,audience,summary,created_at as "createdAt"`,[requestId,senderPersonId,draft.title,draft.body,JSON.stringify(draft.audience),JSON.stringify(selected.summary)]);
+ // Keep the actual recipients independently of each person's inbox lifecycle.
+ await client.query(`update public.notification_announcement set recipients=(
+ select coalesce(jsonb_agg(jsonb_build_object('personId',p.id,'name',concat_ws(' ',p.first_name,p.last_name),'inbox',r.inbox,'push',r.push) order by p.last_name,p.first_name,p.id),'[]'::jsonb)
+ from jsonb_to_recordset($2::jsonb) as r("personId" uuid,inbox boolean,push boolean) join public.person p on p.id=r."personId") where id=$1`,[requestId,JSON.stringify(selected.recipients)]);
  await client.query(`with recipients as (select * from jsonb_to_recordset($1::jsonb) as r("personId" uuid,inbox boolean,push boolean)), inserted as (
  insert into public.app_notification(person_id,type,title,body,href,event_key,expires_at,inbox_visible)
  select "personId",'announcement',$2,$3,'/?notifications=1',$4,now()+interval '30 days',inbox from recipients returning id,person_id

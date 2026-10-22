@@ -10,6 +10,7 @@ function service(options={}){
  const events=[],calls=[];let saved=options.saved;
  const query=async(sql,args=[])=>{
  calls.push({sql,args});
+ if(options.failSnapshot&&sql.startsWith('update public.notification_announcement set recipients'))throw Error('snapshot failed');
  if(sql.startsWith('select count(*)::int as total'))return {rows:[{total:options.total??0}]};
  if(sql.includes('from public.notification_announcement where id='))return {rows:saved?[saved]:[]};
  if(sql.includes('as "personId"'))return {rows:options.rows??[{personId:id,roles:['League Chair'],preferences:{version:2,inboxTypes:['announcement'],pushTypes:['announcement'],pushEnabled:true},hasPush:true}]};
@@ -133,4 +134,14 @@ test('publisher send rechecks permission inside the transaction before persistin
  const s=service(),preview=await s.api.previewAnnouncement(draft);
  await assert.rejects(s.api.sendAnnouncement(id,{...draft,requestId:id,previewToken:preview.previewToken},async()=>{throw Error('Publisher access revoked');}),/revoked/);
  assert.deepEqual(s.events,['begin','rollback']);assert.equal(s.calls.some(c=>c.sql.includes('insert into public.notification_announcement')),false);
+});
+
+test('recipient snapshots are written in the same send transaction and snapshot failure cannot dispatch',async()=>{
+ const s=service(),preview=await s.api.previewAnnouncement(draft);
+ await s.api.sendAnnouncement(id,{...draft,requestId:id,previewToken:preview.previewToken});
+ const snapshot=s.calls.find(c=>c.sql.startsWith('update public.notification_announcement set recipients'));
+ assert.equal(snapshot.args[0],id);assert.match(snapshot.sql,/concat_ws/);assert.match(snapshot.sql,/r\.inbox/);assert.match(snapshot.sql,/r\.push/);
+ const failing=service({failSnapshot:true}),checked=await failing.api.previewAnnouncement(draft);
+ await assert.rejects(failing.api.sendAnnouncement(id,{...draft,requestId:id,previewToken:checked.previewToken}),/snapshot failed/);
+ assert.deepEqual(failing.events,['begin','rollback']);assert.equal(failing.calls.some(c=>c.sql.includes('insert into public.app_notification')),false);
 });

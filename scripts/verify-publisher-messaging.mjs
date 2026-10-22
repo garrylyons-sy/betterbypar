@@ -50,21 +50,40 @@ try{
  for(const user of [sender,recipient])await client.query('insert into public.notification_preference(person_id,preferences) values($1,$2::jsonb)',[user.personId,JSON.stringify({...policy.defaultNotificationPreferences,inboxTypes:['announcement'],pushTypes:['announcement'],pushEnabled:true})]);
  await client.query("insert into public.notification_push_subscription(person_id,endpoint,p256dh,auth) values($1,$2,'synthetic','synthetic')",[recipient.personId,`https://example.invalid/publisher-test/${randomUUID()}`]);
  const service=load('lib/server/notification-announcements');
+ const history=load('lib/server/publisher-history');
  for(const channels of [['inbox'],['push'],['inbox','push']]){
   const draft={title:'Publisher verification',body:'A temporary message.',audience:{roles:[],clubId:null,teamId:null,personIds:[recipient.personId],channels}};
   const preview=await service.previewAnnouncement(draft);assert.equal(preview.matched,1);
   const request={...draft,requestId:randomUUID(),previewToken:preview.previewToken};
   const sent=await service.sendAnnouncement(sender.personId,request,c=>publisher.requirePublisher(sender.personId,c));
+  const own=await history.loadPublisherHistory(sender.personId);assert.equal(own.items.some(row=>row.id===sent.announcement.id),true);
+  const detail=await history.loadPublisherMessage(sender.personId,sent.announcement.id);
+  assert.equal(detail.recipientSource,'snapshot');assert.equal(detail.recipientTotal,1);assert.equal(detail.recipients[0].personId,recipient.personId);
+  assert.equal(detail.recipients[0].inbox,channels.includes('inbox'));assert.equal(detail.recipients[0].push,channels.includes('push'));
+  await assert.rejects(history.loadPublisherMessage(admin.personId,sent.announcement.id),error=>error.status===404);
   const retried=await service.sendAnnouncement(sender.personId,request,c=>publisher.requirePublisher(sender.personId,c));assert.equal(retried.duplicate,true);
   const rows=(await client.query('select id,person_id,inbox_visible from public.app_notification where event_key=$1',[`announcement:${sent.announcement.id}`])).rows;
   assert.equal(rows.length,1);assert.equal(rows[0].person_id,recipient.personId);assert.equal(rows[0].inbox_visible,channels.includes('inbox'));
   const deliveries=(await client.query('select id from public.notification_push_delivery where notification_id=$1',[rows[0].id])).rowCount;assert.equal(deliveries,channels.includes('push')?1:0);
  }
  assert.equal(dispatches,3);
+ const sentId=(await history.loadPublisherHistory(sender.personId)).items[0].id;
+ const savedName=(await history.loadPublisherMessage(sender.personId,sentId)).recipients[0].name;
+ await client.query("update public.person set last_name='Changed after send' where id=$1",[recipient.personId]);
+ await client.query("update public.app_notification set inbox_visible=false,expires_at=now()-interval '1 day' where person_id=$1",[recipient.personId]);
+ assert.equal((await history.loadPublisherMessage(sender.personId,sentId)).recipients[0].name,savedName);
+ // Legacy messages expose only remaining records, with an explicit source marker.
+ await client.query('update public.notification_announcement set recipients=null where id=$1',[sentId]);
+ const legacyHistory=await history.loadPublisherMessage(sender.personId,sentId);
+ assert.equal(legacyHistory.recipientSource,'legacy');assert.equal(legacyHistory.recipientTotal,1);
+ const durableId=(await history.loadPublisherHistory(sender.personId)).items.find(row=>row.id!==sentId).id;
+ await client.query('delete from public.person where id=$1',[recipient.personId]);
+ assert.equal((await history.loadPublisherMessage(sender.personId,durableId)).recipientTotal,1);
+ assert.equal((await history.loadPublisherMessage(sender.personId,sentId)).recipientTotal,0);
  assert.equal((await client.query('select 1 from public.app_notification where person_id=$1',[outsider.personId])).rowCount,0);
  const revoked=await update(admin,sender,false);assert.equal(revoked.status,200);assert.equal(await publisher.isPublisher(sender.personId),false);
  await assert.rejects(publisher.requirePublisher(sender.personId),/Publisher access/);
  assert.equal((await auth.loadSessionPayload(sender)).contexts.length,0);
  await update(admin,sender,true);await client.query('update public.user_account set active=false where id=$1',[sender.accountId]);assert.equal(await publisher.isPublisher(sender.personId),false);
- console.log('Verified protected role table, admin-only assignment/revocation, no club/team requirement, Publisher-only session fallback, inbox/push/both delivery, exact recipients, idempotent retries and inactive-account denial. All synthetic records rolled back; no real push sent.');
+ console.log('Verified protected role table, admin-only assignment/revocation, no club/team requirement, Publisher-only session fallback, inbox/push/both delivery, exact recipients, idempotent retries inactive-account denial, owner-only paginated history, stable recipient snapshots after renaming/expiry/deletion, and legacy history coverage. All synthetic records rolled back; no real push sent.');
 }finally{await client.query('rollback');client.release();await pool.end();}
