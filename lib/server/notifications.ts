@@ -46,6 +46,8 @@ export async function loadNotificationInbox(personId:string) {
  for(const {item,current} of checked){
  if(current){
  const {event_key: _eventKey,expires_at: _expiresAt,...visible}=item;
+ const announcement=/^announcement:([0-9a-f-]{36})$/i.exec(item.event_key);
+ if(item.type==='announcement'&&announcement)visible.href=`/?notifications=1&message=${announcement[1]}`;
  const cup=/^cup-draw:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(item.event_key);
  if(cup&&!/(?:^|\n)Draw made at /.test(visible.body)){
  const metadata=await sourceClient.query(cupDrawSourceSql,[cup[1],cup[2]]);
@@ -66,14 +68,27 @@ export async function saveNotificationPreferences(personId:string,input:unknown)
  await dbQuery(`insert into public.notification_preference(person_id,preferences) values($1,$2::jsonb) on conflict(person_id) do update set preferences=excluded.preferences,updated_at=now()`,[personId,JSON.stringify(preferences)]);
  return preferences;
 }
+type ReceiptRow={event_key:string;read_at:string|Date|null;opened_at:string|Date|null};
+export async function syncAnnouncementReceipts(client:Queryable,personId:string,rows:ReceiptRow[]) {
+ const receipts=rows.flatMap(row=>{const match=/^announcement:([0-9a-f-]{36})$/i.exec(row.event_key);return match?[{announcementId:match[1],readAt:row.read_at,openedAt:row.opened_at}]:[];});
+ if(!receipts.length)return;
+ await client.query(`with changed as (select * from jsonb_to_recordset($2::jsonb) as c("announcementId" uuid,"readAt" timestamptz,"openedAt" timestamptz))
+ update public.notification_announcement a set recipients=(select jsonb_agg(case when recipient->>'personId'=$1::text then recipient||jsonb_build_object('readAt',changed."readAt",'openedAt',changed."openedAt") else recipient end order by ordinal)
+ from jsonb_array_elements(a.recipients) with ordinality as r(recipient,ordinal))
+ from changed where a.id=changed."announcementId" and a.recipients is not null`,[personId,JSON.stringify(receipts)]);
+}
 export async function markNotificationsRead(personId:string,id?:string) {
- if(!(await notificationAccess(personId)).eligible)throw new Error('Notification access required.');
- await dbQuery(`update public.app_notification set read_at=coalesce(read_at,now()) where person_id=$1 and ($2::uuid is null or id=$2::uuid)`,[personId,id??null]);
+ const access=await notificationAccess(personId);
+ if(!access.eligible)throw new Error('Notification access required.');
+ await withTransaction(async client=>{
+ const changed=await client.query<ReceiptRow>(`update public.app_notification set read_at=coalesce(read_at,now()) where person_id=$1 and ($2::uuid is null or id=$2::uuid) and inbox_visible and created_at>now()-($3::int*interval '24 hours') and (expires_at is null or expires_at>now()) returning event_key,read_at,opened_at`,[personId,id??null,access.config.retentionDays]);
+ await syncAnnouncementReceipts(client,personId,changed.rows);
+ });
 }
 export async function dismissNotification(personId:string,id?:string) {
  if(!(await notificationAccess(personId)).eligible)throw new Error('Notification access required.');
  const result=await dbQuery<{id:string}>(`with dismissed as (
- update public.app_notification set inbox_visible=false,read_at=coalesce(read_at,now()),expires_at=least(coalesce(expires_at,now()),now())
+ update public.app_notification set inbox_visible=false,expires_at=least(coalesce(expires_at,now()),now())
  where person_id=$1 and (($2::uuid is not null and id=$2::uuid) or ($2::uuid is null and read_at is not null)) and inbox_visible returning id
  ), skipped as (update public.notification_push_delivery set status='Skipped',last_error=null,locked_at=null
  where notification_id in(select id from dismissed) and status='Pending' returning id) select id from dismissed`,[personId,id??null]);

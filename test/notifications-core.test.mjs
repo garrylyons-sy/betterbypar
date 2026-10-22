@@ -64,7 +64,7 @@ test('duplicate creation cannot requeue delivery and opt-out never queues',async
 test('read updates always scope to signed-in person, even with supplied item ID',async()=>{
  const {query,calls}=handler();await server(query).markNotificationsRead('person-a','other-item');
  const update=calls.find(c=>c.sql.includes('update public.app_notification'));
- assert.match(update.sql,/where person_id=\$1/);assert.deepEqual(update.args,['person-a','other-item']);
+ assert.match(update.sql,/where person_id=\$1/);assert.deepEqual(update.args,['person-a','other-item',10]);
 });
 test('noneligible inbox reveals neither config nor preferences or data',async()=>{
  const {query,calls}=handler({roles:['Manager']});
@@ -320,7 +320,7 @@ test('schedule revision changes reminder identity even when fixture-change notif
 });
 test('deleting an inbox message scopes to its owner, hides it and suppresses pending phone delivery',async()=>{
  const {query,calls}=handler();await server(query).dismissNotification('person-a','notice-a');
- const write=calls.find(c=>c.sql.includes('set inbox_visible=false'));assert.deepEqual(write.args,['person-a','notice-a']);assert.match(write.sql,/person_id=\$1/);assert.match(write.sql,/read_at=coalesce/);assert.match(write.sql,/expires_at=/);assert.doesNotMatch(write.sql,/delete from/i);
+ const write=calls.find(c=>c.sql.includes('set inbox_visible=false'));assert.deepEqual(write.args,['person-a','notice-a']);assert.match(write.sql,/person_id=\$1/);assert.doesNotMatch(write.sql,/read_at=coalesce/);assert.match(write.sql,/expires_at=/);assert.doesNotMatch(write.sql,/delete from/i);
 });
 test('existing cup inbox messages receive saved draw time and witness with no extra source read or database rewrite',async()=>{
  const base=handler();let sourceReads=0;

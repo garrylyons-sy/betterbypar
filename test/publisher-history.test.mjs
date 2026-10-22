@@ -32,5 +32,5 @@ test('legacy details explicitly identify that recipient records may be incomplet
 test('legacy recipient lookup uses the canonical stored message UUID',async()=>{
  const messageId='abcdefab-abcd-abcd-abcd-abcdefabcdef',s=service({legacy:true,messageId});
  await s.api.loadPublisherMessage('sender',messageId.toUpperCase(),'1');
- for(const call of s.calls.filter(c=>c.sql.includes('from public.app_notification')))assert.equal(call.args[0],`announcement:${messageId}`);
+ for(const call of s.calls.filter(c=>c.sql.includes('from public.app_notification')))assert.equal(call.args[1],`announcement:${messageId}`);
 });

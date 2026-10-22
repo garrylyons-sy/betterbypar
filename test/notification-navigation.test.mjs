@@ -28,7 +28,7 @@ test('opening an inbox item prevents browser navigation and routes inside the mo
   const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const opened=[],exports={};
   const hooks={useEffect(){},useRef:()=>({current:null}),useState:value=>[value,()=>{}]};
-  new Function('require','exports',compiled)(name=>name==='@/components/cup-draw-inbox-message'?{CupDrawInboxMessage}:name==='react'?hooks:name==='@/components/ui/button'?{Button:()=>null}:name==='@/lib/notification-policy.mjs'?{safeNotificationHref:value=>value}:name==='@/lib/notification-navigation.mjs'?{...navigation,openNotificationHref:href=>opened.push(href)}:require(name),exports);
+  new Function('require','exports',compiled)(name=>name==='@/components/notification-message'?{NotificationMessage:()=>null}:name==='@/components/cup-draw-inbox-message'?{CupDrawInboxMessage}:name==='react'?hooks:name==='@/components/ui/button'?{Button:()=>null}:name==='@/lib/notification-policy.mjs'?{safeNotificationHref:value=>value}:name==='@/lib/notification-navigation.mjs'?{...navigation,openNotificationHref:href=>opened.push(href)}:require(name),exports);
   const tree=exports.NotificationCenter({center:{state:{eligible:true,items:[{id:'item',type:'announcement',title:'Title',body:'Message',href:'/?notifications=1',createdAt:'2026-10-20',readAt:'2026-10-20'}],unreadCount:0},panel:'inbox',setPanel(){},setError(){},refresh(){}}});
   function find(node){if(Array.isArray(node))return node.map(find).find(Boolean);if(!node||typeof node!=='object')return null;return node.type==='a'?node:find(node.props?.children);}
   const link=find(tree);let prevented=0;
@@ -44,4 +44,11 @@ test('result links open Results and select the matching league and season contex
  assert.equal(result.page,'Results');assert.equal(result.fixtureId,'completed');assert.equal(result.contextId,'b');
  const shell=readFileSync(new URL('../components/app-shell.tsx',import.meta.url),'utf8');
  assert.match(shell,/requestedPage === "Results"/);assert.match(shell,/NotifiedResultCard key=\{selectedFixtureId\}/);
+});
+
+test('announcement deep links select the exact message without navigating the main app',()=>{
+ const id='11111111-1111-4111-8111-111111111111';
+ const result=navigation.notificationDestination(`/?notifications=1&message=${id}`,contexts);
+ assert.equal(result.messageId,id);assert.equal(result.inbox,true);assert.equal(result.page,null);
+ assert.equal(navigation.notificationDestination('/?notifications=1&message=invalid').messageId,null);
 });

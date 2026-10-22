@@ -92,7 +92,7 @@ try{
  assert.equal((await client.query('select inbox_visible from public.app_notification where id=$1',[managerNotice.id])).rows[0].inbox_visible,true);
  await notificationCore.dismissNotification(manager,managerNotice.id);
  const hidden=(await client.query('select inbox_visible,read_at,expires_at<=clock_timestamp() as expired from public.app_notification where id=$1',[managerNotice.id])).rows[0];
- assert.equal(hidden.inbox_visible,false);assert.ok(hidden.read_at);assert.equal(hidden.expired,true);
+ assert.equal(hidden.inbox_visible,false);assert.equal(hidden.read_at,null);assert.equal(hidden.expired,true);
  assert.equal((await notificationCore.loadNotificationInbox(manager)).items.some(n=>n.id===managerNotice.id),false);
  assert.equal((await client.query('select status from public.notification_push_delivery where notification_id=$1',[managerNotice.id])).rows[0].status,'Skipped');
  assert.equal((await client.query('select inbox_visible from public.app_notification where event_key=$1 and person_id=$2',[eventKey,player])).rows[0].inbox_visible,true);
