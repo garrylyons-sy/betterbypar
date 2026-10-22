@@ -43,6 +43,7 @@ export const appearanceMenuOptions: Array<{ id: AppearanceMenuId; label: string;
 ];
 
 export const defaultAppearanceConfig: AppearanceConfig = {
+  Viewer: {role:"Viewer",panels:[],menuItems:["Home", "Interclub Leagues"]},
   Publisher: {role:"Publisher",panels:[],menuItems:["Home", "Interclub Leagues"]},
   Player: {
     role: "Player",

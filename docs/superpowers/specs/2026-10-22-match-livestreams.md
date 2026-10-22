@@ -1,0 +1,7 @@
+# Publisher match livestreams
+
+Publishers select a published league/cup/friendly fixture, paste a YouTube video/live link, and make it live. YouTube owns the broadcast; making a listing live does not start the camera or YouTube stream. Publishers manage/end their own listings and preview their own streams. One active stream per fixture. Listings automatically expire after 12 hours to avoid stale live indicators; re-listing is allowed.
+
+Viewing is a standalone, default-off, platform-admin-assigned person permission, independent of Publisher/club/team. Existing roles carry hasViewingAccess; people with only Viewing get a minimal Viewer context. Permitted people see Live matches on Home and in More; viewers click Watch to load an embedded player, with YouTube fallback. No autoplay/preloaded players; leaving or ending a listing unmounts playback. Server authorization uses currentUser and active person/account/assignment, including specific stream lookups. API responses are private/no-store and client refreshes on visibility/focus/pull refresh plus a 30-second visible-only timer. Viewer revocation closes playback at next refresh; YouTube itself is not private access control.
+
+Persist protected app_viewer and match_livestream tables with RLS enabled and no anon/authenticated grants. Foreign keys cascade fixture/person removal. Do not grant anyone permissions automatically, send notifications, change score-entry state or broadcast through app servers. Provide clear YouTube setup instructions. Do not commit/push without a new explicit request.

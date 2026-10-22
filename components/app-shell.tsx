@@ -1,5 +1,6 @@
 "use client";
 
+import { MatchLivestreams } from "@/components/match-livestreams";
 import { PublisherMessages } from "@/components/publisher-messages";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
@@ -48,7 +49,7 @@ import { isPollingTime, pollingFixtureDate, type SystemSettings } from "@/lib/sy
 import { cn } from "@/lib/utils";
 import { notificationDestination, notificationOpenEvent } from "@/lib/notification-navigation.mjs";
 
-type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Ladder" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop" | "Send a message";
+type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Ladder" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop" | "Send a message" | "Live matches";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 type ShopProduct = {
   id: string;
@@ -86,7 +87,7 @@ const attackSnookerRules = [
 ];
 
 function isClubOnlyRole(role: Role) {
-  return role === "Club Member" || role === "Club Admin" || role === "League Chair" || role === "Publisher";
+  return role === "Club Member" || role === "Club Admin" || role === "League Chair" || role === "Publisher" || role === "Viewer";
 }
 
 function seasonSortValue(season: string) {
@@ -164,7 +165,7 @@ function withMyClubLast(items: AppearanceMenuId[]) {
 }
 
 function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): AppearanceMenuId[] {
-  if(role === "Publisher") return ["Home", "Interclub Leagues"];
+  if(role === "Publisher" || role === "Viewer") return ["Home", "Interclub Leagues"];
   if (role === "Club Member") {
     return ["Home", "Fixtures", "Table", "Bookings", "Competitions", "Interclub Leagues"];
   }
@@ -486,6 +487,7 @@ export function AppShell({
               <Button type="button" variant="dark" onClick={()=>navigateToPage("Send a message")} className="w-full shrink-0 shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#10233f] sm:w-auto"><Mail className="h-5 w-5"/>Compose message<ChevronRight className="h-4 w-4"/></Button>
             </section>
           ) : null}
+          {activePage === "Home" && (activeTeam.hasPublisherAccess || activeTeam.hasViewingAccess) ? <MatchLivestreams key={activeTeam.personId || activeTeam.id} publisher={Boolean(activeTeam.hasPublisherAccess)} viewer={Boolean(activeTeam.hasViewingAccess)}/> : null}
           <PageContent
             activePage={activePage}
             activeTeam={activeTeam}
@@ -677,12 +679,14 @@ function PageContent({
   if (activePage === "Players") return <PlayersPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
+  if (activePage === "Live matches") return (activeTeam.hasPublisherAccess || activeTeam.hasViewingAccess) ? <MatchLivestreams key={activeTeam.personId || activeTeam.id} publisher={Boolean(activeTeam.hasPublisherAccess)} viewer={Boolean(activeTeam.hasViewingAccess)}/> : <p>Viewing permission required.</p>;
   if (activePage === "Send a message") return activeTeam.hasPublisherAccess ? <PublisherMessages/> : <p>Publisher access required.</p>;
   if (activePage === "Shop") return <ShopPage activeTeam={activeTeam} />;
   if (activePage === "Last Man Standing") return <LastManStandingPage />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} userCanShare={userCanShare} />;
-  if (activeTeam.role === "Publisher") return <Card><CardContent className="p-4">Use Send a message to publish to your selected audience.</CardContent></Card>;
+  if (activeTeam.role === "Viewer") return <Card><CardContent className="p-4">Watch available live matches above.</CardContent></Card>;
+  if (activeTeam.role === "Publisher") return <Card><CardContent className="p-4">Send a message to your chosen audience or make a match live above.</CardContent></Card>;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} userCanShare={userCanShare} />;
   if (isClubOnlyRole(activeTeam.role)) return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   return <PlayerHome activeTeam={activeTeam} standingsData={standingsData} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} userCanShare={userCanShare} />;
@@ -3913,6 +3917,7 @@ function MoreMenu({
           <Badge variant="muted">{activeTeam.name}</Badge>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
+          {activeTeam.hasPublisherAccess || activeTeam.hasViewingAccess ? <button type="button" onClick={()=>onNavigate("Live matches")} className="flex items-center gap-3 rounded-xl border p-4 text-left"><Swords className="h-5 w-5"/><span><span className="block font-black">Live matches</span><span className="text-xs text-[#6c5a73]">Watch live snooker</span></span></button> : null}
           {activeTeam.hasPublisherAccess ? <button type="button" onClick={()=>onNavigate("Send a message")} className="flex items-center gap-3 rounded-xl border p-4 text-left"><Mail className="h-5 w-5"/><span><span className="block font-black">Send a message</span><span className="text-xs text-[#6c5a73]">Publish to an audience</span></span></button> : null}
           {activeTeam.hasLeagueChairAccess ? (
             <button
