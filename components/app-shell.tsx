@@ -481,10 +481,10 @@ export function AppShell({
             )
           ) : null}
           {activePage === "Home" && activeTeam.hasPublisherAccess ? (
-            <button type="button" onClick={()=>navigateToPage("Send a message")} className="flex min-h-20 items-center gap-3 rounded-2xl border-l-4 border-[#1b8a72] bg-[#e0f7ef] p-4 text-left shadow-sm ring-1 ring-[#1b8a72]/40 transition-colors hover:bg-[#cef0e3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b8a72]">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#1b8a72] text-white"><Mail className="h-6 w-6"/></span>
-              <span><span className="block font-extrabold text-[#105746]">Send a message</span><span className="text-sm text-[#275e50]">Choose your audience and send an inbox message or phone notification.</span></span>
-            </button>
+            <section aria-label="Send a message" className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0"><h2 className="font-extrabold text-[#10233f]">Send a message</h2><p className="mt-1 text-sm text-slate-600">Send an inbox message or phone notification to your chosen audience.</p></div>
+              <Button type="button" variant="dark" onClick={()=>navigateToPage("Send a message")} className="w-full shrink-0 shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#10233f] sm:w-auto"><Mail className="h-5 w-5"/>Compose message<ChevronRight className="h-4 w-4"/></Button>
+            </section>
           ) : null}
           <PageContent
             activePage={activePage}
