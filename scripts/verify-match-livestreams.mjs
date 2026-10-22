@@ -49,7 +49,7 @@ try{
  const live=(await service.listLiveStreams(viewer.personId)).streams.find(s=>s.streamId===sent.id);assert.ok(live);assert.equal(live.videoId,'M7lc1UVf-VE');assert.equal(live.canEnd,false);
  assert.equal((await service.listLiveStreams(other.personId)).streams.some(s=>s.streamId===sent.id),false);
  assert.equal((await service.listLiveStreams(publisher.personId)).streams.find(s=>s.streamId===sent.id).canEnd,true);
- const options=await service.listPublisherFixtures(publisher.personId,'', '1');assert.ok(options.items.some(f=>f.id===fixture.id));assert.ok(options.items.length<=25);
+ const options=await service.listPublisherFixtures(publisher.personId,'', '1');assert.ok(options.items.some(f=>f.id===fixture.id));assert.ok(options.items.length<=10);
  await assert.rejects(service.endLiveStream(other.personId,sent.id),e=>e.status===404);
  await client.query("update public.fixture set status='Cancelled' where id=$1",[fixture.id]);assert.equal((await service.listLiveStreams(viewer.personId)).streams.some(s=>s.streamId===sent.id),false);
  await client.query("update public.fixture set status='Scheduled' where id=$1",[fixture.id]);

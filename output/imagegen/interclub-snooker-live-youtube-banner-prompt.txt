@@ -1,0 +1,4 @@
+Created with the built-in image-generation tool, using public/snooker-logo.png as the official logo reference. Final PNG exported at 2560 x 1440.
+
+Design prompt:
+Create a premium Interclub Snooker Live YouTube channel banner. Preserve the official smiling cue-ball mascot with cue. Use a midnight-navy and emerald snooker arena with atmospheric spotlights, green table, red balls, cue ball and black ball. Use exact bold white wording INTERCLUB SNOOKER and a bright red LIVE badge. Keep the full logo and wording in a compact central horizontal lockup safe for YouTube mobile cropping. Expand the arena above and table below to fill a 16:9 canvas. No extra wording, platform logos, guides, borders or watermarks.

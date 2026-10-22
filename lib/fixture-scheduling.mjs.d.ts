@@ -92,3 +92,5 @@ export function organizeFixtureWeeks<T extends FixtureScheduleItem>(input: {
   fixtures: Array<T & { rescheduled: boolean }>;
   postponedFixtures: PostponedFixtureNotice[];
 }>;
+
+export function formatFixtureDateTime(value: string | null | undefined): string;

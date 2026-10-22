@@ -19,8 +19,8 @@ export async function listPublisherFixtures(personId:string,search:string='',pag
  const page=Number(pageInput);if(!Number.isInteger(page)||page<1||page>10000||search.length>100)throw new LiveStreamError('Choose a valid search or page.',400);
  const result=await dbQuery<LiveFixture>(`select ${fixtureColumns} ${fixtureJoins}
  where season.active and f.status='Scheduled' and ($1='' or strpos(lower(concat_ws(' ',ht.name,at.name,l.name,cc.name)),lower($1))>0)
- order by abs(extract(epoch from f.fixture_date-now())),f.fixture_date,f.id limit 26 offset $2`,[search.trim(),(page-1)*25]);
- return {items:result.rows.slice(0,25),page,hasMore:result.rows.length>25};
+ order by abs(extract(epoch from f.fixture_date-now())),f.fixture_date,f.id limit 11 offset $2`,[search.trim(),(page-1)*10]);
+ return {items:result.rows.slice(0,10),page,hasMore:result.rows.length>10};
 }
 export async function listLiveStreams(personId:string):Promise<LivestreamResponse>{
  const access=await livestreamAccess(personId);if(!access.canPublish&&!access.canView)throw new LiveStreamError('Viewing permission required.',403);
