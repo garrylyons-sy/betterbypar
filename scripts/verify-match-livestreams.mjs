@@ -49,6 +49,27 @@ try{
  const template=(await client.query('select f.* from public.fixture f join public.season s on s.id=f.season_id where s.active limit 1')).rows[0];assert.ok(template,'An active season fixture is required');
  const fixture=(await client.query("insert into public.fixture(season_id,league_id,fixture_date,home_team_id,away_team_id,status) values($1,$2,now(),$3,$4,'Scheduled') returning id",[template.season_id,template.league_id,template.home_team_id,template.away_team_id])).rows[0];
  const draft={fixtureId:fixture.id,youtubeUrl:'https://youtu.be/M7lc1UVf-VE'};
+ // Listing and direct submission must agree on today's Irish calendar date.
+ const irishToday=(await client.query("select (now() at time zone 'Europe/Dublin')::date::text as day")).rows[0].day;
+ const otherDays=[];
+ for(const offset of [-1,1]){
+  const row=(await client.query("insert into public.fixture(season_id,league_id,fixture_date,home_team_id,away_team_id,status) values($1,$2,now()+($5::int*interval '1 day'),$3,$4,'Scheduled') returning id",[template.season_id,template.league_id,template.home_team_id,template.away_team_id,offset])).rows[0];otherDays.push(row.id);
+  await assert.rejects(service.makeFixtureLive(broadcaster.personId,{...draft,fixtureId:row.id}),e=>e.status===409,'Yesterday/tomorrow cannot be made live');
+ }
+ // Prove filtering does not use the PostgreSQL session timezone.
+ for(const zone of ['Pacific/Honolulu','Pacific/Kiritimati']){
+  await client.query("select set_config('TimeZone',$1,true)",[zone]);
+  const todayOptions=await service.listVideoFixtures(broadcaster.personId);
+  assert.ok(todayOptions.items.length);
+  for(const item of todayOptions.items){const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Dublin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(item.fixtureDate));assert.equal(day,irishToday);assert.equal(otherDays.includes(item.id),false);}
+ }
+ for(const time of ['00:30','23:30']){
+  const boundary=(await client.query("insert into public.fixture(season_id,league_id,fixture_date,home_team_id,away_team_id,status) values($1,$2,($5::date+$6::time) at time zone 'Europe/Dublin',$3,$4,'Scheduled') returning id",[template.season_id,template.league_id,template.home_team_id,template.away_team_id,irishToday,time])).rows[0];
+  const listing=await service.makeFixtureLive(broadcaster.personId,{...draft,fixtureId:boundary.id});assert.ok(listing.id);await service.endLiveStream(broadcaster.personId,listing.id);
+  await client.query('delete from public.fixture where id=$1',[boundary.id]);
+ }
+ await client.query('delete from public.fixture where id=any($1::uuid[])',[otherDays]);
+
  await assert.rejects(service.makeFixtureLive(viewer.personId,draft),e=>e.status===403);
  await assert.rejects(service.makeFixtureLive(publisher.personId,draft),e=>e.status===403);
  await assert.rejects(service.listVideoFixtures(publisher.personId),e=>e.status===403);
@@ -76,5 +97,5 @@ try{
  await assign(admin,false);await assert.rejects(service.listLiveStreams(viewer.personId),e=>e.status===403);
  await client.query('update public.app_viewer set active=true where person_id=$1',[viewer.personId]);await client.query('update public.user_account set active=false where person_id=$1',[viewer.personId]);await assert.rejects(service.listLiveStreams(viewer.personId),e=>e.status===403);
  await client.query('delete from public.fixture where id=$1',[fixture.id]);assert.equal((await client.query('select 1 from public.match_livestream where fixture_id=$1',[fixture.id])).rowCount,0);
- console.log('Verified RLS/revokes, admin-only Video/Viewing assignment, standalone Video/Viewer sessions, Publisher/Video separation, server permissions, real match search, safe YouTube IDs, duplicate/conflict handling, owner-only ending, cancelled/expired listings, revoked Video/Viewing access, inactive login denial and fixture cascade. All synthetic data rolled back; no broadcast or notification sent.');
+ console.log('Verified RLS/revokes, admin-only Video/Viewing assignment, standalone Video/Viewer sessions, Publisher/Video separation, server permissions, today-only Irish-date filtering and submission, real match search, safe YouTube IDs, duplicate/conflict handling, owner-only ending, cancelled/expired listings, revoked Video/Viewing access, inactive login denial and fixture cascade. All synthetic data rolled back; no broadcast or notification sent.');
 }finally{await client.query('rollback');client.release();await pool.end();}
