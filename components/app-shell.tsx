@@ -480,7 +480,12 @@ export function AppShell({
               <MatchdayHero activeTeam={activeTeam} userLabel={userLabel} leagueTeamCount={activeStandings.length} activeMatchCount={activeMatchCount} />
             )
           ) : null}
-          {activePage === "Home" && activeTeam.hasPublisherAccess ? <button type="button" onClick={()=>navigateToPage("Send a message")} className="flex min-h-20 items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-[#eeeaf2]"><Mail className="h-6 w-6 text-[#168f72]"/><span><span className="block font-extrabold">Send a message</span><span className="text-sm text-[#6c5a73]">Choose your audience and send an inbox message or phone notification.</span></span></button> : null}
+          {activePage === "Home" && activeTeam.hasPublisherAccess ? (
+            <button type="button" onClick={()=>navigateToPage("Send a message")} className="flex min-h-20 items-center gap-3 rounded-2xl border-l-4 border-[#1b8a72] bg-[#e0f7ef] p-4 text-left shadow-sm ring-1 ring-[#1b8a72]/40 transition-colors hover:bg-[#cef0e3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1b8a72]">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#1b8a72] text-white"><Mail className="h-6 w-6"/></span>
+              <span><span className="block font-extrabold text-[#105746]">Send a message</span><span className="text-sm text-[#275e50]">Choose your audience and send an inbox message or phone notification.</span></span>
+            </button>
+          ) : null}
           <PageContent
             activePage={activePage}
             activeTeam={activeTeam}
