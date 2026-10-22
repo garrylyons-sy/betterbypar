@@ -4,7 +4,7 @@ import {validateAnnouncementDraft,announcementSelection,announcementPreviewToken
 import {defaultNotificationConfig} from '../lib/notification-policy.mjs';
 const draft={title:' Notice ',body:' Body ',audience:{roles:['Manager','Player','Manager'],clubId:null,teamId:null}};
 test('normalizes draft and rejects invalid roles, IDs, missing club, empty and oversized content',()=>{
- assert.deepEqual(validateAnnouncementDraft(draft),{title:'Notice',body:'Body',audience:{roles:['Manager','Player'],clubId:null,teamId:null}});
+ assert.deepEqual(validateAnnouncementDraft(draft),{title:'Notice',body:'Body',audience:{includeSender:true,roles:['Manager','Player'],clubId:null,teamId:null}});
  for(const change of [{title:''},{body:'x'.repeat(2001)},{audience:{roles:['Bad'],clubId:null,teamId:null}},{audience:{roles:[],clubId:'bad',teamId:null}},{audience:{roles:[],clubId:null,teamId:'11111111-1111-4111-8111-111111111111'}}])assert.throws(()=>validateAnnouncementDraft({...draft,...change}));
 });
 test('selection honors pilot, category and each channel preference and subscription',()=>{
@@ -36,4 +36,11 @@ test('publisher drafts retain specific people and delivery choices and reject em
  const selected=announcementSelection(rows,config,result.audience);
  assert.deepEqual(selected.recipients,[{personId:person,inbox:true,push:false}]);assert.equal(selected.summary.matched,1);
  assert.deepEqual(announcementSelection(rows,config,{personIds:[person],channels:['push']}).recipients,[{personId:person,inbox:false,push:true}]);
+});
+
+test('sender attribution defaults on, permits opting out, and ignores client-supplied signature text',()=>{
+ const normalized=validateAnnouncementDraft(draft);assert.equal(normalized.audience.includeSender,true);
+ assert.equal(validateAnnouncementDraft({...draft,audience:{...draft.audience,includeSender:false}}).audience.includeSender,false);
+ assert.equal(validateAnnouncementDraft({...draft,audience:{...draft.audience,senderFooter:'Sent by someone else'}}).audience.senderFooter,undefined);
+ assert.throws(()=>validateAnnouncementDraft({...draft,audience:{...draft.audience,includeSender:'yes'}}));
 });

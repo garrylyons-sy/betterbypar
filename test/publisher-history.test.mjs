@@ -4,11 +4,13 @@ import fs from 'node:fs';
 import ts from 'typescript';
 class AnnouncementError extends Error{constructor(message,status=400){super(message);this.status=status;}}
 const id='11111111-1111-4111-8111-111111111111';
+const serverSource=ts.transpileModule(fs.readFileSync(new URL('../lib/server/notification-announcements.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const serverExports={};new Function('require','exports',serverSource)(()=>({}),serverExports);
 function service({owned=true,legacy=false,messageId=id}={}){
  const calls=[];
  const query=async(sql,args)=>{calls.push({sql,args});if(sql.includes('from public.notification_announcement where id='))return {rows:owned?[{id:messageId,title:'Title',body:'Message',audience:{},summary:{eligible:30,skipped:0},recipients:legacy?null:[{personId:id,name:'Saved recipient',inbox:true,push:false}]}]:[]};if(sql.includes('count(*)'))return {rows:[{total:30}]};return {rows:[{id,name:'Saved recipient',inbox:true,push:false}]};};
  const compiled=ts.transpileModule(fs.readFileSync(new URL('../lib/server/publisher-history.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,exports={};
- new Function('require','exports',compiled)(name=>name==='@/lib/server/db'?{dbQuery:query}:{AnnouncementError},exports);return {api:exports,calls};
+ new Function('require','exports',compiled)(name=>name==='@/lib/server/db'?{dbQuery:query}:{AnnouncementError,announcementDisplayBody:serverExports.announcementDisplayBody},exports);return {api:exports,calls};
 }
 test('Publisher history scopes count and page queries to the signed-in sender and bounds pages',async()=>{
  const s=service(),page=await s.api.loadPublisherHistory('sender','2');assert.equal(page.pageSize,10);assert.equal(page.page,2);

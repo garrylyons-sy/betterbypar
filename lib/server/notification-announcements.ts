@@ -5,6 +5,10 @@ import {scheduleNotificationPush} from '@/lib/server/notification-dispatch';
 import {validateAnnouncementDraft,announcementSelection,announcementPreviewToken,announcementUuidPattern,type AnnouncementDraft} from '@/lib/announcement-policy.mjs';
 type Queryable=Pick<PoolClient,'query'>;
 const database={query:dbQuery} as Queryable;
+export function announcementDisplayBody(row:{body:string;audience?:unknown}){
+ const audience=row.audience as {senderFooter?:unknown;includeSender?:boolean}|undefined;
+ return audience?.includeSender!==false&&typeof audience?.senderFooter==='string'&&audience.senderFooter?`${row.body}\n\n${audience.senderFooter}`:row.body;
+}
 export class AnnouncementError extends Error {constructor(message:string,public status=400){super(message);}}
 // Current season assignments only. Season-independent roles resolve against these teams.
 export const announcementTeamsSql=`select t.id,t.club_id,t.league_id,t.name,l.name as league,s.name as season
@@ -62,7 +66,7 @@ export async function loadAnnouncementDetail(id:string,client:Queryable=database
  if(!announcementUuidPattern.test(id))throw new AnnouncementError('Choose a valid announcement.');
  const result=await client.query(`select ${historyFields},a.body,a.audience,c.name as "clubName",t.name as "teamName" from public.notification_announcement a left join public.person p on p.id=a.sender_person_id left join public.club c on c.id::text=a.audience->>'clubId' left join public.team t on t.id::text=a.audience->>'teamId' where a.id=$1`,[id]);
  if(!result.rows[0])throw new AnnouncementError('Announcement not found.',404);
- return result.rows[0];
+ return {...result.rows[0],body:announcementDisplayBody(result.rows[0])};
 }
 export async function sendAnnouncement(senderPersonId:string,input:unknown,authorize?:(client:Queryable)=>Promise<void>){
  const draft=validateAnnouncementDraft(input),v=input as {requestId?:unknown;previewToken?:unknown};
@@ -82,7 +86,14 @@ export async function sendAnnouncement(senderPersonId:string,input:unknown,autho
  if(!selected.summary.enabled||!selected.summary.announcementsEnabled)throw new AnnouncementError('Announcements are disabled.');
  if(selected.previewToken!==v.previewToken)throw new AnnouncementError('Audience or notification settings changed. Preview the announcement again.',409);
  if(!selected.recipients.length)throw new AnnouncementError('No recipients can receive this announcement.');
- const saved=await client.query(`insert into public.notification_announcement(id,sender_person_id,title,body,audience,summary) values($1,$2,$3,$4,$5::jsonb,$6::jsonb) returning id,title,body,audience,summary,created_at as "createdAt"`,[requestId,senderPersonId,draft.title,draft.body,JSON.stringify(draft.audience),JSON.stringify(selected.summary)]);
+ let senderFooter:string|null=null;
+ if(draft.audience.includeSender!==false){
+  const sender=await client.query<{name:string}>("select concat_ws(' ',first_name,last_name) as name from public.person where id=$1",[senderPersonId]);
+  senderFooter=`Sent by ${sender.rows[0]?.name?.trim()||'Interclub Snooker'}`;
+ }
+ const storedAudience={...draft.audience,senderFooter};
+ const notificationBody=announcementDisplayBody({body:draft.body,audience:storedAudience});
+ const saved=await client.query(`insert into public.notification_announcement(id,sender_person_id,title,body,audience,summary) values($1,$2,$3,$4,$5::jsonb,$6::jsonb) returning id,title,body,audience,summary,created_at as "createdAt"`,[requestId,senderPersonId,draft.title,draft.body,JSON.stringify(storedAudience),JSON.stringify(selected.summary)]);
  // Keep the actual recipients independently of each person's inbox lifecycle.
  await client.query(`update public.notification_announcement set recipients=(
  select coalesce(jsonb_agg(jsonb_build_object('personId',p.id,'name',concat_ws(' ',p.first_name,p.last_name),'inbox',r.inbox,'push',r.push) order by p.last_name,p.first_name,p.id),'[]'::jsonb)
@@ -91,7 +102,7 @@ export async function sendAnnouncement(senderPersonId:string,input:unknown,autho
  insert into public.app_notification(person_id,type,title,body,href,event_key,expires_at,inbox_visible)
  select "personId",'announcement',$2,$3,$5,$4,now()+interval '30 days',inbox from recipients returning id,person_id
  ) insert into public.notification_push_delivery(notification_id,subscription_id)
- select n.id,s.id from inserted n join recipients r on r."personId"=n.person_id and r.push join public.notification_push_subscription s on s.person_id=n.person_id and s.active on conflict do nothing`,[JSON.stringify(selected.recipients),draft.title,draft.body,`announcement:${requestId}`,`/?notifications=1&message=${requestId}`]);
+ select n.id,s.id from inserted n join recipients r on r."personId"=n.person_id and r.push join public.notification_push_subscription s on s.person_id=n.person_id and s.active on conflict do nothing`,[JSON.stringify(selected.recipients),draft.title,notificationBody,`announcement:${requestId}`,`/?notifications=1&message=${requestId}`]);
  return {announcement:saved.rows[0],duplicate:false};
  });
  if(!result.duplicate)scheduleNotificationPush();

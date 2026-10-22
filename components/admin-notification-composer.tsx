@@ -3,13 +3,13 @@ import {useEffect, useRef, useState} from 'react';
 import {Button} from '@/components/ui/button';
 import {notificationRoles,notificationRoleLabel} from '@/lib/notification-policy.mjs';
 
-type Audience = {roles:string[]; clubId:string|null; teamId:string|null;personIds?:string[];channels?:("inbox"|"push")[]};
+type Audience = {includeSender?:boolean;roles:string[]; clubId:string|null; teamId:string|null;personIds?:string[];channels?:("inbox"|"push")[]};
 type Draft = {title:string; body:string; audience:Audience};
 export type Counts = {matched:number; eligible:number; excluded:number; inbox:number; push:number; skipped:number};
 type Preview = Counts & {previewToken:string; enabled:boolean; announcementsEnabled:boolean};
-type Options = {people?:{id:string;name:string}[];clubs:{id:string; name:string}[]; teams:{id:string; clubId:string; name:string; league:string; season:string}[]; eligibleRoles:string[]; enabled:boolean; announcementsEnabled:boolean};
+type Options = {senderName?:string;people?:{id:string;name:string}[];clubs:{id:string; name:string}[]; teams:{id:string; clubId:string; name:string; league:string; season:string}[]; eligibleRoles:string[]; enabled:boolean; announcementsEnabled:boolean};
 const endpoint = '/api/admin/notifications/announcements';
-const emptyDraft = ():Draft => ({title:'', body:'', audience:{roles: [], clubId:null, teamId:null}});
+const emptyDraft = ():Draft => ({title:'', body:'', audience:{includeSender:true,roles: [], clubId:null, teamId:null}});
 const inputClass = 'w-full rounded-lg border bg-white px-3 py-2 text-sm';
 export function DeliveryCounts({counts}:{counts:Counts}) {
   return <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
@@ -112,9 +112,10 @@ export function AdminNotificationComposer({onMessage,onSent,publisher=false}:{on
           </> : null}
           <label className="grid gap-2 text-sm font-bold">Title<input className={inputClass} required maxLength={120} value={draft.title} onChange={event=>edit({...draft,title:event.target.value})}/><span className="text-xs font-normal text-muted-foreground">{draft.title.length}/120 characters</span></label>
           <label className="grid gap-2 text-sm font-bold">Message<textarea className={`${inputClass} min-h-32`} required maxLength={2000} rows={5} value={draft.body} onChange={event=>edit({...draft,body:event.target.value})}/><span className="text-xs font-normal text-muted-foreground">{draft.body.length}/2000 characters</span></label>
+          <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm"><input type="checkbox" aria-label="Include sender name" checked={draft.audience.includeSender!==false} onChange={event=>edit({...draft,audience:{...draft.audience,includeSender:event.target.checked}})}/><span>Include “Sent by {options.senderName||'your name'}” at the bottom</span></label>
           <Button type="submit" variant="outline" disabled={busy || disabled || !draft.title.trim() || !draft.body.trim() || (publisher && (draft.audience.channels?.length===0 || draft.audience.personIds?.length===0))}>{publisher ? (busy?'Sending…':'Send message') : operation==='preview' ? 'Checking recipients...' : 'Preview recipients'}</Button>
         </fieldset>
-        {preview && <div className="space-y-4 rounded-lg border p-4" aria-live="polite"><h4 className="font-extrabold">Announcement preview</h4><div className="space-y-2 rounded-lg bg-muted p-3"><p className="whitespace-pre-wrap break-words font-bold">{draft.title}</p><p className="whitespace-pre-wrap break-words text-sm">{draft.body}</p></div><DeliveryCounts counts={preview}/><p className="text-xs text-muted-foreground">Phone push counts people, even if they have several devices. Delivery respects personal settings and quiet hours.</p>{recipientCount===0 && <p className="text-sm font-bold">No reachable recipients. Adjust your audience or notification settings.</p>}<Button type="button" disabled={busy || disabled || !preview.enabled || !preview.announcementsEnabled || recipientCount===0} onClick={()=>void submit('send')}>{operation==='send' ? 'Sending...' : <>Send to {recipientCount} recipient{recipientCount===1 ? '' : 's'}</>}</Button></div>}
+        {preview && <div className="space-y-4 rounded-lg border p-4" aria-live="polite"><h4 className="font-extrabold">Announcement preview</h4><div className="space-y-2 rounded-lg bg-muted p-3"><p className="whitespace-pre-wrap break-words font-bold">{draft.title}</p><p className="whitespace-pre-wrap break-words text-sm">{draft.body}</p>{draft.audience.includeSender!==false?<p className="text-sm">Sent by {options.senderName||'your name'}</p>:null}</div><DeliveryCounts counts={preview}/><p className="text-xs text-muted-foreground">Phone push counts people, even if they have several devices. Delivery respects personal settings and quiet hours.</p>{recipientCount===0 && <p className="text-sm font-bold">No reachable recipients. Adjust your audience or notification settings.</p>}<Button type="button" disabled={busy || disabled || !preview.enabled || !preview.announcementsEnabled || recipientCount===0} onClick={()=>void submit('send')}>{operation==='send' ? 'Sending...' : <>Send to {recipientCount} recipient{recipientCount===1 ? '' : 's'}</>}</Button></div>}
       </form>
 
     </>}

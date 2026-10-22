@@ -53,7 +53,7 @@ try{
  const history=load('lib/server/publisher-history');
  const messages=load('lib/server/notification-messages');
  for(const channels of [['inbox'],['push'],['inbox','push']]){
-  const draft={title:'Publisher verification',body:'A temporary message.',audience:{roles:[],clubId:null,teamId:null,personIds:[recipient.personId],channels}};
+  const draft={title:'Publisher verification',body:channels.length===2?'x'.repeat(2000):'A temporary message.',audience:{includeSender:channels[0]!=='push',roles:[],clubId:null,teamId:null,personIds:[recipient.personId],channels}};
   const preview=await service.previewAnnouncement(draft);assert.equal(preview.matched,1);
   const request={...draft,requestId:randomUUID(),previewToken:preview.previewToken};
   const sent=await service.sendAnnouncement(sender.personId,request,c=>publisher.requirePublisher(sender.personId,c));
@@ -68,6 +68,8 @@ try{
   assert.equal(rows[0].href,`/?notifications=1&message=${sent.announcement.id}`);
   assert.equal(detail.recipients[0].readAt,null);assert.equal(detail.recipients[0].openedAt,null);
   const shown=await messages.loadRecipientMessage(recipient.personId,sent.announcement.id);assert.equal(shown.title,draft.title);
+  const expectedBody=draft.body+(draft.audience.includeSender?'\n\nSent by Publisher verification Sender':'');assert.equal(shown.body,expectedBody);assert.equal(detail.body,expectedBody);
+  assert.equal((await client.query('select body from public.notification_announcement where id=$1',[sent.announcement.id])).rows[0].body,draft.body);
   assert.equal((await history.loadPublisherMessage(sender.personId,sent.announcement.id)).recipients[0].openedAt,null,'GET is not an open receipt');
   await assert.rejects(messages.loadRecipientMessage(outsider.personId,sent.announcement.id),error=>[403,404].includes(error.status));
   if(channels.includes('inbox')){
@@ -81,6 +83,11 @@ try{
   const deliveries=(await client.query('select id from public.notification_push_delivery where notification_id=$1',[rows[0].id])).rowCount;assert.equal(deliveries,channels.includes('push')?1:0);
  }
  assert.equal(dispatches,3);
+ const attributedId=(await history.loadPublisherHistory(sender.personId)).items.find(row=>row.summary.inbox>0).id;
+ const attributedBody=(await history.loadPublisherMessage(sender.personId,attributedId)).body;
+ await client.query("update public.person set last_name='Renamed Sender' where id=$1",[sender.personId]);
+ assert.equal((await history.loadPublisherMessage(sender.personId,attributedId)).body,attributedBody);
+
  const unopenedDraft={title:'Unread dismissal test',body:'Temporary',audience:{roles:[],clubId:null,teamId:null,personIds:[recipient.personId],channels:['inbox']}};
  const unopenedPreview=await service.previewAnnouncement(unopenedDraft);
  const unopened=await service.sendAnnouncement(sender.personId,{...unopenedDraft,requestId:randomUUID(),previewToken:unopenedPreview.previewToken});
@@ -117,5 +124,5 @@ try{
  await assert.rejects(publisher.requirePublisher(sender.personId),/Publisher access/);
  assert.equal((await auth.loadSessionPayload(sender)).contexts.length,0);
  await update(admin,sender,true);await client.query('update public.user_account set active=false where id=$1',[sender.accountId]);assert.equal(await publisher.isPublisher(sender.personId),false);
- console.log('Verified protected role table, admin-only assignment/revocation, no club/team requirement, Publisher-only session fallback, inbox/push/both delivery, exact recipients, idempotent retries inactive-account denial, owner-only paginated history, stable recipient snapshots after renaming/expiry/deletion, legacy history coverage, push-only specific-message reads, separate explicit read/open receipts, idempotent first-open times, and unread dismissal semantics. All synthetic records rolled back; no real push sent.');
+ console.log('Verified protected role table, admin-only assignment/revocation, no club/team requirement, Publisher-only session fallback, inbox/push/both delivery, exact recipients, idempotent retries inactive-account denial, owner-only paginated history, stable recipient snapshots after renaming/expiry/deletion, legacy history coverage, push-only specific-message reads, separate explicit read/open receipts, idempotent first-open times, unread dismissal semantics, default-on/opt-out sender attribution, full-length messages and stable historical sender signatures. All synthetic records rolled back; no real push sent.');
 }finally{await client.query('rollback');client.release();await pool.end();}

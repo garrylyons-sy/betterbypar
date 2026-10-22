@@ -83,7 +83,7 @@ test('mocked composer resets its preview after a draft edit',async()=>{
   assert.ok(ui.send());
   ui.edit(2000,'Changed');assert.equal(ui.send(),undefined);
   assert.equal(ui.requests[0].action,'preview');
-  assert.deepEqual(ui.requests[0].audience,{roles:[],clubId:null,teamId:null});
+  assert.deepEqual(ui.requests[0].audience,{includeSender:true,roles:[],clubId:null,teamId:null});
 });
 test('mocked composer prevents concurrent sends and preserves request ID after network failure',async()=>{
   let rejectSend;
@@ -125,4 +125,12 @@ test('Publisher delivery choices are explicit and cannot send with no channel se
  const click=text=>label(text).props.children[0].props.onChange({target:{checked:false}});
  click('Phone push notification');ui.edit(120,'Hello');ui.edit(2000,'Message');await ui.preview();assert.deepEqual(ui.requests[0].audience.channels,['inbox']);
  click('Inbox message');assert.equal(ui.find(node=>node.props?.type==='submit').props.disabled,true);
+});
+
+test('sender-name option starts checked, can be disabled, and resets on for the next message',async()=>{
+ const ui=await harness(async payload=>payload.action==='preview'?response({preview:counts}):response({announcement:{summary:{inbox:2,push:0}}}),true);
+ const checkbox=()=>ui.find(node=>node.props?.['aria-label']==='Include sender name');
+ assert.equal(checkbox().props.checked,true);checkbox().props.onChange({target:{checked:false}});
+ ui.edit(120,'Title');ui.edit(2000,'Message');await ui.preview();
+ assert.equal(ui.requests[0].audience.includeSender,false);assert.equal(ui.requests[1].audience.includeSender,false);assert.equal(checkbox().props.checked,true);
 });

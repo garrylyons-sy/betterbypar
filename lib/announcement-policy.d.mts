@@ -1,5 +1,5 @@
 import type {Config} from './notification-policy.mjs';
-export type AnnouncementDraft={title:string;body:string;audience:{roles:string[];clubId:string|null;teamId:string|null;personIds?:string[];channels?:('inbox'|'push')[]}};
+export type AnnouncementDraft={title:string;body:string;audience:{includeSender?:boolean;roles:string[];clubId:string|null;teamId:string|null;personIds?:string[];channels?:('inbox'|'push')[]}};
 export type AnnouncementRecipient={personId:string;inbox:boolean;push:boolean};
 export type AnnouncementSummary={matched:number;eligible:number;excluded:number;inbox:number;push:number;skipped:number;enabled:boolean;announcementsEnabled:boolean};
 export const announcementUuidPattern:RegExp;

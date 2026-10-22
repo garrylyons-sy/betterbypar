@@ -10,6 +10,7 @@ function service(options={}){
  const events=[],calls=[];let saved=options.saved;
  const query=async(sql,args=[])=>{
  calls.push({sql,args});
+ if(sql.startsWith("select concat_ws(' ',first_name,last_name)"))return {rows:[{name:'Real Sender'}]};
  if(options.failSnapshot&&sql.startsWith('update public.notification_announcement set recipients'))throw Error('snapshot failed');
  if(sql.startsWith('select count(*)::int as total'))return {rows:[{total:options.total??0}]};
  if(sql.includes('from public.notification_announcement where id='))return {rows:saved?[saved]:[]};
@@ -144,4 +145,21 @@ test('recipient snapshots are written in the same send transaction and snapshot 
  const failing=service({failSnapshot:true}),checked=await failing.api.previewAnnouncement(draft);
  await assert.rejects(failing.api.sendAnnouncement(id,{...draft,requestId:id,previewToken:checked.previewToken}),/snapshot failed/);
  assert.deepEqual(failing.events,['begin','rollback']);assert.equal(failing.calls.some(c=>c.sql.includes('insert into public.app_notification')),false);
+});
+
+test('sender footer uses the authenticated sender identity and opt-out leaves notification text unchanged',async()=>{
+ for(const includeSender of [true,false]){
+ const s=service(),input={...draft,audience:{...draft.audience,includeSender,senderFooter:'Sent by Spoof'}};
+ const preview=await s.api.previewAnnouncement(input);await s.api.sendAnnouncement(id,{...input,requestId:id,previewToken:preview.previewToken});
+ const notification=s.calls.find(call=>call.sql.includes('insert into public.app_notification'));
+ assert.equal(notification.args[2],includeSender?'Body\n\nSent by Real Sender':'Body');
+ assert.equal(s.saved.audience.senderFooter,includeSender?'Sent by Real Sender':null);
+ }
+});
+
+test('full 2000-character body is retained while the sender footer is appended outside the message allowance',async()=>{
+ const s=service(),input={...draft,body:'x'.repeat(2000)},preview=await s.api.previewAnnouncement(input);
+ await s.api.sendAnnouncement(id,{...input,requestId:id,previewToken:preview.previewToken});
+ assert.equal(s.saved.body.length,2000);
+ assert.equal(s.calls.find(c=>c.sql.includes('insert into public.app_notification')).args[2],'x'.repeat(2000)+'\n\nSent by Real Sender');
 });

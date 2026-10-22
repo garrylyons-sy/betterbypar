@@ -1,5 +1,5 @@
 import {dbQuery} from '@/lib/server/db';
-import {AnnouncementError} from '@/lib/server/notification-announcements';
+import {AnnouncementError,announcementDisplayBody} from '@/lib/server/notification-announcements';
 function pageNumber(value:string){
  if(!/^[1-9]\d*$/.test(value)||!Number.isSafeInteger(Number(value))||Number(value)>1000000)throw new AnnouncementError('Choose a valid history page.');
  return Number(value);
@@ -23,5 +23,5 @@ export async function loadPublisherMessage(senderPersonId:string,id:string,value
  const count=await dbQuery<{total:number}>(`select count(*)::int as total from (${source}) recipients`,params);
  const recipientTotal=Number(count.rows[0]?.total??0),recipientPageSize=25,recipientTotalPages=Math.max(1,Math.ceil(recipientTotal/recipientPageSize)),recipientPage=Math.min(requested,recipientTotalPages);
  const rows=await dbQuery(`select * from (${source}) recipients order by lower(name),"personId" limit $3 offset $4`,[...params,recipientPageSize,(recipientPage-1)*recipientPageSize]);
- return {...message,recipients:rows.rows,recipientSource:snapshot===null?'legacy':'snapshot',recipientTotal,recipientPage,recipientPageSize,recipientTotalPages};
+ return {...message,body:announcementDisplayBody(message),recipients:rows.rows,recipientSource:snapshot===null?'legacy':'snapshot',recipientTotal,recipientPage,recipientPageSize,recipientTotalPages};
 }
