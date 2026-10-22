@@ -233,6 +233,8 @@ test('completed match notifications include the score, target League Chairs and 
  const base=handler({preferences:{...policy.defaultNotificationPreferences,pushEnabled:true}});
  const query=async(sql,args=[])=>{
   if(sql.includes('select f.*'))return {rows:[{id:fixtureId,status:'Completed',home_name:'Castle A',away_name:'Elm Park A',home_team_score:4,away_team_score:3,league_name:'A League',season_name:'2026/27',fixture_date:future}]};
+  if(sql.includes('as competition_id'))return {rows:[{league_id:'league',season_id:'season',competition_id:null}]};
+  if(sql.includes('select id from public.team'))return {rows:[{id:'team'}]};
   if(sql.includes("where role='League Chair'")){base.calls.push({sql,args});return {rows:[{person_id:'chair'}]};}
   return base.query(sql,args);
  };
@@ -338,4 +340,63 @@ test('bulk inbox deletion only selects the owner read messages and retains recor
  const {query,calls}=handler();await server(query).dismissNotification('person-a');
  const write=calls.find(c=>c.sql.includes('set inbox_visible=false'));
  assert.deepEqual(write.args,['person-a',null]);assert.match(write.sql,/person_id=\$1/);assert.match(write.sql,/\$2::uuid is null and read_at is not null/);assert.match(write.sql,/status='Pending'/);assert.doesNotMatch(write.sql,/delete from/i);
+});
+
+test('league results address managers across the matching league and season, with chairs once',async()=>{
+ const calls=[];
+ const query=async(sql,args)=>{
+  calls.push({sql,args});
+  if(sql.includes('as competition_id'))return {rows:[{league_id:'league-a',season_id:'season-now',competition_id:null}]};
+  if(sql.includes('select id from public.team'))return {rows:[{id:'home'},{id:'away'},{id:'other-league-team'}]};
+  if(sql.includes('select distinct person_id from ('))return {rows:[{person_id:'home-manager'},{person_id:'other-manager'},{person_id:'chair-manager'},{person_id:'chair-manager'}]};
+  throw new Error('Unexpected query: '+sql);
+ };
+ assert.deepEqual(await server(query).matchResultRecipients(fixtureId,{query}),['home-manager','other-manager','chair-manager']);
+ const teams=calls.find(c=>c.sql.includes('select id from public.team'));
+ assert.deepEqual(teams.args,['league-a','season-now']);assert.match(teams.sql,/league_id=\$1 and season_id=\$2/);
+ const managers=calls.find(c=>c.sql.includes('select distinct person_id from ('));
+ assert.deepEqual(managers.args,[['home','away','other-league-team'],['Manager']]);
+ assert.match(managers.sql,/team_membership/);assert.match(managers.sql,/person_team_role/);assert.match(managers.sql,/where role='League Chair'/);
+});
+test('cup results use all completed ties in the same cup, including eliminated teams, rather than league or future entrants',async()=>{
+ const calls=[];
+ const query=async(sql,args)=>{
+  calls.push({sql,args});
+  if(sql.includes('as competition_id'))return {rows:[{league_id:'league-a',season_id:'season-now',competition_id:'cup-a'}]};
+  if(sql.includes('select distinct unnest'))return {rows:[{id:'finalist'},{id:'eliminated'}]};
+  if(sql.includes('select distinct person_id from ('))return {rows:[{person_id:'final-manager'},{person_id:'eliminated-manager'},{person_id:'chair'}]};
+  throw new Error('Unexpected query: '+sql);
+ };
+ assert.deepEqual(await server(query).matchResultRecipients(fixtureId,{query}),['final-manager','eliminated-manager','chair']);
+ const teams=calls.find(c=>c.sql.includes('select distinct unnest'));
+ assert.deepEqual(teams.args,['cup-a']);assert.match(teams.sql,/cr\.competition_id=\$1/);assert.match(teams.sql,/f\.status='Completed'/);assert.match(teams.sql,/home_team_id,f\.away_team_id/);
+ assert.equal(calls.some(c=>c.sql.includes('select id from public.team')),false);
+});
+test('result push source rechecks manager audience and score before delivery',async()=>{
+ for(const [recipient,score,want] of [['manager',4,true],['unrelated',4,false],['manager',5,false]]){
+ const query=async(sql)=>{
+  if(sql.includes('select f.status,m.home_team_score'))return {rows:[{status:'Completed',home_team_score:score,away_team_score:3}]};
+  if(sql.includes('as competition_id'))return {rows:[{league_id:'league-a',season_id:'season-now',competition_id:null}]};
+  if(sql.includes('select id from public.team'))return {rows:[{id:'home'}]};
+  if(sql.includes('select distinct person_id from ('))return {rows:[{person_id:'manager'}]};
+  return {rows:[]};
+ };
+ assert.equal(await server(query).notificationSourceIsCurrent('n',recipient,{query},{type:'match_result',event_key:`result:${fixtureId}:4:3`}),want);
+ }
+});
+
+test('completion queues one result push per manager or chair and labels cup results with the cup name',async()=>{
+ const base=handler({roles:['Manager'],config:{...policy.defaultNotificationConfig,eligibleRoles:['Manager','League Chair']},preferences:{...policy.defaultNotificationPreferences,pushEnabled:true}});
+ const query=async(sql,args)=>{
+  if(sql.includes('select f.*'))return {rows:[{status:'Completed',home_name:'Castle A',away_name:'Elm Park A',home_team_score:4,away_team_score:3,league_name:'A League',season_name:'2026/27',cup_name:'Interclub Cup'}]};
+  if(sql.includes('as competition_id'))return {rows:[{competition_id:'cup-a'}]};
+  if(sql.includes('select distinct unnest'))return {rows:[{id:'team-a'},{id:'knocked-out'}]};
+  if(sql.includes('select distinct person_id from ('))return {rows:[{person_id:'manager'},{person_id:'chair-manager'},{person_id:'chair-manager'}]};
+  return base.query(sql,args);
+ };
+ await server(query).notifyMatchCompleted({query},fixtureId);
+ const saved=base.calls.filter(c=>c.sql.includes('insert into public.app_notification'));
+ assert.deepEqual(saved.map(c=>c.args[0]),['manager','chair-manager']);
+ for(const item of saved){assert.match(item.args[3],/Interclub Cup result/);assert.doesNotMatch(item.args[3],/A League result/);assert.match(item.args[4],new RegExp(`fixtureId=${fixtureId}`));assert.equal(item.args[7],false);}
+ assert.equal(base.calls.filter(c=>c.sql.includes('insert into public.notification_push_delivery')).length,2);
 });

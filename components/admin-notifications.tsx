@@ -11,7 +11,7 @@ const roles = notificationRoles;
 const categories = [
   {key:'announcement',label:'Announcements',description:'Audience messages, confirmed cup draws and optional live-stream alerts to people with Viewing permission.'},
   {key:'lineup_published',label:'Opponents published',description:'Tell opposing managers when a team first publishes its line up.'},
-  {key:'match_result',label:'Match results',description:'Final scores for League Chairs when a match is completed.'},
+  {key:'match_result',label:'Match results',description:'Final scores for League Chairs and all managers in the league, or managers of teams that have played in the cup.'},
   {key:'fixture_change',label:'Fixture changes',description:'Date changes, postponements and cancellations for affected teams, plus League Chair oversight.'},
   {key:'lineup_reminder',label:'Unpublished team deadline reminder',description:'Remind only managers of unpublished teams, one hour before the team publication deadline.'},
   {key:'ladder_challenge',label:'Ladder challenges',description:'New challenges and responses for the players involved.'}

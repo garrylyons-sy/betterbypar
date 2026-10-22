@@ -127,11 +127,21 @@ export async function notifyOpponentLineupPublished(client:Queryable,fixtureId:s
  for(const personId of managers)await createNotification(client,personId,{type:'lineup_published',title:'Opponents published',body:`${name} have published their line up.`,href:await fixtureRecipientHref(client,fixtureId,personId,[opponentId],true),eventKey:`lineup-published:${fixtureId}:${publishingTeamId}`,expiresAt:f.kickoff});
 }
 export async function notifyMatchCompleted(client:Queryable,fixtureId:string){
- const {rows}=await client.query(`select f.*,ht.name as home_name,at.name as away_name,m.home_team_score,m.away_team_score,l.name as league_name,s.name as season_name from public.fixture f join public.team ht on ht.id=f.home_team_id join public.team at on at.id=f.away_team_id join public.match m on m.fixture_id=f.id join public.league l on l.id=f.league_id join public.season s on s.id=f.season_id where f.id=$1`,[fixtureId]);
+ const {rows}=await client.query(`select f.*,ht.name as home_name,at.name as away_name,m.home_team_score,m.away_team_score,l.name as league_name,s.name as season_name,cc.name as cup_name from public.fixture f join public.team ht on ht.id=f.home_team_id join public.team at on at.id=f.away_team_id join public.match m on m.fixture_id=f.id join public.league l on l.id=f.league_id join public.season s on s.id=f.season_id left join public.cup_competition_tie ct on ct.fixture_id=f.id left join public.cup_competition_round cr on cr.id=ct.competition_round_id left join public.cup_competition cc on cc.id=cr.competition_id where f.id=$1`,[fixtureId]);
  const f=rows[0];if(!f||f.status!=='Completed')return;
- const chairs=await client.query(`select distinct person_id from (${roleRowsSql}) roles where role='League Chair'`);
+ const recipients=await matchResultRecipients(fixtureId,client);
  const params=new URLSearchParams({page:'Results',fixtureId,league:f.league_name,season:f.season_name});
- for(const row of chairs.rows)await createNotification(client,String(row.person_id),{type:'match_result',title:'Match completed',body:`${f.home_name} ${f.home_team_score}–${f.away_team_score} ${f.away_name}. ${f.league_name} result.`,href:`/?${params}`,eventKey:`result:${fixtureId}:${f.home_team_score}:${f.away_team_score}`});
+ for(const personId of recipients)await createNotification(client,personId,{type:'match_result',title:'Match completed',body:`${f.home_name} ${f.home_team_score}–${f.away_team_score} ${f.away_name}. ${f.cup_name||f.league_name} result.`,href:`/?${params}`,eventKey:`result:${fixtureId}:${f.home_team_score}:${f.away_team_score}`});
+}
+// Use completed cup fixtures rather than entries: eliminated teams remain in the
+// audience, while teams still waiting to play their first match are not included.
+export async function matchResultRecipients(fixtureId:string,client:Queryable=database):Promise<string[]> {
+ const source=await client.query(`select f.league_id,f.season_id,cr.competition_id as competition_id from public.fixture f left join public.cup_competition_tie ct on ct.fixture_id=f.id left join public.cup_competition_round cr on cr.id=ct.competition_round_id where f.id=$1 and f.status='Completed'`,[fixtureId]);
+ const fixture=source.rows[0];if(!fixture)return [];
+ const teams=fixture.competition_id
+  ?await client.query(`select distinct unnest(array[f.home_team_id,f.away_team_id]) as id from public.fixture f join public.cup_competition_tie ct on ct.fixture_id=f.id join public.cup_competition_round cr on cr.id=ct.competition_round_id where cr.competition_id=$1 and f.status='Completed'`,[fixture.competition_id])
+  :await client.query(`select id from public.team where league_id=$1 and season_id=$2 and active`,[fixture.league_id,fixture.season_id]);
+ return [...new Set(await fixtureRecipients(client,teams.rows.map(row=>String(row.id)),true))];
 }
 export async function notifyFixtureChanged(client:Queryable,fixtureId:string,previousTeamIds:string[]=[],changeReason?:string,changeKind='updated') {
  const {rows}=await client.query(`select f.*,ht.name as home_name,at.name as away_name,${kickoffSql} as kickoff from public.fixture f join public.team ht on ht.id=f.home_team_id join public.team at on at.id=f.away_team_id where f.id=$1`,[fixtureId]);
@@ -230,8 +240,8 @@ export async function notificationSourceIsCurrent(notificationId:string,personId
  }
  const completed=/^result:([0-9a-f-]{36}):(\d+):(\d+)$/.exec(n.event_key);
  if(completed){
-  const result=await client.query(`select f.status,m.home_team_score,m.away_team_score from public.fixture f join public.match m on m.fixture_id=f.id where f.id=$1 and exists(select 1 from (${roleRowsSql}) roles where roles.person_id=$2 and role='League Chair')`,[completed[1],personId]);
-  const f=result.rows[0];return Boolean(f&&f.status==='Completed'&&Number(f.home_team_score)===Number(completed[2])&&Number(f.away_team_score)===Number(completed[3]));
+  const result=await client.query(`select f.status,m.home_team_score,m.away_team_score from public.fixture f join public.match m on m.fixture_id=f.id where f.id=$1`,[completed[1]]);
+  const f=result.rows[0];return Boolean(f&&f.status==='Completed'&&Number(f.home_team_score)===Number(completed[2])&&Number(f.away_team_score)===Number(completed[3])&&(await matchResultRecipients(completed[1],client)).includes(personId));
  }
  const fixtureMatch=/^fixture:([0-9a-f-]{36}):(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z):/.exec(n.event_key);
  if(fixtureMatch){
