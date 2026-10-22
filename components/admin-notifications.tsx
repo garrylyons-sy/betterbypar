@@ -51,7 +51,7 @@ function NotificationSettings({onMessage}:{onMessage:(message:string)=>void}) {
     }catch(reason){setError(reason instanceof Error ? reason.message : 'Could not save notification settings.');}
     finally{setSaving(false);}
   }
-  return <Card><CardHeader><CardTitle>Notifications</CardTitle><p className="text-sm text-muted-foreground">Choose who can use the notification inbox and which events create alerts. The initial pilot includes League Chairs only.</p></CardHeader>
+  return <Card><CardHeader><CardTitle>Notifications</CardTitle><p className="text-sm text-muted-foreground">Choose who can use the notification inbox and which events create alerts.</p></CardHeader>
     <CardContent className="space-y-5">
       {loading && <p role="status">Loading notification settings...</p>}
       {error && <p role="alert" className="text-sm font-bold text-red-700">{error}</p>}

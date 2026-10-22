@@ -106,8 +106,8 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
   useEffect(() => { void load(); }, []);
   useEffect(() => {
     setRoundDates((current) => Array.from({ length: roundCount }, (_, index) => current[index] ?? nextThursday(index)));
-    setTeamIds([]);
-  }, [roundCount, seasonId]);
+  }, [roundCount]);
+  useEffect(() => { setTeamIds([]); }, [seasonId]);
 
   const availableTeams = useMemo(() => data.teams.filter((team) => team.season_id === seasonId), [data.teams, seasonId]);
   const capacity = 2 ** roundCount;

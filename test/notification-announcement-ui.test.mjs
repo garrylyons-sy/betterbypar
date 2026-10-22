@@ -25,8 +25,10 @@ test('preview and sends lock immediately, edits reset preview, retries preserve 
   assert.match(source,/Send to \{recipientCount\} recipient/);
   assert.match(source,/response\.status === 409/);
 });
-test('shows pilot exclusions, opted out recipients, disabled states and actual send history',()=>{
-  for(const text of ['League Chair','Excluded by rollout','Opted out / no enabled channel','Notifications are disabled','Announcements are disabled']) assert.ok(source.includes(text),text);
+test('shows configured rollout exclusions, opted out recipients, disabled states and actual send history',()=>{
+  for(const text of ['Current rollout:','Excluded by rollout','Opted out / no enabled channel','Notifications are disabled','Announcements are disabled']) assert.ok(source.includes(text),text);
+  assert.match(source,/options\.eligibleRoles\.map\(notificationRoleLabel\)/);
+  assert.doesNotMatch(source,/initial pilot/);
   for(const field of ['matched','eligible','excluded','inbox','push','skipped']) assert.ok(source.includes(`counts.${field}`),field);
   assert.match(source,/data\.announcement/);
   const settings=readFileSync(new URL('../components/admin-notifications.tsx',import.meta.url),'utf8');
