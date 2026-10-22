@@ -128,3 +128,9 @@ test('history and detail GET views require the same real operator authorization 
  assert.deepEqual((await r.api.GET(new Request('https://example.test/api?view=detail&id='+id))).body,{announcement:{id}});
  assert.equal((await r.api.GET(new Request('https://example.test/api?view=unknown'))).status,400);
 });
+
+test('publisher send rechecks permission inside the transaction before persisting or dispatching',async()=>{
+ const s=service(),preview=await s.api.previewAnnouncement(draft);
+ await assert.rejects(s.api.sendAnnouncement(id,{...draft,requestId:id,previewToken:preview.previewToken},async()=>{throw Error('Publisher access revoked');}),/revoked/);
+ assert.deepEqual(s.events,['begin','rollback']);assert.equal(s.calls.some(c=>c.sql.includes('insert into public.notification_announcement')),false);
+});

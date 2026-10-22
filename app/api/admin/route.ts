@@ -62,7 +62,8 @@ export async function GET() {
            coalesce(ch.club_handicaps, '[]'::jsonb) as club_handicaps,
            coalesce(ca.club_admins, '[]'::jsonb) as club_admins,
            coalesce(tr.team_roles, '[]'::jsonb) as team_roles,
-           coalesce(ao.active, false) as admin
+           coalesce(ao.active, false) as admin,
+           exists(select 1 from public.app_publisher ap where ap.person_id=p.id and ap.active) as publisher
          from public.person p
          left join public.app_operator ao on ao.person_id = p.id
          left join lateral (

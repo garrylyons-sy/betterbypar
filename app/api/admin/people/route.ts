@@ -280,6 +280,7 @@ export async function PATCH(request: NextRequest) {
             })
             .filter((row: SubmittedTeamRole | null): row is SubmittedTeamRole => Boolean(row))
         : null;
+      const submittedPublisher = typeof body.publisher === "boolean" ? body.publisher : null;
       const submittedLeagueChair: boolean | null = typeof body.leagueChair === "boolean" ? Boolean(body.leagueChair) : null;
 
       if (!firstName || !lastName) {
@@ -304,7 +305,7 @@ export async function PATCH(request: NextRequest) {
         if (!access.platformAdmin && !editableClubIds.length) {
           throw new Error("Club administrator access is required for this person.");
         }
-        if (submittedLeagueChair !== null) assertPlatformAdmin(access);
+        if (submittedLeagueChair !== null || submittedPublisher !== null) assertPlatformAdmin(access);
 
         if (emailInput) {
           const duplicateResult = await client.query<{ id: string }>(
@@ -445,6 +446,10 @@ export async function PATCH(request: NextRequest) {
           }
         }
 
+        if (submittedPublisher !== null) {
+          await client.query(`insert into public.app_publisher(person_id,active,assigned_by) values($1,$2,$3)
+            on conflict(person_id) do update set active=excluded.active,assigned_by=excluded.assigned_by,updated_at=now()`,[personId,submittedPublisher,user.personId]);
+        }
         return personResult.rows[0];
       });
 

@@ -1,4 +1,4 @@
-export type Role = "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair";
+export type Role = "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair" | "Publisher";
 export type AppearancePanelId =
   | "teamStats"
   | "leagueTableSnapshot"
@@ -48,6 +48,7 @@ export type TeamContext = {
   pointsFor?: number;
   pointsAgainst?: number;
   leaguePoints?: number;
+  hasPublisherAccess?: boolean;
   hasLeagueChairAccess?: boolean;
   hasLiveScoringAccess?: boolean;
 };

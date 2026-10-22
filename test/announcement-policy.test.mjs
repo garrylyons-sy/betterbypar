@@ -25,3 +25,15 @@ test('preview tokens are stable under ordering but change with draft, policy or 
  assert.notEqual(token,announcementPreviewToken(d,a,{...config,quietStart:'21:00'}));
  assert.notEqual(token,announcementPreviewToken(d,[{...a[0],push:true},a[1]],config));
 });
+
+test('publisher drafts retain specific people and delivery choices and reject empty or invalid selections',()=>{
+ const person='11111111-1111-4111-8111-111111111111';
+ const input={...draft,audience:{...draft.audience,personIds:[person,person],channels:['inbox']}};
+ const result=validateAnnouncementDraft(input);assert.deepEqual(result.audience.personIds,[person]);assert.deepEqual(result.audience.channels,['inbox']);
+ for(const audience of [{channels:[]},{channels:['email']},{personIds:[]},{personIds:['bad']}])assert.throws(()=>validateAnnouncementDraft({...draft,audience:{...draft.audience,...audience}}));
+ const config={...defaultNotificationConfig,enabledTypes:['announcement']};
+ const rows=[{personId:person,roles:['League Chair'],preferences:{version:4,inboxTypes:['announcement'],pushTypes:['announcement'],pushEnabled:true},hasPush:true},{personId:'other',roles:['League Chair'],preferences:{}}];
+ const selected=announcementSelection(rows,config,result.audience);
+ assert.deepEqual(selected.recipients,[{personId:person,inbox:true,push:false}]);assert.equal(selected.summary.matched,1);
+ assert.deepEqual(announcementSelection(rows,config,{personIds:[person],channels:['push']}).recipients,[{personId:person,inbox:false,push:true}]);
+});

@@ -43,7 +43,7 @@ const require=createRequire(import.meta.url);
 const ts=require('typescript');
 const React=require('react');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-async function harness(post) {
+async function harness(post,publisher=false) {
   let sentCount=0;
   const hooks=[];let index=0;let effect;
   const hookReact={
@@ -54,13 +54,13 @@ async function harness(post) {
   const exports={};
   const requests=[];
   const fetch=async(url,init)=>{
-    if(!init?.method)return {ok:true,json:async()=>({clubs:[{id:'club',name:'Club'}],teams:[],history:[],eligibleRoles:['League Chair'],enabled:true,announcementsEnabled:true})};
+    if(!init?.method)return {ok:true,json:async()=>({clubs:[{id:'club',name:'Club'}],teams:[],history:[],people:[{id:'person',name:'Person'}],eligibleRoles:['League Chair'],enabled:true,announcementsEnabled:true})};
     const payload=JSON.parse(init.body);requests.push(payload);return post(payload,requests.length);
   };
   const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const customRequire=name=>name==='react'?hookReact:name==='@/components/ui/button'?{Button:props=>React.createElement('button',props)}:name==='@/lib/notification-policy.mjs'?notificationPolicy:require(name);
   new Function('require','exports','fetch','window','crypto',compiled)(customRequire,exports,fetch,{addEventListener(){},removeEventListener(){}},{randomUUID:()=>`request-${Math.random()}`});
-  const render=()=>{index=0;return exports.AdminNotificationComposer({onMessage(){},onSent(){sentCount++;}});};
+  const render=()=>{index=0;return exports.AdminNotificationComposer({publisher,onMessage(){},onSent(){sentCount++;}});};
   function all(tree,predicate,result=[]) {
     if(Array.isArray(tree)){for(const child of tree)all(child,predicate,result);return result;}
     if(!tree || typeof tree!=='object')return result;
@@ -110,4 +110,19 @@ test('mocked composer clears a stale preview on 409 and records successful sends
   assert.equal(ui.send(),undefined);
   assert.equal(ui.sentCount,1);
   assert.equal(ui.find(node=>node.props?.maxLength===120).props.value,'');
+});
+
+test('Publisher composer sends in one click after checking recipients and suppresses repeated clicks',async()=>{
+ let finish;const ui=await harness(async payload=>payload.action==='preview'?response({preview:counts}):new Promise(resolve=>finish=()=>resolve(response({announcement:{summary:{inbox:2,push:1}}}))),true);
+ ui.edit(120,'Hello');ui.edit(2000,'Publisher message');
+ const form=ui.find(node=>node.type==='form');form.props.onSubmit({preventDefault(){}});form.props.onSubmit({preventDefault(){}});await flush();
+ assert.deepEqual(ui.requests.map(r=>r.action),['preview','send']);assert.ok(ui.requests[1].requestId);assert.equal(ui.requests[1].previewToken,'token');
+ finish();await flush();assert.equal(ui.sentCount,1);
+});
+test('Publisher delivery choices are explicit and cannot send with no channel selected',async()=>{
+ const ui=await harness(async()=>response({preview:counts}),true);
+ const label=text=>ui.find(node=>node.type==='label'&&Array.isArray(node.props.children)&&node.props.children.includes(text));
+ const click=text=>label(text).props.children[0].props.onChange({target:{checked:false}});
+ click('Phone push notification');ui.edit(120,'Hello');ui.edit(2000,'Message');await ui.preview();assert.deepEqual(ui.requests[0].audience.channels,['inbox']);
+ click('Inbox message');assert.equal(ui.find(node=>node.props?.type==='submit').props.disabled,true);
 });

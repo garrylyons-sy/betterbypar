@@ -4,13 +4,13 @@ import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),ts=require('typescript');
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
-async function harness(){
+async function harness(audience={roles:['League Chair'],clubId:null,teamId:null}){
   const hooks=[],pending=[],requests=[];let index=0;
   const react={Fragment:Symbol.for('react.fragment'),useState(value){const i=index++;hooks[i]??={value};return [hooks[i].value,next=>{hooks[i].value=typeof next==='function'?next(hooks[i].value):next;}];},useEffect(fn,deps){const i=index++;if(!hooks[i]||deps.some((d,n)=>d!==hooks[i].deps[n])){hooks[i]?.cleanup?.();hooks[i]={deps};pending.push(()=>{hooks[i].cleanup=fn();});}}};
   const fetch=async(url,init)=>{
     requests.push({url,signal:init.signal});
     const params=new URL(url,'https://app.test').searchParams;
-    if(params.get('view')==='detail')return {ok:true,json:async()=>({announcement:{body:'Full message only loaded on expansion',audience:{roles:['League Chair'],clubId:null,teamId:null}}})};
+    if(params.get('view')==='detail')return {ok:true,json:async()=>({announcement:{body:'Full message only loaded on expansion',audience}})};
     const page=Number(params.get('page'));
     return {ok:true,json:async()=>({page,pageSize:10,total:11,totalPages:2,items:Array.from({length:page===1?10:1},(_,i)=>({id:`${page}-${i}`,title:`Message ${page}-${i}`,createdAt:'2026-10-20T12:00:00Z',senderName:'Administrator',summary:{inbox:2,push:1}}))})};
   };
@@ -38,4 +38,11 @@ test('history loads only ten summary rows, fetches details on expansion, caches 
   assert.equal(ui.all(node=>node.type==='button'&&node.props['aria-controls']).length,1);
   assert.equal(ui.find(node=>node.props?.children==='Next').props.disabled,true);
   assert.equal(ui.find(node=>node.props?.children==='Previous').props.disabled,false);
+});
+
+test('sent history identifies Publisher individual audiences and selected delivery channels',async()=>{
+ const ui=await harness({roles:[],clubId:null,teamId:null,personIds:['person'],channels:['inbox']});
+ ui.find(node=>node.props?.['aria-label']==='Read Message 1-0').props.onClick();await ui.settle();
+ assert.ok(ui.find(node=>node.type==='p'&&Array.isArray(node.props.children)&&node.props.children[0]==='Specific people selected: '&&node.props.children[1]===1));
+ assert.ok(ui.find(node=>node.type==='p'&&Array.isArray(node.props.children)&&node.props.children[0]==='Delivery: '&&node.props.children[1]==='Inbox message'));
 });

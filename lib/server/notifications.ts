@@ -21,6 +21,7 @@ export const roleRowsSql = `select cm.person_id, cm.role::text as role from publ
  union select tm.person_id,tm.role::text from public.team_membership tm join public.team t on t.id=tm.team_id and t.active join public.club c on c.id=t.club_id and c.active where tm.active
  union select ptr.person_id,ptr.role::text from public.person_team_role ptr join public.club_membership cm on cm.id=ptr.club_membership_id and cm.active join public.club c on c.id=ptr.club_id and c.active where ptr.active
  union select ca.person_id,'Club Admin' from public.club_admin ca join public.club c on c.id=ca.club_id and c.active where ca.active
+ union select person_id,'Publisher' from public.app_publisher where active
  union select person_id,'Administrator' from public.app_operator where active`;
 export async function notificationAccess(personId:string,client:Queryable=database) {
  const config=await loadNotificationConfig(client);

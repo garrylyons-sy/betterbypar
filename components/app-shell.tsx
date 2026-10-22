@@ -1,5 +1,7 @@
 "use client";
 
+import { PublisherMessages } from "@/components/publisher-messages";
+
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import {
@@ -46,7 +48,7 @@ import { isPollingTime, pollingFixtureDate, type SystemSettings } from "@/lib/sy
 import { cn } from "@/lib/utils";
 import { notificationDestination, notificationOpenEvent } from "@/lib/notification-navigation.mjs";
 
-type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Ladder" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop";
+type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Ladder" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop" | "Send a message";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 type ShopProduct = {
   id: string;
@@ -84,7 +86,7 @@ const attackSnookerRules = [
 ];
 
 function isClubOnlyRole(role: Role) {
-  return role === "Club Member" || role === "Club Admin" || role === "League Chair";
+  return role === "Club Member" || role === "Club Admin" || role === "League Chair" || role === "Publisher";
 }
 
 function seasonSortValue(season: string) {
@@ -162,6 +164,7 @@ function withMyClubLast(items: AppearanceMenuId[]) {
 }
 
 function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): AppearanceMenuId[] {
+  if(role === "Publisher") return ["Home", "Interclub Leagues"];
   if (role === "Club Member") {
     return ["Home", "Fixtures", "Table", "Bookings", "Competitions", "Interclub Leagues"];
   }
@@ -477,6 +480,7 @@ export function AppShell({
               <MatchdayHero activeTeam={activeTeam} userLabel={userLabel} leagueTeamCount={activeStandings.length} activeMatchCount={activeMatchCount} />
             )
           ) : null}
+          {activePage === "Home" && activeTeam.hasPublisherAccess ? <button type="button" onClick={()=>navigateToPage("Send a message")} className="flex min-h-20 items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-[#eeeaf2]"><Mail className="h-6 w-6 text-[#168f72]"/><span><span className="block font-extrabold">Send a message</span><span className="text-sm text-[#6c5a73]">Choose your audience and send an inbox message or phone notification.</span></span></button> : null}
           <PageContent
             activePage={activePage}
             activeTeam={activeTeam}
@@ -668,10 +672,12 @@ function PageContent({
   if (activePage === "Players") return <PlayersPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
+  if (activePage === "Send a message") return activeTeam.hasPublisherAccess ? <PublisherMessages/> : <p>Publisher access required.</p>;
   if (activePage === "Shop") return <ShopPage activeTeam={activeTeam} />;
   if (activePage === "Last Man Standing") return <LastManStandingPage />;
   if (activePage === "Menu") return <MoreMenu activeTeam={activeTeam} menuItems={appearance.menuItems} onNavigate={onNavigate} />;
   if (activePage === "Interclub Leagues") return <InterclubLeaguesPage activeTeam={activeTeam} standingsData={allStandingsData} matchResults={allMatchResults} onNavigate={onNavigate} userCanShare={userCanShare} />;
+  if (activeTeam.role === "Publisher") return <Card><CardContent className="p-4">Use Send a message to publish to your selected audience.</CardContent></Card>;
   if (activeTeam.role === "Manager") return <ManagerHome activeTeam={activeTeam} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} onDataRefresh={onDataRefresh} onTeamSummaryUpdate={onTeamSummaryUpdate} userCanShare={userCanShare} />;
   if (isClubOnlyRole(activeTeam.role)) return <ClubMemberHome activeTeam={activeTeam} onNavigate={onNavigate} panels={appearance.panels} />;
   return <PlayerHome activeTeam={activeTeam} standingsData={standingsData} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} onNavigate={onNavigate} onOpenFixture={onOpenFixture} leagueTeamCount={leagueTeamCount} panels={appearance.panels} userCanShare={userCanShare} />;
@@ -3902,6 +3908,7 @@ function MoreMenu({
           <Badge variant="muted">{activeTeam.name}</Badge>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
+          {activeTeam.hasPublisherAccess ? <button type="button" onClick={()=>onNavigate("Send a message")} className="flex items-center gap-3 rounded-xl border p-4 text-left"><Mail className="h-5 w-5"/><span><span className="block font-black">Send a message</span><span className="text-xs text-[#6c5a73]">Publish to an audience</span></span></button> : null}
           {activeTeam.hasLeagueChairAccess ? (
             <button
               onClick={() => onNavigate("Shop")}

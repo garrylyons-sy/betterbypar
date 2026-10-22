@@ -196,3 +196,13 @@ The message says: `You need to publish your team by {Dublin date/time}. {team} �
 Verify with `node scripts/verify-lineup-reminders.mjs`: real SQL timing, per-team scope, duplicates, A → B → A with fixture alerts off, changed cutoffs, publication expiry, late suppression and optional disabling, with all writes rolled back and no real push sent.
 
 Cup draw inbox cards use a short summary and an expandable **View draw** with grouped pairings and a compact later-round schedule. Existing saved draw messages receive the same presentation. The internal `cup_draw` event type remains for formatting, source checks and deduplication, while creation and phone delivery both use the `announcement` preference/config category. Legacy independent cup selections are ignored; Announcement opt-outs remain authoritative. No existing read messages are resent when this preference mapping changes.
+
+### Publisher messaging
+
+Apply `supabase/publishers.sql` before deploying this release (also included in `supabase/schema.sql`). It creates the RLS-protected `app_publisher` assignment table; it grants nobody the role automatically. Platform administrators assign or revoke **Publisher** in **Admin → People → Edit → Standalone roles**. Publisher is independent of clubs, teams and League Chair access and grants no admin permissions.
+
+Publishers see **Send a message** on the core app home screen and under **More**, regardless of which of their normal team roles is selected. People with no club/team membership receive a standalone Publisher app context. Reload the app after changing the assignment. The API checks the real signed-in person's active Publisher assignment for options, previews and sends, including a permission recheck inside the send transaction.
+
+The composer supports role groups, a club, a team within a club, or up to 100 individually selected people. Titles allow 120 characters; messages allow 2,000. Choose inbox, phone push or both. Sending checks the audience and sends in one action; duplicate taps and retries reuse the same request ID. Global inbox rollout, announcement preferences, device opt-in, retention and phone quiet hours still apply. Existing admin announcement history includes Publisher sends. Specific-person choices and delivery channels are stored with the announcement audience for safe retries and audit history.
+
+Run `node scripts/verify-publisher-messaging.mjs` to verify role assignment, revocation, standalone session loading, exact recipient delivery, channel choices and idempotent retries against the database. It uses synthetic records inside one rolled-back transaction and disables real push dispatch.

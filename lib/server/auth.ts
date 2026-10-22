@@ -947,6 +947,8 @@ export async function loadSessionPayload(user: AppUser) {
       } satisfies TeamContext))
     : [];
 
+  const hasPublisherAccess = Boolean((await dbQuery<{allowed:boolean}>(`select exists(select 1 from public.app_publisher ap join public.person p on p.id=ap.person_id and p.active where ap.person_id=$1 and ap.active and exists(select 1 from public.user_account ua where ua.person_id=p.id and ua.active)) as allowed`,[user.personId])).rows[0]?.allowed);
+  const publisherContext: TeamContext = {id:`publisher:${user.personId}`,personId:user.personId,name:"Interclub Snooker",club:"Interclub Snooker",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Publisher",leaguePosition:0,hasPublisherAccess:true};
   const baseContexts: TeamContext[] = [
     ...teamContexts,
     ...clubContexts,
@@ -957,10 +959,11 @@ export async function loadSessionPayload(user: AppUser) {
   const contexts: TeamContext[] = baseContexts.length
     ? baseContexts.map((context) => ({
       ...context,
+      hasPublisherAccess,
       hasLeagueChairAccess: leagueChairMemberships.length > 0 || context.hasLeagueChairAccess,
       hasLiveScoringAccess: leagueChairMemberships.length > 0 || isAppOperator
     }))
-    : [...baseContexts, ...leagueChairFallbackContexts];
+    : [...baseContexts, ...leagueChairFallbackContexts, ...(hasPublisherAccess && !leagueChairFallbackContexts.length ? [publisherContext] : [])].map(context=>({...context,hasPublisherAccess}));
   const standings = (await dbQuery<{
     position: number;
     team_name: string;

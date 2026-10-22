@@ -17,6 +17,7 @@ export const announcementAudienceSql=`with current_teams as (${announcementTeams
  union select ca.person_id,'Club Admin',ca.club_id,null::uuid from public.club_admin ca join public.club c on c.id=ca.club_id and c.active where ca.active
  union select tm.person_id,tm.role::text,t.club_id,t.id from public.team_membership tm join current_teams t on t.id=tm.team_id where tm.active
  union select ptr.person_id,ptr.role::text,t.club_id,t.id from public.person_team_role ptr join public.club_membership cm on cm.id=ptr.club_membership_id and cm.person_id=ptr.person_id and cm.club_id=ptr.club_id and cm.active join current_teams t on t.club_id=ptr.club_id and t.league_id=ptr.league_id and t.name=ptr.team_name where ptr.active
+ union select person_id,'Publisher',null::uuid,null::uuid from public.app_publisher where active
  union select person_id,'Administrator',null::uuid,null::uuid from public.app_operator where active
  ) select p.id as "personId",array(select distinct role from assignments a where a.person_id=p.id) as roles,np.preferences,
  exists(select 1 from public.notification_push_subscription sub where sub.person_id=p.id and sub.active) as "hasPush"
@@ -35,7 +36,7 @@ async function selection(draft:AnnouncementDraft,client:Queryable){
  await validateScope(draft,client);
  const config=await loadNotificationConfig(client);
  const {rows}=await client.query(announcementAudienceSql,[draft.audience.clubId,draft.audience.teamId,draft.audience.roles]);
- const result=announcementSelection(rows,config);
+ const result=announcementSelection(rows,config,draft.audience);
  return {...result,previewToken:announcementPreviewToken(draft,result.recipients,config)};
 }
 export async function previewAnnouncement(input:unknown,client:Queryable=database){
@@ -63,12 +64,13 @@ export async function loadAnnouncementDetail(id:string,client:Queryable=database
  if(!result.rows[0])throw new AnnouncementError('Announcement not found.',404);
  return result.rows[0];
 }
-export async function sendAnnouncement(senderPersonId:string,input:unknown){
+export async function sendAnnouncement(senderPersonId:string,input:unknown,authorize?:(client:Queryable)=>Promise<void>){
  const draft=validateAnnouncementDraft(input),v=input as {requestId?:unknown;previewToken?:unknown};
  if(typeof v.requestId!=='string'||!announcementUuidPattern.test(v.requestId))throw new AnnouncementError('A valid request ID is required.');
  if(typeof v.previewToken!=='string'||!v.previewToken)throw new AnnouncementError('Preview this announcement before sending.');
  const requestId=v.requestId.toLowerCase();
  const result=await withTransaction(async client=>{
+ if(authorize)await authorize(client);
  await client.query('select pg_advisory_xact_lock(hashtextextended($1,0))',[`announcement:${requestId}`]);
  const existing=await client.query('select id,sender_person_id as "senderPersonId",title,body,audience,summary,created_at as "createdAt" from public.notification_announcement where id=$1',[requestId]);
  if(existing.rows[0]){
