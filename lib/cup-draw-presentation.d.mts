@@ -5,7 +5,9 @@ export type DrawSnapshot = {
  revealOrder?:number[];
 };
 export function cupDrawRevealOrder(bracket:DrawSnapshot['bracket']):number[];
+export type DrawPairing={matchNumber:number;number:number;home:string;away:string;homeBye:boolean;awayBye:boolean;revealState:'revealed'|'hidden'|'future';revealKey:number|null};
 export function cupDrawPresentation(snapshot:DrawSnapshot,revealedCount?:number):{
- rounds:{roundNumber:number;name:string;date:string;ties:{matchNumber:number;number:number;home:string;away:string;homeBye:boolean;awayBye:boolean}[]}[];
+ rounds:{roundNumber:number;name:string;date:string;ties:DrawPairing[]}[];
  byes:number;preliminaryMatches:number;total:number;nextLabel:string|null;
+ latestPairing:(DrawPairing & {roundNumber:number;roundName:string;date:string})|null;
 };

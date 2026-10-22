@@ -49,3 +49,17 @@ test('full first-round draws reveal just one match on the first click',()=>{
  assert.equal(view.total,4);assert.equal(view.rounds[0].ties[0].home,'Team 1');
  for(const tie of view.rounds[0].ties.slice(1))assert.equal(tie.home,'Team not revealed');
 });
+
+test('draw spotlight follows the latest reveal without exposing the next pairing',()=>{
+ const hidden=cupDrawPresentation(snapshot,0);assert.equal(hidden.latestPairing,null);assert.equal(hidden.rounds[0].ties[0].revealState,'hidden');
+ const first=cupDrawPresentation(snapshot,1);assert.equal(first.latestPairing.roundNumber,1);assert.equal(first.latestPairing.home,'Team 8');assert.equal(first.latestPairing.away,'Team 9');
+ assert.equal(first.rounds[1].ties[0].revealState,'hidden');assert.equal(first.rounds[1].ties[0].home,'Team not revealed');
+ const next=cupDrawPresentation(snapshot,2);assert.equal(next.latestPairing.roundNumber,2);assert.equal(next.latestPairing.home,'Team 1');assert.equal(next.latestPairing.away,'Team 2');assert.equal(next.latestPairing.homeBye,true);
+ assert.equal(next.rounds[2].ties[0].revealState,'future');assert.equal(next.rounds[1].ties[1].revealState,'hidden');
+});
+test('completed presentation retains all revealed matches and highlights the final reveal rather than guessing finalists',()=>{
+ const view=cupDrawPresentation(snapshot,viewCount());
+ assert.equal(view.latestPairing.roundNumber,2);assert.equal(view.latestPairing.number,4);
+ assert.equal(view.rounds[3].ties[0].revealState,'future');assert.match(view.rounds[3].ties[0].home,/Winner of Semi Final/);
+ function viewCount(){return cupDrawRevealOrder(snapshot.bracket).length;}
+});
