@@ -14,7 +14,7 @@ const categories: { type: NotificationType; label: string }[] = [
   { type: "fixture_change", label: "Fixture changes" },
   { type: "lineup_reminder", label: "Team publication deadline reminders" },
   { type: "ladder_challenge", label: "Ladder challenges" },
-  { type: "announcement", label: "Announcements (including confirmed cup draws)" }
+  { type: "announcement", label: "Announcements (including cup draws and live streams)" }
 ];
 
 export function useNotificationCenter(authenticated: boolean) {

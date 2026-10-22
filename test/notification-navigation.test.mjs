@@ -52,3 +52,10 @@ test('announcement deep links select the exact message without navigating the ma
  assert.equal(result.messageId,id);assert.equal(result.inbox,true);assert.equal(result.page,null);
  assert.equal(navigation.notificationDestination('/?notifications=1&message=invalid').messageId,null);
 });
+
+test('livestream notifications select the exact stream and screen without opening the inbox',()=>{
+ const id='11111111-1111-4111-8111-111111111111';
+ const result=navigation.notificationDestination(`/?page=Live+matches&stream=${id}`,contexts);
+ assert.equal(result.page,'Live matches');assert.equal(result.streamId,id);assert.equal(result.inbox,false);
+ assert.equal(navigation.notificationDestination('/?page=Live+matches&stream=bad').streamId,null);
+});

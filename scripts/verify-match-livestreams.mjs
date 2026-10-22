@@ -9,9 +9,11 @@ import * as livePolicy from '../lib/livestream-policy.mjs';
 const require=createRequire(import.meta.url);
 for(const file of ['.env.local','.env'])if(fs.existsSync(file))for(const line of fs.readFileSync(file,'utf8').split(/\r?\n/)){const m=line.match(/^([A-Z_][A-Z_0-9]*)=(.*)$/);if(m&&!process.env[m[1]])process.env[m[1]]=m[2].replace(/^["']|["']$/g,'');}
 const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false},connectionTimeoutMillis:10000});
-const client=await pool.connect();let current=null;
+const client=await pool.connect();let current=null,dispatches=0;
 const cache=new Map(),db={dbQuery:(sql,args)=>client.query(sql,args),withTransaction:async fn=>{await client.query('savepoint live_test');try{const result=await fn(client);await client.query('release savepoint live_test');return result;}catch(error){await client.query('rollback to savepoint live_test');throw error;}}};
 function load(name){
+ if(name==='lib/server/notification-push')return {pushReadiness:()=>({ready:true})};
+ if(name==='lib/server/notification-dispatch')return {scheduleNotificationPush:()=>dispatches++};
  if(name==='lib/server/db')return db;if(name==='lib/livestream-policy.mjs')return livePolicy;if(cache.has(name))return cache.get(name);
  if(name.endsWith('.mjs'))return require('../'+name);
  const exports={};cache.set(name,exports);
@@ -79,6 +81,33 @@ try{
  await service.listVideoFixtures(publisher.personId);const combinedRevoke=await assignVideo(admin,publisher,false);assert.equal(combinedRevoke.status,200,await combinedRevoke.text());assert.equal(await messagePermissions.isPublisher(publisher.personId),true);
  await assert.rejects(service.listVideoFixtures(publisher.personId),e=>e.status===403);
  const sent=await service.makeFixtureLive(broadcaster.personId,draft);assert.ok(sent.id);
+ const notifications=load('lib/server/notifications');
+ const config=await notifications.loadNotificationConfig(client);
+ // Isolate broad fanout inside this rolled-back transaction; real users see no permission changes.
+ await client.query('update public.app_viewer set active=false where person_id<>$1',[viewer.personId]);
+ await client.query('update public.notification_config set config=$1::jsonb where singleton=true',[JSON.stringify({...config,enabled:true,eligibleRoles:['League Chair'],enabledTypes:['announcement']})]);
+ const inboxViewer=await person('Inbox viewer'),optedOut=await person('Opted out'),inactiveViewer=await person('Inactive viewer');
+ for(const p of [inboxViewer,optedOut,inactiveViewer])await client.query('insert into public.app_viewer(person_id) values($1)',[p.personId]);
+ await client.query('update public.user_account set active=false where person_id=$1',[inactiveViewer.personId]);
+ for(const [p,inbox,push] of [[viewer,true,true],[inboxViewer,true,false],[optedOut,false,false]])await client.query('insert into public.notification_preference(person_id,preferences) values($1,$2::jsonb) on conflict(person_id) do update set preferences=excluded.preferences',[p.personId,JSON.stringify({version:4,inboxTypes:inbox?['announcement']:[],pushTypes:push?['announcement']:[],pushEnabled:push})]);
+ await client.query("insert into public.notification_push_subscription(person_id,endpoint,p256dh,auth) values($1,$2,'synthetic','synthetic')",[viewer.personId,`https://example.invalid/live-test/${randomUUID()}`]);
+ assert.equal((await client.query('select 1 from public.app_notification where event_key=$1',[`livestream:${sent.id}`])).rowCount,0,'No notification without opt-in');
+ const firstNotice=await service.makeFixtureLive(broadcaster.personId,{...draft,notifyViewers:true});assert.equal(firstNotice.notificationCount,2);assert.equal(firstNotice.notificationsAlreadySent,false);
+ const duplicateNotice=await service.makeFixtureLive(broadcaster.personId,{...draft,notifyViewers:true});assert.equal(duplicateNotice.notificationCount,2);assert.equal(duplicateNotice.notificationsAlreadySent,true);assert.equal(dispatches,1);
+ const noticeRows=(await client.query('select id,person_id,type,title,body,href from public.app_notification where event_key=$1 order by person_id',[`livestream:${sent.id}`])).rows;
+ assert.deepEqual(noticeRows.map(r=>r.person_id).sort(),[viewer.personId,inboxViewer.personId].sort());
+ for(const row of noticeRows){assert.equal(row.type,'livestream');assert.equal(row.href,`/?page=Live+matches&stream=${sent.id}`);assert.match(row.body,/is live now/);}
+ const viewerNotice=noticeRows.find(r=>r.person_id===viewer.personId);
+ assert.equal((await client.query('select 1 from public.notification_push_delivery where notification_id=any($1::uuid[])',[noticeRows.map(r=>r.id)])).rowCount,1);
+ const inbox=await notifications.loadNotificationInbox(viewer.personId);assert.equal(inbox.eligible,true);assert.ok(inbox.items.some(n=>n.id===viewerNotice.id),'Standalone Viewer can open stream notifications outside the general rollout');
+ const regular=await notifications.createNotification(client,viewer.personId,{type:'announcement',title:'Do not send',body:'Outside rollout',href:'/',eventKey:`synthetic:${randomUUID()}`});assert.equal(regular,false,'Viewing does not broaden general rollout');
+ const oldAnnouncement=randomUUID();await client.query("insert into public.app_notification(person_id,type,title,body,href,event_key,inbox_visible,expires_at) values($1,'announcement','Retained','Private old message','/',$2,false,now()+interval '1 day')",[viewer.personId,`announcement:${oldAnnouncement}`]);
+ const reader=load('lib/server/notification-messages');await assert.rejects(reader.loadRecipientMessage(viewer.personId,oldAnnouncement),e=>e.status===403);await assert.rejects(reader.recordMessageOpened(viewer.personId,oldAnnouncement),e=>e.status===403);
+ current=viewer;const pushTest=load('app/api/notifications/push/test/route');const tested=await pushTest.POST();assert.equal(tested.status,200,await tested.text());
+ const testNotice=(await client.query("select id,type,event_key from public.app_notification where person_id=$1 and event_key like 'push-test:%'",[viewer.personId])).rows[0];assert.equal(testNotice.type,'livestream');assert.equal(await notifications.notificationSourceIsCurrent(testNotice.id,viewer.personId,client),true,'Viewer phone-push self-test is current');
+
+ await client.query('update public.app_viewer set active=false where person_id=$1',[viewer.personId]);assert.equal(await notifications.notificationSourceIsCurrent(viewerNotice.id,viewer.personId,client),false);await client.query('update public.app_viewer set active=true where person_id=$1',[viewer.personId]);
+
  assert.equal((await service.makeFixtureLive(broadcaster.personId,draft)).duplicate,true);
  await assert.rejects(service.makeFixtureLive(other.personId,draft),e=>e.status===409);
  const live=(await service.listLiveStreams(viewer.personId)).streams.find(s=>s.streamId===sent.id);assert.ok(live);assert.equal(live.videoId,'M7lc1UVf-VE');assert.equal(live.canEnd,false);
@@ -89,7 +118,9 @@ try{
  await client.query("update public.fixture set status='Cancelled' where id=$1",[fixture.id]);assert.equal((await service.listLiveStreams(viewer.personId)).streams.some(s=>s.streamId===sent.id),false);
  await client.query("update public.fixture set status='Scheduled' where id=$1",[fixture.id]);
  await service.endLiveStream(broadcaster.personId,sent.id);assert.equal((await service.listLiveStreams(viewer.personId)).streams.some(s=>s.streamId===sent.id),false);
- const second=await service.makeFixtureLive(broadcaster.personId,draft);assert.notEqual(second.id,sent.id);
+ assert.equal(await notifications.notificationSourceIsCurrent(viewerNotice.id,viewer.personId,client),false,'Ending a stream retires its alert');
+ assert.equal((await client.query("select status from public.notification_push_delivery where notification_id=$1",[viewerNotice.id])).rows[0].status,'Skipped');
+ const second=await service.makeFixtureLive(broadcaster.personId,{...draft,notifyViewers:true});assert.equal(second.notificationCount,2);assert.notEqual(second.id,sent.id);
  await client.query("update public.match_livestream set started_at=now()-interval '14 hours',expires_at=now()-interval '2 hours' where id=$1",[second.id]);assert.equal((await service.listLiveStreams(viewer.personId)).streams.some(s=>s.streamId===second.id),false);
  const third=await service.makeFixtureLive(broadcaster.personId,draft);assert.notEqual(third.id,second.id);
  const revoked=await assignVideo(admin,broadcaster,false);assert.equal(revoked.status,200,await revoked.text());assert.equal((await service.listLiveStreams(viewer.personId)).streams.some(s=>s.streamId===third.id),false);
@@ -97,5 +128,5 @@ try{
  await assign(admin,false);await assert.rejects(service.listLiveStreams(viewer.personId),e=>e.status===403);
  await client.query('update public.app_viewer set active=true where person_id=$1',[viewer.personId]);await client.query('update public.user_account set active=false where person_id=$1',[viewer.personId]);await assert.rejects(service.listLiveStreams(viewer.personId),e=>e.status===403);
  await client.query('delete from public.fixture where id=$1',[fixture.id]);assert.equal((await client.query('select 1 from public.match_livestream where fixture_id=$1',[fixture.id])).rowCount,0);
- console.log('Verified RLS/revokes, admin-only Video/Viewing assignment, standalone Video/Viewer sessions, Publisher/Video separation, server permissions, today-only Irish-date filtering and submission, real match search, safe YouTube IDs, duplicate/conflict handling, owner-only ending, cancelled/expired listings, revoked Video/Viewing access, inactive login denial and fixture cascade. All synthetic data rolled back; no broadcast or notification sent.');
+ console.log('Verified RLS/revokes, admin-only Video/Viewing assignment, standalone Video/Viewer sessions, Publisher/Video separation, server permissions, today-only Irish-date filtering and submission, real match search, safe YouTube IDs, duplicate/conflict handling, owner-only ending, cancelled/expired listings, revoked Video/Viewing access, inactive login denial and fixture cascade. Optional active-Viewer fanout, opt-outs, one-time retries, inbox access, scoped rollout, Viewer push tests, retained-message denial and end/revocation suppression passed. All synthetic data rolled back; push dispatcher stubbed, no broadcast or notification sent.');
 }finally{await client.query('rollback');client.release();await pool.end();}

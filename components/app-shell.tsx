@@ -250,8 +250,10 @@ export function AppShell({
   const [activePage, setActivePage] = useState<AppPage>(() => {
     if (typeof window === "undefined") return "Home";
     const requestedPage = new URLSearchParams(window.location.search).get("page");
-    return requestedPage === "Competitions" || requestedPage === "Last Man Standing" || requestedPage === "Fixtures" || requestedPage === "Ladder" || requestedPage === "Results" ? requestedPage : "Home";
+    return requestedPage === "Competitions" || requestedPage === "Last Man Standing" || requestedPage === "Fixtures" || requestedPage === "Ladder" || requestedPage === "Results" || requestedPage === "Live matches" ? requestedPage : "Home";
   });
+  const [selectedStreamId,setSelectedStreamId]=useState<string|null>(()=>typeof window==='undefined'?null:notificationDestination(window.location.pathname+window.location.search).streamId);
+  const [streamRequestRevision,setStreamRequestRevision]=useState(0);
   const [selectedFixtureId, setSelectedFixtureId] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("fixtureId") ?? "");
   useEffect(() => {
     const openNotification = (event: Event) => {
@@ -260,6 +262,8 @@ export function AppShell({
       if (target.page) {
         setActivePage(target.page);
         setSelectedFixtureId(target.fixtureId);
+        setSelectedStreamId(target.streamId);
+        if(target.page==="Live matches")setStreamRequestRevision(value=>value+1);
       }
       window.dispatchEvent(new Event("interclub:refresh-panels"));
     };
@@ -426,6 +430,7 @@ export function AppShell({
   const clubOnlyView = isClubOnlyRole(activeTeam.role);
   const showLeaguePanels = !clubOnlyView && activePage === "Home" && pagesWithLeagueAside.includes(activePage);
   const navigateToPage = (page: AppPage) => {
+    setSelectedStreamId(null);
     if (page !== "Match") setSelectedFixtureId("");
     setActivePage(page);
   };
@@ -501,6 +506,8 @@ export function AppShell({
             userCanShare={userCanShare}
             onNavigate={navigateToPage}
             onOpenFixture={openFixturePage}
+            selectedStreamId={selectedStreamId}
+            streamRequestRevision={streamRequestRevision}
             selectedFixtureId={selectedFixtureId}
             onSignOut={onSignOut}
             userLabel={userLabel}
@@ -605,6 +612,8 @@ function PageContent({
   userCanShare,
   onNavigate,
   onOpenFixture,
+  selectedStreamId,
+  streamRequestRevision,
   selectedFixtureId,
   onSignOut,
   userLabel,
@@ -623,6 +632,8 @@ function PageContent({
   userCanShare: boolean;
   onNavigate: (page: AppPage) => void;
   onOpenFixture: (fixtureId: string) => void;
+  selectedStreamId: string|null;
+  streamRequestRevision: number;
   selectedFixtureId: string;
   onSignOut?: () => void;
   userLabel?: string;
@@ -679,7 +690,7 @@ function PageContent({
   if (activePage === "Players") return <PlayersPage activeTeam={activeTeam} playerGameResults={playerGameResults} />;
   if (activePage === "Stats") return <StatsPage activeTeam={activeTeam} playerBreakStat={playerBreakStat} playerGameResults={playerGameResults} matchResults={matchResults} leagueTeamCount={leagueTeamCount} userCanShare={userCanShare} />;
   if (activePage === "Messages") return <MessagesPage activeTeam={activeTeam} onSignOut={onSignOut} userLabel={userLabel} />;
-  if (activePage === "Live matches") return (activeTeam.hasVideoAccess || activeTeam.hasViewingAccess) ? <MatchLivestreams key={activeTeam.personId || activeTeam.id} video={Boolean(activeTeam.hasVideoAccess)} viewer={Boolean(activeTeam.hasViewingAccess)}/> : <p>Viewing permission required.</p>;
+  if (activePage === "Live matches") return (activeTeam.hasVideoAccess || activeTeam.hasViewingAccess) ? <MatchLivestreams initialStreamId={selectedStreamId} key={`${activeTeam.personId || activeTeam.id}:${selectedStreamId}:${streamRequestRevision}`} video={Boolean(activeTeam.hasVideoAccess)} viewer={Boolean(activeTeam.hasViewingAccess)}/> : <p>Viewing permission required.</p>;
   if (activePage === "Send a message") return activeTeam.hasPublisherAccess ? <PublisherMessages/> : <p>Publisher access required.</p>;
   if (activePage === "Shop") return <ShopPage activeTeam={activeTeam} />;
   if (activePage === "Last Man Standing") return <LastManStandingPage />;

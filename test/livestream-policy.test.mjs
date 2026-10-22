@@ -9,6 +9,11 @@ test('rejects arbitrary hosts, protocols, credentials, playlists and malformed v
  for(const link of [`https://youtube.com.evil.test/watch?v=${id}`,`https://evil.test/${id}`,`javascript:alert(1)`,`http://youtube.com/watch?v=${id}`,`https://evil@youtube.com/watch?v=${id}`,`https://youtube.com/playlist?list=${id}`,`https://youtu.be/short`,`https://youtu.be/${id}/extra`,null,{},''])assert.throws(()=>youtubeVideoId(link),/YouTube/);
 });
 test('live creation validates fixture identity and ignores client ownership and embed markup',()=>{
- assert.deepEqual(validateLiveDraft({fixtureId,youtubeUrl:`https://youtu.be/${id}`,personId:'spoof',html:'<script>'}),{fixtureId,videoId:id});
+ assert.deepEqual(validateLiveDraft({fixtureId,youtubeUrl:`https://youtu.be/${id}`,personId:'spoof',html:'<script>'}),{fixtureId,videoId:id,notifyViewers:false});
  for(const input of [null,[],{fixtureId:'bad',youtubeUrl:`https://youtu.be/${id}`},{fixtureId,youtubeUrl:'bad'}])assert.throws(()=>validateLiveDraft(input));
+});
+
+test('viewer notification opt-in must be an explicit boolean',()=>{
+ assert.equal(validateLiveDraft({fixtureId,youtubeUrl:`https://youtu.be/${id}`,notifyViewers:true}).notifyViewers,true);
+ for(const value of ['true',1,null,{}])assert.throws(()=>validateLiveDraft({fixtureId,youtubeUrl:`https://youtu.be/${id}`,notifyViewers:value}),/notif/i);
 });

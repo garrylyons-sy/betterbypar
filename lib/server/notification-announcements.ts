@@ -21,6 +21,7 @@ export const announcementAudienceSql=`with current_teams as (${announcementTeams
  union select ca.person_id,'Club Admin',ca.club_id,null::uuid from public.club_admin ca join public.club c on c.id=ca.club_id and c.active where ca.active
  union select tm.person_id,tm.role::text,t.club_id,t.id from public.team_membership tm join current_teams t on t.id=tm.team_id where tm.active
  union select ptr.person_id,ptr.role::text,t.club_id,t.id from public.person_team_role ptr join public.club_membership cm on cm.id=ptr.club_membership_id and cm.person_id=ptr.person_id and cm.club_id=ptr.club_id and cm.active join current_teams t on t.club_id=ptr.club_id and t.league_id=ptr.league_id and t.name=ptr.team_name where ptr.active
+ union select person_id,'Viewing',null::uuid,null::uuid from public.app_viewer where active
  union select person_id,'Publisher',null::uuid,null::uuid from public.app_publisher where active
  union select person_id,'Administrator',null::uuid,null::uuid from public.app_operator where active
  ) select p.id as "personId",array(select distinct role from assignments a where a.person_id=p.id) as roles,np.preferences,

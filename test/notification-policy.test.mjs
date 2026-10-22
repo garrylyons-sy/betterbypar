@@ -129,3 +129,21 @@ test('match reminders are retired even for stored opt-ins and lineup cutoff is v
  for(const value of [-1,169,NaN,'2',null])assert.throws(()=>p.validateNotificationConfig({...config,lineupDeadlineHours:value}),/deadline/i);
  for(const value of [0,0.5,2,168])assert.equal(p.validateNotificationConfig({...config,lineupDeadlineHours:value}).lineupDeadlineHours,value);
 });
+
+test('livestream alerts use Announcement preferences, require Viewing and do not broaden normal rollout',async()=>{
+ const p=await import('../lib/notification-policy.mjs');
+ const n={type:'livestream',expires_at:'2026-10-21T12:00:00Z'};
+ const enabled={...prefs,pushEnabled:true,pushTypes:['announcement']};const now=new Date('2026-10-20T12:00:00Z');
+ assert.equal(p.notificationPreferenceType('livestream'),'announcement');
+ assert.equal(p.isEligibleForNotification('livestream',['Viewing'],config),true);
+ assert.equal(p.isEligibleForNotification('announcement',['Viewing'],config),false);
+ assert.equal(p.isEligibleForNotification('livestream',['League Chair'],config),false);
+ assert.equal(p.canDeliverPush(n,enabled,config,['Viewing'],now),true);
+ assert.equal(p.canDeliverPush(n,{...enabled,pushEnabled:false},config,['Viewing'],now),false);
+ assert.equal(p.canDeliverPush(n,{...enabled,pushTypes:[]},config,['Viewing'],now),false);
+ assert.equal(p.canDeliverPush(n,enabled,{...config,enabled:false},['Viewing'],now),false);
+ assert.equal(p.canDeliverPush(n,enabled,{...config,enabledTypes:[]},['Viewing'],now),false);
+ assert.equal(p.canDeliverPush(n,enabled,config,['League Chair'],now),false);
+ assert.equal(p.normalizeNotificationConfig({...config,enabledTypes:['livestream','announcement']}).enabledTypes.includes('livestream'),false);
+ assert.equal(p.normalizeNotificationPreferences({...enabled,inboxTypes:['livestream','announcement']}).inboxTypes.includes('livestream'),false);
+});

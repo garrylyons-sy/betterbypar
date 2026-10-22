@@ -6,7 +6,7 @@ import * as scheduling from '../lib/fixture-scheduling.mjs';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),React=require('react');
 const stream={id:'fixture',streamId:'stream',videoId:'M7lc1UVf-VE',homeTeam:'Home',awayTeam:'Away',fixtureDate:'2026-10-22T19:30:00Z',competition:'A League',status:'Scheduled',broadcasterName:'Publisher',startedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+3600000).toISOString(),canEnd:true};
-async function harness({video=true,viewer=true,fixturePages=[[stream]],fixtureFetch}={}){
+async function harness({video=true,viewer=true,fixturePages=[[stream]],fixtureFetch,initialStreamId=null}={}){
  const state=[],effects=[],calls=[],listeners={};let index=0,pending=[],fail=false,streams=[stream],data;
  const hooks={useState(initial){const i=index++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],v=>state[i]=typeof v==='function'?v(state[i]):v];},useRef(initial){const i=index++;if(!(i in state))state[i]={current:initial};return state[i];},useEffect(fn,deps){const i=index++;const old=effects[i];if(!old||!deps||deps.some((v,j)=>v!==old.deps[j])){pending.push(()=>{old?.cleanup?.();effects[i]={deps,cleanup:fn()};});}}};
  const fetch=async(url,init)=>{calls.push([url,init]);if(fail)return {ok:false,status:403,json:async()=>({error:'Viewing permission required.'})};if(init?.method==='POST'){const b=JSON.parse(init.body);if(b.action==='end')streams=[];return {ok:true,json:async()=>({ok:true})};}if(url.includes('view=fixtures')){const params=new URL(url,'https://app.test').searchParams;const page=Number(params.get('page'));if(fixtureFetch)return fixtureFetch(params);return {ok:true,json:async()=>({items:fixturePages[page-1]??[],page,hasMore:page<fixturePages.length})};}return {ok:true,json:async()=>({streams,canBroadcast:video,canView:viewer})};};
@@ -14,7 +14,7 @@ async function harness({video=true,viewer=true,fixturePages=[[stream]],fixtureFe
  const exports={};const code=ts.transpileModule(fs.readFileSync(new URL('../components/match-livestreams.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const document={visibilityState:'visible',addEventListener:(n,fn)=>listeners[n]=fn,removeEventListener(){}};
  new Function('require','exports','fetch','document','window','setInterval','clearInterval','setTimeout','clearTimeout',code)(n=>deps[n]??require(n),exports,fetch,document,{addEventListener:(n,fn)=>listeners[n]=fn,removeEventListener(){}},()=>1,()=>{},()=>2,()=>{});
- function render(){index=0;pending=[];data=exports.MatchLivestreams({video,viewer});for(const fn of pending)fn();return data;}
+ function render(){index=0;pending=[];data=exports.MatchLivestreams({video,viewer,initialStreamId});for(const fn of pending)fn();return data;}
  const all=(tree,fn,result=[])=>{if(Array.isArray(tree)){tree.forEach(t=>all(t,fn,result));return result;}if(tree&&typeof tree==='object'){if(fn(tree))result.push(tree);all(tree.props?.children,fn,result);}return result;};
  async function settle(){render();await new Promise(r=>setImmediate(r));render();await new Promise(r=>setImmediate(r));render();}
  const find=fn=>all(render(),fn)[0];
@@ -37,7 +37,7 @@ test('Video role selects a fixture and submits its YouTube link with no client s
  const form=ui.find(n=>n.type==='form'&&n.props['aria-label']==='Make a match live');
  form.props.onSubmit({preventDefault(){}});form.props.onSubmit({preventDefault(){}});await ui.settle();
  const posts=ui.calls.filter(c=>c[1]?.method==='POST');assert.equal(posts.length,1);
- assert.deepEqual(JSON.parse(posts[0][1].body),{action:'make-live',fixtureId:'fixture',youtubeUrl:'https://youtu.be/M7lc1UVf-VE'});
+ assert.deepEqual(JSON.parse(posts[0][1].body),{action:'make-live',fixtureId:'fixture',youtubeUrl:'https://youtu.be/M7lc1UVf-VE',notifyViewers:false});
  }finally{ui.cleanup();}
 });
 test('refresh denial clears an already open viewer and previously loaded stream links',async()=>{
@@ -103,5 +103,26 @@ test('reopening the match browser starts with the nearest matches after loading 
  toggle();await ui.settle();ui.find(n=>n.props?.['aria-label']==='Load more matches').props.onClick();await ui.settle();
  toggle();await ui.settle();toggle();await ui.settle();
  assert.ok(ui.find(n=>n.props?.type==='radio'&&n.props.value==='fixture'));
+ }finally{ui.cleanup();}
+});
+
+test('Video users can opt into notifying viewers when making a match live',async()=>{
+ const ui=await harness();try{
+ ui.find(n=>n.props?.['aria-label']==='Manage livestreams').props.onClick();await ui.settle();
+ const toggle=ui.find(n=>n.props?.['aria-label']==='Notify everyone with Viewing permission');assert.equal(toggle.props.checked,false);
+ toggle.props.onChange({target:{checked:true}});
+ ui.find(n=>n.props?.type==='radio').props.onChange();
+ ui.find(n=>n.props?.type==='url').props.onChange({target:{value:'https://youtu.be/M7lc1UVf-VE'}});
+ ui.find(n=>n.type==='form'&&n.props['aria-label']==='Make a match live').props.onSubmit({preventDefault(){}});await ui.settle();
+ assert.equal(JSON.parse(ui.calls.find(c=>c[1]?.method==='POST')[1].body).notifyViewers,true);
+ }finally{ui.cleanup();}
+});
+test('a notification opens its specific stream player without another Watch click',async()=>{
+ const ui=await harness({video:false,initialStreamId:'stream'});try{assert.ok(ui.find(n=>n.type==='iframe'));}finally{ui.cleanup();}
+});
+test('an ended or unavailable notified stream never opens a different stream',async()=>{
+ const ui=await harness({video:false,initialStreamId:'ended-stream'});try{
+ assert.equal(ui.find(n=>n.type==='iframe'),undefined);
+ const status=ui.find(n=>n.props?.role==='status'&&String(n.props.children).includes('no longer available'));assert.ok(status);
  }finally{ui.cleanup();}
 });

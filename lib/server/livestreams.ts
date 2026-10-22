@@ -1,3 +1,5 @@
+import {notifyLivestreamViewers} from '@/lib/server/livestream-notifications';
+import {scheduleNotificationPush} from '@/lib/server/notification-dispatch';
 import type {PoolClient} from 'pg';
 import {dbQuery,withTransaction} from '@/lib/server/db';
 import {validateLiveDraft} from '@/lib/livestream-policy.mjs';
@@ -35,20 +37,26 @@ export async function listLiveStreams(personId:string):Promise<LivestreamRespons
  return {...access,streams:rows};
 }
 export async function makeFixtureLive(personId:string,input:unknown){
- let draft;try{draft=validateLiveDraft(input);}catch(error){throw new LiveStreamError((error as Error).message,400);}
- return withTransaction(async client=>{
+ let draft:ReturnType<typeof validateLiveDraft>;try{draft=validateLiveDraft(input);}catch(error){throw new LiveStreamError((error as Error).message,400);}
+ const result=await withTransaction(async client=>{
   await requireVideo(personId,client);
+  async function saved(id:string,duplicate:boolean){
+   const notifications=draft.notifyViewers?await notifyLivestreamViewers(client,id):{count:0,alreadyNotified:false};
+   return {id,duplicate,notificationCount:notifications.count,notificationsAlreadySent:notifications.alreadyNotified};
+  }
   const fixture=(await client.query(`select f.id from public.fixture f join public.season s on s.id=f.season_id where f.id=$1 and f.status='Scheduled' and s.active and ${todayFixtureSql} for update of f`,[draft.fixtureId])).rows[0];
   if(!fixture)throw new LiveStreamError('Choose an available match scheduled for today (Irish time).',409);
   await client.query(`update public.match_livestream set ended_at=now() where fixture_id=$1 and ended_at is null and expires_at<=now()`,[draft.fixtureId]);
   const existing=(await client.query<{id:string;publisher_person_id:string;youtube_video_id:string}>(`select id,publisher_person_id,youtube_video_id from public.match_livestream where fixture_id=$1 and ended_at is null`,[draft.fixtureId])).rows[0];
   if(existing){
-   if(existing.publisher_person_id===personId&&existing.youtube_video_id===draft.videoId)return {id:existing.id,duplicate:true};
+   if(existing.publisher_person_id===personId&&existing.youtube_video_id===draft.videoId)return saved(existing.id,true);
    throw new LiveStreamError('This match already has a live stream. The person who made it live must end it before another can be added.',409);
   }
   const {rows}=await client.query<{id:string}>(`insert into public.match_livestream(fixture_id,publisher_person_id,youtube_video_id) values($1,$2,$3) returning id`,[draft.fixtureId,personId,draft.videoId]);
-  return rows[0];
+  return saved(rows[0].id,false);
  });
+ if(result.notificationCount>0&&!result.notificationsAlreadySent)scheduleNotificationPush();
+ return result;
 }
 export async function endLiveStream(personId:string,id:unknown){
  if(typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))throw new LiveStreamError('Choose a valid stream.',400);
@@ -56,6 +64,8 @@ export async function endLiveStream(personId:string,id:unknown){
   await requireVideo(personId,client);
   const result=await client.query(`update public.match_livestream set ended_at=coalesce(ended_at,now()) where id=$1 and publisher_person_id=$2 returning id`,[id,personId]);
   if(!result.rows[0])throw new LiveStreamError('Stream not found.',404);
+  await client.query(`update public.app_notification set expires_at=least(expires_at,now()) where type='livestream' and event_key=$1`,[`livestream:${id}`]);
+  await client.query(`update public.notification_push_delivery d set status='Skipped',locked_at=null where d.status='Pending' and exists(select 1 from public.app_notification n where n.id=d.notification_id and n.type='livestream' and n.event_key=$1)`,[`livestream:${id}`]);
   return {ok:true};
  });
 }

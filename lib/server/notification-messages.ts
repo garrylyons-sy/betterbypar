@@ -1,10 +1,11 @@
+import {isEligibleForNotification} from '@/lib/notification-policy.mjs';
 import {dbQuery,withTransaction} from '@/lib/server/db';
 import {notificationAccess,syncAnnouncementReceipts} from '@/lib/server/notifications';
 export class MessageAccessError extends Error{constructor(message:string,public status=404){super(message);}}
 async function accessFor(personId:string,id:string){
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))throw new MessageAccessError('Choose a valid message.',400);
  const access=await notificationAccess(personId);
- if(!access.eligible)throw new MessageAccessError('Notification access required.',403);
+ if(!access.eligible||!isEligibleForNotification('announcement',access.roles,access.config))throw new MessageAccessError('Notification access required.',403);
  return access;
 }
 const available=`person_id=$1 and type='announcement' and event_key=$2 and created_at>now()-($3::int*interval '24 hours') and (expires_at is null or expires_at>now())`;

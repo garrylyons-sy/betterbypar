@@ -1,7 +1,7 @@
 import { withCupDrawWitness } from "@/lib/cup-draw-inbox.mjs";
 import type { PoolClient } from "pg";
 import { dbQuery, withTransaction } from "@/lib/server/db";
-import { transientPushNotificationTypes, notificationPreferenceType, lineupReminderTiming, isNotificationWithinLifetime, normalizeNotificationConfig, normalizeNotificationPreferences, validateNotificationConfig, validateNotificationPreferences, isNotificationEligible, safeNotificationHref, fixtureEventKey, type Config, type NotificationType } from "@/lib/notification-policy.mjs";
+import { transientPushNotificationTypes, notificationPreferenceType, lineupReminderTiming, isNotificationWithinLifetime, normalizeNotificationConfig, normalizeNotificationPreferences, validateNotificationConfig, validateNotificationPreferences, isNotificationEligible, safeNotificationHref, fixtureEventKey, isEligibleForNotification, type Config, type NotificationType } from "@/lib/notification-policy.mjs";
 
 type Queryable = Pick<PoolClient, "query">;
 const database = { query: dbQuery } as Queryable;
@@ -21,13 +21,14 @@ export const roleRowsSql = `select cm.person_id, cm.role::text as role from publ
  union select tm.person_id,tm.role::text from public.team_membership tm join public.team t on t.id=tm.team_id and t.active join public.club c on c.id=t.club_id and c.active where tm.active
  union select ptr.person_id,ptr.role::text from public.person_team_role ptr join public.club_membership cm on cm.id=ptr.club_membership_id and cm.active join public.club c on c.id=ptr.club_id and c.active where ptr.active
  union select ca.person_id,'Club Admin' from public.club_admin ca join public.club c on c.id=ca.club_id and c.active where ca.active
+ union select person_id,'Viewing' from public.app_viewer where active
  union select person_id,'Publisher' from public.app_publisher where active
  union select person_id,'Administrator' from public.app_operator where active`;
 export async function notificationAccess(personId:string,client:Queryable=database) {
  const config=await loadNotificationConfig(client);
  const {rows}=await client.query(`select array(select distinct role from (${roleRowsSql}) roles where roles.person_id=p.id) as roles,np.preferences from public.person p left join public.notification_preference np on np.person_id=p.id where p.id=$1 and p.active and exists(select 1 from public.user_account ua where ua.person_id=p.id and ua.active)`,[personId]);
  const roles:string[]=rows[0]?.roles??[];
- return {eligible:Boolean(rows[0])&&isNotificationEligible(roles,config),roles,config,preferences:normalizeNotificationPreferences(rows[0]?.preferences)};
+ return {eligible:Boolean(rows[0])&&(isNotificationEligible(roles,config)||isEligibleForNotification('livestream',roles,config)),roles,config,preferences:normalizeNotificationPreferences(rows[0]?.preferences)};
 }
 export async function loadNotificationInbox(personId:string) {
  const access=await notificationAccess(personId);
@@ -42,7 +43,7 @@ export async function loadNotificationInbox(personId:string) {
  }} as Queryable;
  const currentRows=[];const staleIds:string[]=[];
  for(let offset=0;offset<rows.length;offset+=5){
- const checked=await Promise.all(rows.slice(offset,offset+5).map(async item=>({item,current:await notificationSourceIsCurrent(item.id,personId,sourceClient,item,access.config.retentionDays)})));
+ const checked=await Promise.all(rows.slice(offset,offset+5).map(async item=>({item,current:isEligibleForNotification(item.type,access.roles,access.config)&&await notificationSourceIsCurrent(item.id,personId,sourceClient,item,access.config.retentionDays)})));
  for(const {item,current} of checked){
  if(current){
  const {event_key: _eventKey,expires_at: _expiresAt,...visible}=item;
@@ -98,7 +99,7 @@ export type NotificationEvent={type:NotificationType;title:string;body:string;hr
 export async function createNotification(client:Queryable,personId:string,event:NotificationEvent) {
  const access=await notificationAccess(personId,client);
  const category=notificationPreferenceType(event.type);
- if(!access.eligible||!access.config.enabledTypes.includes(category))return false;
+ if(!isEligibleForNotification(event.type,access.roles,access.config)||!access.config.enabledTypes.includes(category))return false;
  const transient=transientPushNotificationTypes.includes(category);
  const inbox=!transient&&access.preferences.inboxTypes.includes(category);
  const push=access.preferences.pushEnabled&&(transient||access.preferences.pushTypes.includes(category));
@@ -205,6 +206,16 @@ export async function notificationSourceIsCurrent(notificationId:string,personId
  if(/^ladder:.*:deadline:/.test(n.event_key))return false;
  if(n.createdAt&&!isNotificationWithinLifetime(n.createdAt,Date.now(),(retentionDays??(await loadNotificationConfig(client)).retentionDays)))return false;
  if(n.expires_at&&new Date(n.expires_at).getTime()<=Date.now())return false;
+ if(n.type==='livestream'){
+  if(/^push-test:[0-9a-f-]{36}$/i.test(n.event_key)){const viewer=await client.query(`select v.person_id from public.app_viewer v join public.person p on p.id=v.person_id and p.active where v.person_id=$1 and v.active and exists(select 1 from public.user_account where person_id=p.id and active)`,[personId]);return Boolean(viewer.rows[0]);}
+  const live=/^livestream:([0-9a-f-]{36})$/i.exec(n.event_key);if(!live)return false;
+  const source=await client.query(`select ls.id from public.match_livestream ls join public.fixture f on f.id=ls.fixture_id and f.status<>'Cancelled'
+   join public.app_video av on av.person_id=ls.publisher_person_id and av.active join public.person owner on owner.id=av.person_id and owner.active
+   where ls.id=$1 and ls.ended_at is null and ls.expires_at>now()
+   and exists(select 1 from public.user_account where person_id=owner.id and active)
+   and exists(select 1 from public.app_viewer v join public.person p on p.id=v.person_id and p.active where v.person_id=$2 and v.active and exists(select 1 from public.user_account where person_id=p.id and active))`,[live[1],personId]);
+  return Boolean(source.rows[0]);
+ }
  const cupDraw=/^cup-draw:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(n.event_key);
  if(cupDraw){
   const source=await client.query(cupDrawSourceSql,[cupDraw[1],cupDraw[2]]);

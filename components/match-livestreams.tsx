@@ -7,12 +7,13 @@ import type {LiveFixture,LivestreamResponse} from '@/lib/livestream-types';
 
 const empty:LivestreamResponse={streams:[],canBroadcast:false,canView:false};
 const dateLabel=formatFixtureDateTime;
-export function MatchLivestreams({video,viewer}:{video:boolean;viewer:boolean}){
+export function MatchLivestreams({video,viewer,initialStreamId=null}:{video:boolean;viewer:boolean;initialStreamId?:string|null}){
  const [data,setData]=useState<LivestreamResponse>(empty),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [managing,setManaging]=useState(false),[playing,setPlaying]=useState<string|null>(null),[busy,setBusy]=useState(false);
+ const [managing,setManaging]=useState(false),[playing,setPlaying]=useState<string|null>(initialStreamId),[busy,setBusy]=useState(false);
  const [searchInput,setSearchInput]=useState(''),[search,setSearch]=useState(''),[page,setPage]=useState(1),[fixtures,setFixtures]=useState<LiveFixture[]>([]),[hasMore,setHasMore]=useState(false),[fixturesLoading,setFixturesLoading]=useState(false),[fixtureError,setFixtureError]=useState('');
  const [selectedFixture,setSelectedFixture]=useState<LiveFixture|null>(null),[choosingMatch,setChoosingMatch]=useState(true),[fixtureRevision,setFixtureRevision]=useState(0),[youtubeUrl,setYoutubeUrl]=useState('');
  const busyRef=useRef(false),listRequest=useRef<AbortController|null>(null),mounted=useRef(true);
+ const [notifyViewers,setNotifyViewers]=useState(false);
  const [revision,setRevision]=useState(0);
  const stream=data.streams.find(item=>item.streamId===playing&&new Date(item.expiresAt).getTime()>Date.now());
  useEffect(()=>{
@@ -24,6 +25,7 @@ export function MatchLivestreams({video,viewer}:{video:boolean;viewer:boolean}){
     if(controller.signal.aborted||!mounted.current)return;
     if(!response.ok)throw new Error(body.error||'Unable to load live matches.');
     setData(body);setError('');
+    if(initialStreamId&&!body.streams.some((item:{streamId:string})=>item.streamId===initialStreamId))setNotice('This stream has ended or is no longer available.');
     setPlaying(current=>body.streams.some((item:{streamId:string})=>item.streamId===current)?current:null);
    }catch(reason){if(controller.signal.aborted||!mounted.current)return;setData(empty);setPlaying(null);setError(reason instanceof Error?reason.message:'Unable to load live matches.');}
    finally{if(!controller.signal.aborted&&mounted.current)setLoading(false);}
@@ -53,8 +55,8 @@ export function MatchLivestreams({video,viewer}:{video:boolean;viewer:boolean}){
    const response=await fetch('/api/livestreams',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),body=await response.json();
    if(!mounted.current)return;
    if(!response.ok){if(response.status===401||response.status===403){setData(empty);setPlaying(null);setRevision(value=>value+1);}throw new Error(body.error||'Unable to update the live stream.');}
-   setNotice('action' in payload&&payload.action==='end'?'Live listing ended. Stop the broadcast in YouTube too.':'Match is listed live. Make sure your YouTube broadcast is running.');
-   if('action' in payload&&payload.action==='make-live'){setYoutubeUrl('');setSelectedFixture(null);setChoosingMatch(true);setPage(1);}
+   setNotice('action' in payload&&payload.action==='end'?'Live listing ended. Stop the broadcast in YouTube too.':`Match is listed live. Make sure your YouTube broadcast is running.${'notifyViewers' in payload&&payload.notifyViewers?` ${body.notificationsAlreadySent?'Already notified':'Notifications created for'} ${body.notificationCount??0} viewer(s).`:''}`);
+   if('action' in payload&&payload.action==='make-live'){setYoutubeUrl('');setNotifyViewers(false);setSelectedFixture(null);setChoosingMatch(true);setPage(1);}
    setRevision(value=>value+1);
   }catch(reason){if(mounted.current)setError(reason instanceof Error?reason.message:'Unable to update the live stream.');}
   finally{busyRef.current=false;if(mounted.current)setBusy(false);}
@@ -84,9 +86,10 @@ export function MatchLivestreams({video,viewer}:{video:boolean;viewer:boolean}){
      {selectedFixture?<Button type="button" variant="secondary" aria-label="Keep selected match" disabled={busy} onClick={()=>setChoosingMatch(false)}>Keep selected match</Button>:null}
     </>:null}
    </div>
-   <form aria-label="Make a match live" className="space-y-3" onSubmit={event=>{event.preventDefault();if(selectedFixture&&!choosingMatch)void mutate({action:'make-live',fixtureId:selectedFixture.id,youtubeUrl});}}>
+   <form aria-label="Make a match live" className="space-y-3" onSubmit={event=>{event.preventDefault();if(selectedFixture&&!choosingMatch)void mutate({action:'make-live',fixtureId:selectedFixture.id,youtubeUrl,notifyViewers});}}>
     <h4 className="text-sm font-extrabold">2. Add your YouTube link</h4>
     <label className="block text-sm font-bold">YouTube livestream link<input required type="url" maxLength={2048} disabled={busy} value={youtubeUrl} onChange={event=>setYoutubeUrl(event.target.value)} placeholder="https://www.youtube.com/live/…" className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-base font-normal"/></label>
+    <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm"><input type="checkbox" aria-label="Notify everyone with Viewing permission" checked={notifyViewers} disabled={busy} onChange={event=>setNotifyViewers(event.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-teal-700"/><span><span className="block font-bold">Notify everyone with Viewing permission</span><span className="mt-1 block text-xs text-slate-600">Opens this stream when tapped. Uses each viewer’s Announcements preferences, phone push opt-in and quiet hours.</span></span></label>
     <Button type="submit" variant="dark" disabled={busy||!selectedFixture||choosingMatch||!youtubeUrl.trim()}>{busy?'Saving…':'Make live'}</Button>
    </form>
   </section>:null}

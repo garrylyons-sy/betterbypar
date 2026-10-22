@@ -1,3 +1,4 @@
+import {isEligibleForNotification} from '@/lib/notification-policy.mjs';
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/server/auth';
@@ -14,7 +15,8 @@ export async function POST(){
   const access=await notificationAccess(user.personId);
   if(!access.eligible)return NextResponse.json({error:'Notifications are unavailable.'},{status:403});
   if(!pushReadiness().ready)return NextResponse.json({error:'Push notifications are not configured.'},{status:503});
-  const type=access.preferences.pushTypes.find(type=>access.config.enabledTypes.includes(type));
+  const type=access.preferences.pushTypes.find(type=>access.config.enabledTypes.includes(type)&&isEligibleForNotification(type,access.roles,access.config))
+    ?? (isEligibleForNotification('livestream',access.roles,access.config)&&access.config.enabledTypes.includes('announcement')&&access.preferences.pushTypes.includes('announcement')?'livestream':undefined);
   if(!access.preferences.pushEnabled || !type)return NextResponse.json({error:'Enable push and at least one notification category first.'},{status:400});
   const result=await withTransaction(async client=>{
     const devices=await client.query('select id from public.notification_push_subscription where person_id=$1 and active=true',[user.personId]);
