@@ -49,7 +49,7 @@ export async function loadNotificationInbox(personId:string) {
  const {event_key: _eventKey,expires_at: _expiresAt,...visible}=item;
  const announcement=/^announcement:([0-9a-f-]{36})$/i.exec(item.event_key);
  if(item.type==='announcement'&&announcement)visible.href=`/?notifications=1&message=${announcement[1]}`;
- const cup=/^cup-draw:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(item.event_key);
+ const cup=/^cup-draw:([0-9a-f-]{36}):([0-9a-f-]{36})(?::[0-9a-f-]{36})?$/i.exec(item.event_key);
  if(cup&&!/(?:^|\n)Draw made at /.test(visible.body)){
  const metadata=await sourceClient.query(cupDrawSourceSql,[cup[1],cup[2]]);
  visible.body=withCupDrawWitness(visible.body,metadata.rows[0]);
@@ -226,7 +226,7 @@ export async function notificationSourceIsCurrent(notificationId:string,personId
    and exists(select 1 from public.app_viewer v join public.person p on p.id=v.person_id and p.active where v.person_id=$2 and v.active and exists(select 1 from public.user_account where person_id=p.id and active))`,[live[1],personId]);
   return Boolean(source.rows[0]);
  }
- const cupDraw=/^cup-draw:([0-9a-f-]{36}):([0-9a-f-]{36})$/.exec(n.event_key);
+ const cupDraw=/^cup-draw:([0-9a-f-]{36}):([0-9a-f-]{36})(?::[0-9a-f-]{36})?$/i.exec(n.event_key);
  if(cupDraw){
   const source=await client.query(cupDrawSourceSql,[cupDraw[1],cupDraw[2]]);
   return Boolean(source.rows.length);

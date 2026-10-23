@@ -280,8 +280,8 @@ test('lineup routes notify first publication and completion within transactions 
  assert.match(source,/if \(notificationCreated\) scheduleNotificationPush\(\)/);
 });
 test('cup draw notices remain current only while their confirmed source exists',async()=>{
- for(const current of [false,true]){
-  const api=server(async sql=>sql.includes('from public.cup_draw_attempt')?{rows:current?[{exists:1}]:[]}:{rows:[{type:'cup_draw',event_key:`cup-draw:${fixtureId}:${challengeId}`,expires_at:null}]});
+ for(const current of [false,true])for(const suffix of ['',`:${fixtureId}`]){
+  const api=server(async sql=>sql.includes('from public.cup_draw_attempt')?{rows:current?[{exists:1}]:[]}:{rows:[{type:'cup_draw',event_key:`cup-draw:${fixtureId}:${challengeId}${suffix}`,expires_at:null}]});
   assert.equal(await api.notificationSourceIsCurrent('notice','chair'),current);
  }
 });
@@ -399,4 +399,9 @@ test('completion queues one result push per manager or chair and labels cup resu
  assert.deepEqual(saved.map(c=>c.args[0]),['manager','chair-manager']);
  for(const item of saved){assert.match(item.args[3],/Interclub Cup result/);assert.doesNotMatch(item.args[3],/A League result/);assert.match(item.args[4],new RegExp(`fixtureId=${fixtureId}`));assert.equal(item.args[7],false);}
  assert.equal(base.calls.filter(c=>c.sql.includes('insert into public.notification_push_delivery')).length,2);
+});
+
+test('uppercase draw identifiers still expire when their source is deleted',async()=>{
+ const api=server(async sql=>sql.includes('from public.cup_draw_attempt')?{rows:[]}:{rows:[{type:'cup_draw',event_key:'cup-draw:AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA:BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB:CCCCCCCC-CCCC-4CCC-8CCC-CCCCCCCCCCCC',expires_at:null}]});
+ assert.equal(await api.notificationSourceIsCurrent('notice','chair'),false);
 });

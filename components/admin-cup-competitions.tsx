@@ -170,7 +170,7 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
       setData(body);
       setOpenCompetitionId(null);
       setDeleteTarget(null);
-      onMessage("Cup competition, fixtures and recorded match data deleted.");
+      onMessage(deleteTarget.status === "Draft" ? "Draft cup competition and any provisional draw history deleted." : "Cup competition, fixtures and recorded match data deleted.");
     } catch (error) {
       onMessage(error instanceof Error ? error.message : "Could not delete cup competition.");
     } finally {
@@ -250,12 +250,12 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
         const open = openCompetitionId === competition.id;
         return (
           <Card key={competition.id}>
-            <button type="button" className="flex w-full items-center gap-3 p-4 text-left" onClick={() => setOpenCompetitionId(open ? null : competition.id)}>
+            <div className="flex items-center gap-1 pr-3"><button type="button" className="flex min-w-0 flex-1 items-center gap-3 p-4 text-left" aria-expanded={open} onClick={() => setOpenCompetitionId(open ? null : competition.id)}>
               <Trophy className="h-5 w-5 text-[#168f72]" />
               <span className="min-w-0 flex-1"><span className="block truncate font-black text-[#10233f]">{competition.name}</span><span className="block text-xs font-semibold text-[#6c5a73]">{competition.entries.length} teams · {competition.round_count} rounds · {competition.format.map((row) => row.game_type[0]).join(" · ")} · {competition.audience}</span></span>
               <Badge variant={competition.status === "Complete" ? "green" : competition.status === "Draft" ? "muted" : "cyan"}>{competition.draws?.[0]?.status === "Provisional" ? "Provisional draw" : competition.status}</Badge>
               {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
+            </button><Button type="button" variant="secondary" size="sm" disabled={busy} aria-label={`Delete ${competition.name}`} title="Delete competition" className="shrink-0 text-[#b42318]" onClick={() => setDeleteTarget(competition)}><Trash2 className="h-4 w-4" aria-hidden="true"/><span className="hidden sm:inline">Delete</span></Button></div>
             {open ? (
               <CardContent className="grid gap-3 border-t border-[#ebe6ef] pt-4">
                 <CupVisibilityEditor competition={competition} leagues={data.leagues} onMessage={onMessage} onSaved={load} />
@@ -271,11 +271,6 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
                       </div>
                     </section>
                   ))}
-                </div>
-                <div className="flex justify-end border-t border-[#ebe6ef] pt-3">
-                  <Button variant="secondary" size="sm" className="text-[#b42318]" onClick={() => setDeleteTarget(competition)}>
-                    <Trash2 className="h-4 w-4" /> Delete competition
-                  </Button>
                 </div>
               </CardContent>
             ) : null}
@@ -293,7 +288,7 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
               <Badge variant="muted">{deleteTarget.status}</Badge>
             </div>
             <p className="mt-3 rounded-xl bg-[#fff3f3] p-3 text-sm font-semibold text-[#6c5a73] ring-1 ring-[#f3b7b2]">
-              This permanently removes the cup, its full draw history, rounds, fixtures, lineups, results, breaks and live-scoring data. This cannot be undone.
+              {deleteTarget.status === "Draft" ? "This permanently removes the draft competition, team entries, round dates and any provisional draw history. You do not need to run or witness the draw first. This cannot be undone." : "This permanently removes the cup, its full draw history, rounds, fixtures, lineups, results, breaks and live-scoring data. This cannot be undone."}
             </p>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={busy}>Cancel</Button>
