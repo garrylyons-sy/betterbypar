@@ -1,4 +1,5 @@
 "use client";
+import {CoachPractice} from '@/components/coach-practice';
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, Building2, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, Radio, ShieldCheck, Smartphone, Swords, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
@@ -24,7 +25,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "dependants" | "lessons" | "challenges" | "notifications" | "system" | "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
+type AdminTab = "dependants" | "lessons" | "drills" | "challenges" | "notifications" | "system" | "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type MaintenanceModeState = { enabled: boolean; updatedAt: string | null };
 type TeamRole = "Player" | "Manager";
@@ -308,7 +309,7 @@ const inviteRoles: InviteRole[] = ["Club Member", "Golf Professional", "Assistan
 const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair", "Golf Professional", "Assistant Professional"];
 const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin", "League Chair", "Golf Professional", "Assistant Professional"];
 const clubPortalTabs: AdminTab[] = [...clubPortalTabIds];
-const clubAdminTabs: AdminTab[] = ["dependants", "lessons", "challenges", "clubs", "ladders", "people", "competitions", "matches"];
+const clubAdminTabs: AdminTab[] = ["dependants", "lessons", "challenges", "drills", "clubs", "ladders", "people", "competitions", "matches"];
 const ADMIN_SESSION_CACHE_KEY = "interclub:admin-session-data:v1";
 const ADMIN_SESSION_TAB_KEY = "interclub:admin-session-tab:v1";
 const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPanelTop }> = [
@@ -316,6 +317,7 @@ const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPan
   { id: "clubs" as const, label: "Clubs", icon: Building2 },
   { id: "lessons", label: "Lessons", icon: CalendarDays },
   { id: "challenges", label: "Challenges", icon: Swords },
+  { id: "drills", label: "Drills", icon: Swords },
   { id: "dependants", label: "Dependants", icon: Users },
   { id: "ladders" as const, label: "Ladders", icon: Swords },
   { id: "competitions" as const, label: "Club Competitions", icon: Trophy },
@@ -809,7 +811,8 @@ function AdminTabPanel(props: {
   if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} featureStats={props.featureStats} maintenanceMode={props.maintenanceMode} onMaintenanceChange={props.onMaintenanceChange} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "dependants") return <AdminDependants clubScope={clubPortal} />;
   if (props.tab === "lessons") return <AdminLessons clubScope={clubPortal} />;
-  if (props.tab === "challenges") return <Card><CardHeader><CardTitle>Challenges</CardTitle></CardHeader><CardContent><div aria-label="Challenges" /></CardContent></Card>;
+  if (props.tab === "challenges") return <CoachPractice key="challenges" initialKind="challenge" hideKindSwitch clubScope={clubPortal}/>;
+  if (props.tab === "drills") return <CoachPractice key="drills" initialKind="drill" hideKindSwitch clubScope={clubPortal}/>;
   if (props.tab === "clubs" && clubPortal) return <ClubBrandingPanel />;
   if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;
   if (props.tab === "ladders") return <AdminClubLadders onMessage={props.onMessage} />;

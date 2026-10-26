@@ -1,0 +1,11 @@
+import type {PoolClient} from 'pg';
+import {createNotification} from '@/lib/server/notifications';
+export async function notifyPracticeAssignment(client:PoolClient,assignmentId:string){
+ const assignment=(await client.query(`select a.*,concat_ws(' ',p.first_name,p.last_name) as player_name,concat_ws(' ',coach.first_name,coach.last_name) as coach_name from golf_practice_assignment a join person p on p.id=a.player_person_id join person coach on coach.id=a.coach_person_id where a.id=$1 and a.status='active'`,[assignmentId])).rows[0];if(!assignment)return;
+ const recipients=(await client.query<{id:string}>(`select distinct p.id from person p join user_account ua on ua.person_id=p.id and ua.active join club_membership cm on cm.person_id=p.id and cm.club_id=$1 and cm.active where p.active and (p.id=$2 or exists(select 1 from dependants d where d.guardian_person_id=p.id and d.dependant_person_id=$2 and d.club_id=$1 and d.active))`,[assignment.club_id,assignment.player_person_id])).rows;
+ for(const recipient of recipients)await createNotification(client,recipient.id,{type:'coaching_assignment',title:assignment.kind==='challenge'?'New golf challenge':'New practice drill',body:`${assignment.coach_name} assigned ${assignment.definition.title} to ${assignment.player_name}. Open your practice plan to view the goal.`,href:`/practice?clubId=${assignment.club_id}&playerId=${assignment.player_person_id}&assignment=${assignmentId}`,eventKey:`practice-assigned:${assignmentId}`});
+}
+export async function notifyPracticeProgress(client:PoolClient,assignmentId:string,progressId:string,kind:'drill'|'challenge'){
+ const row=(await client.query(`select a.*,concat_ws(' ',p.first_name,p.last_name) as player_name from golf_practice_assignment a join person p on p.id=a.player_person_id where a.id=$1 and a.status='active'`,[assignmentId])).rows[0];if(!row)return;
+ await createNotification(client,row.coach_person_id,{type:'coaching_progress',title:kind==='drill'?'Practice session completed':'Challenge result recorded',body:`${row.player_name} recorded ${kind==='drill'?'a practice session':'a result'} for ${row.definition.title}. Open the plan to review progress.`,href:`/practice/manage?clubId=${row.club_id}&assignment=${assignmentId}`,eventKey:`practice-progress:${kind}:${assignmentId}:${progressId}`});
+}

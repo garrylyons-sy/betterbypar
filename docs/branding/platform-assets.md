@@ -2,17 +2,19 @@
 
 The product name is **Better By Par**, chosen on 26 October 2026. Platform assets do not replace club-specific logos or colours.
 
-- Platform: forest green, cream flag and gold putting green.
-- Admin and club admin: midnight blue, cream flag and gold shield/check.
-- Maintenance: warm charcoal, copper wrench and cream detail.
+The supplied Better By Par Golf logo is the approved lockup. Its original source is `public/brand/better-by-par-logo.png`. The isolated transparent monogram is `public/brand/better-by-par-symbol.png`.
 
-SVG masters and PNG/ICO exports live in public/brand/. Root favicon.ico and favicon-normal.ico use the platform mark. Each area has a distinct four-size ICO (16, 32, 48 and 64 pixels). Apple icons use 180px; PWA icons use 192px and 512px, with a separately padded opaque maskable icon.
+- Platform: navy `#061F3E`, blue `#0878E8` and white; golf monogram.
+- Admin and club admin: the same mark, with a navy shield badge.
+- Maintenance: the same mark, with a blue tool badge.
 
-Run `pnpm brand:generate` to rebuild all assets deterministically using Sharp. Edit geometry in scripts/generate-brand-assets.mjs, which is the source of truth. No external image service or font requests are required.
+SVG icon wrappers embed the raster symbol; they are not vector masters. PNG/ICO exports live in `public/brand/`. Root `favicon.ico` and `favicon-normal.ico` use the platform mark. Each area has a distinct four-size ICO (16, 32, 48 and 64 pixels). Apple icons use 180px; PWA icons use 192px and 512px, with a separately padded opaque maskable icon.
 
-The startup screen stays visible until authentication completes and respects reduced-motion preferences. Maintenance is available at /maintenance. Development demo preview: /demo/brand (disabled outside explicit local demo mode).
+Run `pnpm brand:generate` to rebuild exports deterministically using Sharp. The generator reads the isolated symbol and adds icon padding and area badges. Preserve both logo source PNGs. No external image service or font requests are required to rebuild.
 
-Verification: all 541 tests passed, TypeScript passed, ICO headers and embedded dimensions checked, and HTTP metadata/favicon checks passed for demo, admin, clubadmin and maintenance. Brand studio splash inspected in browser.
+The startup screen uses the full approved logo on white with pale blue contours and a loading stroke. It stays visible until authentication completes and respects reduced-motion preferences. Maintenance is available at `/maintenance`. Development demo preview: `/demo/brand` (disabled outside explicit local demo mode). Icon metadata URLs are versioned to refresh browser caches.
+
+Platform default colours follow the new navy/blue identity. Existing club palettes retain precedence and remain editable by the club.
 
 ## Club-wide colour configuration
 

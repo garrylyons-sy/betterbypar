@@ -14,7 +14,7 @@ const categories: { type: NotificationType; label: string }[] = [
   { type: "lesson_booking", label: "Lesson bookings" },
   { type: "lesson_reminder", label: "Lesson reminders" },
   { type: "lesson_cancelled", label: "Lesson cancellations" },
-  { type: "lesson_feedback", label: "Lesson feedback and drills" },
+  { type: "lesson_feedback", label: "Coaching and lesson feedback" },
   { type: "announcement", label: "Club announcements" }
 ];
 

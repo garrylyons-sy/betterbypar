@@ -20,7 +20,7 @@ test('local demo overrides production connections and external delivery credenti
  const env=localDemoEnvironment({DATABASE_URL:'postgresql://remote.example/live',RESEND_API_KEY:'live-key',GOOGLE_CLIENT_SECRET:'live-secret',VAPID_PRIVATE_KEY:'live-key',GOLF_IRELAND_CLUB_CREDENTIALS:'live-credentials',GOLF_IRELAND_MEMBER_UIDS:'live-identifiers',GOLF_IRELAND_DATA_MODE:'live'});
  assert.equal(env.DATABASE_URL,'postgresql://postgres:postgres@127.0.0.1:55432/postgres');
  assert.equal(env.RESEND_API_KEY,'');assert.equal(env.GOOGLE_CLIENT_SECRET,'');assert.equal(env.VAPID_PRIVATE_KEY,'');
- assert.equal(env.GOLF_IRELAND_CLUB_CREDENTIALS,'');assert.equal(env.GOLF_IRELAND_MEMBER_UIDS,'');assert.equal(env.GOLF_IRELAND_DATA_MODE,'demo');
+ assert.equal(env.GOLF_IRELAND_CLUB_CREDENTIALS,'');assert.equal(env.GOLF_IRELAND_MEMBER_UIDS,'');assert.equal(env.ROUND_AI_MODE,'demo');assert.equal(env.OPENAI_API_KEY,'');assert.equal(env.GOLF_IRELAND_DATA_MODE,'demo');
  assert.equal(env.LOCAL_DEMO,'1');assert.equal(env.NODE_ENV,'development');
 });
 test('local seed is complete, fictional and idempotent',async()=>{

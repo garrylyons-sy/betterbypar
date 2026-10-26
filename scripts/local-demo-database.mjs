@@ -27,6 +27,9 @@ export async function initializeLocalDemo(db){
   const playerRegistrationReady=(await db.query("select 1 from information_schema.columns where table_schema='public' and table_name='person' and column_name='is_golf_player'")).rows.length;
   if(!playerRegistrationReady)await db.exec(await readFile(new URL('../supabase/golf_players.sql',import.meta.url),'utf8'));
   if(!(await db.query("select to_regclass('public.notification_email_delivery') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/notification_email.sql',import.meta.url),'utf8'));
+  if(!(await db.query("select to_regclass('public.golf_round') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/golf_rounds.sql',import.meta.url),'utf8'));
+  if(!(await db.query("select to_regclass('public.golf_practice_assignment') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/coaching_practice.sql',import.meta.url),'utf8'));
+  if(!(await db.query("select to_regclass('public.golf_round_comment') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/round_coaching.sql',import.meta.url),'utf8'));
   await updateDemoClubNames(db);
   if((await db.query("select 1 from public.person where email='admin@example.test'")).rows.length){
     if(!playerRegistrationReady)await seedDemoPlayerRegistration(db);
@@ -46,7 +49,7 @@ export async function initializeLocalDemo(db){
       await tx.query('insert into public.user_account(person_id,username,password_hash) values($1,$2,$3)',[people[account.key],account.email,passwordHash]);
     }
     people.junior=(await tx.query("insert into public.person(first_name,last_name) values('Casey','Parker') returning id")).rows[0].id;
-    const primary=(await tx.query(`insert into public.club(name,venue,logo_path,primary_color,accent_color) values('Castle Golf Club','Castle clubhouse','/demo-club.svg','#164B3A','#D7A84B') returning id`)).rows[0].id;
+    const primary=(await tx.query(`insert into public.club(name,venue,logo_path,primary_color,accent_color) values('Castle Golf Club','Castle clubhouse','/demo-club.svg','#061F3E','#D7A84B') returning id`)).rows[0].id;
     const secondary=(await tx.query(`insert into public.club(name,venue,logo_path,primary_color,accent_color) values('Woodland Golf Club','Woodland clubhouse','/demo-club.svg','#173A59','#72A8B7') returning id`)).rows[0].id;
     for(const personId of Object.values(people)){
       await tx.query("insert into public.club_membership(club_id,person_id,role,is_club_admin) values($1,$2,'Club Member',$3)",[primary,personId,personId===people.clubadmin]);

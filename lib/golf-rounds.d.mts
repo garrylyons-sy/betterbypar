@@ -1,0 +1,9 @@
+export type Shot={type:'full'|'putt'|'penalty';club:string;outcome:string;note:string};
+export type RoundHole={number:number;par:number|null;strokes:number|null;putts:number|null;penalties:number|null;status:'played'|'not_played'|'picked_up';comment:string;shots:Shot[]};
+export type RoundInput={courseName:string;teeName:string;playedOn:string;holeCount:9|18;format:'strokes'|'stableford';status:'draft'|'completed';commentary:string;handicapIndex:number|null;playingHandicap:number|null;holes:RoundHole[]};
+export type RoundFeedback={mode:'demo'|'live';notice:string;summary:string;strengths:string[];focus:string[];thoughts:{title:string;reason:string;action:string}[];holes:{number:number;observation:string;question:string}[]};
+export type RoundStats={gross:number|null;toPar:number|null;played:number;pickedUp:number;partial:boolean;putts:number|null;penalties:number|null;threePutts:number};
+export type SavedRound=RoundInput&{id:string;revision:number;source:'manual'|'golf_ireland'|'demo_golf_ireland';externalScoreUid:string|null;importedGross:number|null;importedPoints:number|null;feedback:RoundFeedback|null;feedbackGeneratedAt:string|null;stats:RoundStats;updatedAt:string};
+export function normalizeRound(input:unknown,now?:Date):RoundInput;
+export function roundStats(round:RoundInput):RoundStats;
+export function demoRoundFeedback(round:RoundInput):RoundFeedback;

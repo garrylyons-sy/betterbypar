@@ -75,3 +75,14 @@ test('missing values remain null and status flags have defined precedence',async
  }
  const withdrawn=await setup('precedence',{handicap:{index:10,isWithdrawn:true,isPending:true,isFrozen:true,isProvisional:true},scores:[]}).get();assert.equal(withdrawn.handicapStatus,'withdrawn');
 });
+test('detailed round import validates member ownership and preserves unknowns, pickups and card positions',async()=>{
+ const record={handicap:{index:12,displayIndex:'12'},scores:[{scoreUID:'own-score',playedAtUTC:'2030-12-01T09:00Z',holesPlayed:9,grossScore:null,marker:{course:'Selected Course',name:'Back nine'}}]};
+ const s=setup('import',record),api={};new Function('require','exports',compiled)(require,api);
+ let detail={memberUID:s.uid,scoreUID:'own-score',handicapIndex:12,holes:[{gross:5},{gross:0,pickedUp:true},{gross:null,didNotAttempt:true}]};
+ const fetcher=async(url,init)=>url.endsWith('/scores/own-score')?{ok:true,json:async()=>detail}:s.fetcher(url,init);
+ const result=await api.getLiveGolfRound(s.request,'own-score',{env:s.env,fetcher,now:new Date('2031-01-01T00:00Z')});
+ assert.equal(result.data.holeCount,9);assert.equal(result.data.holes[0].par,null);assert.equal(result.data.holes[0].putts,null);assert.equal(result.data.holes[0].strokes,5);assert.equal(result.data.holes[1].strokes,null);assert.equal(result.data.holes[1].status,'picked_up');assert.equal(result.data.holes[2].status,'not_played');assert.equal(result.importedGross,null);
+ record.scores[0].holesPlayed=16;detail={...detail,holes:Array.from({length:18},(_,i)=>i<16?{gross:5}:{gross:null,didNotAttempt:true})};const partial=await api.getLiveGolfRound(s.request,'own-score',{env:s.env,fetcher,now:new Date('2031-01-01T00:00Z')});assert.equal(partial.data.holeCount,18);assert.equal(partial.data.holes.length,18);assert.equal(partial.data.holes[17].status,'not_played');
+ detail={...detail,memberUID:'other-person'};await assert.rejects(api.getLiveGolfRound(s.request,'own-score',{env:s.env,fetcher,now:new Date('2031-01-01T00:00Z')}),/could not be imported/);
+ await assert.rejects(api.getLiveGolfRound(s.request,'unrelated',{env:s.env,fetcher,now:new Date('2031-01-01T00:00Z')}),/could not be imported/);
+});

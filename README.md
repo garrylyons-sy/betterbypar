@@ -6,6 +6,12 @@ Club administrators have a dedicated **`/clubadmin`** portal for their own club 
 
 Users can open **My profile** (`/profile`) from the account menu to preview, save, replace or remove a profile photo. Guardians have the same controls on **My dependants** for active linked players. The server stores only a resized WebP image in the existing `person.profile_image` field: at most **512×512 pixels** (aspect ratio preserved, no upscaling) and **150 KiB**. Unusually complex images may be compressed further to meet the byte limit. Phone orientation is applied and image metadata is stripped. Uploaded full-resolution originals are never persisted. JPEG, PNG and still WebP are supported; the browser prepares mobile originals up to 20 MiB before upload, and the server independently validates a 4 MiB file limit, a bounded multipart body and a 64-million-pixel decoding limit. No storage bucket or database migration is required. Google login and subsequent invitations preserve a user's custom photo or explicit removal.
 
+Round recording and coaching are available under **My Golf**. Apply `supabase/golf_rounds.sql` after the player migration for a configured database. See [round journal and AI setup](docs/lessons/round-journal.md). Local demo uses labelled sample imports and rules-based feedback.
+
+Structured **Challenges** and **Drills** have separate libraries, professional assignments, player/guardian progress and in-app demos. See [coaching practice setup](docs/lessons/coaching-practice.md). Apply `supabase/coaching_practice.sql` after golf-round and notification migrations; local demo applies it automatically.
+
+Professionals can review their players’ completed rounds and discuss the round or individual holes. See [professional round review](docs/lessons/professional-round-review.md); apply `supabase/round_coaching.sql` after coaching practice.
+
 ## Run without Supabase
 
 Home now includes a large Handicap Index, recent trend and three rounds, using clearly labelled sample data until Golf Ireland is connected. See [Golf Ireland integration](docs/golf-ireland-integration.md) for live access configuration, permissions and display semantics.

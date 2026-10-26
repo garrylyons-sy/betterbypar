@@ -33,14 +33,15 @@ export function ClubThemeProvider({children}:{children:React.ReactNode}){
  },[refresh]);
  useEffect(()=>{setDraft(null);void refresh();},[pathname,refresh]);
  const club=clubs.find(c=>c.id===clubId);
+ const platformAdmin=pathname==='/admin'||pathname.startsWith('/admin/');
  useEffect(()=>{
-  const values=buildClubTheme(draft?.primary??club?.primaryColor,draft?.accent??club?.accentColor);
+  const values=platformAdmin ? buildClubTheme() : buildClubTheme(draft?.primary??club?.primaryColor,draft?.accent??club?.accentColor);
   for(const [key,value]of Object.entries(values))document.documentElement.style.setProperty(key,value);
-  document.documentElement.dataset.clubTheme=club?.id??'platform';
+  document.documentElement.dataset.clubTheme=platformAdmin?'platform':club?.id??'platform';
   document.documentElement.style.colorScheme='light';
   if(club)try{sessionStorage.setItem(storageKey,club.id);}catch{}
   const meta=document.querySelector('meta[name="theme-color"]');meta?.setAttribute('content',values['--club-primary']);
- },[club,draft]);
+ },[club,draft,platformAdmin]);
  const value=useMemo(()=>({clubs,clubId:club?.id??'',setClubId,refresh,preview,clearPreview}),[clubs,club,refresh,setClubId,preview,clearPreview]);
  return <Theme.Provider value={value}>{children}</Theme.Provider>;
 }

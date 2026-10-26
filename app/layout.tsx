@@ -17,14 +17,14 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent"
   },
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/icons/apple-touch-icon.png"
+    icon: "/favicon.ico?v=bbp-blue-1",
+    shortcut: "/favicon.ico?v=bbp-blue-1",
+    apple: "/icons/apple-touch-icon.png?v=bbp-blue-1"
   }
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a2722",
+  themeColor: "#061f3e",
   width: "device-width",
   initialScale: 1
 };

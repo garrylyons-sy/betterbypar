@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { dbQuery,withTransaction } from '@/lib/server/db';
 import { golfAccess,golfError,requirePlayerAccess,golfAudit } from '@/lib/server/golf-access';
 export const runtime='nodejs';
+export const dynamic='force-dynamic';
 export async function GET() {
  try {
   const a=await golfAccess();
@@ -11,7 +12,7 @@ export async function GET() {
    and exists(select 1 from public.club_membership cm where cm.club_id=d.club_id and cm.person_id=$1 and cm.active)
    and exists(select 1 from public.club_membership cm where cm.club_id=d.club_id and cm.person_id=p.id and cm.active)
    order by p.first_name,c.name`,[a.user.personId]);
-  return NextResponse.json({dependants:result.rows});
+  return NextResponse.json({dependants:result.rows},{headers:{'Cache-Control':'no-store'}});
  } catch(error) {const e=golfError(error);return NextResponse.json({error:e.error},{status:e.status});}
 }
 export async function PATCH(request:Request) {

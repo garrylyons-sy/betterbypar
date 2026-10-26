@@ -1,0 +1,6 @@
+import type {ChallengeDefinition,DrillDefinition,ChallengeResult} from '@/lib/practice-policy.mjs';
+export type PracticeKind='challenge'|'drill';
+export type PracticeTemplate={id:string;clubId:string|null;definition:ChallengeDefinition|DrillDefinition;active:boolean};
+export type PracticeOption={clubId:string;clubName:string;playerId:string;name:string};
+export type PracticeAssignment={id:string;sourceRoundId?:string|null;clubId:string;clubName:string;playerId:string;playerName:string;coachId:string;coachName:string;kind:PracticeKind;definition:ChallengeDefinition|DrillDefinition;status:'active'|'cancelled';notes:string;startsOn:string;dueOn:string|null;targetHoles:number;goalSessions:number;sessions:{id:string;performedOn:string;minutes:number;note:string;recordedBy:string}[];latestAttempt:{id:string;performedOn:string;note:string;attested:boolean;result:ChallengeResult;stale:boolean;recordedBy:string}|null};
+export type PracticeData={manager:boolean;actorId:string;clubs:{id:string;name:string}[];clubId:string;options:PracticeOption[];selected:PracticeOption|null;coaches:{id:string;name:string}[];challenges:PracticeTemplate[];drills:PracticeTemplate[];assignments:PracticeAssignment[];rounds:{id:string;courseName:string;playedOn:string;source:string}[]};

@@ -1,4 +1,4 @@
-const CACHE_NAME = "interclub-snooker-v1";
+const CACHE_NAME = "better-by-par-blue-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());

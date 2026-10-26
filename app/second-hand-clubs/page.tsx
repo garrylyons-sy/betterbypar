@@ -1,0 +1,18 @@
+import Link from 'next/link';
+import {Search,Plus,CreditCard,ShoppingBag} from 'lucide-react';
+import {currentUser} from '@/lib/server/auth';
+export const dynamic='force-dynamic';
+export const metadata={title:'Second-hand clubs — Better By Par'};
+export default async function SecondHandClubsPage(){
+ const user=await currentUser();
+ return <main className="mx-auto min-h-screen max-w-4xl space-y-5 p-5 pb-12 text-[var(--club-text)] sm:p-8">
+  <Link href="/" className="inline-block py-2 text-sm font-bold underline">← Home</Link>
+  {!user?<p><Link href="/" className="font-bold underline">Sign in to view the club store preview</Link></p>:<>
+   <header className="rounded-3xl bg-[var(--club-primary)] p-6 text-[var(--club-on-primary)] sm:p-8"><div className="flex items-center justify-between gap-4"><ShoppingBag aria-hidden="true" className="h-8 w-8"/><span className="rounded-full border border-current px-3 py-1 text-[10px] font-bold uppercase tracking-widest">Coming soon</span></div><h1 className="mt-5 text-3xl font-extrabold">Second-hand clubs</h1><p className="mt-3 max-w-xl text-sm leading-6">A place to find pre-owned golf clubs and add your own clubs with a value.</p></header>
+   <section aria-labelledby="credit-title" className="flex gap-4 rounded-2xl border border-[var(--club-border)] bg-[var(--club-accent-soft)] p-5"><CreditCard aria-hidden="true" className="mt-1 h-6 w-6 shrink-0 text-[var(--club-accent-text)]"/><div><h2 id="credit-title" className="font-extrabold">Club value means pro shop credit</h2><p className="mt-2 text-sm leading-6">Any value shown for your club is credit to spend in the pro shop, not a cash payment.</p></div></section>
+   <div className="grid gap-4 sm:grid-cols-2"><section className="space-y-4 rounded-2xl border border-[var(--club-border)] bg-[var(--club-surface)] p-5"><h2 className="flex items-center gap-2 font-extrabold"><Search aria-hidden="true" className="h-5 w-5"/>Find a club</h2><p id="store-search-status" className="text-sm leading-6 text-[var(--club-muted-text)]">Search by brand, model or club type when the store opens.</p><label className="grid gap-2 text-xs font-bold">Search clubs<input disabled aria-describedby="store-search-status" placeholder="Brand, model or club type" className="min-h-11 w-full rounded-xl border border-[var(--club-border)] bg-[var(--club-soft)] px-3 text-sm disabled:opacity-70"/></label><p className="rounded-xl bg-[var(--club-soft)] p-4 text-center text-xs text-[var(--club-muted-text)]">Listings will appear here.</p></section>
+   <section className="space-y-4 rounded-2xl border border-[var(--club-border)] bg-[var(--club-surface)] p-5"><h2 className="flex items-center gap-2 font-extrabold"><Plus aria-hidden="true" className="h-5 w-5"/>Add your clubs</h2><p className="text-sm leading-6 text-[var(--club-muted-text)]">Planned listings will include club details, condition, photos and a value clearly labelled as pro shop credit.</p><div className="rounded-xl bg-[var(--club-soft)] p-4"><span className="text-xs text-[var(--club-muted-text)]">Listing value</span><p className="mt-1 text-lg font-extrabold">€— <span className="text-sm">pro shop credit</span></p></div><button disabled className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--club-primary)] px-4 text-sm font-bold text-[var(--club-on-primary)] disabled:opacity-50"><Plus aria-hidden="true" className="h-4 w-4"/>Add a club · coming soon</button></section></div>
+   <p className="text-center text-xs text-[var(--club-muted-text)]">Store preview only. Search and listing submissions are not available yet.</p>
+  </>}
+ </main>;
+}

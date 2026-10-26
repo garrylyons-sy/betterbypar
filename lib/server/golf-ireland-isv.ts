@@ -61,3 +61,24 @@ export async function getLiveGolfSummary(request:GolfSummaryRequest,options:Opti
   };
  }catch{throw new Error(failure);}
 }
+
+/** Read a detailed score only after it appears in this member's recent score record. */
+export async function getLiveGolfRound(request:GolfSummaryRequest,scoreUID:string,options:Options={}){
+ try{
+  const env=options.env??process.env,fetcher=options.fetcher??fetch;
+  const summary=await getLiveGolfSummary(request,options);
+  const brief=summary.recentRounds.find(score=>score.id===scoreUID);
+  if(!brief)throw new Error(failure);
+  const credentials=object(object(JSON.parse(env.GOLF_IRELAND_CLUB_CREDENTIALS??'{}'))[request.clubId]);
+  const memberUID=text(object(object(JSON.parse(env.GOLF_IRELAND_MEMBER_UIDS??'{}'))[request.clubId])[request.golfIrelandNumber]);
+  const key=createHash('sha256').update(JSON.stringify([request.clubId,text(credentials.username),text(credentials.secretKey)])).digest('hex');
+  const token=tokens.get(key);if(!token)throw new Error(failure);
+  const detail=await json(fetcher,`${api}/scores/${encodeURIComponent(scoreUID)}`,{method:'GET',headers:{Authorization:`Bearer ${token.value}`,Accept:'application/json'}});
+  if(detail.memberUID!==memberUID||detail.scoreUID!==scoreUID)throw new Error(failure);
+  const rawHoles=Array.isArray(detail.holes)?detail.holes.map(object):[];
+  const holeCount=[9,18].includes(rawHoles.length)?rawHoles.length:brief.holes;if(holeCount!==9&&holeCount!==18)throw new Error(failure);
+  if(rawHoles.length>holeCount)throw new Error(failure);
+  const holes=rawHoles.map((h,i)=>({number:i+1,par:null,strokes:h.pickedUp===true||h.didNotAttempt===true?null:number(h.gross),putts:null,penalties:null,status:h.pickedUp===true?'picked_up':h.didNotAttempt===true||number(h.gross)===null?'not_played':'played',comment:'',shots:[]}));
+  return {source:'golf_ireland' as const,externalScoreUid:scoreUID,importedGross:brief.grossScore,importedPoints:number(detail.stablefordScore),data:{courseName:brief.courseName,teeName:brief.teeName,playedOn:/^\d{4}-\d{2}-\d{2}T/.test(text(detail.playedAtLocal))?text(detail.playedAtLocal).slice(0,10):brief.date.slice(0,10),holeCount,format:number(detail.stablefordScore)!==null?'stableford':'strokes',status:'completed',commentary:'',handicapIndex:number(detail.handicapIndex),playingHandicap:number(detail.courseHandicap),holes,imported:true}};
+ }catch{throw new Error('This Golf Ireland round could not be imported. No changes have been made.');}
+}

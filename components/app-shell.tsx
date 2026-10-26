@@ -1,6 +1,7 @@
 "use client";
 import {GolfHome} from '@/components/golf-home';
 import {MemberLessons} from '@/components/member-lessons';
+import {MyGolf} from '@/components/my-golf';
 import {isGolfRole,golfMenuItems} from '@/lib/golf-navigation';
 
 import { useClubTheme } from "@/components/club-theme-provider";
@@ -672,7 +673,7 @@ function PageContent({
 }) {
   if(isGolfRole(activeTeam.role)){
     if(activePage==='Lessons'||activePage==='Bookings')return <MemberLessons key="lessons" embedded/>;
-    if(activePage==='My Golf')return <MemberLessons key="my-golf" personalView embedded/>;
+    if(activePage==='My Golf')return <MyGolf/>;
     return <GolfHome club={activeTeam} page={activePage==='Club'?'Club':activePage==='Menu'?'Menu':'Home'} onNavigate={onNavigate}/>;
   }
   const leagueTeamCount = standingsData.length;

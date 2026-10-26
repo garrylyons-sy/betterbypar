@@ -219,6 +219,25 @@ export async function notificationSourceIsCurrent(notificationId:string,personId
  if(/^ladder:.*:deadline:/.test(n.event_key))return false;
  if(n.createdAt&&!isNotificationWithinLifetime(n.createdAt,Date.now(),(retentionDays??(await loadNotificationConfig(client)).retentionDays)))return false;
  if(n.expires_at&&new Date(n.expires_at).getTime()<=Date.now())return false;
+ if(n.type==='round_comment'){
+  const target=/^round-comment:([0-9a-f-]{36})$/i.exec(n.event_key);if(!target)return false;
+  return Boolean((await client.query(`select n.id from golf_round_comment n join user_account ua on ua.person_id=$2 and ua.active where n.id=$1 and public.can_discuss_round($2,n.round_id) and public.can_discuss_round(n.author_person_id,n.round_id)`,[target[1],personId])).rows[0]);
+ }
+ if(n.type==='coaching_progress'){
+  const target=/^practice-progress:(drill|challenge):([0-9a-f-]{36}):([0-9a-f-]{36})$/i.exec(n.event_key);if(!target)return false;
+  const source=target[1]==='drill'?'golf_drill_session':'golf_challenge_attempt';
+  const current=await client.query(`select a.id from golf_practice_assignment a join ${source} progress on progress.assignment_id=a.id and progress.id=$3 join club c on c.id=a.club_id and c.active join person coach on coach.id=a.coach_person_id and coach.active where a.id=$1 and a.status='active' and a.coach_person_id=$2 and public.is_golf_player(a.player_person_id,a.club_id)
+   and exists(select 1 from user_account where person_id=$2 and active) and exists(select 1 from club_membership where person_id=$2 and club_id=a.club_id and active and role in ('Golf Professional','Assistant Professional'))
+   ${target[1]==='challenge'?"and progress.result->>'outcome' in ('passed','not_met') and (progress.round_id is null or exists(select 1 from golf_round r where r.id=progress.round_id and r.revision=progress.round_revision))":''}`,[target[2],personId,target[3]]);return Boolean(current.rows[0]);
+ }
+ if(n.type==='coaching_assignment'){
+  const target=/^practice-assigned:([0-9a-f-]{36})$/i.exec(n.event_key);if(!target)return false;
+  const current=await client.query(`select a.id from golf_practice_assignment a join club c on c.id=a.club_id and c.active join person recipient on recipient.id=$2 and recipient.active where a.id=$1 and a.status='active' and public.is_golf_player(a.player_person_id,a.club_id)
+   and exists(select 1 from user_account where person_id=$2 and active)
+   and exists(select 1 from club_membership where person_id=$2 and club_id=a.club_id and active)
+   and exists(select 1 from club_membership cm join person coach on coach.id=cm.person_id and coach.active where cm.person_id=a.coach_person_id and cm.club_id=a.club_id and cm.active and cm.role in ('Golf Professional','Assistant Professional'))
+   and ($2=a.player_person_id or exists(select 1 from dependants where guardian_person_id=$2 and dependant_person_id=a.player_person_id and club_id=a.club_id and active))`,[target[1],personId]);return Boolean(current.rows[0]);
+ }
  if(['lesson_booking','lesson_reminder','lesson_cancelled','lesson_feedback'].includes(n.type)){
   const target=/^lesson-(booked|reminder|cancelled|feedback):([0-9a-f-]{36})(?::([0-9a-z-]+))?$/i.exec(n.event_key);if(!target)return false;
   const expected=({lesson_booking:'booked',lesson_reminder:'reminder',lesson_cancelled:'cancelled',lesson_feedback:'feedback'} as Record<string,string>)[n.type];if(target[1]!==expected)return false;

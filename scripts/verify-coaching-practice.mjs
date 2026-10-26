@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';import{readFile}from'node:fs/promises';import{Client}from'pg';
+const db=new Client({connectionString:'postgresql://postgres:postgres@127.0.0.1:55432/postgres'});await db.connect();await db.query(await readFile(new URL('../supabase/coaching_practice.sql',import.meta.url),'utf8'));
+await db.query(await readFile(new URL('../supabase/round_coaching.sql',import.meta.url),'utf8'));
+const base='http://127.0.0.1:3500',assignmentIds=[],templateIds=[],roundIds=[];
+async function login(email){const r=await fetch(base+'/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({identifier:email,password:'LocalGolf2026!'})});assert.equal(r.status,200);return r.headers.getSetCookie().map(v=>v.split(';')[0]).join('; ');}
+async function api(cookie,path='/api/practice',body){const r=await fetch(base+path,{method:body?'POST':'GET',headers:{cookie,'content-type':'application/json'},body:body?JSON.stringify(body):undefined});return {status:r.status,...await r.json()};}
+try{
+ const pro=await login('professional@example.test'),parent=await login('parent@example.test'),member=await login('member@example.test');
+ const manager=await api(pro,'/api/practice?view=coach');assert.equal(manager.status,200,manager.error);assert.ok(manager.challenges.length>=4);assert.ok(manager.drills.length>=3);
+ const club=manager.clubId,child=manager.options.find(p=>p.name==='Casey Parker').playerId,coach=manager.actorId;
+ const day=new Date();day.setUTCDate(day.getUTCDate()-20);const starts=day.toISOString().slice(0,10),today=new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Dublin'});
+ const assign=async(kind,templateId)=>{const r=await api(pro,'/api/practice',{action:'assign',kind,templateId,clubId:club,playerId:child,coachId:coach,clientKey:crypto.randomUUID(),startsOn:starts,targetHoles:18,goalSessions:2,notes:'Disposable verification plan.'});assert.equal(r.status,200,r.error);assignmentIds.push(r.id);return r.id;};
+ const putts=await assign('challenge',manager.challenges.find(t=>t.definition.rule==='no_three_putts').id),lost=await assign('challenge',manager.challenges.find(t=>t.definition.rule==='no_lost_balls').id),drill=await assign('drill',manager.drills[0].id);
+ const list=await api(parent,`/api/practice?clubId=${club}&playerId=${child}`);assert.equal(list.status,200,list.error);assert.ok(list.assignments.some(a=>a.id===drill));assert.equal((await api(member,`/api/practice?clubId=${club}&playerId=${child}`)).status,403);
+ const imports=await api(parent,`/api/golf-summary?club=Castle%20Golf%20Club&playerId=${child}`);const imported=await api(parent,'/api/rounds',{action:'import',clubId:club,playerId:child,scoreUID:imports.summary.recentRounds[0].id});assert.equal(imported.status,200,imported.error);if(!imported.alreadyImported)roundIds.push(imported.round.id);
+ const checked=await api(parent,'/api/practice',{action:'check',assignmentId:putts,roundId:imported.round.id,clientKey:crypto.randomUUID()});assert.equal(checked.status,200,checked.error);assert.equal(checked.result.outcome,'not_met');assert.equal(checked.result.evidence,'demo');
+ const override=await api(parent,'/api/practice',{action:'attest',assignmentId:putts,roundId:imported.round.id,clientKey:crypto.randomUUID(),confirmed:true,met:true,note:'Cannot override the recorded three putt.'});assert.equal(override.status,400);
+ const attested=await api(parent,'/api/practice',{action:'attest',assignmentId:lost,performedOn:today,clientKey:crypto.randomUUID(),confirmed:true,met:true,note:'No balls lost over 18 holes.'});assert.equal(attested.status,200,attested.error);assert.equal(attested.result.evidence,'attestation');
+ const session={action:'log',assignmentId:drill,performedOn:today,minutes:10,note:'Completed gate drill.',clientKey:crypto.randomUUID()};assert.equal((await api(parent,'/api/practice',session)).status,200);assert.equal((await api(parent,'/api/practice',session)).status,200);
+ const progress=await api(parent,`/api/practice?clubId=${club}&playerId=${child}`);assert.equal(progress.assignments.find(a=>a.id===drill).sessions.length,1);
+ assert.equal((await api(pro,'/api/practice',{...session,clientKey:crypto.randomUUID()})).status,403);
+ const custom=await api(pro,'/api/practice',{action:'save_template',kind:'challenge',clubId:club,definition:{title:'Smoke target',description:'Disposable test goal',rule:'gross_max',targetValue:110}});assert.equal(custom.status,200,custom.error);templateIds.push(custom.id);
+ const gross=await assign('challenge',custom.id);const grossCheck=await api(parent,'/api/practice',{action:'check',assignmentId:gross,roundId:imported.round.id,clientKey:crypto.randomUUID()});assert.equal(grossCheck.result.outcome,'passed');
+ await api(pro,'/api/practice',{action:'cancel',assignmentId:drill});assert.equal((await api(parent,'/api/practice',{...session,clientKey:crypto.randomUUID()})).status,400);
+ const n=(await db.query("select count(*)::int as n from app_notification where type in ('coaching_assignment','coaching_progress') and event_key like '%'||$1||'%'",[lost])).rows[0].n;assert.ok(n>=1);
+ console.log('PASS local HTTP: separate libraries, pro assignments, parent access, unrelated denial, sample score checking, no false override, attestation, duplicate-safe sessions, gross target, cancellation and shared notifications');
+}finally{
+ if(assignmentIds.length){await db.query("delete from app_notification where type in ('coaching_assignment','coaching_progress') and exists(select 1 from unnest($1::text[]) x where event_key like '%'||x||'%')",[assignmentIds]);await db.query('delete from golf_challenge_attempt where assignment_id=any($1::uuid[])',[assignmentIds]);await db.query('delete from golf_drill_session where assignment_id=any($1::uuid[])',[assignmentIds]);await db.query('delete from golf_practice_assignment where id=any($1::uuid[])',[assignmentIds]);}
+ if(templateIds.length)await db.query('delete from golf_challenge where id=any($1::uuid[])',[templateIds]);if(roundIds.length)await db.query('delete from golf_round where id=any($1::uuid[])',[roundIds]);await db.end();
+}

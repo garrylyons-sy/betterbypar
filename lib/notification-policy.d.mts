@@ -1,4 +1,4 @@
-export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_reminder' | 'ladder_challenge' | 'announcement' | 'lineup_published' | 'match_result' | 'cup_draw' | 'livestream' | 'lesson_booking' | 'lesson_reminder' | 'lesson_cancelled' | 'lesson_feedback';
+export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_reminder' | 'ladder_challenge' | 'announcement' | 'lineup_published' | 'match_result' | 'cup_draw' | 'livestream' | 'lesson_booking' | 'lesson_reminder' | 'lesson_cancelled' | 'lesson_feedback' | 'coaching_assignment' | 'coaching_progress' | 'round_comment';
 export type Config = {version:5;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];lineupDeadlineHours:number;matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
 export type Preferences = {version:5;inboxTypes:NotificationType[];pushTypes:NotificationType[];pushEnabled:boolean;emailEnabled:boolean;emailTypes:NotificationType[]};
 export const notificationTypes: NotificationType[];

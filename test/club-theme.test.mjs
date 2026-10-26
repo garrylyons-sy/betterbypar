@@ -15,6 +15,6 @@ test('club palette derives surfaces and legible foregrounds from both configured
 });
 test('invalid colours cannot escape CSS and use safe platform defaults',()=>{
  const theme=buildClubTheme('red;display:none','url(https://invalid.example)');
- assert.equal(theme['--club-primary'],'#153F35');assert.equal(theme['--club-accent'],'#DCC38C');
+ assert.equal(theme['--club-primary'],'#061F3E');assert.equal(theme['--club-accent'],'#0878E8');
  assert.ok(Object.values(theme).every(v=>!/[;{}]/.test(v)));
 });

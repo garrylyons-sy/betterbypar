@@ -82,8 +82,5 @@ for(const family of ['red','rose','orange','amber','yellow','green','emerald'])f
  const colour=tailwindColors[family][shade],fg=foregroundFor(colour);
  out+=`[data-club-theme] .bg-${family}-${shade} { --club-context-text: ${fg}; --club-context-muted: ${fg}; --club-context-accent: ${fg}; }\n`;
 }
-out+=`[data-club-theme] .golf-splash-light { background: radial-gradient(ellipse at 75% 12%, color-mix(in srgb,var(--club-accent) 25%,transparent),transparent 48%),linear-gradient(165deg,transparent 30%,var(--club-primary-hover)); }
-[data-club-theme] .golf-splash svg [stroke] { stroke: var(--club-accent); }
-`;
 await writeFile('app/club-theme.css',out);
 console.log(`Generated ${rules.size} branded colour utility mappings.`);
