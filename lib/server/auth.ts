@@ -372,7 +372,7 @@ export async function claimInvitationForAccount({
         `update public.person
          set email = coalesce(email, $2),
              phone = coalesce(nullif($3, ''), phone),
-             profile_image = coalesce(nullif($4, ''), profile_image),
+             profile_image = coalesce(profile_image, nullif($4, '')),
              active = true
          where id = $1
          returning *`,
@@ -470,7 +470,7 @@ export async function claimInvitationForAccount({
          on conflict (club_id, person_id, role) do update
          set active = true,
              is_club_admin = public.club_membership.is_club_admin or excluded.is_club_admin`,
-        [membership.club_id, person.id, membership.role === "League Chair" ? "League Chair" : "Club Member", membership.role === "Club Admin"]
+        [membership.club_id, person.id, membership.role === "Club Admin" ? "Club Member" : membership.role, membership.role === "Club Admin"]
       );
       if (membership.role === "Club Admin") {
         await client.query(
@@ -707,6 +707,7 @@ export async function loadSessionPayload(user: AppUser) {
   )).rows[0]?.name ?? teamContexts[0]?.season ?? "2026/27";
 
   const clubContexts = (await dbQuery<{
+    membership_role: Role;
     membership_id: string;
     club_name: string;
     logo_path: string;
@@ -714,6 +715,7 @@ export async function loadSessionPayload(user: AppUser) {
     accent_color: string;
   }>(
     `select
+       cm.role as membership_role,
        cm.id as membership_id,
        c.name as club_name,
        c.logo_path,
@@ -723,14 +725,14 @@ export async function loadSessionPayload(user: AppUser) {
      join public.club c on c.id = cm.club_id and c.active = true
      where cm.person_id = $1
        and cm.active = true
-       and not exists (
+       and (cm.role in ('Golf Professional','Assistant Professional') or not exists (
          select 1
          from public.person_team_role ptr
          join public.club_membership role_cm on role_cm.id = ptr.club_membership_id
          where role_cm.person_id = cm.person_id
            and ptr.active = true
            and role_cm.club_id = cm.club_id
-       )
+       ))
      order by c.name`,
     [user.personId]
   )).rows.map((row) => ({
@@ -743,7 +745,7 @@ export async function loadSessionPayload(user: AppUser) {
     accentColor: row.accent_color,
     league: "A League",
     season: activeSeasonName,
-    role: "Club Member",
+    role: row.membership_role === "Golf Professional" || row.membership_role === "Assistant Professional" ? row.membership_role : "Club Member",
     leaguePosition: 0,
     leagueMatchesPlayed: 0
   } satisfies TeamContext));
@@ -950,9 +952,9 @@ export async function loadSessionPayload(user: AppUser) {
   const hasPublisherAccess = Boolean((await dbQuery<{allowed:boolean}>(`select exists(select 1 from public.app_publisher ap join public.person p on p.id=ap.person_id and p.active where ap.person_id=$1 and ap.active and exists(select 1 from public.user_account ua where ua.person_id=p.id and ua.active)) as allowed`,[user.personId])).rows[0]?.allowed);
   const hasViewingAccess = Boolean((await dbQuery<{allowed:boolean}>(`select exists(select 1 from public.app_viewer av join public.person p on p.id=av.person_id and p.active where av.person_id=$1 and av.active and exists(select 1 from public.user_account ua where ua.person_id=p.id and ua.active)) as allowed`,[user.personId])).rows[0]?.allowed);
   const hasVideoAccess = Boolean((await dbQuery<{allowed:boolean}>(`select exists(select 1 from public.app_video av join public.person p on p.id=av.person_id and p.active where av.person_id=$1 and av.active and exists(select 1 from public.user_account ua where ua.person_id=p.id and ua.active)) as allowed`,[user.personId])).rows[0]?.allowed);
-  const videoContext: TeamContext = {id:`video:${user.personId}`,personId:user.personId,name:"Interclub Snooker",club:"Interclub Snooker",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Video",leaguePosition:0,hasVideoAccess:true};
-  const viewerContext: TeamContext = {id:`viewer:${user.personId}`,personId:user.personId,name:"Interclub Snooker",club:"Interclub Snooker",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Viewer",leaguePosition:0,hasViewingAccess:true};
-  const publisherContext: TeamContext = {id:`publisher:${user.personId}`,personId:user.personId,name:"Interclub Snooker",club:"Interclub Snooker",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Publisher",leaguePosition:0,hasPublisherAccess:true};
+  const videoContext: TeamContext = {id:`video:${user.personId}`,personId:user.personId,name:"Better By Par",club:"Better By Par",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Video",leaguePosition:0,hasVideoAccess:true};
+  const viewerContext: TeamContext = {id:`viewer:${user.personId}`,personId:user.personId,name:"Better By Par",club:"Better By Par",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Viewer",leaguePosition:0,hasViewingAccess:true};
+  const publisherContext: TeamContext = {id:`publisher:${user.personId}`,personId:user.personId,name:"Better By Par",club:"Better By Par",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Publisher",leaguePosition:0,hasPublisherAccess:true};
   const baseContexts: TeamContext[] = [
     ...teamContexts,
     ...clubContexts,

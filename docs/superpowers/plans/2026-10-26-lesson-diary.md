@@ -1,0 +1,13 @@
+# Lesson diary
+
+Implement inline without approval gates per AGENTS.md. Europe/Dublin times, 30-minute grid, Monday weeks, eight-week rolling horizon. Saved defaults hidden behind Default week action; diary defaults to current week with day/week toggle and previous/next controls. Weekly override replaces that week's availability only. Existing bookings cannot be silently removed. Professionals edit only their diary/feedback; club and platform admins may manage relevant professionals.
+
+Availability API: GET /api/admin/lesson-availability?clubId=&professionalId=&week=YYYY-MM-DD[&scope=club], response {clubs:[{id,name}],professionals:[{id,name,club_id,role}],actorId,week,defaultRanges:[{day,start,end}],weekRanges:[...],hasOverride,slots:[{id,club_id,professional_person_id,professional_name,professional_role,title,starts_at,ends_at,active,booking_id,player_name,goals,feedback,drills}]}. day 0=Monday, start/end HH:mm. POST same route {clubId,professionalId,week,mode:'default'|'week'|'reset',ranges:[...]}; returns ok. Default change affects future weeks without overrides; prevent removal of booked times. Slots are generated with original identities and protected by existing database exclusion constraints.
+
+Feedback API PATCH /api/admin/lesson-feedback {bookingId,feedback,drills}; only appointed lesson coach may provide feedback for an ended lesson, admins may view but not author others' feedback. drills plain text multiline max 4000, feedback max4000; goals max2000.
+
+Member GET /api/lessons retains existing response and adds professional_person_id,professional_role on slots; goals,reminder_minutes,feedback,drills,reminder_due on bookings, reminderEmailReady on response. POST adds goals,reminderMinutes (0 disabled,30,60,120,1440 default,2880). PATCH retains cancellation plus action:'reminder' to change reminderMinutes on owned upcoming booking. Member UI: compact date/time choices with coach/assistant labels, player select default self, optional goals and reminder picker only after selecting time; bookings include feedback/drills and reminder banner.
+
+Reminder migration and worker: persistent deduplicated email jobs per booking to booked_by, active booking/membership rechecked, no email in demo, visible due reminders in member Lessons. Scheduled cron endpoint with secret required. Document production scheduler every5minutes and provider setup. Integrate local demo migration and seed30minutes; preserve existing records.
+
+Implementation: tests first for time-grid validation, week/range generation, timezone/DST and database integrity; implement migration/domain/API; implement diary and member UI independently against above contracts; verify tests/typecheck, real HTTP and browser role flows. No commit/push.

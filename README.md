@@ -1,3 +1,66 @@
+# Better By Par
+
+This project starts from Interclub Snooker. The golf foundation adds club professionals, dependants and separate one-to-one lessons. React Native is future work; this version uses the existing web client and app-owned sessions with Supabase PostgreSQL.
+
+Club administrators have a dedicated **`/clubadmin`** portal for their own club logo, primary colour and accent colour, with a preview before saving. It also provides Lessons, Dependants and the empty Challenges section. An active club administrator appointment is required; a professional or platform role alone does not grant access to this portal. Users appointed at several clubs can select the club whose branding they want to edit. The existing **`/admin`** interface retains platform governance and the inherited operational workflows. Members see saved club branding after refreshing the app. No extra database migration is required for the portal.
+
+Users can open **My profile** (`/profile`) from the account menu to preview, save, replace or remove a profile photo. Guardians have the same controls on **My dependants** for active linked players. The server stores only a resized WebP image in the existing `person.profile_image` field: at most **512×512 pixels** (aspect ratio preserved, no upscaling) and **150 KiB**. Unusually complex images may be compressed further to meet the byte limit. Phone orientation is applied and image metadata is stripped. Uploaded full-resolution originals are never persisted. JPEG, PNG and still WebP are supported; the browser prepares mobile originals up to 20 MiB before upload, and the server independently validates a 4 MiB file limit, a bounded multipart body and a 64-million-pixel decoding limit. No storage bucket or database migration is required. Google login and subsequent invitations preserve a user's custom photo or explicit removal.
+
+## Run without Supabase
+
+Home now includes a large Handicap Index, recent trend and three rounds, using clearly labelled sample data until Golf Ireland is connected. See [Golf Ireland integration](docs/golf-ireland-integration.md) for live access configuration, permissions and display semantics.
+
+Run `pnpm demo:local`, then open **http://127.0.0.1:3500/demo**. Choose a role to sign in through the normal app login. This starts a local PostgreSQL-compatible PGlite server and the Next.js development app; no Supabase account, Docker or separate database install is needed.
+
+Fictional accounts use `@example.test` addresses and the local-only password `LocalGolf2026!`. The role picker covers platform administrator, club administrator, professional, assistant, parent and member. Demo changes persist in the git-ignored `.local-demo/postgres` directory. The launcher uses loopback ports 3500 (app) and 55432 (database), and overrides outbound email, Google OAuth and push-delivery credentials so demo actions cannot send real messages. Stop it with Ctrl+C. The normal `pnpm dev` and production authentication configuration are unchanged; `/demo` is unavailable unless explicitly running in development demo mode.
+
+## Start with a new Supabase project
+
+Use a separate project and its own credentials. Copy `.env.example` to `.env.local`, set `DATABASE_URL` to the new Supabase server connection string and `NEXT_PUBLIC_APP_URL` to your app URL. Add separate Google OAuth/email settings when needed. No credentials or data from the original app are included.
+
+Apply these files, in this order, to the **empty new database**, using the Supabase SQL editor or `pnpm db:apply <file>`:
+
+1. `supabase/schema.sql` — inherited core schema, with clean-install ordering corrected.
+2. `supabase/system_settings.sql` — admin system settings.
+3. `supabase/club_ladders.sql` — retained admin ladder tables.
+4. `supabase/golf_foundation.sql` — new roles, dependants, lesson slots/bookings and appointment constraints.
+
+For the lesson diary and groups, also apply `supabase/lesson_diary.sql`, `supabase/notifications.sql`, `supabase/lesson_booking_notifications.sql`, `supabase/lesson_groups.sql`, and `supabase/lesson_booking_privacy.sql`, and `supabase/golf_players.sql`, and `supabase/notification_email.sql` in that order. See [notification delivery](docs/lessons/notification-delivery.md) for the shared inbox, mobile and email controls. See [player registration](docs/lessons/player-registration.md) for Golf Ireland numbers and coaching staff eligibility. See [lesson booking privacy](docs/lessons/booking-privacy.md) for the club visibility setting.
+
+Skip the inherited snooker seed, historical result imports and club-specific migration scripts for this new platform. The original documentation below describes the source app and its data; it is not the setup sequence for this project. These are one-time installation scripts, not an automatic migration runner. An existing populated database would need its active clubs assigned administrators and professionals before the golf constraints can be used.
+
+To create the first administrator without importing existing accounts, run this in the **new** database SQL editor after replacing the name, email and app URL. It returns a one-time activation link; open it to set up your login. No email is sent by this SQL.
+
+```sql
+with setup as (
+  select encode(gen_random_bytes(32), 'hex') as token
+), invitation as (
+  insert into public.invitation (
+    email, invitation_code, invitation_token_hash, invited_person_name,
+    invited_role, invite_administrator, expires_at
+  )
+  select 'you@example.com', 'SETUP-' || encode(gen_random_bytes(8), 'hex'),
+    encode(digest(token, 'sha256'), 'hex'), 'Your Name', 'Player', true,
+    now() + interval '24 hours'
+  from setup
+  returning id
+)
+select 'http://localhost:3000/activate?token=' || setup.token as activation_url
+from setup cross join invitation;
+```
+
+Run `pnpm install --frozen-lockfile` and `pnpm dev`. Open `/admin`, create the first club, add contacts and select its administrator(s), Golf Professional(s) and optional Assistant Professionals. Club identity, branding and appointments save atomically. Contacts have no login until invited from People. Clubs do not need league teams to manage members or invitations.
+
+For a junior, add the player without an email/login, add and invite the parent as a club member, then link them in **Admin → Dependants**. The parent uses **My dependants** in the account menu (`/family`) to update contact details and **Lessons** (`/lessons`) to book or cancel for the junior. Administrators grant/revoke relationships; guardians cannot grant themselves access. Multiple dependants and guardians are supported. Revoked relationships, inactive people and inactive memberships stop delegated actions.
+
+**Admin → Lessons** publishes/cancels one-to-one slots and shows bookings. Professionals use `/lessons/manage` without gaining platform administration. Professional slots and player bookings cannot overlap; one slot has at most one active booking. Lesson dates display Europe/Dublin time. **Challenges** is intentionally empty. Existing table bookings are retained separately. Payments, group classes, recurrence and a React Native client are outside this initial scope.
+
+JSON APIs: `/api/dependants` (list/update authorised players), `/api/lessons` (list/book/cancel), `/api/admin/dependants` (grant/revoke), `/api/admin/lessons` (publish/cancel), and `/api/admin/clubs` (branding/appointments). They currently use the inherited HTTP-only session cookie. A future native client will need an explicit mobile authentication/session transport design.
+
+Verify with `pnpm test`, `pnpm typecheck` and `pnpm build`. Tests include a disposable local PostgreSQL runtime (PGlite); no Supabase connection is needed. Local database checks cover clean installation, required appointments, overlapping/concurrent reservations, account-free juniors and private-table access. A full login/invitation/email/browser check against the new Supabase project remains necessary once it is configured.
+
+---
+
 # Interclub Snooker
 
 Mobile-first league management platform for amateur interclub snooker.
@@ -235,3 +298,7 @@ Live listings refresh every 30 seconds while the page is visible, on focus, and 
 The existing `match_livestream.publisher_person_id` column retains its database name for compatibility; it records the listing owner, whose current **Video** permission is checked independently of messaging.
 
 Apply `supabase/livestream_notifications.sql` for the internal livestream event type and listing notification timestamp/count (included in the consolidated schema). It sends no notifications itself. Stream alerts expire with the listing and are rechecked against current Video/Viewing permissions before download or push.
+
+### Lesson diary
+
+Professionals now manage a saved default week and per-week overrides at `/lessons/manage`, with half-hour member bookings at `/lessons`. Apply `supabase/lesson_diary.sql` after `golf_foundation.sql` for a separately configured database; local demo startup applies it automatically. See [Lessons setup and reminder delivery](docs/lessons/lesson-diary.md) for the authenticated five-minute cron and email configuration.

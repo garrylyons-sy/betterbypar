@@ -25,7 +25,7 @@ export function ApplicationError({ error, reset }: { error: Error & { digest?: s
           <AlertTriangle className="h-7 w-7" aria-hidden="true" />
         </span>
         <div className="grid gap-2">
-          <p className="text-xs font-black uppercase text-[#6c5a73]">Interclub Snooker</p>
+          <p className="text-xs font-black uppercase text-[#6c5a73]">Better By Par</p>
           <h1 className="text-2xl font-black">The app needs a quick reload</h1>
           <p className="text-sm font-semibold leading-6 text-[#6c5a73]">
             {staleClient

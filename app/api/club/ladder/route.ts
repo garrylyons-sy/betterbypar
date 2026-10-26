@@ -72,7 +72,7 @@ async function loadEligibleLadders(clubId: string, personId: string, isOperator:
                   and membership.person_id = $2 and membership.role in ('Player', 'Manager') and membership.active = true
                 where eligibility.ladder_id = cl.id
               )
-            ) as can_join
+            ) and public.is_golf_player($2::uuid, cl.club_id) as can_join
      from public.club_ladder cl
      join public.club c on c.id = cl.club_id
      where cl.club_id = $1
@@ -122,7 +122,7 @@ async function loadLadder(clubId: string, ladderId: string, personId: string, is
                   and membership.person_id = $3 and membership.role in ('Player', 'Manager') and membership.active = true
                 where eligibility.ladder_id = cl.id
               )
-            ) as can_join
+            ) and public.is_golf_player($3::uuid, cl.club_id) as can_join
      from public.club_ladder cl
      join public.club c on c.id = cl.club_id
      where cl.id = $1 and cl.club_id = $2
@@ -281,6 +281,7 @@ export async function GET(request: Request) {
               active_challenge.status as active_challenge_status
        from public.club_ladder_entry cle
        join public.person p on p.id = cle.person_id and p.active = true
+         and public.is_golf_player(p.id, $2::uuid)
        left join lateral (
          select cm.handicap
          from public.club_membership cm
@@ -402,7 +403,7 @@ export async function POST(request: Request) {
     const ladder = ladderId ? await loadLadder(access.id, ladderId, user.personId, access.is_operator) : null;
     if (!ladder || !ladder.active) return NextResponse.json({ error: "This club ladder is not currently available." }, { status: 409 });
     if (action === "join" && !ladder.can_join) {
-      return NextResponse.json({ error: "An eligible player or manager team role is required to join this ladder." }, { status: 403 });
+      return NextResponse.json({ error: "A registered golf player with a Golf Ireland number and an eligible team role is required to join this ladder." }, { status: 403 });
     }
 
     const result = await withTransaction(async (client) => {
@@ -484,11 +485,17 @@ export async function POST(request: Request) {
       }
 
       if (action === "challenge") {
+        const eligibility = await client.query<{ eligible: boolean }>(
+          "select public.is_golf_player($1::uuid, $2::uuid) as eligible",
+          [user.personId, ladder.club_id]
+        );
+        if (!eligibility.rows[0]?.eligible) throw new Error("Only eligible golf players can issue challenges.");
         const challengedEntryId = String(body.challengedEntryId ?? "").trim();
         const target = await client.query<{ id: string; person_id: string; position: number; status: string }>(
           `select id::text, person_id::text, position, status from public.club_ladder_entry
-           where id = $1 and ladder_id = $2 for update`,
-          [challengedEntryId, ladder.id]
+           where id = $1 and ladder_id = $2
+             and public.is_golf_player(person_id, $3::uuid) for update`,
+          [challengedEntryId, ladder.id, ladder.club_id]
         );
         if (!target.rowCount || target.rows[0].status !== "Active") throw new Error("That player is not available to challenge.");
         if (!canChallengePosition(myEntry.position, target.rows[0].position, ladder.challenge_range)) {

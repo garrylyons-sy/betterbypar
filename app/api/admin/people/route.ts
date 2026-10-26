@@ -1,3 +1,5 @@
+import {normalizeGolfRegistration} from '@/lib/golf-player';
+import { clubRoles } from "@/lib/golf-policy";
 import { NextRequest, NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
@@ -68,7 +70,8 @@ export async function POST(request: NextRequest) {
     if (!firstName || !lastName) {
       return NextResponse.json({ error: "First name and last name are required." }, { status: 400 });
     }
-    const clubLevelRole = role === "Club Member" || role === "Club Admin" || role === "League Chair";
+    if (!["Player", "Manager", ...clubRoles].includes(role)) throw new Error("Unknown role.");
+    const clubLevelRole = clubRoles.some(item => item === role);
 
     if (!clubLevelRole && !teamId) {
       return NextResponse.json({ error: "A team is required for player and manager roles." }, { status: 400 });
@@ -101,7 +104,7 @@ export async function POST(request: NextRequest) {
              and lower(trim(p.first_name)) = lower(trim($1::text))
              and lower(trim(p.last_name)) = lower(trim($2::text))
            limit 1`,
-          [firstName, lastName, scopedClubId, role === "League Chair" ? "League Chair" : "Club Member"]
+          [firstName, lastName, scopedClubId, role === "Club Admin" ? "Club Member" : role]
         );
         if (existingRole.rows[0]) {
           throw new Error(`${firstName} ${lastName} already has club access for this club. Open their existing person record to edit roles or details.`);
@@ -179,6 +182,11 @@ export async function POST(request: NextRequest) {
       }
 
       const personId = personResult.rows[0].id;
+      const currentRegistration=(await client.query('select is_golf_player,golf_ireland_number from public.person where id=$1 for update',[personId])).rows[0];
+      const coaching=['Golf Professional','Assistant Professional'].includes(role);
+      if(coaching&&body.isGolfPlayer===true)throw new Error('Professionals and assistants cannot be players.');
+      const registration=normalizeGolfRegistration({isGolfPlayer:coaching?false:body.isGolfPlayer??(role==='Player'||currentRegistration.is_golf_player),golfIrelandNumber:body.golfIrelandNumber??currentRegistration.golf_ireland_number});
+      await client.query('update public.person set is_golf_player=$2,golf_ireland_number=$3 where id=$1',[personId,registration.isGolfPlayer,registration.golfIrelandNumber]);
       if (clubLevelRole) {
         await client.query(
           `insert into public.club_membership (club_id, person_id, role, handicap, is_club_admin, active)
@@ -187,7 +195,7 @@ export async function POST(request: NextRequest) {
            set active = true,
                handicap = excluded.handicap,
                is_club_admin = public.club_membership.is_club_admin or excluded.is_club_admin`,
-          [clubId, personId, role === "League Chair" ? "League Chair" : "Club Member", handicap, role === "Club Admin"]
+          [clubId, personId, role === "Club Admin" ? "Club Member" : role, handicap, role === "Club Admin"]
         );
         if (role === "Club Admin") {
           await client.query(
@@ -244,7 +252,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, person });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not add person." },
+      { error: (error as {constraint?:string}).constraint==='person_golf_ireland_number_unique'?'This Golf Ireland number is already assigned to another person.':error instanceof Error ? error.message : "Could not add person." },
       { status: 400 }
     );
   }
@@ -324,6 +332,11 @@ export async function PATCH(request: NextRequest) {
           }
         }
 
+        if(body.isGolfPlayer!==undefined||body.golfIrelandNumber!==undefined){
+          const existing=await client.query('select is_golf_player,golf_ireland_number from public.person where id=$1 for update',[personId]);
+          const registration=normalizeGolfRegistration({isGolfPlayer:body.isGolfPlayer??existing.rows[0]?.is_golf_player,golfIrelandNumber:body.golfIrelandNumber??existing.rows[0]?.golf_ireland_number});
+          await client.query('update public.person set is_golf_player=$2,golf_ireland_number=$3 where id=$1',[personId,registration.isGolfPlayer,registration.golfIrelandNumber]);
+        }
         const personResult = await client.query<{ id: string; first_name: string; last_name: string; email: string | null; phone: string | null }>(
           `update public.person
            set first_name = $2,
@@ -499,7 +512,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not update user." },
+      { error: (error as {constraint?:string}).constraint==='person_golf_ireland_number_unique'?'This Golf Ireland number is already assigned to another person.':error instanceof Error ? error.message : "Could not update user." },
       { status: 400 }
     );
   }
@@ -559,7 +572,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ ok: true, name: deleted });
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Could not delete user." },
+      { error: (error as {constraint?:string}).constraint==='person_golf_ireland_number_unique'?'This Golf Ireland number is already assigned to another person.':error instanceof Error ? error.message : "Could not delete user." },
       { status: 400 }
     );
   }

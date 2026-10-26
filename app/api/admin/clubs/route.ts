@@ -1,3 +1,5 @@
+import { normalizeAppointments } from "@/lib/golf-policy";
+import { loadAppointments, saveAppointments } from "@/lib/server/club-appointments";
 import {notifyFixtureChanged} from "@/lib/server/notifications";
 import {scheduleNotificationPush} from "@/lib/server/notification-dispatch";
 import { NextResponse } from "next/server";
@@ -83,7 +85,7 @@ export async function GET() {
        order by active desc, name`,
       [access.mode === "platform", access.clubIds]
     );
-    return NextResponse.json({ clubs: clubs.rows.map(clubResponse) });
+    return NextResponse.json({ clubs: await Promise.all(clubs.rows.map(async row => ({...clubResponse(row), ...await loadAppointments(row.id)}))) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Clubs could not be loaded." }, { status: 500 });
   }
@@ -96,7 +98,9 @@ export async function POST(request: Request) {
     if (access.mode !== "platform" || !clubMutationPolicy("platform").canCreate) {
       return NextResponse.json({ error: "Platform administrator access required." }, { status: 403 });
     }
-    const input = normalizeClubInput(await request.json(), "create");
+    const body = await request.json();
+    const appointments = normalizeAppointments(body);
+    const input = normalizeClubInput(body, "create");
     const club = await withTransaction(async (client) => {
       const result = await client.query<ClubRow>(
         `insert into public.club (name, venue, address, logo_path, primary_color, accent_color, allow_unlimited_lower_team_players, active, updated_at)
@@ -104,6 +108,7 @@ export async function POST(request: Request) {
          returning id::text, name, venue, address, logo_path, primary_color, accent_color, allow_unlimited_lower_team_players, active, updated_at::text`,
         [input.name, input.venue, input.address, input.logoPath, input.primaryColor, input.accentColor, input.allowUnlimitedLowerTeamPlayers, input.active]
       );
+      await saveAppointments(client, result.rows[0].id, appointments);
       await client.query(
         `insert into public.user_activity_log (person_id, activity_type, page_path, page_label, metadata)
          values ($1, 'Page Visit', '/admin/clubs', $2, jsonb_build_object('club_id', $3::text, 'club_name', $4::text, 'changed_fields', $5::jsonb))`,
@@ -111,7 +116,7 @@ export async function POST(request: Request) {
       );
       return result.rows[0];
     });
-    return NextResponse.json({ club: clubResponse(club) }, { status: 201 });
+    return NextResponse.json({ club: {...clubResponse(club), ...await loadAppointments(club.id)} }, { status: 201 });
   } catch (error) {
     const message = duplicateNameError(error) ? "A club with this name already exists." : error instanceof Error ? error.message : "Could not create club.";
     return NextResponse.json({ error: message }, { status: 400 });
@@ -151,8 +156,16 @@ export async function PATCH(request: Request) {
           throw forbidden;
         }
       }
+      const currentAppointments = await loadAppointments(id, client);
+      const appointments = normalizeAppointments({...currentAppointments, ...body});
+      const appointmentsChanged = Object.keys(currentAppointments).some(key => JSON.stringify([...currentAppointments[key as keyof typeof currentAppointments]].sort()) !== JSON.stringify([...appointments[key as keyof typeof appointments]].sort()));
+      if (mode === "club" && appointmentsChanged) {
+        throw Object.assign(new Error("Platform administrator access is required to change club appointments."), {status:403});
+      }
+      if (mode === "platform") await saveAppointments(client,id,appointments);
       const next = normalizeClubInput({ ...current, ...body }, mode);
       const changes = changedClubFields(current, next);
+      if (appointmentsChanged) changes.push("appointments" as typeof changes[number]);
       if (!changes.length) return existing.rows[0];
 
       const updated = await client.query<ClubRow>(
@@ -179,7 +192,7 @@ export async function PATCH(request: Request) {
       return updated.rows[0];
     });
     if (venueChanged) scheduleNotificationPush();
-    return NextResponse.json({ club: clubResponse(result) });
+    return NextResponse.json({ club: {...clubResponse(result), ...await loadAppointments(result.id)} });
   } catch (error) {
     const status = typeof error === "object" && error !== null && "status" in error && error.status === 403 ? 403 : 400;
     const message = duplicateNameError(error) ? "A club with this name already exists." : error instanceof Error ? error.message : "Could not update club.";

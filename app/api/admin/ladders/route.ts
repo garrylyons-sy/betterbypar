@@ -154,6 +154,7 @@ export async function GET(request: Request) {
            where membership.active = true and membership.role in ('Player', 'Manager')
          ) people
          join public.person p on p.id = people.person_id and p.active = true
+           and public.is_golf_player(p.id, people.club_id)
          left join lateral (
            select max(cm.handicap)::text as handicap
            from public.club_membership cm
@@ -291,6 +292,7 @@ export async function POST(request: Request) {
           `select distinct person.id::text as person_id
            from public.person person
            where person.active = true and person.id = any($2::uuid[])
+             and public.is_golf_player(person.id, $1::uuid)
              and (
                exists (
                  select 1 from public.club_membership membership
@@ -607,6 +609,7 @@ export async function PATCH(request: Request) {
           `select distinct person.id::text as person_id
            from public.person person
            where person.active = true and person.id = any($2::uuid[])
+             and public.is_golf_player(person.id, $1::uuid)
              and (
                exists (
                  select 1 from public.club_membership membership

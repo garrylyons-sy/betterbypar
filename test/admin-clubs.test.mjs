@@ -129,7 +129,7 @@ test("clubs editor stays closed until selected and protects club identity fields
   assert.match(panelSource, /selectedClubId/);
   assert.match(panelSource, /adminMode === "club"/);
   assert.match(panelSource, /readOnly=\{adminMode === "club"\}/);
-  assert.match(panelSource, /disabled=\{!isDirty \|\| saving\}/);
+  assert.match(panelSource, /disabled=\{!isDirty \|\| saving \|\| !\(draft.administratorIds\?\.length\) \|\| !\(draft.professionalIds\?\.length\)\}/);
 });
 
 test("clubs editor restricts logo uploads to supported image types", () => {

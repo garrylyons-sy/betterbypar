@@ -1,4 +1,4 @@
-export type Role = "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair" | "Publisher" | "Viewer" | "Video";
+export type Role = "Golf Professional" | "Assistant Professional" | "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair" | "Publisher" | "Viewer" | "Video";
 export type AppearancePanelId =
   | "teamStats"
   | "leagueTableSnapshot"
@@ -21,7 +21,7 @@ export type AppearancePanelId =
   | "seasonComplete"
   | "squadManagement"
   | "managerSnapshot";
-export type AppearanceMenuId = "Home" | "Fixtures" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Interclub Leagues" | "Last Man Standing";
+export type AppearanceMenuId = "My Golf" | "Lessons" | "Home" | "Fixtures" | "Results" | "Table" | "Club" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Interclub Leagues" | "Last Man Standing";
 export type RoleAppearance = {
   role: Role;
   panels: AppearancePanelId[];

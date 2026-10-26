@@ -29,7 +29,7 @@ self.addEventListener("push", (event) => {
   try { message=event.data ? event.data.json() : {}; } catch { return; }
   if(!message || typeof message!=="object") return;
   if(message.expiresAt && (!Number.isFinite(new Date(message.expiresAt).getTime()) || new Date(message.expiresAt).getTime()<=Date.now())) return;
-  event.waitUntil(self.registration.showNotification(typeof message.title==="string" ? message.title : "Interclub Snooker", {
+  event.waitUntil(self.registration.showNotification(typeof message.title==="string" ? message.title : "Better By Par", {
     body:typeof message.body==="string" ? message.body : "",
     tag:typeof message.tag==="string" ? message.tag : undefined,
     icon:"/icons/icon-192.png",

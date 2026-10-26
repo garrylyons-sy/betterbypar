@@ -73,3 +73,14 @@ export function clubAuditLabel(action: "create" | "update", changedFields: strin
   if (changedFields.includes("active")) return active ? "Club reactivated" : "Club deactivated";
   return "Club updated";
 }
+
+export type ClubBrandingInput = Pick<ClubSettings, 'logoPath' | 'primaryColor' | 'accentColor'>;
+
+export function normalizeClubBrandingInput(input: Record<string, unknown>): ClubBrandingInput {
+  const allowed = new Set(['id', 'logoPath', 'primaryColor', 'accentColor']);
+  if (Object.keys(input).some(key => !allowed.has(key))) {
+    throw new Error('Club branding can change only the logo and colours.');
+  }
+  const settings = normalizeClubInput({...input, name:'Club branding'}, 'club');
+  return {logoPath:settings.logoPath,primaryColor:settings.primaryColor,accentColor:settings.accentColor};
+}

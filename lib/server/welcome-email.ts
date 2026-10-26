@@ -35,11 +35,11 @@ export function buildWelcomeEmail(user: AppUser, requestUrl?: string, club?: Wel
   const primaryColor = club?.primaryColor || "#10233f";
   const accentColor = club?.accentColor || "#1b8a72";
   const firstName = user.name.split(" ")[0] || "there";
-  const subject = "Welcome to Interclub Snooker";
+  const subject = "Welcome to Better By Par";
   const text = [
     `Hi ${firstName},`,
     "",
-    "Welcome to the Interclub Snooker platform. Your account is active and ready to use.",
+    "Welcome to the Better By Par. Your account is active and ready to use.",
     "",
     `Open the app here: ${appUrl}`,
     "",
@@ -54,7 +54,7 @@ export function buildWelcomeEmail(user: AppUser, requestUrl?: string, club?: Wel
         <div style="background:linear-gradient(135deg,${primaryColor} 0%,${accentColor} 100%);padding:28px;color:#ffffff">
           <div style="display:flex;align-items:center;gap:14px;margin:0 0 16px">
             ${logoUrl ? `<div style="width:58px;height:58px;border-radius:16px;background:#ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px rgba(0,0,0,.18);overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="48" height="48" alt="${escapeHtml(club?.name ?? "Club")} crest" style="display:block;max-width:48px;max-height:48px;object-fit:contain;border:0" /></div>` : ""}
-            <p style="margin:0;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.72)">Interclub Snooker</p>
+            <p style="margin:0;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.72)">Better By Par</p>
           </div>
           <h1 style="margin:0;font-size:30px;line-height:1.08;font-weight:900">Welcome to the platform</h1>
           <p style="margin:10px 0 0;font-size:15px;line-height:1.45;font-weight:700;color:rgba(255,255,255,.84)">Your account is active${club?.name ? ` for ${escapeHtml(club.name)}` : ""} and ready to use.</p>
@@ -62,13 +62,13 @@ export function buildWelcomeEmail(user: AppUser, requestUrl?: string, club?: Wel
         <div style="padding:28px">
           <p style="margin:0 0 14px;font-size:18px;font-weight:850">Hi ${escapeHtml(firstName)},</p>
           <p style="margin:0 0 18px;font-size:15px;line-height:1.55;color:#4e6074;font-weight:650">
-            Thanks for activating your Interclub Snooker account. You can now sign in and use the app from your phone, tablet or computer.
+            Thanks for activating your Better By Par account. You can now sign in and use the app from your phone, tablet or computer.
           </p>
           <div style="background:#f5f7fa;border:1px solid #e5ebf1;border-radius:16px;padding:16px;margin:0 0 22px">
             <p style="margin:0 0 4px;color:#6c7788;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Quick tip</p>
             <p style="margin:0;font-size:15px;line-height:1.45;font-weight:750;color:#10233f">Bookmark the app in your browser so it is one tap away on match nights.</p>
           </div>
-          <a href="${escapeHtml(appUrl)}" style="display:block;text-align:center;background:${accentColor};color:white;text-decoration:none;font-weight:900;padding:15px 20px;border-radius:14px;font-size:16px">Open Interclub Snooker</a>
+          <a href="${escapeHtml(appUrl)}" style="display:block;text-align:center;background:${accentColor};color:white;text-decoration:none;font-weight:900;padding:15px 20px;border-radius:14px;font-size:16px">Open Better By Par</a>
           <p style="margin:18px 0 0;color:#6c7788;font-size:13px;line-height:1.45">
             Link: <a href="${escapeHtml(appUrl)}" style="color:${accentColor};font-weight:800">${escapeHtml(appUrl)}</a>
           </p>

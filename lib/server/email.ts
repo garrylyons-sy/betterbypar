@@ -1,5 +1,6 @@
 type EmailPayload = {
   to: string;
+  idempotencyKey?: string;
   bcc?: string | string[];
   subject: string;
   html: string;
@@ -29,8 +30,10 @@ export async function sendAppEmail(payload: EmailPayload): Promise<EmailResult> 
       method: "POST",
       headers: {
         authorization: `Bearer ${apiKey}`,
-        "content-type": "application/json"
+        "content-type": "application/json",
+        ...(payload.idempotencyKey ? {"Idempotency-Key":payload.idempotencyKey} : {})
       },
+      signal: AbortSignal.timeout(10000),
       body: JSON.stringify({
         from,
         to: payload.to,

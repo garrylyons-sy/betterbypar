@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import { withCupDrawWitness } from "@/lib/cup-draw-inbox.mjs";
 import type { PoolClient } from "pg";
 import { dbQuery, withTransaction } from "@/lib/server/db";
@@ -28,7 +29,7 @@ export async function notificationAccess(personId:string,client:Queryable=databa
  const config=await loadNotificationConfig(client);
  const {rows}=await client.query(`select array(select distinct role from (${roleRowsSql}) roles where roles.person_id=p.id) as roles,np.preferences from public.person p left join public.notification_preference np on np.person_id=p.id where p.id=$1 and p.active and exists(select 1 from public.user_account ua where ua.person_id=p.id and ua.active)`,[personId]);
  const roles:string[]=rows[0]?.roles??[];
- return {eligible:Boolean(rows[0])&&(isNotificationEligible(roles,config)||isEligibleForNotification('livestream',roles,config)),roles,config,preferences:normalizeNotificationPreferences(rows[0]?.preferences)};
+ return {eligible:Boolean(rows[0])&&(isNotificationEligible(roles,config)||isEligibleForNotification('livestream',roles,config)||isEligibleForNotification('lesson_booking',roles,config)),roles,config,preferences:normalizeNotificationPreferences(rows[0]?.preferences)};
 }
 export async function loadNotificationInbox(personId:string) {
  const access=await notificationAccess(personId);
@@ -103,9 +104,11 @@ export async function createNotification(client:Queryable,personId:string,event:
  const transient=transientPushNotificationTypes.includes(category);
  const inbox=!transient&&access.preferences.inboxTypes.includes(category);
  const push=access.preferences.pushEnabled&&(transient||access.preferences.pushTypes.includes(category));
- if(!inbox&&!push)return false;
+ const email=access.preferences.emailEnabled&&access.preferences.emailTypes.includes(category);
+ if(!inbox&&!push&&!email)return false;
  const inserted=await client.query(`insert into public.app_notification(person_id,type,title,body,href,event_key,expires_at,inbox_visible) values($1,$2,$3,$4,$5,$6,$7,$8) on conflict(person_id,event_key) do nothing returning id`,[personId,event.type,event.title,event.body,safeNotificationHref(event.href),event.eventKey,event.expiresAt??null,inbox]);
  if(inserted.rows[0]&&push)await client.query(`insert into public.notification_push_delivery(notification_id,subscription_id) select $1,id from public.notification_push_subscription where person_id=$2 and active on conflict do nothing`,[inserted.rows[0].id,personId]);
+ if(inserted.rows[0]&&email)await client.query('insert into public.notification_email_delivery(notification_id) values($1) on conflict(notification_id) do nothing',[inserted.rows[0].id]);
  return Boolean(inserted.rowCount);
 }
 async function fixtureRecipients(client:Queryable,teamIds:string[],managersOnly=false,includeChairs=true) {
@@ -216,6 +219,26 @@ export async function notificationSourceIsCurrent(notificationId:string,personId
  if(/^ladder:.*:deadline:/.test(n.event_key))return false;
  if(n.createdAt&&!isNotificationWithinLifetime(n.createdAt,Date.now(),(retentionDays??(await loadNotificationConfig(client)).retentionDays)))return false;
  if(n.expires_at&&new Date(n.expires_at).getTime()<=Date.now())return false;
+ if(['lesson_booking','lesson_reminder','lesson_cancelled','lesson_feedback'].includes(n.type)){
+  const target=/^lesson-(booked|reminder|cancelled|feedback):([0-9a-f-]{36})(?::([0-9a-z-]+))?$/i.exec(n.event_key);if(!target)return false;
+  const expected=({lesson_booking:'booked',lesson_reminder:'reminder',lesson_cancelled:'cancelled',lesson_feedback:'feedback'} as Record<string,string>)[n.type];if(target[1]!==expected)return false;
+  const result=await client.query(`select b.id,b.status,b.feedback,b.drills,b.reminder_minutes,r.revision as reminder_revision,s.active,s.starts_at,s.ends_at,
+   exists(select 1 from club_membership cm join person cp on cp.id=cm.person_id and cp.active where cm.club_id=s.club_id and cm.person_id=s.professional_person_id and cm.active and cm.role in ('Golf Professional','Assistant Professional')) as coach_active
+   from lesson_booking b join lesson_slot s on s.id=b.slot_id
+   join club c on c.id=s.club_id and c.active join person player on player.id=b.player_person_id and player.active
+   join person recipient on recipient.id=$2 and recipient.active left join lesson_reminder r on r.booking_id=b.id
+   where b.id=$1 and exists(select 1 from user_account where person_id=$2 and active)
+   and exists(select 1 from club_membership where club_id=s.club_id and person_id=$2 and active)
+   and exists(select 1 from club_membership where club_id=s.club_id and person_id=player.id and active)
+   and ($2=b.player_person_id or exists(select 1 from dependants where club_id=s.club_id and guardian_person_id=$2 and dependant_person_id=b.player_person_id and active)
+    or ($3::boolean and $2=s.professional_person_id and exists(select 1 from club_membership where club_id=s.club_id and person_id=$2 and active and role in ('Golf Professional','Assistant Professional'))))`,[target[2],personId,n.type==='lesson_booking'||n.type==='lesson_cancelled']);
+  const b=result.rows[0];if(!b)return false;
+  if(n.type==='lesson_cancelled')return b.status==='Cancelled';
+  if(b.status!=='Booked'||!b.active||!b.coach_active)return false;
+  if(n.type==='lesson_reminder')return b.reminder_minutes>0&&new Date(b.starts_at).getTime()>Date.now()&&target[3]===String(b.reminder_revision);
+  if(n.type==='lesson_feedback')return new Date(b.ends_at).getTime()<=Date.now()&&target[3]===createHash('sha256').update(JSON.stringify([b.feedback??'',b.drills??''])).digest('hex')&&Boolean(String(b.feedback??'').trim()||String(b.drills??'').trim());
+  return true;
+ }
  if(n.type==='livestream'){
   if(/^push-test:[0-9a-f-]{36}$/i.test(n.event_key)){const viewer=await client.query(`select v.person_id from public.app_viewer v join public.person p on p.id=v.person_id and p.active where v.person_id=$1 and v.active and exists(select 1 from public.user_account where person_id=p.id and active)`,[personId]);return Boolean(viewer.rows[0]);}
   const live=/^livestream:([0-9a-f-]{36})$/i.exec(n.event_key);if(!live)return false;

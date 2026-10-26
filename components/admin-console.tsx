@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, Building2, CalendarDays, Eye, FileSpreadsheet, LayoutPanelTop, LogOut, Mail, Megaphone, Pencil, PlusCircle, Radio, ShieldCheck, Smartphone, Swords, Trash2, Trophy, UserPlus, Users, XCircle } from "lucide-react";
 import { AuthSignInForm } from "@/components/auth-controls";
 import { AdminNotifications } from "@/components/admin-notifications";
 import { AdminPersonNotifications } from "@/components/admin-person-notifications";
+import { clubPortalTabIds, resolveClubPortalTab } from "@/lib/club-portal";
+import { ClubBrandingPanel } from "@/components/club-branding-panel";
+import { AdminDependants } from "@/components/admin-dependants";
+import { AdminLessons } from "@/components/admin-lessons";
+import { ClubAppointmentsFields } from "@/components/club-appointments-fields";
 import { AdminSystem } from "@/components/admin-system";
 import { AdminLastManStanding } from "@/components/admin-last-man-standing";
 import { AdminCupCompetitions } from "@/components/admin-cup-competitions";
@@ -19,11 +24,11 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "notifications" | "system" | "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
+type AdminTab = "dependants" | "lessons" | "challenges" | "notifications" | "system" | "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type MaintenanceModeState = { enabled: boolean; updatedAt: string | null };
 type TeamRole = "Player" | "Manager";
-type InviteRole = "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair";
+type InviteRole = "Golf Professional" | "Assistant Professional" | "Player" | "Manager" | "Club Member" | "Club Admin" | "League Chair";
 type TeamOption = {
   teamId: string;
   clubId: string;
@@ -36,6 +41,9 @@ type ClubOption = {
   clubName: string;
 };
 type PersonOption = {
+  isGolfPlayer: boolean;
+  golfIrelandNumber: string | null;
+  isCoachingStaff: boolean;
   personId: string;
   name: string;
   firstName: string;
@@ -70,6 +78,8 @@ type EditRoleRow = {
   teamId: string;
 };
 type ParsedInviteRow = {
+  isGolfPlayer: boolean;
+  golfIrelandNumber: string;
   name: string;
   email: string;
   phone: string;
@@ -294,15 +304,19 @@ type AdminUser = {
 };
 
 const roles: TeamRole[] = ["Player", "Manager"];
-const inviteRoles: InviteRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
-const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair"];
-const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin", "League Chair"];
-const clubAdminTabs: AdminTab[] = ["clubs", "ladders", "people", "competitions", "matches"];
+const inviteRoles: InviteRole[] = ["Club Member", "Golf Professional", "Assistant Professional", "Club Admin", "Player", "Manager", "League Chair"];
+const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair", "Golf Professional", "Assistant Professional"];
+const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin", "League Chair", "Golf Professional", "Assistant Professional"];
+const clubPortalTabs: AdminTab[] = [...clubPortalTabIds];
+const clubAdminTabs: AdminTab[] = ["dependants", "lessons", "challenges", "clubs", "ladders", "people", "competitions", "matches"];
 const ADMIN_SESSION_CACHE_KEY = "interclub:admin-session-data:v1";
 const ADMIN_SESSION_TAB_KEY = "interclub:admin-session-tab:v1";
 const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPanelTop }> = [
   { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
   { id: "clubs" as const, label: "Clubs", icon: Building2 },
+  { id: "lessons", label: "Lessons", icon: CalendarDays },
+  { id: "challenges", label: "Challenges", icon: Swords },
+  { id: "dependants", label: "Dependants", icon: Users },
   { id: "ladders" as const, label: "Ladders", icon: Swords },
   { id: "competitions" as const, label: "Club Competitions", icon: Trophy },
   { id: "cup-competitions" as const, label: "Cup Competitions", icon: Trophy },
@@ -327,9 +341,9 @@ const demoTeams: TeamOption[] = clubTeamStructure.flatMap((club) =>
   }))
 );
 const demoPeople: PersonOption[] = [
-  { personId: "person-garry", name: "Garry Lyons", firstName: "Garry", lastName: "Lyons", email: "garry@example.com" },
-  { personId: "person-andrew", name: "Andrew Foley", firstName: "Andrew", lastName: "Foley", email: "andrew@example.com" },
-  { personId: "person-conor", name: "Conor O'Boyle", firstName: "Conor", lastName: "O'Boyle", email: "conor@example.com" }
+  { isGolfPlayer: false, golfIrelandNumber: null, isCoachingStaff: false, personId: "person-garry", name: "Garry Lyons", firstName: "Garry", lastName: "Lyons", email: "garry@example.com" },
+  { isGolfPlayer: false, golfIrelandNumber: null, isCoachingStaff: false, personId: "person-andrew", name: "Andrew Foley", firstName: "Andrew", lastName: "Foley", email: "andrew@example.com" },
+  { isGolfPlayer: false, golfIrelandNumber: null, isCoachingStaff: false, personId: "person-conor", name: "Conor O'Boyle", firstName: "Conor", lastName: "O'Boyle", email: "conor@example.com" }
 ];
 
 function logPersonName(log: ActivityRow) {
@@ -475,14 +489,16 @@ function clearAdminSessionCache() {
   window.sessionStorage.removeItem(ADMIN_SESSION_TAB_KEY);
 }
 
-export function AdminConsole() {
-  const [tab, setTab] = useState<AdminTab>("desktop");
+const ClubPortalContext = createContext(false);
+
+export function AdminConsole({ clubPortal = false }: { clubPortal?: boolean }) {
+  const [tab, setTab] = useState<AdminTab>(clubPortal ? "clubs" : "desktop");
   const [logsRefreshKey, setLogsRefreshKey] = useState(0);
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [adminDataLoaded, setAdminDataLoaded] = useState(false);
   const [administrator, setAdministrator] = useState(false);
-  const [adminMode, setAdminMode] = useState<AdminMode>("platform");
+  const [adminMode, setAdminMode] = useState<AdminMode>(clubPortal ? "club" : "platform");
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [message, setMessage] = useState("");
   const [teams, setTeams] = useState<TeamOption[]>(demoTeams);
@@ -497,6 +513,11 @@ export function AdminConsole() {
   const [maintenanceMode, setMaintenanceMode] = useState<MaintenanceModeState>({ enabled: false, updatedAt: null });
 
   useEffect(() => {
+    if (clubPortal) {
+      setTab(resolveClubPortalTab(new URLSearchParams(window.location.search).get("tab")));
+      void refreshAdminData();
+      return;
+    }
     const cached = readAdminSessionCache();
     const cachedTab = readAdminSessionTab();
     if (cachedTab) setTab(cachedTab);
@@ -519,10 +540,10 @@ export function AdminConsole() {
       name: data.user.name ?? data.user.email ?? "Signed in"
     } : null);
     setTab((currentTab) => {
-      const nextTab = currentTab === "invites" || (nextAdminMode === "club" && !clubAdminTabs.includes(currentTab))
-        ? "people"
+      const nextTab = currentTab === "invites" || (nextAdminMode === "club" && !(clubPortal ? clubPortalTabs : clubAdminTabs).includes(currentTab))
+        ? clubPortal ? "clubs" : "people"
         : currentTab;
-      writeAdminSessionTab(nextTab);
+      if (!clubPortal) writeAdminSessionTab(nextTab);
       return nextTab;
     });
     setAdminDataLoaded(true);
@@ -543,6 +564,9 @@ export function AdminConsole() {
         name: `${person.first_name ?? ""} ${person.last_name ?? ""}`.trim(),
         email: person.email ?? "",
         phone: person.phone ?? "",
+        isGolfPlayer: Boolean(person.is_golf_player),
+        golfIrelandNumber: person.golf_ireland_number ?? null,
+        isCoachingStaff: Boolean(person.is_coaching_staff),
         accountId: person.account_id ?? null,
         username: person.username ?? null,
         loginActive: person.login_active ?? null,
@@ -604,12 +628,12 @@ export function AdminConsole() {
   async function refreshAdminData(options?: { silent?: boolean }) {
     if (!options?.silent) setLoading(true);
     try {
-      const response = await fetchWithTimeout("/api/admin", { credentials: "same-origin" });
+      const response = await fetchWithTimeout(clubPortal ? "/api/clubadmin" : "/api/admin", { credentials: "same-origin" });
       const data = await response.json().catch(() => ({})) as Record<string, any>;
 
       if (response.ok) {
         applyAdminData(data);
-        writeAdminSessionCache(data);
+        if (!clubPortal) writeAdminSessionCache(data);
       } else {
         clearAdminSessionCache();
         setAuthenticated(Boolean(data.authenticated));
@@ -634,7 +658,7 @@ export function AdminConsole() {
       setAdminUser(null);
       setAdminDataLoaded(false);
       setMessage("Signed out.");
-      window.location.assign("/admin");
+      window.location.assign(clubPortal ? "/clubadmin" : "/admin");
     }
   }
 
@@ -643,7 +667,7 @@ export function AdminConsole() {
   }
 
   if (!authenticated) {
-    return <AdminLogin onSignedIn={refreshAdminData} />;
+    return <AdminLogin onSignedIn={refreshAdminData} clubPortal={clubPortal} />;
   }
 
   if (!administrator) {
@@ -651,11 +675,12 @@ export function AdminConsole() {
   }
 
   return (
-    <AdminLayout
+    <ClubPortalContext.Provider value={clubPortal}><AdminLayout
+      clubPortal={clubPortal}
       tab={tab}
       setTab={(nextTab) => {
         if (nextTab === "logs") setLogsRefreshKey((current) => current + 1);
-        writeAdminSessionTab(nextTab);
+        if (!clubPortal) writeAdminSessionTab(nextTab);
         setTab(nextTab);
       }}
       message={message}
@@ -664,7 +689,7 @@ export function AdminConsole() {
       onLogout={logout}
     >
       <AdminTabPanel tab={tab} adminMode={adminMode} teams={teams} people={people} logsRefreshKey={logsRefreshKey} requests={requests} invites={invites} competitions={competitions} matchStats={matchStats} featureStats={featureStats} ads={ads} competitionsLoading={!adminDataLoaded} appearance={appearance} maintenanceMode={maintenanceMode} onMaintenanceChange={setMaintenanceMode} onAppearanceChange={setAppearance} onMessage={setMessage} onRefresh={() => refreshAdminData({ silent: true })} />
-    </AdminLayout>
+    </AdminLayout></ClubPortalContext.Provider>
   );
 }
 
@@ -678,6 +703,7 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit, timeoutM
 }
 
 function AdminLayout({
+  clubPortal = false,
   tab,
   setTab,
   message,
@@ -686,6 +712,7 @@ function AdminLayout({
   onLogout,
   children
 }: {
+  clubPortal?: boolean;
   tab: AdminTab;
   setTab: (tab: AdminTab) => void;
   message: string;
@@ -694,23 +721,24 @@ function AdminLayout({
   onLogout: () => void;
   children: React.ReactNode;
 }) {
-  const navItems = adminNavItems.filter((item) => adminMode === "platform" || clubAdminTabs.includes(item.id));
+  const navItems = adminNavItems.filter((item) => clubPortal ? clubPortalTabs.includes(item.id) : adminMode === "platform" || clubAdminTabs.includes(item.id));
   return (
     <main className="min-h-screen bg-[#f7f5fa] text-[#25002b]">
       <header className="bg-[#10233f] px-4 py-5 text-white shadow-elevated sm:px-6 lg:px-10">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
-            <img
+            {<img
               src="/admin-icon.png"
-              alt="Interclub Snooker admin"
-              className="h-14 w-14 shrink-0 rounded-2xl bg-black object-cover ring-1 ring-white/20"
-            />
+              alt="Platform administration"
+              className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-white/20"
+            />}
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase text-white/65">League operations</p>
-              <h1 className="truncate text-2xl font-extrabold leading-tight">Admin console</h1>
+              <p className="text-xs font-bold uppercase text-white/65">{clubPortal ? "Your club" : "Platform operations"}</p>
+              <h1 className="truncate text-2xl font-extrabold leading-tight">{clubPortal ? "Club administration" : "Admin console"}</h1>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {!clubPortal ? <a href="/clubadmin" className="text-sm font-bold underline">Club administration</a> : <a href="/" className="text-sm font-bold underline">Back to app</a>}
             <div className="hidden flex-col items-end gap-1 sm:flex">
               <Badge variant="cyan">{adminMode === "platform" ? "Administrator" : "Club admin"}</Badge>
               {adminUser ? <p className="max-w-[220px] truncate text-sm font-bold text-white/80">{adminUser.name}</p> : null}
@@ -738,7 +766,7 @@ function AdminLayout({
                 className={className}
               >
                 <Icon className="h-5 w-5" />
-                {item.label}
+                {clubPortal && item.id === "clubs" ? "Branding" : item.label}
               </button>
             );
           })}
@@ -773,10 +801,16 @@ function AdminTabPanel(props: {
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
+  const clubPortal = useContext(ClubPortalContext);
+  if (clubPortal && !clubPortalTabs.includes(props.tab)) return <ClubBrandingPanel />;
   if (props.adminMode === "club" && !clubAdminTabs.includes(props.tab)) return <PeoplePanel {...props} />;
   if (props.tab === "notifications") return <AdminNotifications onMessage={props.onMessage} />;
   if (props.tab === "system") return <AdminSystem onMessage={props.onMessage} />;
   if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} featureStats={props.featureStats} maintenanceMode={props.maintenanceMode} onMaintenanceChange={props.onMaintenanceChange} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
+  if (props.tab === "dependants") return <AdminDependants clubScope={clubPortal} />;
+  if (props.tab === "lessons") return <AdminLessons clubScope={clubPortal} />;
+  if (props.tab === "challenges") return <Card><CardHeader><CardTitle>Challenges</CardTitle></CardHeader><CardContent><div aria-label="Challenges" /></CardContent></Card>;
+  if (props.tab === "clubs" && clubPortal) return <ClubBrandingPanel />;
   if (props.tab === "clubs") return <ClubsPanel adminMode={props.adminMode} onMessage={props.onMessage} />;
   if (props.tab === "ladders") return <AdminClubLadders onMessage={props.onMessage} />;
   if (props.tab === "competitions") return <CompetitionsAdminPanel competitions={props.competitions} loading={props.competitionsLoading} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
@@ -794,6 +828,7 @@ function AdminTabPanel(props: {
 }
 
 const emptyClubDraft: AdminClubFormDraft = {
+  administratorIds: [], professionalIds: [], assistantProfessionalIds: [],
   name: "",
   venue: "",
   address: "",
@@ -972,6 +1007,7 @@ function ClubsPanel({
               <ClubColorInput label="Accent colour" value={draft.accentColor} onChange={(accentColor) => setDraft((current) => ({ ...current, accentColor }))} />
             </div>
 
+            <ClubAppointmentsFields key={selectedClubId} draft={draft} onChange={setDraft} editable={adminMode === "platform"} />
             <AdminCheckbox
               label="Allow unlimited lower team players"
               checked={draft.allowUnlimitedLowerTeamPlayers}
@@ -995,7 +1031,7 @@ function ClubsPanel({
               {adminMode === "platform" ? (
                 <AdminCheckbox label="Active club" checked={draft.active} onChange={(active) => setDraft((current) => ({ ...current, active }))} />
               ) : <Badge variant={draft.active ? "green" : "muted"}>{draft.active ? "Active" : "Inactive"}</Badge>}
-              <Button onClick={saveClub} disabled={!isDirty || saving}>
+              <Button onClick={saveClub} disabled={!isDirty || saving || !(draft.administratorIds?.length) || !(draft.professionalIds?.length)}>
                 {saving ? "Saving..." : isCreating ? "Create club" : "Save changes"}
               </Button>
             </div>
@@ -1054,7 +1090,7 @@ function DesktopAdminPanel({
 }) {
   const admins = people.filter((person) => person.admin).length;
   const clubs = uniqueClubs(teams).length;
-  const players = people.filter((person) => person.teamRoles?.some((role) => role.role === "Player"));
+  const players = people.filter(isRegisteredGolfPlayer);
   const managers = people.filter((person) => person.teamRoles?.some((role) => role.role === "Manager"));
   const withEmail = (person: PersonOption) => Boolean(person.email?.trim());
   const invitesSent = people.filter((person) => person.inviteSentAt || person.invitedAt).length;
@@ -2845,16 +2881,20 @@ function PeoplePanel({
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
-  const clubs = uniqueClubs(teams);
+  const clubs = useClubOptions(teams);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [handicap, setHandicap] = useState("");
   const [clubId, setClubId] = useState(clubs[0]?.clubId ?? "");
+  useEffect(() => { if (!clubId && clubs[0]) setClubId(clubs[0].clubId); }, [clubId, clubs]);
   const clubTeams = teams.filter((team) => team.clubId === clubId);
   const [teamId, setTeamId] = useState(clubTeams[0]?.teamId ?? "");
-  const [role, setRole] = useState<InviteRole>("Player");
+  const [role, setRole] = useState<InviteRole>("Club Member");
+  const [isGolfPlayer, setIsGolfPlayer] = useState(true);
+  const [golfIrelandNumber, setGolfIrelandNumber] = useState("");
+  const isCoachingRole = role === "Golf Professional" || role === "Assistant Professional";
   const [admin, setAdmin] = useState(false);
   const [busyPersonId, setBusyPersonId] = useState("");
   const [deleteTargets, setDeleteTargets] = useState<PersonOption[]>([]);
@@ -2896,6 +2936,10 @@ function PeoplePanel({
   }, [filterTeams, teamFilter]);
 
   async function addPerson() {
+    if (isGolfPlayer && !isCoachingRole && !golfIrelandNumber.trim()) {
+      onMessage("A Golf Ireland number is required for every registered player.");
+      return;
+    }
     if (demo) {
       onMessage("Person added.");
       return;
@@ -2906,7 +2950,7 @@ function PeoplePanel({
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, phone, handicap, clubId, teamId, role, admin })
+        body: JSON.stringify({ firstName, lastName, email, phone, handicap, clubId, teamId, role, admin, isGolfPlayer: isGolfPlayer && !isCoachingRole, golfIrelandNumber: golfIrelandNumber.trim() })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not add person.");
@@ -2915,6 +2959,8 @@ function PeoplePanel({
       setEmail("");
       setPhone("");
       setHandicap("");
+      setGolfIrelandNumber("");
+      setIsGolfPlayer(!isCoachingRole);
       setAdmin(false);
       onMessage("Person added. No login was created.");
       onRefresh();
@@ -2992,7 +3038,7 @@ function PeoplePanel({
     }
   }
 
-  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean; video?: boolean }) {
+  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; isGolfPlayer: boolean; golfIrelandNumber: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean; video?: boolean }) {
     if (demo) {
       onMessage("Person details updated.");
       setEditTarget(null);
@@ -3162,8 +3208,10 @@ function PeoplePanel({
 
     function matchesRole(person: PersonOption) {
       if (roleFilter === "all") return true;
+      if (roleFilter === "Player") return isRegisteredGolfPlayer(person);
       if (roleFilter === "admin") return Boolean(person.admin);
       if (roleFilter === "club-admin") return Boolean(person.clubAdmins?.length);
+      if (roleFilter === "Golf Professional" || roleFilter === "Assistant Professional") return Boolean(person.clubHandicaps?.some(club=>club.role===roleFilter));
       if (roleFilter === "league-chair") return Boolean(person.clubHandicaps?.some((club) => club.role === "League Chair"));
       if (roleFilter === "club-member") return Boolean(person.clubHandicaps?.some((club) => club.role !== "League Chair"));
       return Boolean(person.teamRoles?.some((role) => role.role === roleFilter));
@@ -3188,6 +3236,8 @@ function PeoplePanel({
           person.email,
           person.phone,
           person.username,
+          person.golfIrelandNumber,
+          isRegisteredGolfPlayer(person) ? "Registered player" : "Non-player",
           person.inviteStatus,
           ...roleLabels,
           ...clubsForPerson
@@ -3286,6 +3336,8 @@ function PeoplePanel({
               onChange={setRoleFilter}
               options={[
                 { value: "all", label: "All roles" },
+                { value: "Golf Professional", label: "Golf Professionals" },
+                { value: "Assistant Professional", label: "Assistant Professionals" },
                 { value: "Player", label: "Players" },
                 { value: "Manager", label: "Managers" },
                 { value: "club-member", label: "Club members" },
@@ -3434,9 +3486,13 @@ function PeoplePanel({
                       />
                       <span className="lg:hidden">Select</span>
                     </label>
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="min-w-0 truncate font-extrabold">{person.name}</span>
-                      {person.admin ? <Badge variant="green">Admin</Badge> : null}
+                    <div className="grid min-w-0 gap-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="min-w-0 truncate font-extrabold">{person.name}</span>
+                        {person.admin ? <Badge variant="green">Admin</Badge> : null}
+                      </div>
+                      <span className="text-[11px] text-[#6c5a73]">{isRegisteredGolfPlayer(person) ? "Player" : "Non-player"}</span>
+                      <span className="break-all text-[11px] text-[#6c5a73]">Golf Ireland: {person.golfIrelandNumber || "—"}</span>
                     </div>
                     <div className="flex min-w-0 items-center gap-2">
                       <p className="min-w-0 truncate text-[#6c5a73]">{person.email || "No email yet"}</p>
@@ -3518,7 +3574,11 @@ function PeoplePanel({
           </div>
           <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
             <AdminSelect label="Club" value={clubId} onChange={setClubId} options={clubs.map((club) => ({ value: club.clubId, label: club.clubName }))} />
-            <AdminSelect label="Role" value={role} onChange={(value) => setRole(value as InviteRole)} options={inviteRoles.map((item) => ({ value: item, label: item }))} />
+            <AdminSelect label="Role" value={role} onChange={(value) => {
+              setRole(value as InviteRole);
+              if (value === "Golf Professional" || value === "Assistant Professional") setIsGolfPlayer(false);
+              else if (value === "Player") setIsGolfPlayer(true);
+            }} options={inviteRoles.map((item) => ({ value: item, label: item }))} />
             {clubLevelInviteRoles.includes(role) ? (
               <div className="rounded-xl bg-[#f7f5fa] px-3 py-2 text-xs font-bold text-[#6c5a73] ring-1 ring-[#eeeaf2]">
                 Club role
@@ -3526,11 +3586,13 @@ function PeoplePanel({
             ) : (
               <AdminSelect label="Team" value={teamId} onChange={setTeamId} options={clubTeams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.leagueName}` }))} />
             )}
-            <Button onClick={addPerson} disabled={!firstName || !lastName || (!clubLevelInviteRoles.includes(role) && !teamId)}>
+            <Button onClick={addPerson} disabled={!firstName || !lastName || (isGolfPlayer && !isCoachingRole && !golfIrelandNumber.trim()) || (!clubLevelInviteRoles.includes(role) && !teamId)}>
               <UserPlus className="h-4 w-4" />
               Add
             </Button>
           </div>
+          <AdminCheckbox label="Registered player" checked={isGolfPlayer && !isCoachingRole} onChange={setIsGolfPlayer} disabled={isCoachingRole || role === "Player"} description={isCoachingRole ? "Professionals and assistant professionals are coaching staff and do not appear in player lists." : "Players require a Golf Ireland number. Leave unchecked for non-playing guardians and administrators. Removing player registration cancels future lesson places and removes roster roles."} />
+          <AdminInput label={isGolfPlayer && !isCoachingRole ? "Golf Ireland number (required)" : "Golf Ireland number"} value={golfIrelandNumber} onChange={setGolfIrelandNumber} placeholder="Golf Ireland membership number" />
           {adminMode === "platform" ? (
             <AdminCheckbox label="Make administrator" checked={admin} onChange={setAdmin} description="Administrators can access the admin console once they have a login." />
           ) : null}
@@ -3578,8 +3640,12 @@ function InviteStatusBadge({ person }: { person: PersonOption }) {
   );
 }
 
+function isRegisteredGolfPlayer(person: PersonOption) {
+  return person.isGolfPlayer && Boolean(person.golfIrelandNumber?.trim()) && !person.isCoachingStaff;
+}
+
 function visiblePersonRoleLabels(person: PersonOption) {
-  const teamLabels = (person.teamRoles ?? []).map((role) => `${role.role} - ${role.team_name}`);
+  const teamLabels = (person.teamRoles ?? []).filter((role) => role.role !== "Player" || isRegisteredGolfPlayer(person)).map((role) => `${role.role} - ${role.team_name}`);
   const clubAdminLabels = (person.clubAdmins ?? []).map((club) => `Club Admin - ${shortClubName(club.club_name)}`);
   const publisherLabels = [...(person.publisher ? ["Publisher"] : []), ...(person.video ? ["Video"] : []), ...(person.viewing ? ["Viewing"] : [])];
   const leagueChairLabels = (person.clubHandicaps ?? []).some((club) => club.role === "League Chair")
@@ -3590,9 +3656,10 @@ function visiblePersonRoleLabels(person: PersonOption) {
     : (person.clubHandicaps ?? [])
       .filter((club) => club.role !== "League Chair")
       .map((club) => `Club Member - ${shortClubName(club.club_name)}`);
+  const professionalLabels = (person.clubHandicaps ?? []).filter(c=>c.role === "Golf Professional" || c.role === "Assistant Professional").map(c=>`${c.role} - ${shortClubName(c.club_name)}`);
   const platformLabels = person.admin ? ["Administrator"] : [];
 
-  return Array.from(new Set([...platformLabels, ...teamLabels, ...clubAdminLabels, ...publisherLabels, ...leagueChairLabels, ...clubMemberLabels]));
+  return Array.from(new Set([...platformLabels, ...professionalLabels, ...teamLabels, ...clubAdminLabels, ...publisherLabels, ...leagueChairLabels, ...clubMemberLabels]));
 }
 
 function visiblePersonClubLabels(person: PersonOption) {
@@ -3639,7 +3706,7 @@ function EditPersonModal({
   canManageLeagueChair: boolean;
   busy: boolean;
   onCancel: () => void;
-  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean; video?: boolean }) => void;
+  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; isGolfPlayer: boolean; golfIrelandNumber: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean; video?: boolean }) => void;
   onSetLoginAccess: (loginActive: boolean) => void;
 }) {
   const firstHandicap = person.clubHandicaps?.find((item) => item.handicap !== null && item.handicap !== undefined)?.handicap;
@@ -3650,7 +3717,7 @@ function EditPersonModal({
         && team.leagueName === teamRole.league_name
         && team.clubName === teamRole.club_name
       );
-      if (!matchingTeam || (teamRole.role !== "Player" && teamRole.role !== "Manager")) return null;
+      if (!matchingTeam || (teamRole.role !== "Player" && teamRole.role !== "Manager") || (teamRole.role === "Player" && !isRegisteredGolfPlayer(person))) return null;
       return {
         id: `${matchingTeam.teamId}-${teamRole.role}-${index}`,
         role: teamRole.role as TeamRole,
@@ -3659,18 +3726,20 @@ function EditPersonModal({
     }).filter((row): row is EditRoleRow => Boolean(row));
 
     return rows.length ? rows : [];
-  }, [person.teamRoles, teams]);
+  }, [person, teams]);
   const [firstName, setFirstName] = useState(person.firstName);
   const [lastName, setLastName] = useState(person.lastName);
   const [email, setEmail] = useState(person.email ?? "");
   const [phone, setPhone] = useState(person.phone ?? "");
+  const [isGolfPlayer, setIsGolfPlayer] = useState(isRegisteredGolfPlayer(person));
+  const [golfIrelandNumber, setGolfIrelandNumber] = useState(person.golfIrelandNumber ?? "");
   const [handicap, setHandicap] = useState(firstHandicap === null || firstHandicap === undefined ? "" : String(firstHandicap));
   const [roleRows, setRoleRows] = useState<EditRoleRow[]>(initialRoles);
   const [viewing, setViewing] = useState(Boolean(person.viewing));
   const [video, setVideo] = useState(Boolean(person.video));
   const [publisher, setPublisher] = useState(Boolean(person.publisher));
   const [leagueChair, setLeagueChair] = useState(() => (person.clubHandicaps ?? []).some((club) => club.role === "League Chair"));
-  const canSave = Boolean(firstName.trim() && lastName.trim());
+  const canSave = Boolean(firstName.trim() && lastName.trim() && (!isGolfPlayer || golfIrelandNumber.trim()));
   const allowedClubs = useMemo(() => {
     const byName = new Map<string, { clubId: string; clubName: string }>();
     for (const teamRole of person.teamRoles ?? []) {
@@ -3697,7 +3766,7 @@ function EditPersonModal({
   function addRoleRow() {
     setRoleRows((rows) => [
       ...rows,
-      { id: `role-${Date.now()}-${rows.length}`, role: "Player", teamId: sortedTeams[0]?.teamId ?? "" }
+      { id: `role-${Date.now()}-${rows.length}`, role: isGolfPlayer && !person.isCoachingStaff ? "Player" : "Manager", teamId: sortedTeams[0]?.teamId ?? "" }
     ]);
   }
 
@@ -3751,6 +3820,13 @@ function EditPersonModal({
           <AdminInput label="Phone" value={phone} onChange={setPhone} type="tel" placeholder="Blank" />
           <AdminInput label="Club handicap" value={handicap} onChange={setHandicap} type="number" placeholder="Blank" />
         </div>
+        <div className="mt-4 grid gap-3">
+          <AdminCheckbox label="Registered player" checked={isGolfPlayer && !person.isCoachingStaff} disabled={person.isCoachingStaff} onChange={(checked) => {
+            setIsGolfPlayer(checked);
+            if (!checked) setRoleRows((rows) => rows.filter((row) => row.role !== "Player"));
+          }} description={person.isCoachingStaff ? "Professionals and assistant professionals are coaching staff and do not appear in player lists." : "Players require a Golf Ireland number. Non-playing guardians and administrators can remain unregistered."} />
+          <AdminInput label={isGolfPlayer ? "Golf Ireland number (required)" : "Golf Ireland number"} value={golfIrelandNumber} onChange={setGolfIrelandNumber} />
+        </div>
         <div className="mt-4 rounded-2xl bg-[#f7f5fa] p-3 ring-1 ring-[#eeeaf2]">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -3769,7 +3845,7 @@ function EditPersonModal({
                   label={`Role ${index + 1}`}
                   value={row.role}
                   onChange={(value) => updateRoleRow(row.id, { role: value as TeamRole })}
-                  options={roles.map((roleOption) => ({ value: roleOption, label: roleOption }))}
+                  options={roles.filter((roleOption) => roleOption !== "Player" || (isGolfPlayer && !person.isCoachingStaff)).map((roleOption) => ({ value: roleOption, label: roleOption }))}
                 />
                 <AdminSelect
                   label="Team"
@@ -3819,12 +3895,14 @@ function EditPersonModal({
               email: email.trim(),
               phone: phone.trim(),
               handicap: handicap.trim(),
+              isGolfPlayer: isGolfPlayer && !person.isCoachingStaff,
+              golfIrelandNumber: golfIrelandNumber.trim(),
               leagueChair,
               publisher: canManageLeagueChair ? publisher : undefined,
               video: canManageLeagueChair ? video : undefined,
               viewing: canManageLeagueChair ? viewing : undefined,
               roles: roleRows
-                .filter((row) => row.teamId && (row.role === "Player" || row.role === "Manager"))
+                .filter((row) => row.teamId && (row.role === "Manager" || (row.role === "Player" && isGolfPlayer && !person.isCoachingStaff)))
                 .map((row) => ({ role: row.role, teamId: row.teamId }))
             })}
             disabled={busy || !canSave}
@@ -3908,14 +3986,23 @@ function InvitesPanel({
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
-  const clubs = uniqueClubs(teams);
+  const clubs = useClubOptions(teams);
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [clubId, setClubId] = useState(clubs[0]?.clubId ?? "");
+  useEffect(() => { if (!clubId && clubs[0]) setClubId(clubs[0].clubId); }, [clubId, clubs]);
   const clubTeams = teams.filter((team) => team.clubId === clubId);
-  const [roleRows, setRoleRows] = useState<InviteRoleRow[]>([newInviteRoleRow("Player", clubTeams[0]?.teamId ?? "")]);
+  const [roleRows, setRoleRows] = useState<InviteRoleRow[]>([newInviteRoleRow("Club Member", "")]);
+  const [isGolfPlayer, setIsGolfPlayer] = useState(true);
+  const [golfIrelandNumber, setGolfIrelandNumber] = useState("");
+  const isCoachingInvite = roleRows.some((row) => row.role === "Golf Professional" || row.role === "Assistant Professional");
+  const hasPlayerRole = roleRows.some((row) => row.role === "Player");
+  const registeredPlayer = !isCoachingInvite && (isGolfPlayer || hasPlayerRole);
+  const registrationError = isCoachingInvite && hasPlayerRole
+    ? "Coaching staff cannot also have a Player role. Remove one of these roles."
+    : registeredPlayer && !golfIrelandNumber.trim() ? "A Golf Ireland number is required for every registered player." : "";
   const [administrator, setAdministrator] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
   const [emailPreview, setEmailPreview] = useState<{ to: string; subject: string; body: string; activationUrl: string } | null>(null);
@@ -3932,10 +4019,12 @@ function InvitesPanel({
   }, [clubId, teams]);
 
   function addRoleRow() {
-    setRoleRows((rows) => [...rows, newInviteRoleRow("Player", clubTeams[0]?.teamId ?? "")]);
+    setRoleRows((rows) => [...rows, newInviteRoleRow("Club Member", "")]);
   }
 
   function updateRoleRow(id: string, next: Partial<InviteRoleRow>) {
+    if (next.role === "Golf Professional" || next.role === "Assistant Professional") setIsGolfPlayer(false);
+    else if (next.role === "Player" || next.role === "Club Member") setIsGolfPlayer(true);
     setRoleRows((rows) => rows.map((row) => {
       if (row.id !== id) return row;
       const nextRole = next.role ?? row.role;
@@ -3952,6 +4041,10 @@ function InvitesPanel({
   }
 
   async function createInvite() {
+    if (registrationError) {
+      setInviteStatus({ tone: "error", text: registrationError });
+      return;
+    }
     const name = `${inviteFirstName.trim()} ${inviteLastName.trim()}`.trim();
     if (demo) {
       onMessage("Demo invite created: CASTLE-DEMO-2026");
@@ -3969,6 +4062,8 @@ function InvitesPanel({
           email,
           name,
           phone,
+          isGolfPlayer: registeredPlayer,
+          golfIrelandNumber: golfIrelandNumber.trim(),
           clubId,
           roles: roleRows.map((row) => ({ role: row.role, teamId: row.teamId, clubId })),
           administrator,
@@ -3981,7 +4076,7 @@ function InvitesPanel({
       const emailStatus = data.email_status ? String(data.email_status).toLowerCase() : "queued";
       setEmailPreview({
         to: data.email_to ?? email,
-        subject: data.email_subject ?? "You have been invited to join Interclub Snooker",
+        subject: data.email_subject ?? "You have been invited to join Better By Par",
         body: data.email_preview ?? "",
         activationUrl: data.activation_url ?? ""
       });
@@ -3993,6 +4088,7 @@ function InvitesPanel({
       });
       setInviteFirstName("");
       setInviteLastName("");
+      setGolfIrelandNumber("");
       onMessage(data.activation_url ? `Invite created and email ${emailStatus} to ${data.email_to ?? email}.` : data.invitation_code ? `Invite created: ${data.invitation_code}` : "Invite created.");
       onRefresh();
     } catch (error) {
@@ -4052,11 +4148,14 @@ function InvitesPanel({
                 </div>
               ))}
             </div>
+            <AdminCheckbox label="Registered player" checked={registeredPlayer} disabled={isCoachingInvite || hasPlayerRole} onChange={setIsGolfPlayer} description={isCoachingInvite ? "Professionals and assistants are coaching staff and cannot be players." : "Players require a Golf Ireland number. Leave unchecked for non-playing guardians and administrators. Removing player registration cancels future lesson places and removes roster roles."} />
+            <AdminInput label={registeredPlayer ? "Golf Ireland number (required)" : "Golf Ireland number"} value={golfIrelandNumber} onChange={setGolfIrelandNumber} />
+            {registrationError ? <p className="text-sm font-bold text-[#b42318]" role="status">{registrationError}</p> : null}
             <AdminCheckbox label="Make administrator" checked={administrator} onChange={setAdministrator} description="After activation, this person can access admin and manage the platform." />
             <AdminCheckbox label="BCC Garry" checked={bccGarry} onChange={setBccGarry} description="Quietly copy garlyons@gmail.com on this invite email." />
             <AdminInput label="Expires" value={expiresAt} onChange={setExpiresAt} type="datetime-local" />
             {inviteStatus ? <InviteSendStatus tone={inviteStatus.tone} text={inviteStatus.text} /> : null}
-            <Button onClick={createInvite} disabled={inviteSending || !inviteFirstName.trim() || !inviteLastName.trim() || !email || !clubId || (!administrator && !roleRows.length)}>
+            <Button onClick={createInvite} disabled={inviteSending || Boolean(registrationError) || !inviteFirstName.trim() || !inviteLastName.trim() || !email || !clubId || (!administrator && !roleRows.length)}>
               <PlusCircle className="h-4 w-4" />
               {inviteSending ? "Sending invite email..." : "Create and queue invite email"}
             </Button>
@@ -4105,11 +4204,12 @@ function BulkInviteImportPanel({
   onMessage: (message: string) => void;
   onRefresh: () => void;
 }) {
-  const example = "name\temail\tphone\tclub\trole\tteam\tadministrator\nStephen Finlan\tstephen@example.com\t\tCastle Golf Club\tManager\tCastle A\tno\nCastle A Player\tplayer@example.com\t\tCastle Golf Club\tPlayer\tCastle A\tno";
+  const example = "name\temail\tphone\tclub\trole\tteam\tadministrator\tregistered player\tgolf ireland number\nStephen Finlan\tstephen@example.com\t\tCastle Golf Club\tManager\tCastle A\tno\tno\t\nCastle A Player\tplayer@example.com\t\tCastle Golf Club\tPlayer\tCastle A\tno\tyes\t";
   const [pastedRows, setPastedRows] = useState(example);
   const [sending, setSending] = useState(false);
   const [sendStatus, setSendStatus] = useState<{ tone: "info" | "success" | "error"; text: string } | null>(null);
-  const parsedRows = parseInviteSpreadsheetRows(pastedRows, teams);
+  const clubs = useClubOptions(teams);
+  const parsedRows = parseInviteSpreadsheetRows(pastedRows, teams, clubs);
   const readyRows = parsedRows.filter((row) => !row.error);
 
   async function sendBulkInvites() {
@@ -4145,7 +4245,9 @@ function BulkInviteImportPanel({
             clubId: row.clubId,
             role: row.role,
             teamId: row.teamId,
-            admin: row.administrator
+            admin: row.administrator,
+            isGolfPlayer: row.isGolfPlayer,
+            golfIrelandNumber: row.golfIrelandNumber
           })
         });
         const data = await response.json().catch(() => ({}));
@@ -4196,6 +4298,7 @@ function BulkInviteImportPanel({
             spellCheck={false}
           />
         </label>
+        <p className="text-xs font-semibold text-[#6c5a73]">Include a Golf Ireland number for every player. Use the registered player column (yes/no) for Club Members, guardians and administrators. Professionals and assistants are always non-players.</p>
         <div className="overflow-hidden rounded-xl ring-1 ring-[#eeeaf2]">
           <div className="grid grid-cols-[1.2fr_1.4fr_1fr_1fr] gap-2 bg-[#f7f5fa] px-3 py-2 text-xs font-black uppercase text-[#6c5a73]">
             <span>Name</span>
@@ -4259,7 +4362,8 @@ function PermissionsPanel({
   const [clubAdminClubId, setClubAdminClubId] = useState(uniqueClubs(teams)[0]?.clubId ?? "");
   const [teamId, setTeamId] = useState(teams[0]?.teamId ?? "");
   const [role, setRole] = useState<TeamRole>("Player");
-  const clubs = uniqueClubs(teams);
+  const clubs = useClubOptions(teams);
+  const teamPeople = useMemo(() => role === "Player" ? people.filter(isRegisteredGolfPlayer) : people, [people, role]);
 
   useEffect(() => {
     if (people.some((person) => person.personId === adminPersonId)) return;
@@ -4267,9 +4371,9 @@ function PermissionsPanel({
   }, [adminPersonId, people]);
 
   useEffect(() => {
-    if (people.some((person) => person.personId === personId)) return;
-    setPersonId(people[0]?.personId ?? "");
-  }, [people, personId]);
+    if (teamPeople.some((person) => person.personId === personId)) return;
+    setPersonId(teamPeople[0]?.personId ?? "");
+  }, [teamPeople, personId]);
 
   useEffect(() => {
     if (people.some((person) => person.personId === clubAdminPersonId)) return;
@@ -4372,15 +4476,15 @@ function PermissionsPanel({
           <Badge variant="cyan">Membership based</Badge>
         </CardHeader>
         <CardContent className="grid gap-3">
-          <AdminSelect label="Person" value={personId} onChange={setPersonId} options={people.map((person) => ({ value: person.personId, label: `${person.name} ${person.email ? `- ${person.email}` : ""}` }))} />
+          <AdminSelect label="Person" value={personId} onChange={setPersonId} options={teamPeople.map((person) => ({ value: person.personId, label: `${person.name} ${person.email ? `- ${person.email}` : ""}` }))} />
           <AdminSelect label="Team" value={teamId} onChange={setTeamId} options={teams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.clubName}` }))} />
           <AdminSelect label="Role" value={role} onChange={(value) => setRole(value as TeamRole)} options={roles.map((roleOption) => ({ value: roleOption, label: roleOption }))} />
           <div className="grid gap-2 sm:grid-cols-2">
-            <Button onClick={() => savePermission({ personId, teamId, role, active: true }, "Permission saved.")}>
+            <Button disabled={!personId || !teamId} onClick={() => savePermission({ personId, teamId, role, active: true }, "Permission saved.")}>
               <ShieldCheck className="h-4 w-4" />
               Save permission
             </Button>
-            <Button variant="secondary" onClick={() => savePermission({ personId, teamId, role, active: false }, "Permission disabled.")}>
+            <Button variant="secondary" disabled={!personId || !teamId} onClick={() => savePermission({ personId, teamId, role, active: false }, "Permission disabled.")}>
               Disable permission
             </Button>
           </div>
@@ -4390,7 +4494,7 @@ function PermissionsPanel({
   );
 }
 
-function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedInviteRow[] {
+function parseInviteSpreadsheetRows(input: string, teams: TeamOption[], clubs: ClubOption[]): ParsedInviteRow[] {
   const lines = input.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (lines.length < 2) return [];
   const delimiter = lines[0].includes("\t") ? "\t" : ",";
@@ -4410,12 +4514,17 @@ function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedI
     role: indexFor("role", "roles"),
     team: indexFor("team"),
     administrator: indexFor("administrator", "admin", "platform admin"),
+    isGolfPlayer: indexFor("registered player", "is golf player", "isGolfPlayer"),
+    golfIrelandNumber: indexFor("golf ireland number", "golfIrelandNumber", "gi number"),
   };
-  const clubs = uniqueClubs(teams);
 
   return lines.slice(1).map((line) => {
     const cells = splitDelimitedLine(line, delimiter);
     const role = normalizeInviteRole(readCell(cells, indexes.role) || "Player");
+    const coachingRole = role === "Golf Professional" || role === "Assistant Professional";
+    const registrationValue = readCell(cells, indexes.isGolfPlayer).toLowerCase();
+    const requestedPlayer = ["yes", "y", "true", "1"].includes(registrationValue);
+    const isGolfPlayer = !coachingRole && (role === "Player" || requestedPlayer || (role === "Club Member" && !registrationValue));
     const clubName = readCell(cells, indexes.club);
     const teamName = readCell(cells, indexes.team);
     const club = clubs.find((item) => normalizeText(item.clubName) === normalizeText(clubName));
@@ -4423,6 +4532,8 @@ function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedI
       ? teams.find((item) => normalizeText(item.teamName) === normalizeText(teamName) && (!club || item.clubId === club.clubId))
       : undefined;
     const row: ParsedInviteRow = {
+      isGolfPlayer,
+      golfIrelandNumber: readCell(cells, indexes.golfIrelandNumber),
       name: readCell(cells, indexes.name),
       email: readCell(cells, indexes.email).toLowerCase(),
       phone: readCell(cells, indexes.phone),
@@ -4436,6 +4547,9 @@ function parseInviteSpreadsheetRows(input: string, teams: TeamOption[]): ParsedI
 
     if (!row.name) row.error = "Missing name";
     else if (!row.email || !row.email.includes("@")) row.error = "Missing email";
+    else if (coachingRole && requestedPlayer) row.error = "Coaching staff cannot be players";
+    else if (role === "Player" && ["no", "n", "false", "0"].includes(registrationValue)) row.error = "Player role requires registration";
+    else if (row.isGolfPlayer && !row.golfIrelandNumber) row.error = "Missing Golf Ireland number";
     else if (!row.clubId) row.error = "Unknown club";
     else if (!clubLevelInviteRoles.includes(row.role) && !row.teamId) row.error = "Unknown team";
 
@@ -4480,6 +4594,8 @@ function normalizeText(value: string) {
 
 function normalizeInviteRole(value: string): InviteRole {
   const normalized = normalizeText(value);
+  if (normalized === "golf professional") return "Golf Professional";
+  if (normalized === "assistant professional") return "Assistant Professional";
   if (normalized === "manager") return "Manager";
   if (normalized === "club member" || normalized === "member") return "Club Member";
   if (normalized === "club admin" || normalized === "club administrator") return "Club Admin";
@@ -4488,12 +4604,14 @@ function normalizeInviteRole(value: string): InviteRole {
 }
 
 function clubRoleHeading(role: InviteRole) {
+  if (role === "Golf Professional" || role === "Assistant Professional") return `${role} access`;
   if (role === "Club Admin") return "Club administration access";
   if (role === "League Chair") return "Interclub league chair access";
   return "Club-wide member access";
 }
 
 function clubRoleDescription(role: InviteRole) {
+  if (role === "Golf Professional" || role === "Assistant Professional") return "Can publish and manage lessons for this club.";
   if (role === "Club Admin") return "Can manage club members, invites, competitions and bookings.";
   if (role === "League Chair") return "Can view league contacts across the interclub competition.";
   return "Can book club tables and receive messages.";
@@ -4953,7 +5071,7 @@ function AppearancePhonePreview({ role, panels }: { role: AppRole; panels: Appea
             <div className="bg-[#10233f] p-4 text-white">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-bold uppercase text-white/65">Interclub Snooker</p>
+                  <p className="text-[10px] font-bold uppercase text-white/65">Better By Par</p>
                   <p className="text-xl font-extrabold">Castle A</p>
                 </div>
                 <Smartphone className="h-5 w-5 text-[#7bc7d6]" />
@@ -4991,6 +5109,13 @@ function moveItem<T>(items: T[], item: T, direction: -1 | 1) {
   const next = [...items];
   [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
   return next;
+}
+
+function useClubOptions(teams: TeamOption[]) {
+  const clubPortal = useContext(ClubPortalContext);
+  const [extra, setExtra] = useState<ClubOption[]>([]);
+  useEffect(() => { let alive=true; fetch(clubPortal ? "/api/clubadmin" : "/api/admin/clubs", {cache:"no-store"}).then(r=>r.json()).then(data=>{if(alive) setExtra((data.clubs??[]).filter((c: AdminClubRecord)=>c.active !== false).map((c: AdminClubRecord)=>({clubId:c.id,clubName:c.name})));}).catch(()=>{}); return ()=>{alive=false;}; }, []);
+  return Array.from(new Map([...uniqueClubs(teams), ...extra].map(c=>[c.clubId,c])).values()).sort((a,b)=>a.clubName.localeCompare(b.clubName));
 }
 
 function uniqueClubs(teams: TeamOption[]) {
@@ -5245,10 +5370,10 @@ function LogsPanel({ refreshKey }: { refreshKey: number }) {
   );
 }
 
-function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
+function AdminLogin({ onSignedIn, clubPortal = false }: { onSignedIn: () => void; clubPortal?: boolean }) {
   return (
-    <AdminShell title="Admin sign in" subtitle="Use an account that has been granted administrator access.">
-      <AuthSignInForm onSignedIn={onSignedIn} googleNext="/admin" adminIntent />
+    <AdminShell title={clubPortal ? "Club administrator sign in" : "Admin sign in"} subtitle="Use an account that has been granted administrator access.">
+      <AuthSignInForm onSignedIn={onSignedIn} googleNext={clubPortal ? "/clubadmin" : "/admin"} adminIntent />
     </AdminShell>
   );
 }
@@ -5261,7 +5386,7 @@ function AdminShell({ title, subtitle, children, onLogout }: { title: string; su
           <div className="flex min-w-0 items-center gap-3">
             <img
               src="/admin-icon.png"
-              alt="Interclub Snooker admin"
+              alt="Platform administration"
               className="h-14 w-14 shrink-0 rounded-2xl bg-black object-cover ring-1 ring-[#eeeaf2]"
             />
             <CardTitle>{title}</CardTitle>

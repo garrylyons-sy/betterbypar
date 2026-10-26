@@ -46,7 +46,7 @@ export async function GET() {
       dbQuery(
         `select distinct on (p.id)
            p.id as person_id,
-           p.first_name,
+           p.first_name,p.is_golf_player,p.golf_ireland_number,public.is_golf_coach(p.id) as is_coaching_staff,
            p.last_name,
            p.email,
            p.phone,

@@ -83,7 +83,7 @@ test('mocked composer resets its preview after a draft edit',async()=>{
   assert.ok(ui.send());
   ui.edit(2000,'Changed');assert.equal(ui.send(),undefined);
   assert.equal(ui.requests[0].action,'preview');
-  assert.deepEqual(ui.requests[0].audience,{includeSender:true,roles:[],clubId:null,teamId:null});
+  assert.deepEqual(ui.requests[0].audience,{includeSender:true,roles:[],clubId:null,teamId:null,channels:['inbox','push','email']});
 });
 test('mocked composer prevents concurrent sends and preserves request ID after network failure',async()=>{
   let rejectSend;
@@ -123,7 +123,7 @@ test('Publisher delivery choices are explicit and cannot send with no channel se
  const ui=await harness(async()=>response({preview:counts}),true);
  const label=text=>ui.find(node=>node.type==='label'&&Array.isArray(node.props.children)&&node.props.children.includes(text));
  const click=text=>label(text).props.children[0].props.onChange({target:{checked:false}});
- click('Phone push notification');ui.edit(120,'Hello');ui.edit(2000,'Message');await ui.preview();assert.deepEqual(ui.requests[0].audience.channels,['inbox']);
+ click('Phone push notification');click('Email');ui.edit(120,'Hello');ui.edit(2000,'Message');await ui.preview();assert.deepEqual(ui.requests[0].audience.channels,['inbox']);
  click('Inbox message');assert.equal(ui.find(node=>node.props?.type==='submit').props.disabled,true);
 });
 

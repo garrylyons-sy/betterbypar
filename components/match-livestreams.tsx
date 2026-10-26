@@ -68,7 +68,7 @@ export function MatchLivestreams({video,viewer,initialStreamId=null}:{video:bool
   {notice?<p role="status" className="rounded-lg bg-teal-50 p-3 text-sm text-teal-900">{notice}</p>:null}
   {managing&&data.canBroadcast?<section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
    <h3 className="font-extrabold">Make a match live</h3>
-   <p className="text-sm text-slate-700">Start or schedule your broadcast in YouTube first, then paste its video link here. This makes it available to people with Viewing permission in Interclub Snooker.</p>
+   <p className="text-sm text-slate-700">Start or schedule your broadcast in YouTube first, then paste its video link here. This makes it available to people with Viewing permission in Better By Par.</p>
    <p className="text-xs text-slate-600">YouTube controls access to the video itself: someone with its link may watch outside this app. Listings expire after 12 hours.</p>
    <a href="https://support.google.com/youtube/answer/9228390" target="_blank" rel="noopener noreferrer" className="inline-block text-sm font-bold underline">How to start a YouTube livestream</a>
    <div className="space-y-3">

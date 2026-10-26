@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Live Scoring | Interclub Snooker",
+  title: "Live Scoring | Better By Par",
   icons: {
     icon: [{ url: "/live-scoring-icon.svg", type: "image/svg+xml" }],
     shortcut: "/live-scoring-icon.svg"

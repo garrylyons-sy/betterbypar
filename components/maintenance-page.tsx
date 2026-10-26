@@ -1,37 +1,20 @@
 import Link from "next/link";
-import { HardHat, Wrench } from "lucide-react";
 
 export function MaintenancePage() {
   return (
-    <main className="relative grid min-h-screen overflow-hidden bg-[#f7f5fa] px-5 py-10 text-[#10233f] sm:px-8">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-52 bg-[#10233f]" />
-      <div className="relative mx-auto grid w-full max-w-5xl content-center items-center gap-7 md:grid-cols-[minmax(0,0.92fr)_minmax(320px,1.08fr)] md:gap-12">
-        <div className="order-2 text-center md:order-1 md:text-left">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-lg bg-[#00e5f0] px-3 py-2 text-xs font-black uppercase text-[#10233f]">
-            <Wrench className="h-4 w-4" />
-            Scheduled maintenance
-          </div>
-          <h1 className="text-4xl font-black leading-tight text-[#25002b] sm:text-5xl">Down for maintenance</h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg font-semibold leading-relaxed text-[#6c5a73] md:mx-0">
-            We&apos;re making a few improvements. Interclub Snooker will be back shortly.
-          </p>
-          <div className="mt-7 flex items-center justify-center gap-2 text-sm font-bold text-[#6c5a73] md:justify-start">
-            <HardHat className="h-5 w-5 text-[#1b8a72]" />
-            Fixtures, tables and results are safely tucked away while we work.
-          </div>
-          <Link
-            href="/admin"
-            className="mt-9 inline-block text-sm font-extrabold text-[#6c5a73] underline decoration-[#b8acbf] underline-offset-4 transition-colors hover:text-[#25002b]"
-          >
-            Administrator access
-          </Link>
+    <main className="relative grid min-h-[100svh] place-items-center overflow-hidden bg-[#f5f2e8] px-6 py-16 text-[#153f35]">
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-2 bg-[#dcc38c]" />
+      <div className="relative mx-auto grid w-full max-w-4xl items-center gap-12 md:grid-cols-[1fr_1.2fr] md:gap-20">
+        <div className="relative mx-auto flex h-64 w-64 items-center justify-center rounded-full border border-[#153f35]/10 sm:h-80 sm:w-80">
+          <div className="absolute inset-5 rounded-full border border-[#153f35]/10" />
+          <img src="/brand/maintenance.svg" width="192" height="192" alt="Platform maintenance" className="relative h-44 w-44 rounded-[38px] shadow-[0_24px_60px_#49392e26] sm:h-48 sm:w-48" />
         </div>
-        <div className="order-1 flex min-h-[280px] items-end justify-center md:order-2 md:min-h-[520px]">
-          <img
-            src="/snooker-logo-maintenance.png"
-            alt="Interclub Snooker maintenance character"
-            className="max-h-[360px] w-auto max-w-full object-contain drop-shadow-[0_24px_42px_rgba(16,35,63,0.22)] md:max-h-[520px]"
-          />
+        <div className="text-center md:text-left">
+          <p className="text-[10px] font-bold uppercase tracking-[.28em] text-[#826342]">A little time for improvement</p>
+          <h1 className="mt-5 font-serif text-5xl font-normal leading-[1.08] tracking-tight sm:text-6xl">Keeping your<br /><span className="italic">club in great shape.</span></h1>
+          <p className="mt-6 max-w-md text-base leading-7 text-[#59675e]">We’re carrying out scheduled maintenance. Your club, lessons and player information will be ready when we’re back.</p>
+          <p className="mt-5 text-sm font-semibold text-[#826342]">Thanks for your patience. See you shortly.</p>
+          <Link href="/admin" className="mt-9 inline-block text-xs font-semibold uppercase tracking-widest underline underline-offset-8">Administrator access</Link>
         </div>
       </div>
     </main>

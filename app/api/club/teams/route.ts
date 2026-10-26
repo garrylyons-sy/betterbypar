@@ -131,6 +131,7 @@ export async function GET(request: NextRequest) {
        from target_teams tt
        left join public.league_table_view ltv on ltv.team_id = tt.id
        left join role_people rp on rp.team_id = tt.id
+         and (rp.role <> 'Player' or public.is_golf_player(rp.person_id, tt.club_id))
        left join public.person p on p.id = rp.person_id and p.active = true
        left join lateral (
          select

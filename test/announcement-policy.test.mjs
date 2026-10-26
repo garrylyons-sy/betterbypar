@@ -30,7 +30,7 @@ test('publisher drafts retain specific people and delivery choices and reject em
  const person='11111111-1111-4111-8111-111111111111';
  const input={...draft,audience:{...draft.audience,personIds:[person,person],channels:['inbox']}};
  const result=validateAnnouncementDraft(input);assert.deepEqual(result.audience.personIds,[person]);assert.deepEqual(result.audience.channels,['inbox']);
- for(const audience of [{channels:[]},{channels:['email']},{personIds:[]},{personIds:['bad']}])assert.throws(()=>validateAnnouncementDraft({...draft,audience:{...draft.audience,...audience}}));
+ for(const audience of [{channels:[]},{channels:['sms']},{personIds:[]},{personIds:['bad']}])assert.throws(()=>validateAnnouncementDraft({...draft,audience:{...draft.audience,...audience}}));
  const config={...defaultNotificationConfig,enabledTypes:['announcement']};
  const rows=[{personId:person,roles:['League Chair'],preferences:{version:4,inboxTypes:['announcement'],pushTypes:['announcement'],pushEnabled:true},hasPush:true},{personId:'other',roles:['League Chair'],preferences:{}}];
  const selected=announcementSelection(rows,config,result.audience);
@@ -43,4 +43,11 @@ test('sender attribution defaults on, permits opting out, and ignores client-sup
  assert.equal(validateAnnouncementDraft({...draft,audience:{...draft.audience,includeSender:false}}).audience.includeSender,false);
  assert.equal(validateAnnouncementDraft({...draft,audience:{...draft.audience,senderFooter:'Sent by someone else'}}).audience.senderFooter,undefined);
  assert.throws(()=>validateAnnouncementDraft({...draft,audience:{...draft.audience,includeSender:'yes'}}));
+});
+
+test('email-only announcement recipients are included only with both author channel and recipient opt-in',()=>{
+ const rows=[{personId:'a',roles:['Club Member'],preferences:{version:5,inboxTypes:[],pushTypes:[],pushEnabled:false,emailEnabled:true,emailTypes:['announcement']}}];
+ const config={...defaultNotificationConfig,enabledTypes:['announcement']};
+ assert.deepEqual(announcementSelection(rows,config,{channels:['email']}).recipients,[{personId:'a',inbox:false,push:false,email:true}]);
+ assert.deepEqual(announcementSelection(rows,config,{channels:['inbox']}).recipients,[]);
 });

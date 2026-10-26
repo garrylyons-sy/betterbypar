@@ -1,5 +1,5 @@
 {
-  "name": "interclub-snooker",
+  "name": "better-by-par",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,11 @@
     "db:apply": "node scripts/apply-sql.mjs",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs",
+    "theme:generate": "node scripts/generate-theme-utilities.mjs",
+    "brand:generate": "node scripts/generate-brand-assets.mjs",
+    "demo:local": "node scripts/start-local-demo.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
@@ -19,10 +23,13 @@
     "pg": "^8.21.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "sharp": "0.34.5",
     "tailwind-merge": "^2.6.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
+    "@electric-sql/pglite-socket": "^0.2.14",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.0.4",

@@ -40,6 +40,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
        where cm.id = coalesce(nullif($2, '')::uuid, cm.id)
          and cm.club_id = c.club_id
          and cm.active = true
+         and public.is_golf_player(cm.person_id, cm.club_id)
          and ($3::boolean = true or cm.person_id = $4)
        order by cm.created_at
        limit 1`,

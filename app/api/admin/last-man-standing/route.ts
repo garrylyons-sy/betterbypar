@@ -80,7 +80,8 @@ export async function GET() {
                        and candidate_role.league_id = lineup_team.league_id
                        and lower(candidate_role.team_name) = lower(lineup_team.name)
                        and candidate_role.active = true and candidate_role.role = 'Player'
-                      where candidate_schedule.round_id = unresolved.round_id
+                      where public.is_golf_player(candidate_person.id, lineup_team.club_id)
+                        and candidate_schedule.round_id = unresolved.round_id
                         and candidate_schedule.tier = unresolved_entry.tier
                         and candidate_fixture.status <> 'Cancelled'
                         and candidate_fixture.original_fixture_date is null

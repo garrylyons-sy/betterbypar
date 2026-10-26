@@ -169,7 +169,7 @@ function LiveScoringFavicon({ active }: { active: boolean }) {
     icon.type = "image/svg+xml";
     document.head.appendChild(icon);
     icon.href = active ? "/live-scoring-live-icon.svg" : "/live-scoring-icon.svg";
-    document.title = active ? "LIVE · Live Scoring | Interclub Snooker" : "Live Scoring | Interclub Snooker";
+    document.title = active ? "LIVE · Live Scoring | Better By Par" : "Live Scoring | Better By Par";
     return () => {
       icon.remove();
       document.title = previousTitle;
@@ -300,11 +300,11 @@ export function LiveScoringDashboard({ userName = "", embedded = false }: { user
       <header className="sticky top-0 z-40 bg-[#10233f] px-4 py-3 text-white shadow-elevated sm:px-6">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <a href="/" className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10" aria-label="Back to Interclub Snooker">
+            <a href="/" className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/10" aria-label="Back to Better By Par">
               <ArrowLeft className="h-5 w-5" />
             </a>
             <div className="min-w-0">
-              <p className="text-xs font-bold uppercase text-white/65">Interclub Snooker</p>
+              <p className="text-xs font-bold uppercase text-white/65">Better By Par</p>
               <h1 className="truncate text-lg font-black">Live scoring</h1>
             </div>
           </div>

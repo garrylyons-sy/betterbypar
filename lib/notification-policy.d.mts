@@ -1,6 +1,6 @@
-export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_reminder' | 'ladder_challenge' | 'announcement' | 'lineup_published' | 'match_result' | 'cup_draw' | 'livestream';
-export type Config = {version:4;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];lineupDeadlineHours:number;matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
-export type Preferences = {version:4;inboxTypes:NotificationType[];pushTypes:NotificationType[];pushEnabled:boolean};
+export type NotificationType = 'fixture_change' | 'match_reminder' | 'lineup_reminder' | 'ladder_challenge' | 'announcement' | 'lineup_published' | 'match_result' | 'cup_draw' | 'livestream' | 'lesson_booking' | 'lesson_reminder' | 'lesson_cancelled' | 'lesson_feedback';
+export type Config = {version:5;enabled:boolean;retentionDays:number;eligibleRoles:string[];enabledTypes:NotificationType[];lineupDeadlineHours:number;matchReminderHours:number;lineupReminderHours:number;ladderReminderHours:number;quietStart:string;quietEnd:string};
+export type Preferences = {version:5;inboxTypes:NotificationType[];pushTypes:NotificationType[];pushEnabled:boolean;emailEnabled:boolean;emailTypes:NotificationType[]};
 export const notificationTypes: NotificationType[];
 export const transientPushNotificationTypes: NotificationType[];
 export const notificationRoles: string[];
@@ -27,3 +27,5 @@ export function notificationRoleLabel(role:string):string;
 export function lineupReminderTiming(kickoff:string|Date,deadlineHours?:number,now?:Date):{deadlineAt:Date;remindAt:Date;due:boolean};
 
 export function notificationPreferenceType(type:NotificationType):NotificationType;
+
+export function canDeliverEmail(notification:{type:string;expiresAt?:string|Date|null;expires_at?:string|Date|null},preferences:Preferences,config:Config,roles:string[],now?:Date):boolean;

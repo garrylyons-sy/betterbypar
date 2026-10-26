@@ -4,8 +4,8 @@ import { ArrowRight, BookOpen, Code2, KeyRound, Lock, ShieldCheck } from "lucide
 import { apiDocSections, developerDocsAuthModel, developerDocsMeta } from "@/lib/api-docs.mjs";
 
 export const metadata: Metadata = {
-  title: "Developer API Documentation | Interclub Snooker",
-  description: "Read-only Interclub Snooker API documentation for fixtures, statistics, competitions, ladders, LMS, live scoring, and member services."
+  title: "Developer API Documentation | Better By Par",
+  description: "Read-only Better By Par API documentation for fixtures, statistics, competitions, ladders, LMS, live scoring, and member services."
 };
 
 const baseUrl = "https://www.interclubsnooker.com";
@@ -24,7 +24,7 @@ export default function DevelopersPage() {
               Developer docs
             </div>
             <h1 className="mt-6 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">
-              Interclub Snooker API
+              Better By Par API
             </h1>
             <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-white/72">
               Build read-only league tools using fixtures, cup rounds, statistics, club ladders, Last Man Standing, live scoring, and member-service data.

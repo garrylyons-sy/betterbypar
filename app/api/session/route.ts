@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const maintenance = await loadMaintenanceMode();
     if (maintenance.enabled && !await isPlatformOperator(user.personId)) {
       return NextResponse.json(
-        { authenticated: false, maintenance: true, error: "Interclub Snooker is down for maintenance." },
+        { authenticated: false, maintenance: true, error: "Better By Par is down for maintenance." },
         { status: 503, headers: { "Cache-Control": "no-store" } }
       );
     }

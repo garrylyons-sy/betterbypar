@@ -2,15 +2,15 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Interclub Snooker",
-    short_name: "Snooker",
-    description: "Fixtures, tables, scoring and club snooker tools.",
+    name: "Better By Par",
+    short_name: "Better By Par",
+    description: "Your club, lessons and player community, all together.",
     start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#10233f",
-    theme_color: "#10233f",
+    background_color: "#0a2722",
+    theme_color: "#0a2722",
     categories: ["sports", "productivity"],
     icons: [
       {
@@ -26,7 +26,7 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "any"
       },
       {
-        src: "/icons/icon-512.png",
+        src: "/icons/icon-maskable-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable"

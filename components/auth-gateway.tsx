@@ -31,6 +31,7 @@ type SessionPayload = {
   user?: {
     email: string;
     name: string;
+    profileImage?: string;
   };
   contexts?: TeamContext[];
   standings?: Standing[];
@@ -254,6 +255,7 @@ export function AuthGateway() {
             sponsorAds={session.sponsorAds ?? []}
             activeMatchCount={session.activeMatchCount ?? 0}
             appearance={session.appearance}
+            profileImage={session.user?.profileImage}
             userLabel={session.user?.name ?? session.user?.email ?? "Signed in"}
             onSignOut={signOut}
             onPageVisit={recordPageVisit}
@@ -393,10 +395,10 @@ function AuthHome({
       <section className="w-full max-w-md">
         <div className="mb-5 flex items-center gap-3">
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#10233f] p-1.5 shadow-card">
-            <img src="/icons/icon-192.png" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
+            <img src="/icons/icon-192.png" alt="Better By Par" className="h-full w-full rounded-lg object-contain" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase text-[#6c5a73]">Interclub Snooker</p>
+            <p className="text-xs font-bold uppercase text-[#6c5a73]">Better By Par</p>
             <h1 className="text-2xl font-extrabold leading-tight">{activating ? "Activate account" : forgot ? "Reset password" : "Sign in"}</h1>
           </div>
         </div>

@@ -23,7 +23,7 @@ export async function GET(request:Request){
  if(view==='history')return NextResponse.json(await loadPublisherHistory(user.personId,params.get('page')??'1'),{headers:{'Cache-Control':'no-store'}});
  if(view==='detail')return NextResponse.json({announcement:await loadPublisherMessage(user.personId,params.get('id')??'',params.get('recipientPage')??'1')},{headers:{'Cache-Control':'no-store'}});
  if(view)return NextResponse.json({error:'Choose a valid message view.'},{status:400});
- const [options,people]=await Promise.all([loadAnnouncementOptions(),loadPublisherPeople()]);return NextResponse.json({...options,people,senderName:user.name||'Interclub Snooker'},{headers:{'Cache-Control':'no-store'}});}catch(error){return failure(error);}
+ const [options,people]=await Promise.all([loadAnnouncementOptions(),loadPublisherPeople()]);return NextResponse.json({...options,people,senderName:user.name||'Better By Par'},{headers:{'Cache-Control':'no-store'}});}catch(error){return failure(error);}
 }
 export async function POST(request:Request){
  try{

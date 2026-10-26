@@ -45,10 +45,10 @@ export default function ResetPasswordPage() {
       <section className="w-full max-w-md">
         <div className="mb-5 flex items-center gap-3">
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#10233f] p-1.5 shadow-card">
-            <img src="/icons/icon-192.png" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
+            <img src="/icons/icon-192.png" alt="Better By Par" className="h-full w-full rounded-lg object-contain" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase text-[#6c5a73]">Interclub Snooker</p>
+            <p className="text-xs font-bold uppercase text-[#6c5a73]">Better By Par</p>
             <h1 className="text-2xl font-extrabold leading-tight">Set new password</h1>
           </div>
         </div>

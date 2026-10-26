@@ -49,7 +49,7 @@ test('announcements migrate inbox/config once without opting existing devices in
  const oldTypes=['fixture_change','match_reminder','lineup_reminder','ladder_challenge'];
  const migrated=normalizeNotificationConfig({...config,version:undefined,enabledTypes:oldTypes});
  assert.ok(migrated.enabledTypes.includes('announcement'));
- assert.equal(migrated.version,4);
+ assert.equal(migrated.version,5);
  const preferences=normalizeNotificationPreferences({inboxTypes:oldTypes,pushTypes:oldTypes,pushEnabled:true});
  assert.ok(preferences.inboxTypes.includes('announcement'));
  assert.equal(preferences.pushTypes.includes('announcement'),false);

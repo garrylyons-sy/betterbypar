@@ -9,6 +9,10 @@ import {defaultNotificationConfig, validateNotificationConfig, notificationRoles
 type Config = typeof defaultNotificationConfig;
 const roles = notificationRoles;
 const categories = [
+  {key:'lesson_booking',label:'Lesson bookings',description:'Booking confirmations for the player, their guardians and the lesson professional.'},
+  {key:'lesson_reminder',label:'Lesson reminders',description:'Upcoming lesson reminders at the selected booking reminder time, delivered through each recipient’s notification preferences.'},
+  {key:'lesson_cancelled',label:'Lesson cancellations',description:'Cancellation updates for the player, their guardians and the lesson professional.'},
+  {key:'lesson_feedback',label:'Lesson feedback and drills',description:'Tell players and their guardians when professional feedback or practice drills are available.'},
   {key:'announcement',label:'Announcements',description:'Audience messages, confirmed cup draws and optional live-stream alerts to people with Viewing permission.'},
   {key:'lineup_published',label:'Opponents published',description:'Tell opposing managers when a team first publishes its line up.'},
   {key:'match_result',label:'Match results',description:'Final scores for League Chairs and all managers in the league, or managers of teams that have played in the cup.'},

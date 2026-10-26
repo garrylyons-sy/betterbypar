@@ -241,3 +241,49 @@ a.rounded-full {
 @media (prefers-reduced-motion: reduce) {
   .cup-draw-reveal { animation: none; }
 }
+
+/* Golf platform identity: contour lines and a restrained moving progress stroke. */
+.golf-splash-light {
+  background: radial-gradient(ellipse at 75% 12%, #406e4c55, transparent 48%), linear-gradient(165deg, transparent 30%, #051b17 100%);
+}
+.golf-loading-line { animation: golf-loading 1.7s ease-in-out infinite; }
+@keyframes golf-loading {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(310%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .golf-loading-line { animation: none; transform: none; width: 100%; }
+}
+
+/* Booking status colours stay consistent across club branding palettes. */
+.lesson-diary-slot[data-state], .lesson-diary-key[data-state] {
+  --diary-ink: #166534;
+  --diary-tint: #ecfdf3;
+  --diary-line: #22a05a;
+}
+.lesson-diary-slot[data-state="busy"], .lesson-diary-key[data-state="busy"] {
+  --diary-ink: #5b21b6;
+  --diary-tint: #f3edff;
+  --diary-line: #8b5cf6;
+}
+.lesson-diary-slot[data-state="partial"], .lesson-diary-key[data-state="partial"] {
+  --diary-ink: #854d0e;
+  --diary-tint: #fff8e1;
+  --diary-line: #d69b16;
+}
+.lesson-diary-slot[data-state="inactive"], .lesson-diary-key[data-state="inactive"] {
+  --diary-ink: #4b5563;
+  --diary-tint: #f3f4f6;
+  --diary-line: #9ca3af;
+}
+.lesson-diary-slot[data-state] {
+  background: var(--diary-tint);
+  border: 1px solid var(--diary-line);
+  border-left-width: 5px;
+}
+.lesson-diary-slot .lesson-diary-status {
+  background: white;
+  color: var(--diary-ink);
+  border: 1px solid var(--diary-line);
+}
+.lesson-diary-key[data-state] { background: var(--diary-line); }

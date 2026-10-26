@@ -9,10 +9,16 @@ export type AdminClubRecord = {
   allowUnlimitedLowerTeamPlayers: boolean;
   active: boolean;
   updatedAt?: string;
+  administratorIds?: string[];
+  professionalIds?: string[];
+  assistantProfessionalIds?: string[];
 };
 
 export type AdminClubFormDraft = {
   id?: string;
+  administratorIds?: string[];
+  professionalIds?: string[];
+  assistantProfessionalIds?: string[];
   name: string;
   venue: string;
   address: string;
@@ -26,6 +32,7 @@ export type AdminClubFormDraft = {
 export function clubDraftFromRecord(club: AdminClubRecord): AdminClubFormDraft {
   return {
     id: club.id,
+    ...(club.administratorIds ? {administratorIds: club.administratorIds, professionalIds: club.professionalIds ?? [], assistantProfessionalIds: club.assistantProfessionalIds ?? []} : {}),
     name: club.name,
     venue: club.venue ?? "",
     address: club.address ?? "",

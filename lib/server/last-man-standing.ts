@@ -329,6 +329,7 @@ async function loadRoleOptions(client: Pick<PoolClient, "query">, user: AppUser,
        and lower(t.name) = lower(ptr.team_name)
        and t.active = true
      where ptr.person_id = $1 and ptr.active = true
+       and (ptr.role <> 'Player' or public.is_golf_player(ptr.person_id, ptr.club_id))
      order by l.name, t.name`,
     [user.personId, seasonId]
   );
@@ -501,6 +502,7 @@ export async function loadLastManStandingCompetition(user: AppUser, competitionI
            join public.person_team_role ptr on ptr.person_id = p.id and ptr.active = true and ptr.role = 'Player'
            join public.league l on l.id = ptr.league_id
            where p.active = true
+             and public.is_golf_player(p.id, ptr.club_id)
              and case when l.name = 'A League' then 'A' when l.name = 'B League' then 'B' else 'C' end = $3
              and exists (select 1 from public.team t where t.season_id = $4 and t.league_id = ptr.league_id and t.club_id = ptr.club_id and lower(t.name) = lower(ptr.team_name) and t.active = true)
            order by ptr.team_name, name`,
@@ -789,6 +791,7 @@ export async function saveLastManStandingPicks(user: AppUser, input: SavePicksIn
        join public.person_team_role ptr on ptr.person_id = p.id and ptr.active = true and ptr.role = 'Player'
        join public.league l on l.id = ptr.league_id
        where p.id = any($1::uuid[])
+         and public.is_golf_player(p.id, ptr.club_id)
          and case when l.name = 'A League' then 'A' when l.name = 'B League' then 'B' else 'C' end = $2`,
       [input.playerIds, entry.tier]
     );
@@ -986,7 +989,8 @@ async function fallbackData(client: PoolClient, schedule: {
        and ptr.league_id = lineup_team.league_id
        and lower(ptr.team_name) = lower(lineup_team.name)
        and ptr.role = 'Player' and ptr.active = true
-     where fwm.week_id = $1 and player.person_id is not null`,
+     where fwm.week_id = $1 and player.person_id is not null
+       and public.is_golf_player(player.person_id, lineup_team.club_id)`,
     [schedule.fixture_week_id]
   );
   return {

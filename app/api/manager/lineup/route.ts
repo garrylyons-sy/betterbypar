@@ -460,6 +460,7 @@ async function loadLineupPayload(
       and cm.club_id = target_team.club_id
       and cm.active = true
      join public.person p on p.id = cm.person_id
+       and public.is_golf_player(p.id, target_team.club_id)
      where target_team.id = $1
        and ptr.role = 'Player'
        and ptr.active = true
@@ -467,7 +468,9 @@ async function loadLineupPayload(
      union
      select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name
      from public.team_membership tm
+     join public.team target_team on target_team.id = tm.team_id
      join public.person p on p.id = tm.person_id
+       and public.is_golf_player(p.id, target_team.club_id)
      where tm.team_id = $1
        and tm.role = 'Player'
        and tm.active = true
@@ -1110,12 +1113,15 @@ async function loadTeamPlayerIds(client: PoolClient, teamId: string) {
      where target_team.id = $1
        and ptr.role = 'Player'
        and ptr.active = true
+       and public.is_golf_player(cm.person_id, target_team.club_id)
      union
      select tm.person_id
      from public.team_membership tm
+     join public.team target_team on target_team.id = tm.team_id
      where tm.team_id = $1
        and tm.role = 'Player'
-       and tm.active = true`,
+       and tm.active = true
+       and public.is_golf_player(tm.person_id, target_team.club_id)`,
     [teamId]
   );
   return new Set(result.rows.map((row) => row.person_id));
@@ -1172,6 +1178,7 @@ const eligibleGuestPlayersSql = `
      and cm.club_id = lt.club_id
      and cm.active = true
     join public.person p on p.id = cm.person_id and p.active = true
+      and public.is_golf_player(p.id, lt.club_id)
     union
     select distinct p.id as person_id, concat_ws(' ', p.first_name, p.last_name) as player_name, lt.name as team_name
     from lower_teams lt
@@ -1180,6 +1187,7 @@ const eligibleGuestPlayersSql = `
      and tm.role = 'Player'
      and tm.active = true
     join public.person p on p.id = tm.person_id and p.active = true
+      and public.is_golf_player(p.id, lt.club_id)
   ),
   played_up as (
     select person_id, min(played_for_team) as already_played_for_team

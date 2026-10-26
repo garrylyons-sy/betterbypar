@@ -38,6 +38,7 @@ export async function POST() {
            join public.person_team_role ptr on ptr.club_membership_id = cm.id and ptr.active = true
            where cm.club_id = $1
              and cm.active = true
+             and public.is_golf_player(cm.person_id, cm.club_id)
              and cm.person_id <> $2
              and ptr.role = 'Player'
              and ptr.team_name like 'Castle %'

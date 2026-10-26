@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     const platformAdmin = maintenance.enabled ? await isPlatformOperator(account.person_id) : false;
     if (!canSignInDuringMaintenance({ maintenanceEnabled: maintenance.enabled, adminIntent, platformAdmin })) {
       return NextResponse.json(
-        { error: "Interclub Snooker is down for maintenance. Administrator access only." },
+        { error: "Better By Par is down for maintenance. Administrator access only." },
         { status: 503 }
       );
     }

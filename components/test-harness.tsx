@@ -205,7 +205,7 @@ export function TestHarness() {
       <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
         <section className="grid gap-4 self-start lg:sticky lg:top-5">
           <div className="rounded-[18px] bg-[#10233f] p-5 text-white shadow-card">
-            <p className="text-xs font-bold uppercase tracking-wide text-[#7bc7d6]">Interclub Snooker</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-[#7bc7d6]">Better By Par</p>
             <h1 className="mt-1 text-3xl font-extrabold leading-tight">Browser test harness</h1>
             <p className="mt-2 text-sm font-semibold text-white/75">
               Simulate multiple logged-in users by running real app API calls with isolated temporary sessions.

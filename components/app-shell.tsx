@@ -1,5 +1,11 @@
 "use client";
+import {GolfHome} from '@/components/golf-home';
+import {MemberLessons} from '@/components/member-lessons';
+import {isGolfRole,golfMenuItems} from '@/lib/golf-navigation';
 
+import { useClubTheme } from "@/components/club-theme-provider";
+import { contrastRatio, foregroundFor } from "@/lib/club-theme.mjs";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { MatchLivestreams } from "@/components/match-livestreams";
 import { PublisherMessages } from "@/components/publisher-messages";
 
@@ -49,7 +55,7 @@ import { isPollingTime, pollingFixtureDate, type SystemSettings } from "@/lib/sy
 import { cn } from "@/lib/utils";
 import { notificationDestination, notificationOpenEvent } from "@/lib/notification-navigation.mjs";
 
-type AppPage = "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Ladder" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop" | "Send a message" | "Live matches";
+type AppPage = "My Golf" | "Lessons" | "Home" | "Fixtures" | "Match" | "Results" | "Table" | "Club" | "Ladder" | "Bookings" | "Competitions" | "Friendlies" | "Contacts" | "Players" | "Stats" | "Messages" | "Menu" | "Interclub Leagues" | "Last Man Standing" | "Shop" | "Send a message" | "Live matches";
 type TeamSummaryUpdate = Partial<Pick<TeamContext, "leagueMatchesPlayed" | "matchesWon" | "matchesLost" | "pointsFor" | "pointsAgainst" | "leaguePoints">>;
 type ShopProduct = {
   id: string;
@@ -87,7 +93,7 @@ const attackSnookerRules = [
 ];
 
 function isClubOnlyRole(role: Role) {
-  return role === "Club Member" || role === "Club Admin" || role === "League Chair" || role === "Publisher" || role === "Viewer" || role === "Video";
+  return role === "Club Member" || role === "Club Admin" || role === "League Chair" || role === "Publisher" || role === "Viewer" || role === "Video" || role === "Golf Professional" || role === "Assistant Professional";
 }
 
 function seasonSortValue(season: string) {
@@ -134,6 +140,8 @@ function withCompetitionContext(path: string, activeTeam: TeamContext) {
 
 const menuIconMap: Record<AppearanceMenuId | "Menu", typeof Home> = {
   Home,
+  "My Golf": UserCircle,
+  Lessons: CalendarPlus,
   Fixtures: CalendarDays,
   Results: ClipboardCheck,
   Table: Trophy,
@@ -165,6 +173,8 @@ function withMyClubLast(items: AppearanceMenuId[]) {
 }
 
 function fixedMenuItemsForRole(role: Role, enteredCompetitionCount: number): AppearanceMenuId[] {
+  if(isGolfRole(role)) return golfMenuItems;
+  if (role === "Golf Professional" || role === "Assistant Professional") return ["Home", "Bookings"];
   if(role === "Publisher" || role === "Viewer" || role === "Video") return ["Home", "Interclub Leagues"];
   if (role === "Club Member") {
     return ["Home", "Fixtures", "Table", "Bookings", "Competitions", "Interclub Leagues"];
@@ -203,6 +213,7 @@ export function AppShell({
   activeMatchCount = 0,
   appearance,
   userLabel,
+  profileImage,
   onSignOut,
   onPageVisit,
   onDataRefresh
@@ -216,10 +227,12 @@ export function AppShell({
   activeMatchCount?: number;
   appearance?: AppearanceConfig;
   userLabel?: string;
+  profileImage?: string;
   onSignOut?: () => void;
   onPageVisit?: (pageLabel: string, activeTeam: TeamContext) => void;
   onDataRefresh?: () => void;
 }) {
+  const { clubs: themeClubs, clubId: themeClubId, setClubId: setThemeClubId } = useClubTheme();
   const appSeason = useMemo(() => currentAppSeason(contexts), [contexts]);
   const appContexts = useMemo(
     () => contexts.filter((context) => context.season === appSeason || isClubOnlyRole(context.role)),
@@ -324,8 +337,20 @@ export function AppShell({
   const activeTeamBase = SIMULATION_CONTROLS_ENABLED
     ? buildSimulatedContext(realActiveTeam, simulatedRole, simulatedClub, standingsData)
     : realActiveTeam;
+  const activeThemeClub = useMemo(() => {
+    const exact = themeClubs.find((club) => normalizeLookupKey(club.name) === normalizeLookupKey(activeTeamBase.club));
+    if (exact) return exact;
+    const normalized = normalizeThemeClubName(activeTeamBase.club);
+    const matches = themeClubs.filter((club) => normalizeThemeClubName(club.name) === normalized);
+    return normalized && matches.length === 1 ? matches[0] : undefined;
+  }, [activeTeamBase.club, themeClubs]);
+  const activeThemeClubId = activeThemeClub?.id;
+  useEffect(() => {
+    if (activeThemeClubId && activeThemeClubId !== themeClubId) setThemeClubId(activeThemeClubId);
+  }, [activeThemeClubId, themeClubId, setThemeClubId]);
   const activeTeam = {
     ...activeTeamBase,
+    ...(activeThemeClub ? { primaryColor: activeThemeClub.primaryColor ?? activeTeamBase.primaryColor, accentColor: activeThemeClub.accentColor ?? activeTeamBase.accentColor } : {}),
     ...(activeTeamBase.teamId ? teamSummaryOverrides[activeTeamBase.teamId] : undefined)
   };
   const appRefreshKey = `${activeTeam.id}|${activeTeam.role}|${activePage}`;
@@ -395,7 +420,7 @@ export function AppShell({
     };
   }, []);
   const activeMenuItems = useMemo(() => {
-    const items = applyLeagueChairAccess(fixedMenuItemsForRole(activeTeam.role, enteredCompetitionCount), activeTeam);
+    const items = isGolfRole(activeTeam.role)?golfMenuItems:applyLeagueChairAccess(fixedMenuItemsForRole(activeTeam.role, enteredCompetitionCount), activeTeam);
     return lastManStandingAvailable === true ? items : items.filter((item) => item !== "Last Man Standing");
   }, [activeTeam, activeTeam.role, enteredCompetitionCount, lastManStandingAvailable]);
   useEffect(() => {
@@ -472,6 +497,7 @@ export function AppShell({
         onClubChange={changeSimulatedClub}
         onSignOut={onSignOut}
         userLabel={userLabel}
+        profileImage={profileImage}
       />
       <section className={cn(
         "mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-4 pb-8 pt-4 sm:px-6 lg:grid lg:items-start lg:gap-6 lg:px-8 xl:px-10",
@@ -481,7 +507,7 @@ export function AppShell({
         <div className="grid min-w-0 w-full gap-4">
           {activePage === "Home" ? (
             clubOnlyView ? (
-              <ClubMemberHero activeTeam={activeTeam} userLabel={userLabel} />
+              isGolfRole(activeTeam.role) ? null : <ClubMemberHero activeTeam={activeTeam} userLabel={userLabel} />
             ) : (
               <MatchdayHero activeTeam={activeTeam} userLabel={userLabel} leagueTeamCount={activeStandings.length} activeMatchCount={activeMatchCount} />
             )
@@ -530,6 +556,10 @@ export function AppShell({
 
 function normalizeLookupKey(value: string | null | undefined) {
   return value?.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim() ?? "";
+}
+
+function normalizeThemeClubName(value: string) {
+  return normalizeLookupKey(value).replace(/\s+(?:golf\s+club|golf|club)$/, "").trim();
 }
 
 function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: string, tableRows: Standing[]): TeamContext {
@@ -640,6 +670,11 @@ function PageContent({
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
+  if(isGolfRole(activeTeam.role)){
+    if(activePage==='Lessons'||activePage==='Bookings')return <MemberLessons key="lessons" embedded/>;
+    if(activePage==='My Golf')return <MemberLessons key="my-golf" personalView embedded/>;
+    return <GolfHome club={activeTeam} page={activePage==='Club'?'Club':activePage==='Menu'?'Menu':'Home'} onNavigate={onNavigate}/>;
+  }
   const leagueTeamCount = standingsData.length;
   const memberRestrictedPages: AppPage[] = ["Match", "Results", "Players", "Stats"];
 
@@ -721,6 +756,7 @@ function Header({
   simulatedRole,
   simulatedClub,
   userLabel,
+  profileImage,
   onRoleChange,
   onClubChange,
   onSignOut
@@ -732,6 +768,7 @@ function Header({
   simulatedRole: Role;
   simulatedClub: string;
   userLabel?: string;
+  profileImage?: string;
   onRoleChange: (role: Role) => void;
   onClubChange: (club: string) => void;
   onSignOut?: () => void;
@@ -745,11 +782,11 @@ function Header({
         <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white p-1.5 shadow-[0_6px_16px_rgba(0,0,0,0.16)] ring-1 ring-white/25">
-              <img src="/icons/icon-192.png" alt="Interclub Snooker" className="h-full w-full rounded-lg object-contain" />
+              <img src="/icons/icon-192.png" alt="Better By Par" className="h-full w-full rounded-lg object-contain" />
             </div>
             <div className="min-w-0">
               <p className="truncate text-xs font-bold uppercase tracking-wide text-white/75">
-                Interclub Snooker
+                Better By Par
               </p>
               <h1 className="truncate text-lg font-extrabold leading-tight">{isClubOnlyRole(activeTeam.role) ? activeTeam.club.replace(" Golf Club", "") : activeTeam.season}</h1>
               {userLabel ? (
@@ -761,7 +798,7 @@ function Header({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <NotificationBell center={notificationCenter} />
-            <AccountMenu userLabel={userLabel} onSignOut={onSignOut} accountOpen={accountOpen} setAccountOpen={setAccountOpen} onNotificationSettings={notificationCenter.state.eligible ? () => { setAccountOpen(false); notificationCenter.setPanel("settings"); } : undefined} />
+            <AccountMenu profileImage={profileImage} clubAdminAccess={contexts.some(context=>context.role === "Club Admin")} userLabel={userLabel} onSignOut={onSignOut} accountOpen={accountOpen} setAccountOpen={setAccountOpen} onNotificationSettings={notificationCenter.state.eligible ? () => { setAccountOpen(false); notificationCenter.setPanel("settings"); } : undefined} />
           </div>
           <NotificationCenter center={notificationCenter} />
         </div>
@@ -785,13 +822,17 @@ function Header({
 }
 
 function AccountMenu({
+  clubAdminAccess = false,
   userLabel,
+  profileImage,
   onSignOut,
   accountOpen,
   setAccountOpen,
   onNotificationSettings
 }: {
+  clubAdminAccess?: boolean;
   userLabel?: string;
+  profileImage?: string;
   onSignOut?: () => void;
   accountOpen: boolean;
   setAccountOpen: (updater: boolean | ((open: boolean) => boolean)) => void;
@@ -809,7 +850,7 @@ function AccountMenu({
         aria-expanded={accountOpen}
         aria-label="Account menu"
       >
-        <UserCircle className="h-5 w-5 shrink-0" />
+        <ProfileAvatar src={profileImage} name={userLabel} className="h-8 w-8"/>
         <span className="hidden max-w-[180px] truncate text-sm font-bold md:block">{userLabel}</span>
         <ChevronDown className="h-4 w-4 shrink-0 text-white/70" />
       </button>
@@ -819,6 +860,10 @@ function AccountMenu({
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Signed in as</p>
             <p className="truncate text-sm font-extrabold">{userLabel}</p>
           </div>
+          <a href="/profile" role="menuitem" className="flex min-h-11 items-center rounded-lg px-3 text-sm font-bold hover:bg-[#f7f5fa]">My profile</a>
+          {clubAdminAccess ? <a href="/clubadmin" role="menuitem" className="flex min-h-11 items-center rounded-lg px-3 text-sm font-bold hover:bg-[#f7f5fa]">Club administration</a> : null}
+          <a href="/lessons" role="menuitem" className="flex min-h-11 items-center rounded-lg px-3 text-sm font-bold hover:bg-[#f7f5fa]">Lessons</a>
+          <a href="/family" role="menuitem" className="flex min-h-11 items-center rounded-lg px-3 text-sm font-bold hover:bg-[#f7f5fa]">My dependants</a>
           {onNotificationSettings ? <button type="button" role="menuitem" onClick={onNotificationSettings} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-bold hover:bg-[#f7f5fa]">Notification settings</button> : null}
           {onSignOut ? (
             <button
@@ -877,7 +922,7 @@ function ContextSwitcher({
 
   if (!canSwitchContext) {
     return (
-      <div className="min-h-11 rounded-xl bg-white/95 px-4 py-2 text-[#10233f] shadow-card">
+      <div className="min-h-11 rounded-xl bg-white/95 px-4 py-2 text-[var(--club-text)] shadow-card">
         <p className="truncate text-sm font-extrabold">{contextLabel(activeTeam)}</p>
       </div>
     );
@@ -885,11 +930,11 @@ function ContextSwitcher({
 
   return (
     <label className="relative block w-full">
-      <span className="sr-only">Switch team role</span>
+      <span className="sr-only">{isGolfRole(activeTeam.role)?'Switch club role':'Switch team role'}</span>
       <select
         value={selectedId}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full appearance-none rounded-xl border border-white/15 bg-white/95 px-4 pr-10 text-sm font-bold text-[#10233f] shadow-card outline-none"
+        className="h-12 w-full appearance-none rounded-xl border border-white/15 bg-white/95 px-4 pr-10 text-sm font-bold text-[var(--club-text)] shadow-card outline-none"
       >
         {uniqueContexts.map((context) => (
           <option key={context.id} value={context.id}>
@@ -897,7 +942,7 @@ function ContextSwitcher({
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-[#10233f]" />
+      <ChevronDown className="pointer-events-none absolute right-3 top-3.5 h-5 w-5 text-[var(--club-text)]" />
     </label>
   );
 }
@@ -1036,7 +1081,7 @@ function PwaPullToRefresh({ onRefresh }: { onRefresh: () => void }) {
 }
 
 function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { activeTeam: TeamContext; activePage: AppPage; onNavigate: (page: AppPage) => void; menuItems: AppearanceMenuId[] }) {
-  const items = menuItems.map(menuEntry);
+  const items = [...menuItems.map(menuEntry),...(isGolfRole(activeTeam.role)?[{label:"More",page:"Menu" as AppPage,icon:MenuIcon,description:"Account and coaching"}]:[])];
 
   return (
     <aside className="hidden self-start rounded-[18px] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
@@ -1145,15 +1190,15 @@ function ClubMemberHero({ activeTeam, userLabel }: { activeTeam: TeamContext; us
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="cyan">{activeTeam.role}</Badge>
-              <Badge variant="muted">Tables</Badge>
-              <Badge variant="muted">{activeTeam.role === "Club Admin" ? "Admin" : "Competitions"}</Badge>
+              <Badge variant="muted">{isGolfRole(activeTeam.role)?"Lessons":"Tables"}</Badge>
+              <Badge variant="muted">{isGolfRole(activeTeam.role)?"My Golf":activeTeam.role === "Club Admin" ? "Admin" : "Competitions"}</Badge>
             </div>
             <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">{activeTeam.role === "Club Admin" ? "Club admin home" : "Club home"}</p>
             <h2 className="mt-1 break-words text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.club}</h2>
             <p className="mt-2 text-sm font-semibold text-white/80">
               {activeTeam.role === "Club Admin"
-                ? "Manage members, invites, club competitions and table bookings."
-                : "Book tables and enter club competitions."}
+                ? "Manage your club branding, members and coaching programme."
+                : isGolfRole(activeTeam.role) ? "Book lessons, practise your drills and develop your game." : "Book tables and enter club competitions."}
             </p>
             {userLabel ? (
               <p className="mt-1 truncate text-xs font-bold text-white/65">
@@ -1306,19 +1351,45 @@ function qualificationLabel(status: QualificationStatus) {
   return "Outside playoffs";
 }
 
-function clubPanelStyle(color: string, accentColor = "#10233F"): CSSProperties {
-  return {
-    background:
-      `radial-gradient(circle at 18% 18%, ${color}aa, transparent 12rem), ` +
-      `linear-gradient(135deg, ${color} 0%, ${accentColor} 62%, #071426 100%)`
+function mixClubColors(primary: string, secondary: string, amount: number) {
+  const channels = (value: string) => {
+    const hex = /^#[0-9a-f]{6}$/i.test(value) ? value : "#173e2b";
+    return [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
   };
+  const base = channels(primary), tint = channels(secondary);
+  return `#${base.map((channel, index) => Math.round(channel * (1 - amount) + tint[index] * amount).toString(16).padStart(2, "0")).join("")}`;
 }
 
-function clubAccentStyle(color: string, accentColor = "#10233F"): CSSProperties {
-  return {
-    background: `linear-gradient(135deg, ${color} 0%, ${accentColor} 100%)`,
-    color: "white"
+function clubPanelColors(primary: string, accent: string) {
+  const foreground = foregroundFor(primary);
+  const blend = (target: string, amount: number) => {
+    let mixed = mixClubColors(primary, target, amount);
+    while (amount > 0 && contrastRatio(mixed, foreground) < 4.5) {
+      amount = Math.max(0, amount - 0.02);
+      mixed = mixClubColors(primary, target, amount);
+    }
+    return mixed;
   };
+  const shade = contrastRatio(primary, "#ffffff") >= 4.5 ? "#000000" : "#ffffff";
+  return { primary, accent: blend(accent, 0.2), end: blend(shade, 0.14), foreground };
+}
+
+function clubPanelStyle(color: string, accentColor = color): CSSProperties {
+  const panel = clubPanelColors(color, accentColor);
+  return {
+    background: `linear-gradient(135deg, ${panel.primary} 0%, ${panel.accent} 62%, ${panel.end} 100%)`,
+    color: panel.foreground,
+    "--club-panel-foreground": panel.foreground
+  } as CSSProperties;
+}
+
+function clubAccentStyle(color: string, accentColor = color): CSSProperties {
+  const panel = clubPanelColors(color, accentColor);
+  return {
+    background: `linear-gradient(135deg, ${panel.primary} 0%, ${panel.accent} 100%)`,
+    color: panel.foreground,
+    "--club-panel-foreground": panel.foreground
+  } as CSSProperties;
 }
 
 function clubSoftAccentStyle(color: string): CSSProperties {
@@ -1490,7 +1561,12 @@ async function shareSvgVisual(filename: string, title: string, svg: string) {
   }
 }
 
+function shareClubInk(color: string) {
+  return contrastRatio(color, "#ffffff") >= 4.5 ? color : "#173e2b";
+}
+
 function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
+  const panel = clubPanelColors(activeTeam.primaryColor, activeTeam.accentColor);
   const width = shareVisualWidth;
   const rowHeight = 126;
   const shareRows = [
@@ -1534,9 +1610,9 @@ function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
       <rect x="${shareVisualPadding}" y="${y}" width="${shareVisualContentWidth}" height="108" rx="20" fill="${index % 2 ? "#ffffff" : "#f5f7fb"}" stroke="#dfe7ee" />
       <rect x="${shareVisualPadding}" y="${y}" width="7" height="108" rx="4" fill="${home.primaryColor}" />
       <circle cx="62" cy="${y + 33}" r="7" fill="${home.primaryColor}" />
-      <text x="80" y="${y + 41}" font-size="24" font-weight="800" fill="${homeWon ? "#007a3d" : home.primaryColor}">${svgEscape(truncateForShare(fixture.homeTeamName, 28))}</text>
+      <text x="80" y="${y + 41}" font-size="24" font-weight="800" fill="${homeWon ? "#007a3d" : shareClubInk(home.primaryColor)}">${svgEscape(truncateForShare(fixture.homeTeamName, 28))}</text>
       <circle cx="62" cy="${y + 78}" r="7" fill="${away.primaryColor}" />
-      <text x="80" y="${y + 86}" font-size="24" font-weight="800" fill="${awayWon ? "#007a3d" : away.primaryColor}">${svgEscape(truncateForShare(fixture.awayTeamName, 28))}</text>
+      <text x="80" y="${y + 86}" font-size="24" font-weight="800" fill="${awayWon ? "#007a3d" : shareClubInk(away.primaryColor)}">${svgEscape(truncateForShare(fixture.awayTeamName, 28))}</text>
       <rect x="${scoreBoxX}" y="${y + 30}" width="${scoreBoxWidth}" height="48" rx="14" fill="${scoreFill}" stroke="${postponed ? "#dfe7ee" : scoreFill}" />
       <text x="${scoreTextX}" y="${y + 63}" text-anchor="middle" font-size="${scoreFontSize}" font-weight="850" fill="${scoreTextFill}">${svgEscape(score)}</text>
     `;
@@ -1546,9 +1622,9 @@ function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
       <defs>
         <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stop-color="${svgEscape(activeTeam.primaryColor)}" />
-          <stop offset=".62" stop-color="${svgEscape(activeTeam.accentColor)}" />
-          <stop offset="1" stop-color="#071426" />
+          <stop offset="0" stop-color="${svgEscape(panel.primary)}" />
+          <stop offset=".62" stop-color="${svgEscape(panel.accent)}" />
+          <stop offset="1" stop-color="${svgEscape(panel.end)}" />
         </linearGradient>
         <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
           <path d="M 56 0 L 0 0 0 56" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2" />
@@ -1557,11 +1633,11 @@ function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
       <rect width="${width}" height="${height}" rx="32" fill="#f3f6f8" />
       <rect x="0" y="0" width="${width}" height="176" rx="${shareVisualHeaderRadius}" fill="url(#hero)" />
       <rect x="0" y="0" width="${width}" height="176" rx="${shareVisualHeaderRadius}" fill="url(#grid)" />
-      <text x="${shareVisualPadding}" y="58" font-size="17" font-weight="750" fill="rgba(255,255,255,.72)" letter-spacing="2.4">INTERCLUB SNOOKER</text>
-      <text x="${shareVisualPadding}" y="104" font-size="36" font-weight="850" fill="#ffffff">Fixtures / Results</text>
-      <text x="${shareVisualPadding}" y="142" font-size="20" font-weight="650" fill="rgba(255,255,255,.86)">${svgEscape(activeTeam.league)} • ${svgEscape(week.weekLabel)} • ${svgEscape(formatFixtureDate(week.startsOn))}</text>
+      <text x="${shareVisualPadding}" y="58" font-size="17" font-weight="750" fill="${panel.foreground}" letter-spacing="2.4">BETTER BY PAR</text>
+      <text x="${shareVisualPadding}" y="104" font-size="36" font-weight="850" fill="${panel.foreground}">Fixtures / Results</text>
+      <text x="${shareVisualPadding}" y="142" font-size="20" font-weight="650" fill="${panel.foreground}">${svgEscape(activeTeam.league)} • ${svgEscape(week.weekLabel)} • ${svgEscape(formatFixtureDate(week.startsOn))}</text>
       <rect x="516" y="44" width="140" height="44" rx="14" fill="rgba(255,255,255,.16)" stroke="rgba(255,255,255,.28)" />
-      <text x="586" y="73" text-anchor="middle" font-size="18" font-weight="800" fill="#ffffff">${svgEscape(activeTeam.season)}</text>
+      <text x="586" y="73" text-anchor="middle" font-size="18" font-weight="800" fill="${panel.foreground}">${svgEscape(activeTeam.season)}</text>
       ${rows}
       <text x="${shareVisualPadding}" y="${height - 34}" font-size="16" font-weight="700" fill="#6c7788">interclubsnooker.com</text>
     </svg>
@@ -1569,6 +1645,7 @@ function buildWeekResultsShareSvg(activeTeam: TeamContext, week: FixtureWeek) {
 }
 
 function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[], matchResults: MatchResult[]) {
+  const panel = clubPanelColors(activeTeam.primaryColor, activeTeam.accentColor);
   const width = shareVisualWidth;
   const rowHeight = 86;
   const height = 286 + Math.max(tableRows.length, 1) * rowHeight;
@@ -1585,7 +1662,7 @@ function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[]
       <rect x="${shareVisualPadding}" y="${y}" width="7" height="72" rx="4" fill="${colors.primaryColor}" />
       <rect x="56" y="${y + 16}" width="40" height="40" rx="12" fill="${positionColors.background}" />
       <text x="76" y="${y + 43}" text-anchor="middle" font-size="19" font-weight="850" fill="${positionColors.color}">${row.position}</text>
-      <text x="116" y="${y + 35}" font-size="23" font-weight="850" fill="${colors.primaryColor}">${svgEscape(truncateForShare(row.team, 22))}</text>
+      <text x="116" y="${y + 35}" font-size="23" font-weight="850" fill="${shareClubInk(colors.primaryColor)}">${svgEscape(truncateForShare(row.team, 22))}</text>
       <text x="116" y="${y + 58}" font-size="15" font-weight="750" fill="#6c7788">${svgEscape(tableForm(row, matchResults))}</text>
       <text x="444" y="${y + 32}" text-anchor="end" font-size="16" font-weight="800" fill="#6c7788">P</text>
       <text x="444" y="${y + 58}" text-anchor="end" font-size="24" font-weight="850" fill="#10233f">${row.played}</text>
@@ -1600,9 +1677,9 @@ function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[]
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
       <defs>
         <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stop-color="${svgEscape(activeTeam.primaryColor)}" />
-          <stop offset=".62" stop-color="${svgEscape(activeTeam.accentColor)}" />
-          <stop offset="1" stop-color="#071426" />
+          <stop offset="0" stop-color="${svgEscape(panel.primary)}" />
+          <stop offset=".62" stop-color="${svgEscape(panel.accent)}" />
+          <stop offset="1" stop-color="${svgEscape(panel.end)}" />
         </linearGradient>
         <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
           <path d="M 56 0 L 0 0 0 56" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2" />
@@ -1611,9 +1688,9 @@ function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[]
       <rect width="${width}" height="${height}" rx="32" fill="#f3f6f8" />
       <rect x="0" y="0" width="${width}" height="176" rx="${shareVisualHeaderRadius}" fill="url(#hero)" />
       <rect x="0" y="0" width="${width}" height="176" rx="${shareVisualHeaderRadius}" fill="url(#grid)" />
-      <text x="${shareVisualPadding}" y="58" font-size="17" font-weight="750" fill="rgba(255,255,255,.72)" letter-spacing="2.4">INTERCLUB SNOOKER</text>
-      <text x="${shareVisualPadding}" y="108" font-size="39" font-weight="850" fill="#ffffff">${svgEscape(activeTeam.league)} Table</text>
-      <text x="${shareVisualPadding}" y="146" font-size="20" font-weight="650" fill="rgba(255,255,255,.84)">${svgEscape(activeTeam.season)}</text>
+      <text x="${shareVisualPadding}" y="58" font-size="17" font-weight="750" fill="${panel.foreground}" letter-spacing="2.4">BETTER BY PAR</text>
+      <text x="${shareVisualPadding}" y="108" font-size="39" font-weight="850" fill="${panel.foreground}">${svgEscape(activeTeam.league)} Table</text>
+      <text x="${shareVisualPadding}" y="146" font-size="20" font-weight="650" fill="${panel.foreground}">${svgEscape(activeTeam.season)}</text>
       ${rows}
       <text x="${shareVisualPadding}" y="${height - 34}" font-size="16" font-weight="700" fill="#6c7788">interclubsnooker.com</text>
     </svg>
@@ -1621,6 +1698,7 @@ function buildLeagueTableShareSvg(activeTeam: TeamContext, tableRows: Standing[]
 }
 
 function buildPersonalStatsShareSvg(activeTeam: TeamContext, playerBreakStat: PlayerBreakStat | null, results: PlayerGameResult[]) {
+  const panel = clubPanelColors(activeTeam.primaryColor, activeTeam.accentColor);
   const width = shareVisualWidth;
   const height = 718;
   const wins = results.filter((result) => result.result === "Won").length;
@@ -1650,9 +1728,9 @@ function buildPersonalStatsShareSvg(activeTeam: TeamContext, playerBreakStat: Pl
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
       <defs>
         <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stop-color="${svgEscape(activeTeam.primaryColor)}" />
-          <stop offset=".62" stop-color="${svgEscape(activeTeam.accentColor)}" />
-          <stop offset="1" stop-color="#071426" />
+          <stop offset="0" stop-color="${svgEscape(panel.primary)}" />
+          <stop offset=".62" stop-color="${svgEscape(panel.accent)}" />
+          <stop offset="1" stop-color="${svgEscape(panel.end)}" />
         </linearGradient>
         <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
           <path d="M 56 0 L 0 0 0 56" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2" />
@@ -1661,9 +1739,9 @@ function buildPersonalStatsShareSvg(activeTeam: TeamContext, playerBreakStat: Pl
       <rect width="${width}" height="${height}" rx="32" fill="#f3f6f8" />
       <rect width="${width}" height="210" rx="${shareVisualHeaderRadius}" fill="url(#hero)" />
       <rect width="${width}" height="210" rx="${shareVisualHeaderRadius}" fill="url(#grid)" />
-      <text x="${shareVisualPadding}" y="62" font-size="17" font-weight="750" fill="rgba(255,255,255,.72)" letter-spacing="2.4">INTERCLUB SNOOKER</text>
-      <text x="${shareVisualPadding}" y="119" font-size="42" font-weight="850" fill="#ffffff">Player Stats</text>
-      <text x="${shareVisualPadding}" y="158" font-size="21" font-weight="650" fill="rgba(255,255,255,.84)">${svgEscape(activeTeam.name)} • ${svgEscape(activeTeam.season)}</text>
+      <text x="${shareVisualPadding}" y="62" font-size="17" font-weight="750" fill="${panel.foreground}" letter-spacing="2.4">BETTER BY PAR</text>
+      <text x="${shareVisualPadding}" y="119" font-size="42" font-weight="850" fill="${panel.foreground}">Player Stats</text>
+      <text x="${shareVisualPadding}" y="158" font-size="21" font-weight="650" fill="${panel.foreground}">${svgEscape(activeTeam.name)} • ${svgEscape(activeTeam.season)}</text>
       ${statCards}
       <text x="${shareVisualPadding}" y="${height - 34}" font-size="16" font-weight="700" fill="#6c7788">interclubsnooker.com</text>
     </svg>
@@ -1671,6 +1749,7 @@ function buildPersonalStatsShareSvg(activeTeam: TeamContext, playerBreakStat: Pl
 }
 
 function buildIndividualGamesShareSvg(activeTeam: TeamContext, results: PlayerGameResult[]) {
+  const panel = clubPanelColors(activeTeam.primaryColor, activeTeam.accentColor);
   const width = shareVisualWidth;
   const visible = results.slice(0, 8);
   const rowHeight = 108;
@@ -1693,9 +1772,9 @@ function buildIndividualGamesShareSvg(activeTeam: TeamContext, results: PlayerGa
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
       <rect width="${width}" height="${height}" rx="32" fill="#f3f6f8" />
       <rect x="0" y="0" width="${width}" height="166" rx="${shareVisualHeaderRadius}" fill="${svgEscape(activeTeam.primaryColor)}" />
-      <text x="${shareVisualPadding}" y="58" font-size="17" font-weight="750" fill="rgba(255,255,255,.72)" letter-spacing="2.4">INTERCLUB SNOOKER</text>
-      <text x="${shareVisualPadding}" y="110" font-size="40" font-weight="850" fill="#ffffff">Individual Games</text>
-      <text x="${shareVisualPadding}" y="145" font-size="19" font-weight="650" fill="rgba(255,255,255,.84)">${svgEscape(activeTeam.name)} • ${svgEscape(activeTeam.season)}</text>
+      <text x="${shareVisualPadding}" y="58" font-size="17" font-weight="750" fill="${panel.foreground}" letter-spacing="2.4">BETTER BY PAR</text>
+      <text x="${shareVisualPadding}" y="110" font-size="40" font-weight="850" fill="${panel.foreground}">Individual Games</text>
+      <text x="${shareVisualPadding}" y="145" font-size="19" font-weight="650" fill="${panel.foreground}">${svgEscape(activeTeam.name)} • ${svgEscape(activeTeam.season)}</text>
       ${rows}
       <text x="${shareVisualPadding}" y="${height - 34}" font-size="16" font-weight="700" fill="#6c7788">interclubsnooker.com</text>
     </svg>
@@ -1703,6 +1782,7 @@ function buildIndividualGamesShareSvg(activeTeam: TeamContext, results: PlayerGa
 }
 
 function buildTeamStatsShareSvg(activeTeam: TeamContext, leagueTeamCount: number) {
+  const panel = clubPanelColors(activeTeam.primaryColor, activeTeam.accentColor);
   const width = shareVisualWidth;
   const height = 650;
   const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount, activeTeam.league);
@@ -1729,9 +1809,9 @@ function buildTeamStatsShareSvg(activeTeam: TeamContext, leagueTeamCount: number
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
       <defs>
         <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stop-color="${svgEscape(activeTeam.primaryColor)}" />
-          <stop offset=".64" stop-color="${svgEscape(activeTeam.accentColor)}" />
-          <stop offset="1" stop-color="#071426" />
+          <stop offset="0" stop-color="${svgEscape(panel.primary)}" />
+          <stop offset=".64" stop-color="${svgEscape(panel.accent)}" />
+          <stop offset="1" stop-color="${svgEscape(panel.end)}" />
         </linearGradient>
         <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
           <path d="M 56 0 L 0 0 0 56" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2" />
@@ -1740,11 +1820,11 @@ function buildTeamStatsShareSvg(activeTeam: TeamContext, leagueTeamCount: number
       <rect width="${width}" height="${height}" rx="32" fill="#f3f6f8" />
       <rect width="${width}" height="218" rx="${shareVisualHeaderRadius}" fill="url(#hero)" />
       <rect width="${width}" height="218" rx="${shareVisualHeaderRadius}" fill="url(#grid)" />
-      <text x="${shareVisualPadding}" y="62" font-size="17" font-weight="750" fill="rgba(255,255,255,.72)" letter-spacing="2.4">INTERCLUB SNOOKER</text>
-      <text x="${shareVisualPadding}" y="119" font-size="42" font-weight="850" fill="#ffffff">${svgEscape(truncateForShare(activeTeam.name, 18))} Stats</text>
-      <text x="${shareVisualPadding}" y="158" font-size="21" font-weight="650" fill="rgba(255,255,255,.84)">${svgEscape(activeTeam.league)} • ${svgEscape(activeTeam.season)}</text>
+      <text x="${shareVisualPadding}" y="62" font-size="17" font-weight="750" fill="${panel.foreground}" letter-spacing="2.4">BETTER BY PAR</text>
+      <text x="${shareVisualPadding}" y="119" font-size="42" font-weight="850" fill="${panel.foreground}">${svgEscape(truncateForShare(activeTeam.name, 18))} Stats</text>
+      <text x="${shareVisualPadding}" y="158" font-size="21" font-weight="650" fill="${panel.foreground}">${svgEscape(activeTeam.league)} • ${svgEscape(activeTeam.season)}</text>
       <rect x="514" y="42" width="142" height="42" rx="13" fill="${qualification === "none" ? "rgba(255,255,255,.16)" : "#00ff85"}" />
-      <text x="585" y="70" text-anchor="middle" font-size="17" font-weight="850" fill="${qualification === "none" ? "#ffffff" : "#071426"}">${svgEscape(hasLeagueTable ? qualificationLabel(qualification) : "Pending")}</text>
+      <text x="585" y="70" text-anchor="middle" font-size="17" font-weight="850" fill="${qualification === "none" ? panel.foreground : "#071426"}">${svgEscape(hasLeagueTable ? qualificationLabel(qualification) : "Pending")}</text>
       ${statCards}
       <text x="${shareVisualPadding}" y="${height - 34}" font-size="16" font-weight="700" fill="#6c7788">interclubsnooker.com</text>
     </svg>
@@ -1752,6 +1832,7 @@ function buildTeamStatsShareSvg(activeTeam: TeamContext, leagueTeamCount: number
 }
 
 function buildTeamPlayerStatsShareSvg(activeTeam: TeamContext, players: TeamPlayerStat[]) {
+  const panel = clubPanelColors(activeTeam.primaryColor, activeTeam.accentColor);
   const width = shareVisualWidth;
   const visible = players.slice(0, 14);
   const rowHeight = 92;
@@ -1760,7 +1841,7 @@ function buildTeamPlayerStatsShareSvg(activeTeam: TeamContext, players: TeamPlay
     const y = 210 + index * rowHeight;
     return `
       <rect x="${shareVisualPadding}" y="${y}" width="${shareVisualContentWidth}" height="76" rx="16" fill="${index % 2 ? "#ffffff" : "#f7f9fc"}" stroke="#dfe7ee" />
-      <text x="58" y="${y + 34}" font-size="22" font-weight="850" fill="${svgEscape(activeTeam.primaryColor)}">${svgEscape(truncateForShare(player.name, 24))}</text>
+      <text x="58" y="${y + 34}" font-size="22" font-weight="850" fill="${shareClubInk(activeTeam.primaryColor)}">${svgEscape(truncateForShare(player.name, 24))}</text>
       <text x="58" y="${y + 59}" font-size="15" font-weight="750" fill="#6c7788">P ${player.played}  •  W ${player.won}  •  L ${player.lost}</text>
       <text x="522" y="${y + 33}" text-anchor="end" font-size="14" font-weight="750" fill="#6c7788">WIN</text>
       <text x="522" y="${y + 60}" text-anchor="end" font-size="25" font-weight="900" fill="#10233f">${player.played ? `${player.winPercentage}%` : "-"}</text>
@@ -1773,9 +1854,9 @@ function buildTeamPlayerStatsShareSvg(activeTeam: TeamContext, players: TeamPlay
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
       <rect width="${width}" height="${height}" rx="32" fill="#f3f6f8" />
       <rect x="0" y="0" width="${width}" height="166" rx="${shareVisualHeaderRadius}" fill="${svgEscape(activeTeam.primaryColor)}" />
-      <text x="${shareVisualPadding}" y="58" font-size="17" font-weight="750" fill="rgba(255,255,255,.72)" letter-spacing="2.4">INTERCLUB SNOOKER</text>
-      <text x="${shareVisualPadding}" y="108" font-size="37" font-weight="850" fill="#ffffff">${svgEscape(truncateForShare(activeTeam.name, 17))} Players</text>
-      <text x="${shareVisualPadding}" y="144" font-size="19" font-weight="650" fill="rgba(255,255,255,.84)">${svgEscape(activeTeam.season)} • ${svgEscape(activeTeam.league)}</text>
+      <text x="${shareVisualPadding}" y="58" font-size="17" font-weight="750" fill="${panel.foreground}" letter-spacing="2.4">BETTER BY PAR</text>
+      <text x="${shareVisualPadding}" y="108" font-size="37" font-weight="850" fill="${panel.foreground}">${svgEscape(truncateForShare(activeTeam.name, 17))} Players</text>
+      <text x="${shareVisualPadding}" y="144" font-size="19" font-weight="650" fill="${panel.foreground}">${svgEscape(activeTeam.season)} • ${svgEscape(activeTeam.league)}</text>
       ${rows}
       <text x="${shareVisualPadding}" y="${height - 34}" font-size="16" font-weight="700" fill="#6c7788">interclubsnooker.com</text>
     </svg>
@@ -1783,6 +1864,7 @@ function buildTeamPlayerStatsShareSvg(activeTeam: TeamContext, players: TeamPlay
 }
 
 function buildLeaguePlayerStatsShareSvg(activeTeam: TeamContext, players: LeaguePlayerStat[]) {
+  const panel = clubPanelColors(activeTeam.primaryColor, activeTeam.accentColor);
   const width = shareVisualWidth;
   const visible = players.slice(0, 14);
   const rowHeight = 94;
@@ -1793,8 +1875,8 @@ function buildLeaguePlayerStatsShareSvg(activeTeam: TeamContext, players: League
     return `
       <rect x="${shareVisualPadding}" y="${y}" width="${shareVisualContentWidth}" height="78" rx="16" fill="${index % 2 ? "#ffffff" : "#f7f9fc"}" stroke="#dfe7ee" />
       <rect x="${shareVisualPadding}" y="${y}" width="7" height="78" rx="4" fill="${colors.primaryColor}" />
-      <text x="58" y="${y + 32}" font-size="21" font-weight="850" fill="${colors.primaryColor}">${svgEscape(truncateForShare(player.name, 23))}</text>
-      <text x="58" y="${y + 58}" font-size="15" font-weight="750" fill="${colors.primaryColor}">${svgEscape(truncateForShare(player.teamName, 22))} • P ${player.played} • W ${player.won} • L ${player.lost}</text>
+      <text x="58" y="${y + 32}" font-size="21" font-weight="850" fill="${shareClubInk(colors.primaryColor)}">${svgEscape(truncateForShare(player.name, 23))}</text>
+      <text x="58" y="${y + 58}" font-size="15" font-weight="750" fill="${shareClubInk(colors.primaryColor)}">${svgEscape(truncateForShare(player.teamName, 22))} • P ${player.played} • W ${player.won} • L ${player.lost}</text>
       <text x="526" y="${y + 32}" text-anchor="end" font-size="14" font-weight="750" fill="#6c7788">WIN</text>
       <text x="526" y="${y + 60}" text-anchor="end" font-size="25" font-weight="900" fill="#10233f">${player.played ? `${player.winPercentage}%` : "-"}</text>
       <text x="650" y="${y + 32}" text-anchor="end" font-size="14" font-weight="750" fill="#6c7788">BREAK</text>
@@ -1806,9 +1888,9 @@ function buildLeaguePlayerStatsShareSvg(activeTeam: TeamContext, players: League
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif">
       <rect width="${width}" height="${height}" rx="32" fill="#f3f6f8" />
       <rect x="0" y="0" width="${width}" height="184" rx="${shareVisualHeaderRadius}" fill="${svgEscape(activeTeam.primaryColor)}" />
-      <text x="${shareVisualPadding}" y="58" font-size="17" font-weight="750" fill="rgba(255,255,255,.72)" letter-spacing="2.4">INTERCLUB SNOOKER</text>
-      <text x="${shareVisualPadding}" y="110" font-size="37" font-weight="850" fill="#ffffff">${svgEscape(activeTeam.league)} Player Stats</text>
-      <text x="${shareVisualPadding}" y="148" font-size="18" font-weight="650" fill="rgba(255,255,255,.84)">Ranked by win percentage • ${svgEscape(activeTeam.season)}</text>
+      <text x="${shareVisualPadding}" y="58" font-size="17" font-weight="750" fill="${panel.foreground}" letter-spacing="2.4">BETTER BY PAR</text>
+      <text x="${shareVisualPadding}" y="110" font-size="37" font-weight="850" fill="${panel.foreground}">${svgEscape(activeTeam.league)} Player Stats</text>
+      <text x="${shareVisualPadding}" y="148" font-size="18" font-weight="650" fill="${panel.foreground}">Ranked by win percentage • ${svgEscape(activeTeam.season)}</text>
       ${rows}
       <text x="${shareVisualPadding}" y="${height - 34}" font-size="16" font-weight="700" fill="#6c7788">interclubsnooker.com</text>
     </svg>
@@ -3078,6 +3160,7 @@ function AttackSnookerGameCard() {
 }
 
 function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamContext; onNavigate: (page: AppPage) => void; panels: AppearancePanelId[] }) {
+  if (activeTeam.role === "Golf Professional" || activeTeam.role === "Assistant Professional") return <Card><CardHeader><CardTitle>{activeTeam.role}</CardTitle></CardHeader><CardContent className="grid gap-3"><p>{activeTeam.club}</p><a className="rounded-xl bg-[#1b8a72] p-4 font-bold text-white" href="/lessons/manage">Manage lessons</a><a className="font-bold underline" href="/lessons">View lesson bookings</a></CardContent></Card>;
   const renderPanel = (panel: AppearancePanelId) => {
     if (panel === "lastManStanding") return <div key={panel} className="md:col-span-2"><LastManStandingHomePanel onOpen={() => onNavigate("Last Man Standing")} /></div>;
     if (panel === "clubLadder") return <ClubLadderHomePanel key={panel} className="md:col-span-2" activeTeam={activeTeam} onOpen={() => onNavigate("Ladder")} />;
@@ -3127,15 +3210,15 @@ function ClubMemberHome({ activeTeam, onNavigate, panels }: { activeTeam: TeamCo
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2">
             <a
-              href="/admin?tab=invites"
+              href="/clubadmin"
               className="grid min-h-[74px] grid-cols-[44px_1fr] items-center gap-3 rounded-xl bg-[#f7f5fa] p-3 text-left ring-1 ring-[#eeeaf2]"
             >
               <span className="grid h-11 w-11 place-items-center rounded-xl bg-white text-[#10233f] ring-1 ring-[#eeeaf2]">
                 <Users className="h-5 w-5" />
               </span>
               <span>
-                <span className="block font-black">Members & invites</span>
-                <span className="block text-xs font-semibold text-[#6c5a73]">Add members and queue invite emails.</span>
+                <span className="block font-black">Club branding</span>
+                <span className="block text-xs font-semibold text-[#6c5a73]">Manage your club logo and colours.</span>
               </span>
             </a>
             <a
@@ -4102,7 +4185,7 @@ function ShopPage({ activeTeam }: { activeTeam: TeamContext }) {
       <CardHeader>
         <div>
           <CardTitle>Shop</CardTitle>
-          <p className="mt-1 text-sm font-bold text-[var(--pl-muted-text)]">Small-batch Interclub Snooker ideas and merch previews.</p>
+          <p className="mt-1 text-sm font-bold text-[var(--pl-muted-text)]">Small-batch Better By Par ideas and merch previews.</p>
         </div>
         <Badge variant="cyan">{products.length || "..."}</Badge>
       </CardHeader>
@@ -8057,7 +8140,7 @@ function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePa
   const configured = menuItems.map(menuEntry);
   const myClubItem = configured.find((item) => item.page === "Club");
   const nonClubItems = myClubItem ? configured.filter((item) => item.page !== "Club") : configured;
-  const hasOverflow = myClubItem ? nonClubItems.length > 4 : configured.length > 5;
+  const hasOverflow = isGolfRole(activeTeam.role) || (myClubItem ? nonClubItems.length > 4 : configured.length > 5);
   const primaryItems = myClubItem
     ? nonClubItems.slice(0, hasOverflow ? 3 : 4)
     : configured.slice(0, hasOverflow ? 4 : 5);

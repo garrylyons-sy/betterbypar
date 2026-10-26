@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Admin - Interclub Snooker",
+  title: "Admin — Better By Par",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
+    icon: "/brand/admin-favicon.ico",
+    shortcut: "/brand/admin-favicon.ico",
     apple: "/admin-icon-180.png"
   }
 };

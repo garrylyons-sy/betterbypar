@@ -20,7 +20,7 @@ export async function GET(request:Request){
  const view=params.get('view');
  const data=view==='history'?await loadAnnouncementHistory(params.get('page')??'1'):view==='detail'?{announcement:await loadAnnouncementDetail(params.get('id')??'')}:!view?await loadAnnouncementOptions():null;
  if(!data)return NextResponse.json({error:'Choose a valid announcement view.'},{status:400});
- return NextResponse.json(view?data:{...data,senderName:access.user!.name||'Interclub Snooker'},{headers:{'Cache-Control':'no-store'}});
+ return NextResponse.json(view?data:{...data,senderName:access.user!.name||'Better By Par'},{headers:{'Cache-Control':'no-store'}});
  }catch(error){return failure(error);}
 }
 export async function POST(request:Request){

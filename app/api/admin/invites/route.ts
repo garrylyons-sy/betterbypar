@@ -1,3 +1,4 @@
+import {normalizeGolfRegistration} from '@/lib/golf-player';
 import { NextRequest, NextResponse } from "next/server";
 
 import { createToken, currentUser } from "@/lib/server/auth";
@@ -71,12 +72,12 @@ function buildInviteEmail({
   const roleCount = roleLabels.length;
   const roleLabel = roleCount > 1 ? "Your roles" : "Your role";
   const welcomeHeadline = isClubOnlyInvite
-    ? `Welcome to the ${club.name} Snooker platform.`
-    : "Welcome to the Interclub Snooker Platform.";
+    ? `Welcome to the ${club.name} club platform.`
+    : "Welcome to the Better By Par.";
   const welcomeBody = isClubOnlyInvite
-    ? `${club.name} has invited you to activate your club snooker account.`
-    : `${club.name} has invited you to activate your Interclub Snooker account.`;
-  const subject = "You have been invited to join Interclub Snooker";
+    ? `${club.name} has invited you to activate your club account.`
+    : `${club.name} has invited you to activate your Better By Par account.`;
+  const subject = "You have been invited to join Better By Par";
   const bodyText = [
     `Hi ${name},`,
     "",
@@ -127,7 +128,7 @@ function buildInviteEmail({
             <div class="invite-hero" style="background:linear-gradient(135deg,${club.primary_color || "#10233f"} 0%,${club.accent_color || "#1b8a72"} 100%);padding:30px 28px;color:white">
               <div class="invite-brand" style="display:flex;align-items:center;gap:14px">
                 ${logoUrl ? `<div class="invite-logo" style="width:62px;height:62px;border-radius:18px;background:#ffffff;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 34px rgba(0,0,0,.18);overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="52" height="52" alt="${escapeHtml(club.name)} crest" style="display:block;max-width:52px;max-height:52px;object-fit:contain;border:0" /></div>` : ""}
-                <div class="invite-kicker" style="display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Interclub Snooker</div>
+                <div class="invite-kicker" style="display:inline-block;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em">Better By Par</div>
               </div>
               <h1 class="invite-title" style="margin:18px 0 8px;font-size:34px;line-height:1.02;letter-spacing:-.02em">You have been invited</h1>
               <p class="invite-subtitle" style="margin:0;font-size:16px;line-height:1.35;font-weight:700;opacity:.9">${escapeHtml(welcomeHeadline)}</p>
@@ -258,14 +259,14 @@ export async function POST(request: NextRequest) {
                from public.club_membership cm
                where cm.person_id = $1
                  and cm.active = true
-                 and cm.role in ('Club Member', 'League Chair')
-                 and not exists (
+                 and cm.role in ('Club Member', 'League Chair', 'Golf Professional', 'Assistant Professional')
+                 and (cm.role in ('Golf Professional','Assistant Professional') or not exists (
                    select 1
                    from public.person_team_role ptr
                    where ptr.person_id = cm.person_id
                      and ptr.club_id = cm.club_id
                      and ptr.active = true
-                 )
+                 ))
                union
                select ca.club_id, 'Club Admin' as role
                from public.club_admin ca
@@ -398,7 +399,7 @@ export async function POST(request: NextRequest) {
         teamId: String(item.teamId ?? "").trim(),
         clubId: String(item.clubId ?? clubId).trim()
       }))
-      .filter((item) => ["Player", "Manager", "Club Member", "Club Admin", "League Chair"].includes(item.role));
+      .filter((item) => ["Player", "Manager", "Club Member", "Club Admin", "League Chair", "Golf Professional", "Assistant Professional"].includes(item.role));
 
     if (!normalizedRoles.length && !administratorInvite) {
       return NextResponse.json({ error: "Add at least one role or administrator access." }, { status: 400 });
@@ -413,8 +414,28 @@ export async function POST(request: NextRequest) {
       if (!club) throw new Error("Club not found.");
 
       const teamRoles = normalizedRoles.filter((item) => item.role === "Player" || item.role === "Manager");
-      const memberRoles = normalizedRoles.filter((item) => item.role === "Club Member" || item.role === "Club Admin" || item.role === "League Chair");
+      const memberRoles = normalizedRoles.filter((item) => ["Club Member", "Club Admin", "League Chair", "Golf Professional", "Assistant Professional"].includes(item.role));
       const invitedRole = teamRoles[0]?.role ?? "Player";
+
+      const coachingInvite=normalizedRoles.some(item=>['Golf Professional','Assistant Professional'].includes(item.role));
+      const playerInvite=normalizedRoles.some(item=>item.role==='Player');
+      if(coachingInvite&&playerInvite)throw new Error('Professionals and assistants cannot be invited as players.');
+      const existingPerson=await client.query('select id,is_golf_player,golf_ireland_number from public.person where lower(email)=lower($1) for update',[email]);
+      const existing=existingPerson.rows[0];
+      // A pending staff invitation is not a coaching appointment. Convert an
+      // existing player only when the invitation is accepted and the role granted.
+      const registration=normalizeGolfRegistration(coachingInvite&&existing?{
+        isGolfPlayer:existing.is_golf_player,golfIrelandNumber:existing.golf_ireland_number
+      }:{
+        isGolfPlayer:coachingInvite?false:body.isGolfPlayer??(playerInvite||existing?.is_golf_player||false),
+        golfIrelandNumber:body.golfIrelandNumber??existing?.golf_ireland_number
+      });
+      if(playerInvite&&!registration.isGolfPlayer)throw new Error('A player invitation requires player registration and a Golf Ireland number.');
+      if(existing)await client.query('update public.person set is_golf_player=$2,golf_ireland_number=$3 where id=$1',[existing.id,registration.isGolfPlayer,registration.golfIrelandNumber]);
+      else{
+        const [first,...rest]=name.split(/\s+/);
+        await client.query('insert into public.person(first_name,last_name,email,phone,is_golf_player,golf_ireland_number) values($1,$2,$3,$4,$5,$6)',[first,rest.join(' '),email,phone||null,registration.isGolfPlayer,registration.golfIrelandNumber]);
+      }
 
       const invitationResult = await client.query(
         `insert into public.invitation (email, phone, invitation_code, invitation_token_hash, invited_person_name, invited_club_id, invited_role, invite_administrator, expires_at, status, created_by)
@@ -438,7 +459,7 @@ export async function POST(request: NextRequest) {
       for (const inviteRole of memberRoles) {
         await client.query(
           "insert into public.invitation_club_membership (invitation_id, club_id, role) values ($1, $2, $3) on conflict do nothing",
-          [invitationId, inviteRole.clubId || clubId, inviteRole.role]
+          [invitationId, clubId, inviteRole.role]
         );
       }
 

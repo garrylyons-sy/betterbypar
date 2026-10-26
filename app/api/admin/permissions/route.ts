@@ -1,7 +1,8 @@
+import { setClubAdminGrant } from "@/lib/server/club-admin-grant";
 import { NextResponse } from "next/server";
 
 import { currentUser } from "@/lib/server/auth";
-import { dbQuery } from "@/lib/server/db";
+import { dbQuery, withTransaction } from "@/lib/server/db";
 
 export const runtime = "nodejs";
 
@@ -44,19 +45,24 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Person and club are required." }, { status: 400 });
       }
 
-      await dbQuery(
-        `insert into public.club_admin (person_id, club_id, active)
-         values ($1, $2, $3)
-         on conflict (club_id, person_id) do update
-         set active = excluded.active`,
-        [personId, clubId, active]
-      );
+      await withTransaction(client => setClubAdminGrant(client, clubId, personId, active));
 
       return NextResponse.json({ ok: true });
     }
 
     if (!personId || !teamId) {
       return NextResponse.json({ error: "Person and team are required." }, { status: 400 });
+    }
+
+    if (active && role === "Player") {
+      const eligible = await dbQuery<{ eligible: boolean }>(
+        `select public.is_golf_player($1::uuid, t.club_id) as eligible
+         from public.team t where t.id = $2`,
+        [personId, teamId]
+      );
+      if (!eligible.rows[0]?.eligible) {
+        return NextResponse.json({ error: "Only registered golf players with a Golf Ireland number can receive a player role. Golf professionals and assistant professionals cannot be players." }, { status: 400 });
+      }
     }
 
     await dbQuery(
