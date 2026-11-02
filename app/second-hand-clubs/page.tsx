@@ -6,7 +6,7 @@ export const metadata={title:'Second-hand clubs — Better By Par'};
 export default async function SecondHandClubsPage(){
  const user=await currentUser();
  return <main className="mx-auto min-h-screen max-w-4xl space-y-5 p-5 pb-12 text-[var(--club-text)] sm:p-8">
-  <Link href="/" className="inline-block py-2 text-sm font-bold underline">← Home</Link>
+
   {!user?<p><Link href="/" className="font-bold underline">Sign in to view the club store preview</Link></p>:<>
    <header className="rounded-3xl bg-[var(--club-primary)] p-6 text-[var(--club-on-primary)] sm:p-8"><div className="flex items-center justify-between gap-4"><ShoppingBag aria-hidden="true" className="h-8 w-8"/><span className="rounded-full border border-current px-3 py-1 text-[10px] font-bold uppercase tracking-widest">Coming soon</span></div><h1 className="mt-5 text-3xl font-extrabold">Second-hand clubs</h1><p className="mt-3 max-w-xl text-sm leading-6">A place to find pre-owned golf clubs and add your own clubs with a value.</p></header>
    <section aria-labelledby="credit-title" className="flex gap-4 rounded-2xl border border-[var(--club-border)] bg-[var(--club-accent-soft)] p-5"><CreditCard aria-hidden="true" className="mt-1 h-6 w-6 shrink-0 text-[var(--club-accent-text)]"/><div><h2 id="credit-title" className="font-extrabold">Club value means pro shop credit</h2><p className="mt-2 text-sm leading-6">Any value shown for your club is credit to spend in the pro shop, not a cash payment.</p></div></section>

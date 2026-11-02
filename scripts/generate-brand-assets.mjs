@@ -17,7 +17,10 @@ for(const [name,badge] of [['platform',''],['admin',shield],['maintenance',wrenc
  await writeFile(new URL(`brand/${name}.svg`,root),svg);
  const raster=async size=>sharp(Buffer.from(svg)).resize(size,size).png().toBuffer();
  for(const size of [180,192,512])await writeFile(new URL(`brand/${name}-${size}.png`,root),await raster(size));
- const images=await Promise.all([16,32,48,64].map(async size=>({size,data:await raster(size)})));
+ // Keep the BBP silhouette; inverse white/amber colouring distinguishes admin tabs.
+ const faviconSvg=name==='admin'?`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><filter id="admin-colours" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0 -0.146 0 0 1.018  0 -0.831 0 0 1.101  0 -2.1 0 0 1.255  0 0 0 1 0"/></filter></defs><rect width="512" height="512" rx="104" fill="#061F3E"/><image href="${mark}" x="64" y="40" width="384" height="432" filter="url(#admin-colours)"/></svg>`:svg;
+ const images=await Promise.all([16,32,48,64].map(async size=>({size,data:await sharp(Buffer.from(faviconSvg)).resize(size,size).png().toBuffer()})));
+ if(name==='admin')await writeFile(new URL('brand/admin-favicon.svg',root),faviconSvg);
  await writeFile(new URL(`brand/${name}-favicon.ico`,root),ico(images));
  if(name==='platform'){
   for(const file of ['favicon.ico','favicon-normal.ico'])await writeFile(new URL(file,root),ico(images));

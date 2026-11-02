@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import{signOutNative,playersAtClub}from'../mobile/src/lib/session-policy.mjs';
+test('native sign-out clears device access even when server revocation is offline',async()=>{const calls=[];const revoked=await signOutNative({clear:async()=>calls.push('clear'),reset:()=>calls.push('reset'),revoke:async()=>{calls.push('revoke');throw new Error('offline');}});assert.deepEqual(calls,['clear','reset','revoke']);assert.equal(revoked,false);});
+test('a player selector contains only the active club contexts',()=>{const p=[{clubId:'a',playerId:'p'},{clubId:'b',playerId:'p'},{clubId:'b',playerId:'q'}];assert.deepEqual(playersAtClub(p,'a'),[p[0]]);assert.deepEqual(playersAtClub(p,'missing'),[]);});
+
+test('a secure-storage failure does not claim to have removed the device credential',async()=>{let reset=false;await assert.rejects(signOutNative({clear:async()=>{throw new Error('keychain unavailable');},reset:()=>{reset=true;},revoke:async()=>{}}));assert.equal(reset,false);});
+
+test('native logout remains available during maintenance',async()=>{const {maintenanceRequestDecision}=await import('../lib/maintenance-policy.mjs');assert.equal(maintenanceRequestDecision({pathname:'/api/mobile/logout',maintenanceEnabled:true}),'allow');assert.equal(maintenanceRequestDecision({pathname:'/api/mobile/session',maintenanceEnabled:true}),'block-api');});

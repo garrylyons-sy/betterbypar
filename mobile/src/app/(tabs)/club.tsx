@@ -1,0 +1,2 @@
+import {Card,Choice,Copy,Page} from '../../components/ui';import {useSession} from '../../lib/session';
+export default function Club(){const {session,club,setClub}=useSession();return <Page title="Club">{session?.clubs.map(c=><Choice key={c.id} label={c.name} selected={club?.id===c.id} onPress={()=>setClub(c.id)}/>)}{club?<Card><Copy bold>{club.name}</Copy><Copy>{club.roles.join(' · ')}</Copy><Copy>The same club identity and permissions apply in the app and on the website.</Copy></Card>:<Copy>No active club membership. Contact your club administrator.</Copy>}</Page>;}

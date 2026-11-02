@@ -1,3 +1,6 @@
+import {designCssVariables} from '@/shared/design-system.mjs';
+import type {CSSProperties} from 'react';
+import {CustomerNavigation} from '@/components/customer-navigation';
 import {localDemoEnabled} from "@/lib/local-demo.mjs";
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
@@ -26,7 +29,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: "#061f3e",
   width: "device-width",
-  initialScale: 1
+  initialScale: 1,
+  viewportFit: "cover"
 };
 
 export default function RootLayout({
@@ -34,10 +38,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const deploymentVersion = deploymentAppVersion();
   return (
-    <html lang="en">
+    <html lang="en" style={designCssVariables() as CSSProperties}>
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">
         {localDemoEnabled() ? <aside className="bg-amber-100 px-4 py-2 text-center text-sm font-semibold text-amber-950">Local demo · sample data · <a className="underline" href="/demo">Switch demo user</a></aside> : null}
-        <ClubThemeProvider><SystemSettingsProvider>{children}</SystemSettingsProvider></ClubThemeProvider>
+        <ClubThemeProvider><SystemSettingsProvider><CustomerNavigation>{children}</CustomerNavigation></SystemSettingsProvider></ClubThemeProvider>
         <PwaRegister deploymentVersion={deploymentVersion} />
       </body>
     </html>

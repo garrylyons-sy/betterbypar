@@ -12,7 +12,11 @@
     "test": "node --test test/*.test.mjs",
     "theme:generate": "node scripts/generate-theme-utilities.mjs",
     "brand:generate": "node scripts/generate-brand-assets.mjs",
-    "demo:local": "node scripts/start-local-demo.mjs"
+    "demo:local": "node scripts/start-local-demo.mjs",
+    "mobile:start": "pnpm --dir mobile start --localhost",
+    "mobile:ios": "pnpm --dir mobile ios",
+    "mobile:android": "pnpm --dir mobile android",
+    "mobile:check": "pnpm --dir mobile typecheck && pnpm --dir mobile lint"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

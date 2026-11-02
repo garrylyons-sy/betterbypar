@@ -1,6 +1,8 @@
 # Better By Par
 
-This project starts from Interclub Snooker. The golf foundation adds club professionals, dependants and separate one-to-one lessons. React Native is future work; this version uses the existing web client and app-owned sessions with Supabase PostgreSQL.
+Better By Par will be available as a full responsive website and separate iOS/Android apps built with React Native, sharing accounts, club branding, data and backend permissions. The current implementation is the Next.js website and installable PWA; the React Native foundation now lives in `mobile/`. See [mobile setup and implemented features](mobile/README.md). See [website and mobile architecture](docs/architecture/web-and-mobile.md).
+
+This project starts from Interclub Snooker and uses app-owned sessions with Supabase PostgreSQL. The golf foundation adds club professionals, dependants and separate one-to-one lessons.
 
 Club administrators have a dedicated **`/clubadmin`** portal for their own club logo, primary colour and accent colour, with a preview before saving. It also provides Lessons, Dependants and the empty Challenges section. An active club administrator appointment is required; a professional or platform role alone does not grant access to this portal. Users appointed at several clubs can select the club whose branding they want to edit. The existing **`/admin`** interface retains platform governance and the inherited operational workflows. Members see saved club branding after refreshing the app. No extra database migration is required for the portal.
 

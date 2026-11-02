@@ -1,3 +1,4 @@
+import {mobileSessionUser} from '@/lib/server/mobile-auth';
 import crypto from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { PoolClient } from "pg";
@@ -163,6 +164,8 @@ export async function clearOAuthCookies() {
 }
 
 export async function currentUser() {
+  const authorization=(await headers()).get("authorization");
+  if(authorization!==null)return mobileSessionUser(authorization);
   const sessionId = (await cookies()).get(sessionCookieName)?.value;
   if (!sessionId) return null;
 

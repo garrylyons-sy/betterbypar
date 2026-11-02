@@ -1,4 +1,6 @@
 "use client";
+import {ViewportPortal} from '@/components/viewport-portal';
+import {customerRootPage} from '@/lib/customer-navigation.mjs';
 import {GolfHome} from '@/components/golf-home';
 import {MemberLessons} from '@/components/member-lessons';
 import {MyGolf} from '@/components/my-golf';
@@ -264,6 +266,7 @@ export function AppShell({
   const [activePage, setActivePage] = useState<AppPage>(() => {
     if (typeof window === "undefined") return "Home";
     const requestedPage = new URLSearchParams(window.location.search).get("page");
+    const customerPage=customerRootPage(requestedPage);if(customerPage)return customerPage;
     return requestedPage === "Competitions" || requestedPage === "Last Man Standing" || requestedPage === "Fixtures" || requestedPage === "Ladder" || requestedPage === "Results" || requestedPage === "Live matches" ? requestedPage : "Home";
   });
   const [selectedStreamId,setSelectedStreamId]=useState<string|null>(()=>typeof window==='undefined'?null:notificationDestination(window.location.pathname+window.location.search).streamId);
@@ -480,7 +483,7 @@ export function AppShell({
 
   return (
     <>
-      <main className="min-h-screen app-bg pb-24 text-[#10233f]">
+      <main className="min-h-screen app-bg pb-[calc(6rem+env(safe-area-inset-bottom))] text-[#10233f]">
       <PwaPullToRefresh
         onRefresh={() => {
           onDataRefresh?.();
@@ -8158,7 +8161,7 @@ function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePa
   const morePages: AppPage[] = ["Menu", ...overflowItems.map((item) => item.page), ...(activeTeam.hasLeagueChairAccess ? ["Shop" as AppPage] : [])];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[#eeeaf2] bg-white px-1.5 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-1.5 shadow-elevated lg:hidden">
+    <ViewportPortal><nav aria-label="App menu" data-mobile-app-menu className="mobile-app-menu border-t border-[#eeeaf2] bg-white px-1.5 pt-1.5 shadow-elevated lg:hidden">
       <div className={cn("mx-auto grid max-w-md gap-1", items.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
         {items.map((item) => {
           const Icon = item.icon;
@@ -8183,6 +8186,6 @@ function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePa
           );
         })}
       </div>
-    </nav>
+    </nav></ViewportPortal>
   );
 }

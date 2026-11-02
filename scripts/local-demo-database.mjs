@@ -30,6 +30,7 @@ export async function initializeLocalDemo(db){
   if(!(await db.query("select to_regclass('public.golf_round') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/golf_rounds.sql',import.meta.url),'utf8'));
   if(!(await db.query("select to_regclass('public.golf_practice_assignment') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/coaching_practice.sql',import.meta.url),'utf8'));
   if(!(await db.query("select to_regclass('public.golf_round_comment') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/round_coaching.sql',import.meta.url),'utf8'));
+  if(!(await db.query("select to_regclass('public.mobile_session') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/mobile_sessions.sql',import.meta.url),'utf8'));
   await updateDemoClubNames(db);
   if((await db.query("select 1 from public.person where email='admin@example.test'")).rows.length){
     if(!playerRegistrationReady)await seedDemoPlayerRegistration(db);

@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {localDemoEnabled,localDemoAccounts} from '../lib/local-demo.mjs';
+import {localDemoEnabled,localDemoAccounts,localDemoHost,localDemoEnvironment} from '../lib/local-demo.mjs';
+test('phone testing requires an explicit private LAN address and keeps the database on loopback',()=>{
+ assert.equal(localDemoHost({}),'127.0.0.1');
+ for(const host of ['192.168.68.120','10.0.0.2','172.16.0.2']){
+  const env=localDemoEnvironment({LOCAL_DEMO_HOST:host});
+  assert.equal(env.APP_URL,`http://${host}:3500`);
+  assert.equal(env.DATABASE_URL,'postgresql://postgres:postgres@127.0.0.1:55432/postgres');
+ }
+ for(const host of ['0.0.0.0','8.8.8.8','192.168.300.1','localhost/path','::','172.32.0.1'])assert.throws(()=>localDemoHost({LOCAL_DEMO_HOST:host}));
+});
 test('local demo entry is unavailable without an explicit development flag',()=>{
  assert.equal(localDemoEnabled({NODE_ENV:'development',LOCAL_DEMO:'1'}),true);
  assert.equal(localDemoEnabled({NODE_ENV:'production',LOCAL_DEMO:'1'}),false);
