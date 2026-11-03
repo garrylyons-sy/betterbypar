@@ -21,7 +21,7 @@ export function ClubFeatureUnavailable({
     <Card className="overflow-hidden">
       <CardContent className="p-4">
         <div
-          className="grid gap-4 rounded-[18px] p-5 text-white sm:grid-cols-[72px_1fr] sm:items-center"
+          className="grid gap-4 rounded-2xl p-5 text-white sm:grid-cols-[72px_1fr] sm:items-center"
           style={{
             background:
               `radial-gradient(circle at 18% 18%, ${primaryColor}aa, transparent 12rem), ` +

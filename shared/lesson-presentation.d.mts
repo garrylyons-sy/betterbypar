@@ -1,0 +1,14 @@
+import type{LessonSlot,LessonPlayer,LessonBooking}from './lesson-contracts';
+export const lessonReminders:{value:number;label:string}[];
+export function lessonDay(value:string):string;
+export function lessonTime(value:string):string;
+export function lessonDate(value:string):string;
+export function lessonDuration(start:string,end:string):number;
+export function lessonCoachKey(slot:LessonSlot):string;
+export function eligibleLessonPlayers(slot:LessonSlot,players:LessonPlayer[]):LessonPlayer[];
+export function hasLessonPlace(slotId:string,playerId:string,bookings:LessonBooking[]):boolean;
+export function lessonAvailability(slot:LessonSlot):{available:boolean;remaining:number|null;label:string};
+export function lessonBookingLists(bookings:LessonBooking[],now?:number):{upcoming:LessonBooking[];past:LessonBooking[]};
+export function lessonBookingTarget(bookingId:string|undefined,consumedId:string|undefined):string|undefined;
+export function lessonPlayerChangeNeedsConfirmation(currentId:string,nextId:string,goals:string,reminder:number):boolean;
+export function lessonBookingWriteResolved(succeeded:boolean,input:{slotId:string;playerId:string},bookings:LessonBooking[]):boolean;

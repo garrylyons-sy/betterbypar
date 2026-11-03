@@ -279,7 +279,7 @@ export function AdminCupCompetitions({ onMessage }: { onMessage: (message: strin
       })}
       {deleteTarget ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Delete cup competition">
-          <div className="w-full max-w-md rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase text-[#6c5a73]">Confirm delete</p>

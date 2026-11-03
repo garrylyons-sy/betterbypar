@@ -5,18 +5,12 @@ import {Button} from '@/components/ui/button';
 import {GolfSelect,golfInput,golfRequest,lessonTime} from '@/components/golf-ui';
 import {NotificationBell,NotificationCenter,useNotificationCenter} from '@/components/notification-center';
 
-type Slot={id:string;club_id:string;club_name:string;title:string;professional_person_id?:string;professional_name:string;professional_role?:string;starts_at:string;ends_at:string;booked:boolean;group_id?:string|null;group_name?:string|null;group_mode?:'Open'|'Roster'|null;capacity?:number|null;booked_count?:number;eligible_player_ids?:string[];attendee_names?:string[]};
-type Booking={id:string;club_id:string;slot_id?:string;player_person_id?:string;group_id?:string|null;group_name?:string|null;title:string;starts_at:string;ends_at:string;professional_name:string;player_name:string;status:string;goals?:string|null;reminder_minutes?:number;feedback?:string|null;drills?:string|null;reminder_due?:boolean};
-type Data={actorId?:string;canManage:boolean;slots:Slot[];players:{id:string;name:string;club_id:string}[];bookings:Booking[]};
-const reminders=[{value:0,label:'Off'},{value:30,label:'30 minutes before'},{value:60,label:'1 hour before'},{value:120,label:'2 hours before'},{value:1440,label:'24 hours before'},{value:2880,label:'48 hours before'}];
-const dayKey=(value:string)=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Dublin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
-const time=(value:string)=>new Date(value).toLocaleTimeString('en-IE',{timeZone:'Europe/Dublin',hour:'2-digit',minute:'2-digit'});
-const duration=(start:string,end:string)=>Math.round((new Date(end).getTime()-new Date(start).getTime())/60000);
-const coachKey=(slot:Slot)=>slot.professional_person_id??slot.professional_name;
+import type {LessonSlot as Slot,MemberLessonData as Data} from '@/shared/lesson-contracts';
+import {lessonReminders as reminders,lessonDay as dayKey,lessonTime as time,lessonDuration as duration,lessonCoachKey as coachKey,eligibleLessonPlayers,hasLessonPlace} from '@/shared/lesson-presentation.mjs';
 const lessonCardKey=(slot:Slot)=>`${coachKey(slot)}:${slot.club_id}:${slot.group_id??'personal'}`;
 const places=(slot:Slot)=>slot.capacity==null?'No place limit':`${Math.max(0,Number(slot.capacity)-Number(slot.booked_count??0))} ${Number(slot.capacity)-Number(slot.booked_count??0)===1?'place':'places'} left`;
-const playersFor=(slot:Slot,data:Data)=>data.players.filter(p=>p.club_id===slot.club_id&&(slot.group_mode!=='Roster'||slot.eligible_player_ids?.includes(p.id)));
-const hasPlace=(slotId:string,playerId:string,data:Data)=>data.bookings.some(b=>b.slot_id===slotId&&b.player_person_id===playerId&&b.status==='Booked');
+const playersFor=(slot:Slot,data:Data)=>eligibleLessonPlayers(slot,data.players);
+const hasPlace=(slotId:string,playerId:string,data:Data)=>hasLessonPlace(slotId,playerId,data.bookings);
 function ReminderSelect({value,onChange,disabled=false}:{value:number;onChange:(value:number)=>void;disabled?:boolean}) {return <label className="grid gap-1 text-sm font-bold text-[#365347]">Reminder<select className={golfInput} value={value} onChange={e=>onChange(Number(e.target.value))} disabled={disabled}>{reminders.map(r=><option key={r.value} value={r.value}>{r.label}</option>)}</select></label>;}
 
 export function MemberLessons({personalView=false,embedded=false}:{personalView?:boolean;embedded?:boolean}){

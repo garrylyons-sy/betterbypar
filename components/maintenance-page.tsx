@@ -7,7 +7,7 @@ export function MaintenancePage() {
       <div className="relative mx-auto grid w-full max-w-4xl items-center gap-12 md:grid-cols-[1fr_1.2fr] md:gap-20">
         <div className="relative mx-auto flex h-64 w-64 items-center justify-center rounded-full border border-[#061f3e]/10 sm:h-80 sm:w-80">
           <div className="absolute inset-5 rounded-full border border-[#061f3e]/10" />
-          <img src="/brand/maintenance.svg" width="192" height="192" alt="Platform maintenance" className="relative h-44 w-44 rounded-[38px] shadow-[0_24px_60px_#061f3e20] sm:h-48 sm:w-48" />
+          <img src="/brand/maintenance.svg" width="192" height="192" alt="Platform maintenance" className="relative h-44 w-44 rounded-2xl shadow-[0_24px_60px_#061f3e20] sm:h-48 sm:w-48" />
         </div>
         <div className="text-center md:text-left">
           <p className="text-[10px] font-bold uppercase tracking-[.28em] text-[#0870cc]">A little time for improvement</p>

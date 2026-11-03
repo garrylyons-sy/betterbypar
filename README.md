@@ -24,6 +24,8 @@ Fictional accounts use `@example.test` addresses and the local-only password `Lo
 
 ## Start with a new Supabase project
 
+For the complete current installation, native connection and first-admin activation steps, follow [Supabase deployment](docs/deployment/supabase.md). Run `npm run db:prepare` to generate all 17 migrations in order and `npm run db:check` to verify the configured project without writing data.
+
 Use a separate project and its own credentials. Copy `.env.example` to `.env.local`, set `DATABASE_URL` to the new Supabase server connection string and `NEXT_PUBLIC_APP_URL` to your app URL. Add separate Google OAuth/email settings when needed. No credentials or data from the original app are included.
 
 Apply these files, in this order, to the **empty new database**, using the Supabase SQL editor or `pnpm db:apply <file>`:
@@ -310,3 +312,7 @@ Apply `supabase/livestream_notifications.sql` for the internal livestream event 
 ### Lesson diary
 
 Professionals now manage a saved default week and per-week overrides at `/lessons/manage`, with half-hour member bookings at `/lessons`. Apply `supabase/lesson_diary.sql` after `golf_foundation.sql` for a separately configured database; local demo startup applies it automatically. See [Lessons setup and reminder delivery](docs/lessons/lesson-diary.md) for the authenticated five-minute cron and email configuration.
+
+### Golf course catalogue
+
+Round capture on web and native uses database-backed course/layout/tee selection. Apply `supabase/golf_course_catalogue.sql` followed by `supabase/golf_course_catalogue_seed.sql` with `npm run db:apply -- <file>` for your Supabase database. The local demo applies both automatically. Initial data covers Castle, Grange and Milltown; sources, missing ratings, seed regeneration and historical snapshot rules are documented in [the catalogue data notes](docs/data/golf-course-catalogue.md).

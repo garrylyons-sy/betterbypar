@@ -22,7 +22,7 @@ Share portable domain policies and API contracts where appropriate. Keep Next.js
 
 ## Current implementation and remaining work
 
-The current running implementation is the responsive website, with an installable PWA manifest and service worker. An installed PWA is not the planned React Native application, and a first React Native client is now implemented in `mobile/` for sign-in, summaries and practice logging. It has not been installed on a device or published.
+The responsive website includes an installable PWA manifest and service worker. The separate React Native client in `mobile/` now supports sign-in, shared branding/Home summaries, member rounds, practice and lesson booking. An iOS development build is installed locally and the customer flows have been checked in the iPhone simulator. Android bundles are checked separately; physical Android testing and store distribution remain outstanding.
 
 The [mobile implementation guide](../../mobile/README.md) records the working first slice and remaining native screens. The roadmap is:
 

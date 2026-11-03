@@ -8,11 +8,12 @@ Native React Native / Expo SDK 58 client for iOS and Android. The production web
 - Hashed, independent native sessions, 30-day expiry and SecureStore device storage. Password changes or suspension revoke native sessions. Signing out clears the device immediately and attempts server revocation; offline revocation is best effort.
 - Home, My Golf, Lessons, Club and More through Expo Router tabs, with native safe areas.
 - Club selection/branding; own or guardian-managed player's handicap and recent Golf Ireland/sample data.
-- Saved round summaries and notes; assigned challenges/drills and structured drill steps.
-- Logging today's drill session through the existing practice API, visible to the professional and website.
-- Lesson booking history and existing professional feedback.
+- My Golf sections for rounds, practice and personal lessons, with authorised player/dependant selection.
+- Create/edit 9- or 18-hole rounds, hole commentary and shot observations, Golf Ireland import, consent-based AI feedback and coaching discussions.
+- Structured challenges/drills, dated practice logs, saved-round checks and confirmed player/guardian attestation.
+- Discover and book individual/group lessons, choose goals and reminders, cancel bookings and review professional feedback.
 
-Native lesson booking, round creation/edit/import, coaching discussions, challenge attestation, video demos, professional administration and native push are not implemented yet. Some entries explicitly open the website, which has an independent browser sign-in. The store stays a coming-soon preview. No offline editing or sync queue is claimed.
+Drill demo links open externally; embedded video, professional administration and native push are not implemented yet. Some entries explicitly open the website, which has an independent browser sign-in. The store stays a coming-soon preview. No offline editing or sync queue is claimed. Golf Ireland and AI use the backend's configured live/demo/off modes.
 
 ## Install and run
 
@@ -63,12 +64,13 @@ Local demo credentials are listed in the root README. The native sign-in limit i
 pnpm mobile:check
 pnpm test
 node scripts/verify-native-client.mjs
+node scripts/verify-native-member-journeys.mjs
 EXPO_OFFLINE=1 pnpm --dir mobile exec expo export --platform ios --output-dir /tmp/bbp-native-ios
 EXPO_OFFLINE=1 pnpm --dir mobile exec expo export --platform android --output-dir /tmp/bbp-native-android
 ```
 
-The HTTP verifier runs only against the local demo, creates disposable practice records, checks native-to-website data visibility and session isolation, then cleans up its records. Export verifies JavaScript/Hermes bundles; it is not an installed app, signed native binary or physical-device test. No EAS build, app-store publishing or paid services have been configured.
+The HTTP verifiers run only against the local demo and clean up their disposable records. The member-journey verifier checks bookings/reminders/cancellation, round edits/conflicts/import/AI, idempotent coaching replies and practice logging, and challenge attestation. Set `NATIVE_TEST_ORIGIN` to the trusted LAN origin when the demo is bound there. Export verifies JavaScript/Hermes bundles; it is not a signed native binary or physical-device test. An iOS development build has been installed locally; no EAS build, app-store publishing or paid services have been configured.
 
 ## Shared design and feature parity
 
-The Home screen now follows the mobile website using shared semantic branding, visual scales, complete golf-summary contracts and display rules. See [the shared design architecture](../docs/architecture/shared-web-native-design.md). Club branding refreshes on return to the app and Home pull-to-refresh. Native Home includes low index, movement, trend, detailed recent rounds, counting icons/legend and expandable source details. My Golf and Lessons remain subsequent parity slices; native booking and editing are not added by this visual update.
+Home, My Golf and Lessons use shared semantic branding, visual scales, API contracts and presentation rules. See [the shared design architecture](../docs/architecture/shared-web-native-design.md). Club branding refreshes on return to the app and Home pull-to-refresh. Native Home includes low index, movement, trend, detailed recent rounds, counting icons/legend and expandable source details. My Golf and Lessons perform their core customer actions against the website backend, with draft guards and server-side access, capacity, revision and duplicate checks.

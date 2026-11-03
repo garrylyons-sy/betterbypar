@@ -1,10 +1,10 @@
 'use client';
 
 import {useEffect, useId, useState} from 'react';
-import {ArrowDownRight, ArrowUpRight, Flag, RefreshCw, CheckCircle2, CircleMinus, CircleHelp} from 'lucide-react';
+import {ArrowDownRight, ArrowUpRight, Flag, RefreshCw} from 'lucide-react';
 
 import type {GolfSummary as Summary,GolfSummaryResponse as Payload} from '@/shared/golf-summary';
-import {indexLabel,dateLabel,countingLabel,golfSummaryView,trendPoints} from '@/shared/golf-presentation.mjs';
+import {indexLabel,dateLabel,countingLabel,countingSignalColours,golfSummaryView,trendPoints} from '@/shared/golf-presentation.mjs';
 type Resource = {clubName:string;playerId:string;data:Payload|null;error:string|null};
 const availableNumber = (value:number|null|undefined):value is number => typeof value==='number' && Number.isFinite(value);
 
@@ -79,8 +79,13 @@ export function GolfSummary({clubName,selfOnly=false}:{clubName:string;selfOnly?
 
 function CountingIcon({counting}:{counting:boolean|null}){
   const label=countingLabel(counting);
-  const Icon=counting===true?CheckCircle2:counting===false?CircleMinus:CircleHelp;
-  return <span role="img" aria-label={label} title={label} className={`golf-counting-icon ${counting===true?'is-counting':''}`}><Icon aria-hidden="true" className="h-4 w-4"/></span>;
+  const active=counting===true?2:counting===false?0:1;
+  const colour=counting===true?countingSignalColours.green:counting===false?countingSignalColours.red:countingSignalColours.unknown;
+  return <span role="img" aria-label={label} title={label} className="golf-counting-icon"><svg aria-hidden="true" width="28" height="54" viewBox="0 0 28 54">
+    <rect x="2" y="1" width="24" height="49" rx="8" fill="none" stroke={countingSignalColours.housing} strokeWidth="1.7"/>
+    <path d="M10 53h8m-4-3v3" fill="none" stroke={countingSignalColours.housing} strokeWidth="1.7" strokeLinecap="round"/>
+    {[0,1,2].map(i=><g key={i}>{i===active&&<circle cx="14" cy={10+i*15} r="7" fill={colour} opacity=".16"/>}<circle cx="14" cy={10+i*15} r="6" fill={i===active?colour:'none'} stroke={i===active?colour:countingSignalColours.unknown} strokeWidth={i===active?'1.2':'1.4'} opacity={i===active?1:.5}/>{i===active&&<circle cx="12.3" cy={8.3+i*15} r="1.3" fill="white" opacity=".65"/>}</g>)}
+  </svg></span>;
 }
 
 function HandicapTrend({history,demo}:{history:Summary['history'];demo:boolean}) {

@@ -3,6 +3,6 @@ export type NativeClub={id:string;name:string;primaryColor:string;accentColor:st
 export type NativeSession={user:{accountId:string;personId:string;name:string;email:string;profileImage:string};clubs:NativeClub[];demo:boolean};
 export type NativeLogin={token:string;expiresAt:string;user:NativeSession['user']};
 export type {GolfSummaryResponse} from './golf-summary';
-export type NativeRounds={selected:null|{playerId:string;clubId:string};options:{playerId:string;clubId:string;name:string;clubName:string}[];rounds:{id:string;courseName:string;playedOn:string;holeCount:number;source:string;status:string;commentary:string;revision:number;importedGross:number|null;stats:{gross:number|null}}[];hasMore:boolean};
-export type NativePractice={selected:null|{playerId:string;clubId:string};options:NativeRounds['options'];assignments:{id:string;playerName:string;coachName:string;kind:'challenge'|'drill';status:string;startsOn:string;dueOn:string|null;notes:string;goalSessions:number;targetHoles:number;definition:{title:string;description:string;steps?:string[];minutes?:number;repetitions?:number;successCriteria?:string;demoUrl?:string};sessions:{id:string;minutes:number;performedOn:string;note:string}[];latestAttempt:null|{stale:boolean;result:{outcome:string;detail:string;evidence:string}}}[]};
-export type NativeLessons={bookings:{id:string;club_id:string;title:string;player_name:string;professional_name:string;starts_at:string;status:string;goals:string;feedback:string;drills:string}[];canManage:boolean};
+export type {RoundJournalData as NativeRounds} from './round-contracts';
+export type {PracticeData as NativePractice} from './practice-contracts';
+export type {MemberLessonData as NativeLessons} from './lesson-contracts';

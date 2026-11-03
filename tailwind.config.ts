@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import {designTokens} from "./shared/design-system.mjs";
 
 const config: Config = {
   darkMode: ["class"],
@@ -9,6 +10,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      borderRadius: {
+        sm: "2px", DEFAULT: "4px", md: `${designTokens.radius.small}px`,
+        lg: `${designTokens.radius.small}px`, xl: `${designTokens.radius.button}px`,
+        "2xl": `${designTokens.radius.card}px`, "3xl": `${designTokens.radius.hero}px`
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

@@ -16,7 +16,9 @@
     "mobile:start": "pnpm --dir mobile start --localhost",
     "mobile:ios": "pnpm --dir mobile ios",
     "mobile:android": "pnpm --dir mobile android",
-    "mobile:check": "pnpm --dir mobile typecheck && pnpm --dir mobile lint"
+    "mobile:check": "pnpm --dir mobile typecheck && pnpm --dir mobile lint",
+    "db:prepare": "node scripts/supabase-install.mjs",
+    "db:check": "node scripts/check-supabase.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

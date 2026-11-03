@@ -1088,7 +1088,7 @@ function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { active
   const items = [...menuItems.map(menuEntry),...(isGolfRole(activeTeam.role)?[{label:"More",page:"Menu" as AppPage,icon:MenuIcon,description:"Account and coaching"}]:[])];
 
   return (
-    <aside className="hidden self-start rounded-[18px] p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+    <aside className="hidden self-start rounded-2xl p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
       <p className="text-xs font-bold uppercase text-white/60">{isClubOnlyRole(activeTeam.role) ? "Club" : "Competition"}</p>
       <h2 className="mt-1 text-2xl font-extrabold">{isClubOnlyRole(activeTeam.role) ? activeTeam.club.replace(" Golf Club", "") : activeTeam.league}</h2>
       <div className="mt-5 space-y-1.5">
@@ -1122,7 +1122,7 @@ function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = 
   const points = activeTeam.leaguePoints ?? activeTeam.pointsFor ?? 0;
   const qualification = qualificationStatus(activeTeam.leaguePosition, leagueTeamCount, activeTeam.league);
   return (
-    <section className="min-w-0 overflow-hidden rounded-[18px] text-white shadow-card">
+    <section className="min-w-0 overflow-hidden rounded-2xl text-white shadow-card">
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         {activeMatchCount > 0 ? (
@@ -1186,7 +1186,7 @@ function teamHasActivity(team: TeamContext) {
 
 function ClubMemberHero({ activeTeam, userLabel }: { activeTeam: TeamContext; userLabel?: string }) {
   return (
-    <section className="min-w-0 overflow-hidden rounded-[18px] text-white shadow-card">
+    <section className="min-w-0 overflow-hidden rounded-2xl text-white shadow-card">
       <div className="relative p-4 sm:p-5 xl:p-6" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
         <div className="table-line-pattern absolute inset-0 opacity-20" />
         <div className="relative flex min-w-0 items-start gap-3">
@@ -1998,7 +1998,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
     <section className="grid gap-4">
       <Card className="overflow-hidden">
         <CardContent className="pt-4">
-          <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+          <div className="rounded-2xl p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-extrabold uppercase text-white/65">Table bookings</p>
@@ -2049,7 +2049,7 @@ function TableBookings({ activeTeam }: { activeTeam: TeamContext }) {
       </Card>
 
       {message ? (
-        <div className="rounded-[18px] bg-white p-4 text-sm font-extrabold shadow-card" style={{ color: activeTeam.primaryColor }}>
+        <div className="rounded-2xl bg-white p-4 text-sm font-extrabold shadow-card" style={{ color: activeTeam.primaryColor }}>
           {message}
         </div>
       ) : null}
@@ -2734,7 +2734,7 @@ function CompetitionScoreModal({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/60 p-4" role="dialog" aria-modal="true" aria-label="Enter competition score">
-      <div className="w-full max-w-md rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
+      <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase text-[#6c5a73]">{match.roundName} - Match {match.matchNumber}</p>
@@ -2876,7 +2876,7 @@ function ClubHubPage({ activeTeam, onNavigate }: { activeTeam: TeamContext; onNa
     <section className="grid gap-4 md:grid-cols-2">
       <Card className="overflow-hidden md:col-span-2">
         <CardContent className="pt-4">
-          <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+          <div className="rounded-2xl p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
             <p className="text-xs font-extrabold uppercase text-white/65">Club</p>
             <h2 className="mt-1 text-3xl font-black leading-none">{activeTeam.club}</h2>
             <p className="mt-2 max-w-xl text-sm font-semibold text-white/75">
@@ -3041,7 +3041,7 @@ function ClubTeamsOverview({ activeTeam }: { activeTeam: TeamContext }) {
         {teams.map((team) => {
           const open = openTeamIds.has(team.teamId);
           return (
-            <div key={team.teamId} className="overflow-hidden rounded-[18px] bg-white ring-1 ring-[#eeeaf2]">
+            <div key={team.teamId} className="overflow-hidden rounded-2xl bg-white ring-1 ring-[#eeeaf2]">
               <button
                 type="button"
                 onClick={() => toggleTeam(team.teamId)}
@@ -3131,7 +3131,7 @@ function AttackSnookerGameCard() {
         <Badge variant="green">Attack Snooker</Badge>
       </CardHeader>
       <CardContent className="grid gap-4 xl:grid-cols-[minmax(320px,0.82fr)_minmax(420px,1.18fr)]">
-        <div className="flex overflow-hidden rounded-[18px] bg-[#10233f] ring-1 ring-[#d8d1df] xl:max-h-[720px]">
+        <div className="flex overflow-hidden rounded-2xl bg-[#10233f] ring-1 ring-[#d8d1df] xl:max-h-[720px]">
           <img
             src="/attack-snooker.png"
             alt="Castle Attack Snooker Blitz rules poster"
@@ -3140,7 +3140,7 @@ function AttackSnookerGameCard() {
           />
         </div>
         <div className="grid gap-3">
-          <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle("#10233F", "#146B4C")}>
+          <div className="rounded-2xl p-4 text-white" style={clubPanelStyle("#10233F", "#146B4C")}>
             <p className="text-xs font-extrabold uppercase text-white/65">Attack Snooker</p>
             <h2 className="mt-1 text-3xl font-black leading-none">Fast frames, no snookers</h2>
             <p className="mt-2 text-sm font-semibold text-white/75">
@@ -3852,7 +3852,7 @@ function ContactsPage({ activeTeam }: { activeTeam: TeamContext }) {
                 const logoPath = clubContacts[0]?.clubLogoPath ?? activeTeam.logoPath;
                 const open = openClubNames.has(clubName);
                 return (
-                  <section key={clubName} className="max-w-full overflow-hidden rounded-[18px] bg-white ring-1 ring-[#eeeaf2]">
+                  <section key={clubName} className="max-w-full overflow-hidden rounded-2xl bg-white ring-1 ring-[#eeeaf2]">
                     <button
                       type="button"
                       onClick={() => toggleClub(clubName)}
@@ -4725,7 +4725,7 @@ function TeamStatsCard({ activeTeam, onNavigate, leagueTeamCount, userCanShare =
         </div>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+        <div className="rounded-2xl p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
           <p className="text-xs font-extrabold uppercase text-white/65">{activeTeam.league}</p>
           <p className="mt-1 text-3xl font-black leading-tight">{activeTeam.name}</p>
           <div className="mt-4 grid grid-cols-3 gap-2">
@@ -4793,7 +4793,7 @@ function PlayerStatCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+        <div className="rounded-2xl p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
           <p className="text-xs font-extrabold uppercase text-white/65">Personal win rate</p>
           <p className="mt-1 text-6xl font-black leading-none">{played ? `${winRate}%` : "-"}</p>
           <div className={cn("mt-4 grid gap-2", miniStats.length > 3 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
@@ -4815,7 +4815,7 @@ function HighBreakSeasonCard({ activeTeam, breakStat }: { activeTeam: TeamContex
         <Badge variant="muted">{activeTeam.season}</Badge>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+        <div className="rounded-2xl p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
           <p className="text-xs font-extrabold uppercase text-white/65">High break this season</p>
           <p className="mt-1 text-6xl font-black leading-none">{breakStat.highestBreak}</p>
           <div className="mt-4 grid grid-cols-3 gap-2">
@@ -4908,7 +4908,7 @@ function SeasonCompleteCard({ activeTeam = teamContexts[0], action, leagueTeamCo
         </Badge>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-[18px] border p-4" style={clubSoftAccentStyle(activeTeam.primaryColor)}>
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border p-4" style={clubSoftAccentStyle(activeTeam.primaryColor)}>
           <div>
             <p className="text-xs font-extrabold uppercase text-[#6c5a73]">{activeTeam.club.replace(" Golf Club", "")}</p>
             <p className="mt-1 text-lg font-black">{activeTeam.name.replace(activeTeam.club.replace(" Golf Club", ""), "").trim() || activeTeam.name}</p>
@@ -5280,7 +5280,7 @@ function TeamPositionStrip({ activeTeam }: { activeTeam: TeamContext }) {
   return (
     <Card className="md:self-start">
       <CardContent className="pt-4">
-        <div className="flex items-center justify-between rounded-[18px] p-4 text-white" style={clubAccentStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+        <div className="flex items-center justify-between rounded-2xl p-4 text-white" style={clubAccentStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
           <div>
             <p className="text-xs font-extrabold uppercase">{hasLeagueTable ? "Team position" : "Table pending"}</p>
             <p className="text-lg font-black">{activeTeam.name}</p>
@@ -7845,7 +7845,7 @@ function LatestTeamResultCard({ activeTeam, matchResults }: { activeTeam: TeamCo
         </Badge>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+        <div className="rounded-2xl p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
           <ScoreRow team={latestResult.homeTeamName} score={String(latestResult.homeTeamScore)} winner={latestResult.homeTeamScore > latestResult.awayTeamScore} />
           <ScoreRow team={latestResult.awayTeamName} score={String(latestResult.awayTeamScore)} winner={latestResult.awayTeamScore > latestResult.homeTeamScore} />
           <div className="mt-3 rounded-xl bg-white/10 p-3">
@@ -7871,7 +7871,7 @@ function ScoreCard({ activeTeam = teamContexts[0] }: { activeTeam?: TeamContext 
         <Badge variant="muted">Completed</Badge>
       </CardHeader>
       <CardContent>
-        <div className="rounded-[18px] p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
+        <div className="rounded-2xl p-4 text-white" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
           <ScoreRow team={activeTeam.name} score={teamScore} winner={winner} />
           <ScoreRow team={opponent} score={opponentScore} winner={!winner} />
         </div>

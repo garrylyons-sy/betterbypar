@@ -1,4 +1,5 @@
 'use client';
+import {availablePracticeRounds} from '@/shared/practice-presentation.mjs';
 import {useEffect,useRef,useState} from 'react';
 import {Target,Dumbbell} from 'lucide-react';
 import {golfInput,golfRequest} from '@/components/golf-ui';
@@ -23,7 +24,7 @@ export function PlayerPractice(){
 }
 function PlayerActions({item,rounds,busy,onAction}:{item:PracticeAssignment;rounds:PracticeData['rounds'];busy:boolean;onAction:(body:Record<string,unknown>)=>Promise<boolean>}){
  const [roundId,setRound]=useState(''),[note,setNote]=useState(''),[date,setDate]=useState(practiceToday()),[minutes,setMinutes]=useState((item.definition as DrillDefinition).minutes??10),[met,setMet]=useState('yes'),[confirmed,setConfirmed]=useState(false),[key,setKey]=useState(()=>crypto.randomUUID());
- const available=rounds.filter(r=>r.playedOn>=item.startsOn&&(!item.dueOn||r.playedOn<=item.dueOn));
+ const available=availablePracticeRounds(rounds,item);
  const attestationOnly=['custom','no_lost_balls'].includes((item.definition as ChallengeDefinition).rule);
  async function submit(action:string){if(await onAction({action,roundId:roundId||undefined,performedOn:date,minutes,note,met:met==='yes',confirmed,clientKey:key})){setKey(crypto.randomUUID());setNote('');setConfirmed(false);}}
  if(item.kind==='drill')return <form className="space-y-3 rounded-xl bg-[var(--club-soft)] p-3" onSubmit={e=>{e.preventDefault();void submit('log');}}><h4 className="text-sm font-bold">Record a practice session</h4><div className="grid grid-cols-2 gap-3"><Field label="Date completed"><input required type="date" min={item.startsOn} max={item.dueOn&&item.dueOn<practiceToday()?item.dueOn:practiceToday()} className={golfInput} value={date} onChange={e=>setDate(e.target.value)}/></Field><Field label="Minutes practised"><input required type="number" min={1} max={180} className={golfInput} value={minutes} onChange={e=>setMinutes(Number(e.target.value))}/></Field></div><Field label="Practice notes · optional"><textarea maxLength={1000} className={golfInput} value={note} placeholder="What did you notice?" onChange={e=>setNote(e.target.value)}/></Field><button className={primary} disabled={busy}>Log completed session</button></form>;

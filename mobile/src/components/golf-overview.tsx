@@ -1,7 +1,7 @@
 import {useState} from 'react';
 import {Pressable,StyleSheet,Text,View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
-import {dateLabel,golfSummaryView,indexLabel,countingLabel,type TrendPoint} from '../../../shared/golf-presentation.mjs';
+import {dateLabel,golfSummaryView,indexLabel,countingLabel,countingSignalColours,type TrendPoint} from '../../../shared/golf-presentation.mjs';
 import type {GolfSummary} from '../../../shared/golf-summary';
 import {useTheme,designTokens as t} from '../lib/theme';
 
@@ -10,7 +10,8 @@ export function GolfOverview({summary}:{summary:GolfSummary}){
  const {handicap,rounds,movement,movementLabel,hasUnknownCounting,trend}=golfSummaryView(summary);
  return <View style={[s.overview,{backgroundColor:theme.soft,borderColor:theme.border}]}>
   <View style={s.sectionHeading}><Text accessibilityRole="header" style={[s.sectionTitle,{color:theme.text}]}>Your golf</Text>{summary.mode==='demo'&&<Text style={[s.badge,{color:theme.primaryText,borderColor:theme.border}]}>SAMPLE DATA</Text>}</View>
-  <View style={[s.hero,{backgroundColor:theme.primary}]}>
+  <View style={[s.hero,{backgroundColor:theme.primary,borderTopWidth:3,borderTopColor:theme.accent}]}>
+   <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{position:'absolute',right:-50,top:-70,width:230,height:230,borderRadius:115,backgroundColor:theme.primaryLift,opacity:.38}}/>
    <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[s.orbit,{borderColor:theme.onPrimary}]}/>
    <View style={s.row}><View style={{flex:1,gap:3}}><Text style={[s.player,{color:theme.onPrimary}]}>{summary.player.name}</Text><Text style={[s.small,{color:theme.onPrimary,opacity:.8}]}>{summary.player.homeClub}</Text></View><Ionicons name="flag-outline" color={theme.onPrimary} size={22}/></View>
    <View style={[s.row,{alignItems:'flex-end',marginTop:t.spacing.xl}]}>
@@ -34,7 +35,15 @@ export function GolfOverview({summary}:{summary:GolfSummary}){
  </View>;
 }
 function RoundStat({label,value}:{label:string;value:string}){const theme=useTheme();return <Text style={[s.meta,{color:theme.muted}]}>{label} <Text style={{fontWeight:'800',color:theme.text}}>{value}</Text></Text>;}
-function CountingIcon({counting}:{counting:boolean|null}){const theme=useTheme();return <Ionicons accessibilityRole="image" accessibilityLabel={countingLabel(counting)} name={counting===true?'checkmark-circle-outline':counting===false?'remove-circle-outline':'help-circle-outline'} size={18} color={counting===true?theme.primaryText:theme.muted}/>;}
+function CountingIcon({counting}:{counting:boolean|null}){
+ const active=counting===true?2:counting===false?0:1,colour=counting===true?countingSignalColours.green:counting===false?countingSignalColours.red:countingSignalColours.unknown;
+ return <View accessible accessibilityRole="image" accessibilityLabel={countingLabel(counting)} style={{width:28,height:54,alignItems:'center'}}>
+  <View style={{width:25,height:50,borderRadius:8,borderWidth:1.7,borderColor:countingSignalColours.housing,alignItems:'center',justifyContent:'space-around',paddingVertical:2}}>
+   {[0,1,2].map(i=><View key={i} style={{width:14,height:14,borderRadius:7,backgroundColor:i===active?`${colour}29`:'transparent',alignItems:'center',justifyContent:'center'}}><View style={{width:12,height:12,borderRadius:6,borderWidth:1.4,borderColor:i===active?colour:countingSignalColours.unknown,opacity:i===active?1:.5,backgroundColor:i===active?colour:'transparent'}}>{i===active&&<View style={{position:'absolute',top:1,left:1,width:2,height:2,borderRadius:1,backgroundColor:'#FFFFFF',opacity:.65}}/>}</View></View>)}
+  </View><View style={{width:2,height:3,backgroundColor:countingSignalColours.housing}}/><View style={{width:8,height:1.7,borderRadius:1,backgroundColor:countingSignalColours.housing}}/>
+ </View>;
+}
+
 function IndexTrend({points}:{points:TrendPoint[]}){
  const theme=useTheme(),[width,setWidth]=useState(280),first=points[0],last=points[points.length-1];
  return <View style={[s.trend,{borderColor:theme.onPrimary}]}>
@@ -49,5 +58,5 @@ function IndexTrend({points}:{points:TrendPoint[]}){
 const s=StyleSheet.create({
  overview:{borderWidth:1,borderRadius:t.radius.card,overflow:'hidden'},sectionHeading:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8,paddingVertical:14,paddingHorizontal:16},sectionTitle:{fontSize:t.type.section,fontWeight:'800'},badge:{fontSize:9,fontWeight:'800',letterSpacing:.5,borderWidth:1,borderRadius:t.radius.pill,paddingVertical:4,paddingHorizontal:8},
  hero:{marginHorizontal:12,padding:t.spacing.xl,borderRadius:t.radius.hero,overflow:'hidden'},orbit:{position:'absolute',width:230,height:230,borderWidth:28,borderRadius:115,right:-110,top:-12,opacity:.06},row:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12},player:{fontSize:t.type.body,fontWeight:'700'},small:{fontSize:t.type.small,lineHeight:18},label:{fontSize:t.type.caption,fontWeight:'700',letterSpacing:.9,opacity:.8},index:{fontSize:t.type.index,lineHeight:66,fontWeight:'800',letterSpacing:-3,fontVariant:['tabular-nums']},low:{paddingLeft:18,borderLeftWidth:1,paddingBottom:4},lowValue:{fontSize:t.type.lowIndex,fontWeight:'700',marginTop:4,fontVariant:['tabular-nums']},trend:{marginTop:16,paddingTop:12,borderTopWidth:StyleSheet.hairlineWidth},
- rounds:{padding:12,gap:10},round:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderWidth:1,borderRadius:t.radius.button},score:{alignSelf:'stretch',justifyContent:'center',alignItems:'center',width:55,minHeight:76,borderRadius:t.radius.small,gap:4},scoreValue:{fontSize:t.type.score,fontWeight:'800',fontVariant:['tabular-nums']},course:{fontSize:14,fontWeight:'800'},meta:{fontSize:10,lineHeight:16},legend:{flexDirection:'row',gap:12,flexWrap:'wrap',paddingHorizontal:4,paddingTop:2},empty:{padding:20,borderWidth:1,borderStyle:'dashed',borderRadius:12,fontSize:13},detailsToggle:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:t.minTouchTarget,paddingHorizontal:16,borderTopWidth:1},details:{padding:16,paddingTop:0,gap:8}
+ rounds:{padding:12,gap:10},round:{flexDirection:'row',alignItems:'center',gap:10,padding:12,borderWidth:1,borderRadius:t.radius.button},score:{alignSelf:'stretch',justifyContent:'center',alignItems:'center',width:55,minHeight:76,borderRadius:t.radius.small,gap:4},scoreValue:{fontSize:t.type.score,fontWeight:'800',fontVariant:['tabular-nums']},course:{fontSize:14,fontWeight:'800'},meta:{fontSize:10,lineHeight:16},legend:{flexDirection:'row',gap:12,flexWrap:'wrap',paddingHorizontal:4,paddingTop:2},empty:{padding:20,borderWidth:1,borderStyle:'dashed',borderRadius:t.radius.button,fontSize:13},detailsToggle:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:t.minTouchTarget,paddingHorizontal:16,borderTopWidth:1},details:{padding:16,paddingTop:0,gap:8}
 });

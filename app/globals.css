@@ -151,7 +151,7 @@ button.rounded-full,
 select.rounded-full,
 input.rounded-full,
 a.rounded-full {
-  border-radius: 12px;
+  border-radius: var(--bbp-radius-button, 6px);
 }
 
 @keyframes splash-out {
@@ -309,7 +309,7 @@ a.rounded-full {
 .golf-overview-heading h2 { margin-right:auto; font-size:16px; font-weight:800; }
 .golf-demo-badge { border:1px solid var(--club-border); border-radius:99px; padding:4px 9px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
 .golf-player-select { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; max-width:100%; }
-.golf-player-select select { min-height:44px; max-width:100%; border:1px solid var(--club-border); border-radius:10px; padding:4px 10px; background:var(--club-surface); color:var(--club-text); }
+.golf-player-select select { min-height:44px; max-width:100%; border:1px solid var(--club-border); border-radius:var(--bbp-radius-small, 4px); padding:4px 10px; background:var(--club-surface); color:var(--club-text); }
 .golf-summary-layout { display:grid; gap:16px; padding:0 12px 12px; }
 .golf-handicap-card { position:relative; isolation:isolate; overflow:hidden; border-radius:var(--bbp-radius-hero); padding:var(--bbp-space-panel); background:radial-gradient(ellipse at 100% 0%,color-mix(in srgb,var(--club-accent) 22%,transparent),transparent 65%),linear-gradient(145deg,var(--club-primary),var(--club-primary-hover)); color:var(--club-on-primary); }
 .golf-card-orbits { position:absolute; z-index:-1; width:230px; height:230px; border:1px solid currentColor; opacity:.08; border-radius:50%; right:-100px; top:0; box-shadow:0 0 0 28px color-mix(in srgb,currentColor 35%,transparent),0 0 0 56px color-mix(in srgb,currentColor 20%,transparent); }
@@ -331,8 +331,8 @@ a.rounded-full {
 .golf-rounds-heading { display:flex; justify-content:space-between; align-items:center; margin:0 0 10px; font-size:14px; font-weight:800; }
 .golf-rounds-heading > span { font-size:11px; font-weight:600; color:var(--club-muted-text); }
 .golf-round-list { display:grid; gap:8px; }
-.golf-round-card { display:flex; gap:12px; align-items:center; padding:12px; border:1px solid var(--club-border); border-radius:14px; background:var(--club-surface); }
-.golf-round-score { display:grid; align-content:center; justify-items:center; min-width:55px; align-self:stretch; border-radius:10px; background:var(--club-accent-soft); color:var(--club-accent-text); }
+.golf-round-card { display:flex; gap:12px; align-items:center; padding:12px; border:1px solid var(--club-border); border-radius:var(--bbp-radius-button); background:var(--club-surface); }
+.golf-round-score { display:grid; align-content:center; justify-items:center; min-width:55px; align-self:stretch; border-radius:var(--bbp-radius-small, 4px); background:var(--club-accent-soft); color:var(--club-accent-text); }
 .golf-score-label { font-size:9px; font-weight:750; text-transform:uppercase; letter-spacing:.08em; }
 .golf-round-score strong { font-size:var(--bbp-score-size); line-height:1.2; font-weight:800; font-variant-numeric:tabular-nums; }
 .golf-round-info { min-width:0; flex:1; }
@@ -343,8 +343,8 @@ a.rounded-full {
 .golf-round-stats dt { color:var(--club-muted-text); }
 .golf-round-stats dd { font-weight:800; font-variant-numeric:tabular-nums; }
 .golf-counting-icon { display:inline-flex; flex-shrink:0; color:var(--club-muted-text); }
-.golf-counting-icon.is-counting { color:var(--club-primary-text); }
-.golf-counting-icon.is-counting svg { fill:var(--club-accent-soft); }
+
+
 .golf-counting-legend { display:flex; flex-wrap:wrap; gap:8px 16px; padding:12px 2px 0; color:var(--club-muted-text); font-size:10px; }
 .golf-counting-legend > span { display:flex; align-items:center; gap:5px; }
 .golf-data-details { margin:0 16px; border-top:1px solid var(--club-border); font-size:11px; color:var(--club-muted-text); }
@@ -357,12 +357,12 @@ a.rounded-full {
 .golf-home-action:hover { box-shadow:inset 0 0 0 2px var(--club-accent); }
 
 /* Guardian Home shows the players, with management kept in the account menu. */
-.golf-family-panel { border-radius:24px; padding:16px; background:var(--club-accent-soft); border:1px solid var(--club-border); color:var(--club-text); }
+.golf-family-panel { border-radius:var(--bbp-radius-card); padding:16px; background:var(--club-accent-soft); border:1px solid var(--club-border); color:var(--club-text); }
 .golf-family-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 12px; }
 .golf-family-heading h2 { font-size:16px; font-weight:800; }
 .golf-family-heading > span { font-size:11px; color:var(--club-muted-text); }
 .golf-family-grid { display:grid; gap:12px; }
-.golf-family-card { display:block; border-radius:18px; padding:16px; background:linear-gradient(140deg,var(--club-primary),var(--club-primary-hover)); color:var(--club-on-primary); border:1px solid transparent; transition:transform .15s ease; }
+.golf-family-card { display:block; border-radius:var(--bbp-radius-hero); padding:16px; background:linear-gradient(140deg,var(--club-primary),var(--club-primary-hover)); color:var(--club-on-primary); border:1px solid transparent; transition:transform .15s ease; }
 .golf-family-card:hover { transform:translateY(-2px); }
 .golf-family-card:focus-visible { outline:3px solid var(--club-focus); outline-offset:3px; }
 .golf-family-player { display:flex; align-items:center; gap:12px; }
@@ -397,3 +397,9 @@ a.rounded-full {
   z-index: 40;
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.35rem);
 }
+
+/* Shared club colours gain atmosphere while content surfaces remain readable. */
+body{background-color:var(--club-page);background-image:radial-gradient(ellipse at 0 0,color-mix(in srgb,var(--club-primary-lift) 9%,transparent),transparent 55%),radial-gradient(ellipse at 100% 35%,color-mix(in srgb,var(--club-accent) 6%,transparent),transparent 50%);background-attachment:fixed}
+.golf-handicap-card{background:radial-gradient(ellipse at 100% 0%,color-mix(in srgb,var(--club-primary-lift) 85%,transparent),transparent 75%),linear-gradient(145deg,var(--club-primary),var(--club-primary-hover));box-shadow:0 10px 25px color-mix(in srgb,var(--club-primary) 18%,transparent)}
+.golf-family-card{border-top:3px solid var(--club-accent);box-shadow:0 5px 16px color-mix(in srgb,var(--club-primary) 12%,transparent)}
+.golf-handicap-card{border-top:3px solid var(--club-accent)}

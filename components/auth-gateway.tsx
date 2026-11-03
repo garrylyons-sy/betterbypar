@@ -8,6 +8,8 @@ import { AuthSelectField, AuthSignInForm, AuthTextAreaField, AuthTextField, Goog
 import { PasswordChecklist } from "@/components/password-checklist";
 import { disconnectNotificationDevice } from "@/components/notification-center";
 import { SplashScreen } from "@/components/splash-screen";
+import { AuthWelcome } from "@/components/auth-welcome";
+import welcomeStyles from "@/components/auth-welcome.module.css";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +30,7 @@ type TeamOption = {
 };
 type SessionPayload = {
   authenticated: boolean;
+  platformAdmin?: boolean;
   user?: {
     email: string;
     name: string;
@@ -93,6 +96,12 @@ export function AuthGateway() {
       if (!options?.silent) setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (session?.authenticated && session.platformAdmin === true && !session.contexts?.length) {
+      window.location.replace("/admin");
+    }
+  }, [session?.authenticated, session?.platformAdmin, session?.contexts?.length]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -265,6 +274,8 @@ export function AuthGateway() {
       );
     }
 
+    if (session.platformAdmin === true) return <SplashScreen />;
+
     return <NoMemberships email={session.user?.name ?? session.user?.email ?? "Signed in"} onSignOut={signOut} />;
   }
 
@@ -391,57 +402,30 @@ function AuthHome({
   const forgot = mode === "forgot";
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f7f5fa] px-4 py-6 text-[#25002b]">
-      <section className="w-full max-w-md">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#10233f] p-1.5 shadow-card">
-            <img src="/icons/icon-192.png" alt="Better By Par" className="h-full w-full rounded-lg object-contain" />
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase text-[#6c5a73]">Better By Par</p>
-            <h1 className="text-2xl font-extrabold leading-tight">{activating ? "Activate account" : forgot ? "Reset password" : "Sign in"}</h1>
-          </div>
+    <AuthWelcome>
+      <div>
+        <h2>{activating ? "You're invited." : forgot ? "Reset your password" : knownDevice ? "Welcome back." : "Your game starts here."}</h2>
+        <p className={welcomeStyles.subtitle}>
+          {activating ? "Activate your account and connect with your club." : forgot ? "Let's get you back to your game." : "Already invited? Sign in to your Better By Par account."}
+        </p>
+        {message ? <div className={welcomeStyles.notice} role="status">{message}</div> : null}
+        <div className={welcomeStyles.form}>
+          {activating ? (
+            <ActivateForm invite={activationInvite} problem={activationProblem} onSignedIn={onSignedIn} />
+          ) : forgot ? (
+            <ForgotPasswordForm onBack={() => window.location.assign("/")} />
+          ) : (
+            <AuthSignInForm
+              onSignedIn={onSignedIn}
+              onForgotPassword={() => {
+                window.history.pushState(null, "", "/?mode=forgot");
+                window.location.reload();
+              }}
+            />
+          )}
         </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>{activating ? "Invitation details" : forgot ? "Password reset" : knownDevice ? "Welcome back" : "Existing account"}</CardTitle>
-            <Badge variant={activating ? "green" : forgot ? "cyan" : knownDevice ? "green" : "muted"}>{activating ? "Invited user" : forgot ? "Secure link" : knownDevice ? "Sign in" : "Invitation only"}</Badge>
-          </CardHeader>
-          <CardContent>
-            {message ? (
-              <div className="mb-4 rounded-xl bg-[#f7f5fa] p-3 text-sm font-bold text-[#10233f]">
-                {message}
-              </div>
-            ) : null}
-            {activating ? (
-              <ActivateForm invite={activationInvite} problem={activationProblem} onSignedIn={onSignedIn} />
-            ) : forgot ? (
-              <ForgotPasswordForm onBack={() => window.location.assign("/")} />
-            ) : (
-              <div className="grid gap-4">
-                {!knownDevice ? (
-                  <p className="text-sm font-semibold text-[#6c5a73]">
-                    Accounts must be created by an administrator before you can sign in.
-                  </p>
-                ) : null}
-                <AuthSignInForm
-                  onSignedIn={onSignedIn}
-                  onForgotPassword={() => {
-                    window.history.pushState(null, "", "/?mode=forgot");
-                    window.location.reload();
-                  }}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        {!activating && !knownDevice ? (
-          <p className="mt-4 text-center text-xs font-semibold text-[#6c5a73]">
-            New users should use the invite link sent by their club or league administrator.
-          </p>
-        ) : null}
-      </section>
-    </main>
+      </div>
+    </AuthWelcome>
   );
 }
 
@@ -544,7 +528,7 @@ function ActivateForm({
         <div className="rounded-2xl bg-[#fff3f3] p-4 text-sm font-semibold text-[#10233f] ring-1 ring-[#f3b7b2]">
           <p className="font-extrabold">{problem.message}</p>
           <p className="mt-1 text-[#6c5a73]">
-            Ask your club or league administrator to resend your invite if you still need access.
+            Ask your club administrator to resend your invite if you still need access.
           </p>
         </div>
         <Button variant="secondary" onClick={() => window.location.assign("/")}>
@@ -695,12 +679,12 @@ function NoMemberships({ email, onSignOut }: { email: string; onSignOut: () => v
     <main className="grid min-h-screen place-items-center bg-[#f7f5fa] px-4 text-[#25002b]">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Account needs a team</CardTitle>
+          <CardTitle>Club access pending</CardTitle>
           <Badge variant="muted">{email}</Badge>
         </CardHeader>
         <CardContent className="grid gap-3">
           <p className="text-sm font-semibold text-[#6c5a73]">
-            This login is valid, but it has no active team membership yet. Ask the league to attach a team role.
+            Your account is active. Ask your club administrator to connect it to your club.
           </p>
           <Button variant="secondary" onClick={onSignOut}>Sign out</Button>
         </CardContent>

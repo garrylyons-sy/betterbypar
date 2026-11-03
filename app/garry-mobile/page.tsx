@@ -5,7 +5,7 @@ const mobileSrc = `/?testUser=${encodeURIComponent("garlyons@gmail.com")}&embed=
 export default function GarryMobilePage() {
   return (
     <main className="min-h-screen bg-[#071426] px-3 py-4 text-white">
-      <section className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-[28px] bg-white shadow-elevated ring-1 ring-white/15">
+      <section className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-[430px] flex-col overflow-hidden rounded-2xl bg-white shadow-elevated ring-1 ring-white/15">
         <div className="flex min-h-11 items-center justify-between bg-[#10233f] px-4 text-white">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Mobile preview</p>

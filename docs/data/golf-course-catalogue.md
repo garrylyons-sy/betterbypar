@@ -1,0 +1,21 @@
+# Starter golf course catalogue
+
+The shared website/native catalogue reads `golf_course`, `golf_course_tee` and `golf_course_hole` through authenticated `GET /api/courses`. Club and course layout are separate, with tee-specific rating categories, pars, ratings, distances and stroke indexes. This catalogue is independent of app club membership; recording a round at another course does not grant access to that club.
+
+Apply `supabase/golf_course_catalogue.sql`, then `supabase/golf_course_catalogue_seed.sql` to the intended Supabase PostgreSQL database with the existing `npm run db:apply -- <file>` command. Local demo startup applies both automatically. Never apply demo account seeds to production.
+
+The source manifest is `data/golf-course-catalogue.json`; regenerate SQL with `node scripts/generate-course-seed.mjs`. The transactional seed inserts only missing entries. Reapplying preserves existing course, tee and hole changes, and does not reactivate disabled entries. Future corrections require an explicit reviewed migration or management interface; rerunning the seed is not an update mechanism.
+
+## Reference data reviewed 3 November 2026
+
+Five layouts, 17 tee/category combinations and 306 hole records:
+
+- Castle Golf Club: Blue, White and Red men's tees. Hole distances, pars, stroke indexes and ratings use the [Stymie published scorecard](https://stymie.golf/golf-courses/ireland/dublin/rathfarnham/castle-golf-club). Units are yards. Castle's older published rating report and older project presets differ; these were not copied into the new catalogue. Women's hole pars and indexes need current confirmation before adding those tees.
+- Grange Love Course: Blue/White/Red men's and White/Red women's tees. Hole details use [Grange's Love Course scorecard](https://www.grangegolfclub.ie/the_love_course); course and slope ratings use the [published rating directory](https://golfhandicapcalculator.co/courses/grange-golf-club-love/). Distances are metres, as on the club's hole pages. Alternative 7–6 routing tee sets and the nine-hole Outer course are omitted.
+- Grange Sheahan Course: Blue/White/Red men's and Red women's tees. Hole details use [Grange's Sheahan scorecard](https://www.grangegolfclub.ie/the_sheahan_course); ratings use the [published rating directory](https://golfhandicapcalculator.co/courses/grange-golf-club-sheahan/). Units are metres. The club's introductory text describes par 72, but its hole-by-hole men's table sums to 71 and the rating directory also specifies 71; the seed uses the hole table (women's par 74).
+- Grange Academy Course: White and Red scorecards from the [club's Academy scorecard](https://www.grangegolfclub.ie/academy_course_a4), metres. The published table repeats the six-hole loop three times. Rating category, course rating and slope were not verified: category is unspecified and ratings remain null. The interface labels these as unavailable.
+- Milltown Golf Club: Blue, Yellow and Red men's tees. Hole details use the [club scorecard](https://www.milltowngolfclub.ie/hole_9), metres; ratings use the [published rating directory](https://golfhandicapcalculator.co/courses/milltown-golf-club/). The rating directory labels distances as yards despite matching the club's metre values, so its units/distances are not used. Women's ratings exist but corresponding hole pars have not been verified; those tee/category combinations are omitted.
+
+This is published reference data, with secondary sources where club sites do not expose rating tables. It is not a Golf Ireland feed or a club certification. Each course stores the scorecard source and each tee stores its rating source and review date. Club confirmation should precede use for official handicap processing. No new course-handicap calculation is implemented.
+
+Round selections snapshot all 18 rated holes and tee metadata. A nine-hole card uses the first nine holes and clearly labels ratings as 18-hole references. Later catalogue updates do not rewrite saved cards. Imported official rounds keep their provider details; manual and historical cards are never matched by course name. Incomplete catalogue scorecards are excluded from selection. The server resolves new tee selections from stored IDs and replaces client-supplied ratings/pars with canonical values.

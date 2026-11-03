@@ -6,7 +6,7 @@ import type {ChallengeDefinition,DrillDefinition} from '@/lib/practice-policy.mj
 import {DrillDemo} from '@/components/drill-demo';
 export const practiceButton='inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--club-border)] bg-[var(--club-surface)] px-4 py-2 text-sm font-bold disabled:opacity-50';
 export const practicePrimary=practiceButton+' !bg-[var(--club-primary)] !text-[var(--club-on-primary)]';
-export const practiceToday=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Dublin'});
+export {practiceToday} from '@/shared/practice-presentation.mjs';
 export const practiceDate=(date:string)=>new Date(date+'T12:00:00Z').toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Dublin'});
 export const ruleLabels:Record<string,string>={no_three_putts:'No three-putts',no_double_bogeys:'No double bogeys or worse',no_lost_balls:'No lost balls',gross_max:'Maximum gross score',custom:'Player-attested goal'};
 export function PracticeField({label,children}:{label:string;children:React.ReactNode}){return <label className="grid gap-1.5 text-xs font-bold text-[var(--club-muted-text)]">{label}{children}</label>;}

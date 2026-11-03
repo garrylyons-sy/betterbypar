@@ -1,0 +1,2146 @@
+{
+  "reviewedOn": "2026-11-03",
+  "courses": [
+    {
+      "slug": "castle-main",
+      "clubName": "Castle Golf Club",
+      "name": "Castle Golf Club",
+      "location": "Dublin, Ireland",
+      "sourceUrl": "https://stymie.golf/golf-courses/ireland/dublin/rathfarnham/castle-golf-club",
+      "reviewedOn": "2026-11-03",
+      "tees": [
+        {
+          "slug": "blue-men",
+          "name": "Blue",
+          "colour": "blue",
+          "ratingCategory": "men",
+          "par": 70,
+          "courseRating": 70.5,
+          "slopeRating": 127,
+          "totalDistance": 6221,
+          "distanceUnit": "yd",
+          "sourceUrl": "https://stymie.golf/golf-courses/ireland/dublin/rathfarnham/castle-golf-club",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "par": 5,
+              "strokeIndex": 9,
+              "distance": 493
+            },
+            {
+              "number": 2,
+              "par": 4,
+              "strokeIndex": 5,
+              "distance": 432
+            },
+            {
+              "number": 3,
+              "par": 3,
+              "strokeIndex": 17,
+              "distance": 148
+            },
+            {
+              "number": 4,
+              "par": 4,
+              "strokeIndex": 15,
+              "distance": 317
+            },
+            {
+              "number": 5,
+              "par": 4,
+              "strokeIndex": 7,
+              "distance": 376
+            },
+            {
+              "number": 6,
+              "par": 4,
+              "strokeIndex": 1,
+              "distance": 414
+            },
+            {
+              "number": 7,
+              "par": 3,
+              "strokeIndex": 13,
+              "distance": 174
+            },
+            {
+              "number": 8,
+              "par": 4,
+              "strokeIndex": 11,
+              "distance": 346
+            },
+            {
+              "number": 9,
+              "par": 4,
+              "strokeIndex": 3,
+              "distance": 444
+            },
+            {
+              "number": 10,
+              "par": 3,
+              "strokeIndex": 16,
+              "distance": 184
+            },
+            {
+              "number": 11,
+              "par": 4,
+              "strokeIndex": 8,
+              "distance": 399
+            },
+            {
+              "number": 12,
+              "par": 4,
+              "strokeIndex": 10,
+              "distance": 348
+            },
+            {
+              "number": 13,
+              "par": 3,
+              "strokeIndex": 18,
+              "distance": 138
+            },
+            {
+              "number": 14,
+              "par": 4,
+              "strokeIndex": 4,
+              "distance": 390
+            },
+            {
+              "number": 15,
+              "par": 3,
+              "strokeIndex": 14,
+              "distance": 184
+            },
+            {
+              "number": 16,
+              "par": 5,
+              "strokeIndex": 6,
+              "distance": 532
+            },
+            {
+              "number": 17,
+              "par": 5,
+              "strokeIndex": 12,
+              "distance": 498
+            },
+            {
+              "number": 18,
+              "par": 4,
+              "strokeIndex": 2,
+              "distance": 404
+            }
+          ]
+        },
+        {
+          "slug": "white-men",
+          "name": "White",
+          "colour": "white",
+          "ratingCategory": "men",
+          "par": 70,
+          "courseRating": 69.4,
+          "slopeRating": 123,
+          "totalDistance": 5962,
+          "distanceUnit": "yd",
+          "sourceUrl": "https://stymie.golf/golf-courses/ireland/dublin/rathfarnham/castle-golf-club",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "par": 5,
+              "strokeIndex": 9,
+              "distance": 483
+            },
+            {
+              "number": 2,
+              "par": 4,
+              "strokeIndex": 5,
+              "distance": 419
+            },
+            {
+              "number": 3,
+              "par": 3,
+              "strokeIndex": 17,
+              "distance": 129
+            },
+            {
+              "number": 4,
+              "par": 4,
+              "strokeIndex": 15,
+              "distance": 307
+            },
+            {
+              "number": 5,
+              "par": 4,
+              "strokeIndex": 7,
+              "distance": 361
+            },
+            {
+              "number": 6,
+              "par": 4,
+              "strokeIndex": 1,
+              "distance": 398
+            },
+            {
+              "number": 7,
+              "par": 3,
+              "strokeIndex": 13,
+              "distance": 154
+            },
+            {
+              "number": 8,
+              "par": 4,
+              "strokeIndex": 11,
+              "distance": 324
+            },
+            {
+              "number": 9,
+              "par": 4,
+              "strokeIndex": 3,
+              "distance": 432
+            },
+            {
+              "number": 10,
+              "par": 3,
+              "strokeIndex": 16,
+              "distance": 168
+            },
+            {
+              "number": 11,
+              "par": 4,
+              "strokeIndex": 8,
+              "distance": 389
+            },
+            {
+              "number": 12,
+              "par": 4,
+              "strokeIndex": 10,
+              "distance": 331
+            },
+            {
+              "number": 13,
+              "par": 3,
+              "strokeIndex": 18,
+              "distance": 119
+            },
+            {
+              "number": 14,
+              "par": 4,
+              "strokeIndex": 4,
+              "distance": 377
+            },
+            {
+              "number": 15,
+              "par": 3,
+              "strokeIndex": 14,
+              "distance": 177
+            },
+            {
+              "number": 16,
+              "par": 5,
+              "strokeIndex": 6,
+              "distance": 512
+            },
+            {
+              "number": 17,
+              "par": 5,
+              "strokeIndex": 12,
+              "distance": 484
+            },
+            {
+              "number": 18,
+              "par": 4,
+              "strokeIndex": 2,
+              "distance": 398
+            }
+          ]
+        },
+        {
+          "slug": "red-men",
+          "name": "Red",
+          "colour": "red",
+          "ratingCategory": "men",
+          "par": 70,
+          "courseRating": 67,
+          "slopeRating": 121,
+          "totalDistance": 5540,
+          "distanceUnit": "yd",
+          "sourceUrl": "https://stymie.golf/golf-courses/ireland/dublin/rathfarnham/castle-golf-club",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "par": 5,
+              "strokeIndex": 9,
+              "distance": 425
+            },
+            {
+              "number": 2,
+              "par": 4,
+              "strokeIndex": 5,
+              "distance": 357
+            },
+            {
+              "number": 3,
+              "par": 3,
+              "strokeIndex": 17,
+              "distance": 118
+            },
+            {
+              "number": 4,
+              "par": 4,
+              "strokeIndex": 15,
+              "distance": 299
+            },
+            {
+              "number": 5,
+              "par": 4,
+              "strokeIndex": 7,
+              "distance": 317
+            },
+            {
+              "number": 6,
+              "par": 4,
+              "strokeIndex": 1,
+              "distance": 377
+            },
+            {
+              "number": 7,
+              "par": 3,
+              "strokeIndex": 13,
+              "distance": 149
+            },
+            {
+              "number": 8,
+              "par": 4,
+              "strokeIndex": 11,
+              "distance": 303
+            },
+            {
+              "number": 9,
+              "par": 4,
+              "strokeIndex": 3,
+              "distance": 416
+            },
+            {
+              "number": 10,
+              "par": 3,
+              "strokeIndex": 16,
+              "distance": 142
+            },
+            {
+              "number": 11,
+              "par": 4,
+              "strokeIndex": 8,
+              "distance": 329
+            },
+            {
+              "number": 12,
+              "par": 4,
+              "strokeIndex": 10,
+              "distance": 312
+            },
+            {
+              "number": 13,
+              "par": 3,
+              "strokeIndex": 18,
+              "distance": 114
+            },
+            {
+              "number": 14,
+              "par": 4,
+              "strokeIndex": 4,
+              "distance": 366
+            },
+            {
+              "number": 15,
+              "par": 3,
+              "strokeIndex": 14,
+              "distance": 166
+            },
+            {
+              "number": 16,
+              "par": 5,
+              "strokeIndex": 6,
+              "distance": 494
+            },
+            {
+              "number": 17,
+              "par": 5,
+              "strokeIndex": 12,
+              "distance": 463
+            },
+            {
+              "number": 18,
+              "par": 4,
+              "strokeIndex": 2,
+              "distance": 393
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "grange-love",
+      "clubName": "Grange Golf Club",
+      "name": "Love Course",
+      "location": "Dublin, Ireland",
+      "sourceUrl": "https://www.grangegolfclub.ie/the_love_course",
+      "reviewedOn": "2026-11-03",
+      "tees": [
+        {
+          "slug": "blue-men",
+          "name": "Blue",
+          "colour": "blue",
+          "ratingCategory": "men",
+          "par": 68,
+          "courseRating": 69.1,
+          "slopeRating": 125,
+          "totalDistance": 5829,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/grange-golf-club-love/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 136,
+              "par": 3,
+              "strokeIndex": 13
+            },
+            {
+              "number": 2,
+              "distance": 131,
+              "par": 3,
+              "strokeIndex": 17
+            },
+            {
+              "number": 3,
+              "distance": 425,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 4,
+              "distance": 409,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 5,
+              "distance": 322,
+              "par": 4,
+              "strokeIndex": 15
+            },
+            {
+              "number": 6,
+              "distance": 181,
+              "par": 3,
+              "strokeIndex": 9
+            },
+            {
+              "number": 7,
+              "distance": 408,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 8,
+              "distance": 203,
+              "par": 3,
+              "strokeIndex": 7
+            },
+            {
+              "number": 9,
+              "distance": 366,
+              "par": 4,
+              "strokeIndex": 11
+            },
+            {
+              "number": 10,
+              "distance": 424,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 11,
+              "distance": 196,
+              "par": 3,
+              "strokeIndex": 8
+            },
+            {
+              "number": 12,
+              "distance": 323,
+              "par": 4,
+              "strokeIndex": 14
+            },
+            {
+              "number": 13,
+              "distance": 320,
+              "par": 4,
+              "strokeIndex": 12
+            },
+            {
+              "number": 14,
+              "distance": 489,
+              "par": 5,
+              "strokeIndex": 18
+            },
+            {
+              "number": 15,
+              "distance": 161,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 16,
+              "distance": 416,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 17,
+              "distance": 521,
+              "par": 5,
+              "strokeIndex": 10
+            },
+            {
+              "number": 18,
+              "distance": 398,
+              "par": 4,
+              "strokeIndex": 6
+            }
+          ]
+        },
+        {
+          "slug": "white-men",
+          "name": "White",
+          "colour": "white",
+          "ratingCategory": "men",
+          "par": 68,
+          "courseRating": 68.2,
+          "slopeRating": 123,
+          "totalDistance": 5618,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/grange-golf-club-love/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 127,
+              "par": 3,
+              "strokeIndex": 13
+            },
+            {
+              "number": 2,
+              "distance": 114,
+              "par": 3,
+              "strokeIndex": 17
+            },
+            {
+              "number": 3,
+              "distance": 412,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 4,
+              "distance": 398,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 5,
+              "distance": 309,
+              "par": 4,
+              "strokeIndex": 15
+            },
+            {
+              "number": 6,
+              "distance": 171,
+              "par": 3,
+              "strokeIndex": 9
+            },
+            {
+              "number": 7,
+              "distance": 404,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 8,
+              "distance": 193,
+              "par": 3,
+              "strokeIndex": 7
+            },
+            {
+              "number": 9,
+              "distance": 341,
+              "par": 4,
+              "strokeIndex": 11
+            },
+            {
+              "number": 10,
+              "distance": 414,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 11,
+              "distance": 185,
+              "par": 3,
+              "strokeIndex": 8
+            },
+            {
+              "number": 12,
+              "distance": 316,
+              "par": 4,
+              "strokeIndex": 14
+            },
+            {
+              "number": 13,
+              "distance": 312,
+              "par": 4,
+              "strokeIndex": 12
+            },
+            {
+              "number": 14,
+              "distance": 478,
+              "par": 5,
+              "strokeIndex": 18
+            },
+            {
+              "number": 15,
+              "distance": 153,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 16,
+              "distance": 400,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 17,
+              "distance": 509,
+              "par": 5,
+              "strokeIndex": 10
+            },
+            {
+              "number": 18,
+              "distance": 382,
+              "par": 4,
+              "strokeIndex": 6
+            }
+          ]
+        },
+        {
+          "slug": "red-women",
+          "name": "Red",
+          "colour": "red",
+          "ratingCategory": "women",
+          "par": 71,
+          "courseRating": 72.1,
+          "slopeRating": 124,
+          "totalDistance": 5342,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/grange-golf-club-love/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 119,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 2,
+              "distance": 107,
+              "par": 3,
+              "strokeIndex": 18
+            },
+            {
+              "number": 3,
+              "distance": 404,
+              "par": 5,
+              "strokeIndex": 8
+            },
+            {
+              "number": 4,
+              "distance": 378,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 5,
+              "distance": 301,
+              "par": 4,
+              "strokeIndex": 6
+            },
+            {
+              "number": 6,
+              "distance": 159,
+              "par": 3,
+              "strokeIndex": 10
+            },
+            {
+              "number": 7,
+              "distance": 401,
+              "par": 5,
+              "strokeIndex": 12
+            },
+            {
+              "number": 8,
+              "distance": 183,
+              "par": 3,
+              "strokeIndex": 14
+            },
+            {
+              "number": 9,
+              "distance": 336,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 10,
+              "distance": 399,
+              "par": 5,
+              "strokeIndex": 9
+            },
+            {
+              "number": 11,
+              "distance": 141,
+              "par": 3,
+              "strokeIndex": 17
+            },
+            {
+              "number": 12,
+              "distance": 293,
+              "par": 4,
+              "strokeIndex": 13
+            },
+            {
+              "number": 13,
+              "distance": 301,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 14,
+              "distance": 447,
+              "par": 5,
+              "strokeIndex": 11
+            },
+            {
+              "number": 15,
+              "distance": 146,
+              "par": 3,
+              "strokeIndex": 15
+            },
+            {
+              "number": 16,
+              "distance": 390,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 17,
+              "distance": 472,
+              "par": 5,
+              "strokeIndex": 7
+            },
+            {
+              "number": 18,
+              "distance": 365,
+              "par": 4,
+              "strokeIndex": 5
+            }
+          ]
+        },
+        {
+          "slug": "red-men",
+          "name": "Red",
+          "colour": "red",
+          "ratingCategory": "men",
+          "par": 68,
+          "courseRating": 66.8,
+          "slopeRating": 116,
+          "totalDistance": 5342,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/grange-golf-club-love/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 119,
+              "par": 3,
+              "strokeIndex": 13
+            },
+            {
+              "number": 2,
+              "distance": 107,
+              "par": 3,
+              "strokeIndex": 17
+            },
+            {
+              "number": 3,
+              "distance": 404,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 4,
+              "distance": 378,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 5,
+              "distance": 301,
+              "par": 4,
+              "strokeIndex": 15
+            },
+            {
+              "number": 6,
+              "distance": 159,
+              "par": 3,
+              "strokeIndex": 9
+            },
+            {
+              "number": 7,
+              "distance": 401,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 8,
+              "distance": 183,
+              "par": 3,
+              "strokeIndex": 7
+            },
+            {
+              "number": 9,
+              "distance": 336,
+              "par": 4,
+              "strokeIndex": 11
+            },
+            {
+              "number": 10,
+              "distance": 399,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 11,
+              "distance": 141,
+              "par": 3,
+              "strokeIndex": 8
+            },
+            {
+              "number": 12,
+              "distance": 293,
+              "par": 4,
+              "strokeIndex": 14
+            },
+            {
+              "number": 13,
+              "distance": 301,
+              "par": 4,
+              "strokeIndex": 12
+            },
+            {
+              "number": 14,
+              "distance": 447,
+              "par": 5,
+              "strokeIndex": 18
+            },
+            {
+              "number": 15,
+              "distance": 146,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 16,
+              "distance": 390,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 17,
+              "distance": 472,
+              "par": 5,
+              "strokeIndex": 10
+            },
+            {
+              "number": 18,
+              "distance": 365,
+              "par": 4,
+              "strokeIndex": 6
+            }
+          ]
+        },
+        {
+          "slug": "white-women",
+          "name": "White",
+          "colour": "white",
+          "ratingCategory": "women",
+          "par": 71,
+          "courseRating": 74,
+          "slopeRating": 126,
+          "totalDistance": 5618,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/grange-golf-club-love/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 127,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 2,
+              "distance": 114,
+              "par": 3,
+              "strokeIndex": 18
+            },
+            {
+              "number": 3,
+              "distance": 412,
+              "par": 5,
+              "strokeIndex": 8
+            },
+            {
+              "number": 4,
+              "distance": 398,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 5,
+              "distance": 309,
+              "par": 4,
+              "strokeIndex": 6
+            },
+            {
+              "number": 6,
+              "distance": 171,
+              "par": 3,
+              "strokeIndex": 10
+            },
+            {
+              "number": 7,
+              "distance": 404,
+              "par": 5,
+              "strokeIndex": 12
+            },
+            {
+              "number": 8,
+              "distance": 193,
+              "par": 3,
+              "strokeIndex": 14
+            },
+            {
+              "number": 9,
+              "distance": 341,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 10,
+              "distance": 414,
+              "par": 5,
+              "strokeIndex": 9
+            },
+            {
+              "number": 11,
+              "distance": 185,
+              "par": 3,
+              "strokeIndex": 17
+            },
+            {
+              "number": 12,
+              "distance": 316,
+              "par": 4,
+              "strokeIndex": 13
+            },
+            {
+              "number": 13,
+              "distance": 312,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 14,
+              "distance": 478,
+              "par": 5,
+              "strokeIndex": 11
+            },
+            {
+              "number": 15,
+              "distance": 153,
+              "par": 3,
+              "strokeIndex": 15
+            },
+            {
+              "number": 16,
+              "distance": 400,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 17,
+              "distance": 509,
+              "par": 5,
+              "strokeIndex": 7
+            },
+            {
+              "number": 18,
+              "distance": 382,
+              "par": 4,
+              "strokeIndex": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "grange-sheahan",
+      "clubName": "Grange Golf Club",
+      "name": "Sheahan Course",
+      "location": "Dublin, Ireland",
+      "sourceUrl": "https://www.grangegolfclub.ie/the_sheahan_course",
+      "reviewedOn": "2026-11-03",
+      "tees": [
+        {
+          "slug": "blue-men",
+          "name": "Blue",
+          "colour": "blue",
+          "ratingCategory": "men",
+          "par": 71,
+          "courseRating": 72.2,
+          "slopeRating": 132,
+          "totalDistance": 6448,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/grange-golf-club-sheahan/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 425,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 2,
+              "distance": 409,
+              "par": 4,
+              "strokeIndex": 7
+            },
+            {
+              "number": 3,
+              "distance": 322,
+              "par": 4,
+              "strokeIndex": 17
+            },
+            {
+              "number": 4,
+              "distance": 181,
+              "par": 3,
+              "strokeIndex": 13
+            },
+            {
+              "number": 5,
+              "distance": 408,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 6,
+              "distance": 474,
+              "par": 5,
+              "strokeIndex": 15
+            },
+            {
+              "number": 7,
+              "distance": 412,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 8,
+              "distance": 203,
+              "par": 3,
+              "strokeIndex": 9
+            },
+            {
+              "number": 9,
+              "distance": 366,
+              "par": 4,
+              "strokeIndex": 11
+            },
+            {
+              "number": 10,
+              "distance": 424,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 11,
+              "distance": 196,
+              "par": 3,
+              "strokeIndex": 8
+            },
+            {
+              "number": 12,
+              "distance": 323,
+              "par": 4,
+              "strokeIndex": 14
+            },
+            {
+              "number": 13,
+              "distance": 320,
+              "par": 4,
+              "strokeIndex": 12
+            },
+            {
+              "number": 14,
+              "distance": 489,
+              "par": 5,
+              "strokeIndex": 18
+            },
+            {
+              "number": 15,
+              "distance": 161,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 16,
+              "distance": 416,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 17,
+              "distance": 521,
+              "par": 5,
+              "strokeIndex": 10
+            },
+            {
+              "number": 18,
+              "distance": 398,
+              "par": 4,
+              "strokeIndex": 6
+            }
+          ]
+        },
+        {
+          "slug": "white-men",
+          "name": "White",
+          "colour": "white",
+          "ratingCategory": "men",
+          "par": 71,
+          "courseRating": 71.1,
+          "slopeRating": 131,
+          "totalDistance": 6209,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/grange-golf-club-sheahan/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 412,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 2,
+              "distance": 398,
+              "par": 4,
+              "strokeIndex": 7
+            },
+            {
+              "number": 3,
+              "distance": 309,
+              "par": 4,
+              "strokeIndex": 17
+            },
+            {
+              "number": 4,
+              "distance": 171,
+              "par": 3,
+              "strokeIndex": 13
+            },
+            {
+              "number": 5,
+              "distance": 404,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 6,
+              "distance": 460,
+              "par": 5,
+              "strokeIndex": 15
+            },
+            {
+              "number": 7,
+              "distance": 372,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 8,
+              "distance": 193,
+              "par": 3,
+              "strokeIndex": 9
+            },
+            {
+              "number": 9,
+              "distance": 341,
+              "par": 4,
+              "strokeIndex": 11
+            },
+            {
+              "number": 10,
+              "distance": 414,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 11,
+              "distance": 185,
+              "par": 3,
+              "strokeIndex": 8
+            },
+            {
+              "number": 12,
+              "distance": 316,
+              "par": 4,
+              "strokeIndex": 14
+            },
+            {
+              "number": 13,
+              "distance": 312,
+              "par": 4,
+              "strokeIndex": 12
+            },
+            {
+              "number": 14,
+              "distance": 478,
+              "par": 5,
+              "strokeIndex": 18
+            },
+            {
+              "number": 15,
+              "distance": 153,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 16,
+              "distance": 400,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 17,
+              "distance": 509,
+              "par": 5,
+              "strokeIndex": 10
+            },
+            {
+              "number": 18,
+              "distance": 382,
+              "par": 4,
+              "strokeIndex": 6
+            }
+          ]
+        },
+        {
+          "slug": "red-women",
+          "name": "Red",
+          "colour": "red",
+          "ratingCategory": "women",
+          "par": 74,
+          "courseRating": 75.2,
+          "slopeRating": 128,
+          "totalDistance": 5881,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/grange-golf-club-sheahan/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 404,
+              "par": 5,
+              "strokeIndex": 10
+            },
+            {
+              "number": 2,
+              "distance": 378,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 3,
+              "distance": 301,
+              "par": 4,
+              "strokeIndex": 8
+            },
+            {
+              "number": 4,
+              "distance": 159,
+              "par": 3,
+              "strokeIndex": 12
+            },
+            {
+              "number": 5,
+              "distance": 401,
+              "par": 5,
+              "strokeIndex": 18
+            },
+            {
+              "number": 6,
+              "distance": 406,
+              "par": 5,
+              "strokeIndex": 14
+            },
+            {
+              "number": 7,
+              "distance": 359,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 8,
+              "distance": 183,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 9,
+              "distance": 336,
+              "par": 4,
+              "strokeIndex": 6
+            },
+            {
+              "number": 10,
+              "distance": 399,
+              "par": 5,
+              "strokeIndex": 9
+            },
+            {
+              "number": 11,
+              "distance": 141,
+              "par": 3,
+              "strokeIndex": 17
+            },
+            {
+              "number": 12,
+              "distance": 293,
+              "par": 4,
+              "strokeIndex": 13
+            },
+            {
+              "number": 13,
+              "distance": 301,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 14,
+              "distance": 447,
+              "par": 5,
+              "strokeIndex": 11
+            },
+            {
+              "number": 15,
+              "distance": 146,
+              "par": 3,
+              "strokeIndex": 15
+            },
+            {
+              "number": 16,
+              "distance": 390,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 17,
+              "distance": 472,
+              "par": 5,
+              "strokeIndex": 7
+            },
+            {
+              "number": 18,
+              "distance": 365,
+              "par": 4,
+              "strokeIndex": 5
+            }
+          ]
+        },
+        {
+          "slug": "red-men",
+          "name": "Red",
+          "colour": "red",
+          "ratingCategory": "men",
+          "par": 71,
+          "courseRating": 69.4,
+          "slopeRating": 121,
+          "totalDistance": 5881,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/grange-golf-club-sheahan/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 404,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 2,
+              "distance": 378,
+              "par": 4,
+              "strokeIndex": 7
+            },
+            {
+              "number": 3,
+              "distance": 301,
+              "par": 4,
+              "strokeIndex": 17
+            },
+            {
+              "number": 4,
+              "distance": 159,
+              "par": 3,
+              "strokeIndex": 13
+            },
+            {
+              "number": 5,
+              "distance": 401,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 6,
+              "distance": 406,
+              "par": 5,
+              "strokeIndex": 15
+            },
+            {
+              "number": 7,
+              "distance": 359,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 8,
+              "distance": 183,
+              "par": 3,
+              "strokeIndex": 9
+            },
+            {
+              "number": 9,
+              "distance": 336,
+              "par": 4,
+              "strokeIndex": 11
+            },
+            {
+              "number": 10,
+              "distance": 399,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 11,
+              "distance": 141,
+              "par": 3,
+              "strokeIndex": 8
+            },
+            {
+              "number": 12,
+              "distance": 293,
+              "par": 4,
+              "strokeIndex": 14
+            },
+            {
+              "number": 13,
+              "distance": 301,
+              "par": 4,
+              "strokeIndex": 12
+            },
+            {
+              "number": 14,
+              "distance": 447,
+              "par": 5,
+              "strokeIndex": 18
+            },
+            {
+              "number": 15,
+              "distance": 146,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 16,
+              "distance": 390,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 17,
+              "distance": 472,
+              "par": 5,
+              "strokeIndex": 10
+            },
+            {
+              "number": 18,
+              "distance": 365,
+              "par": 4,
+              "strokeIndex": 6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "grange-academy",
+      "clubName": "Grange Golf Club",
+      "name": "Academy Course",
+      "location": "Dublin, Ireland",
+      "sourceUrl": "https://www.grangegolfclub.ie/academy_course_a4",
+      "reviewedOn": "2026-11-03",
+      "tees": [
+        {
+          "slug": "white-unspecified",
+          "name": "White",
+          "colour": "white",
+          "ratingCategory": "unspecified",
+          "par": 72,
+          "courseRating": null,
+          "slopeRating": null,
+          "totalDistance": 6012,
+          "distanceUnit": "m",
+          "sourceUrl": "https://www.grangegolfclub.ie/academy_course_a4",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 498,
+              "par": 5,
+              "strokeIndex": 7
+            },
+            {
+              "number": 2,
+              "distance": 117,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 3,
+              "distance": 372,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 4,
+              "distance": 460,
+              "par": 5,
+              "strokeIndex": 13
+            },
+            {
+              "number": 5,
+              "distance": 371,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 6,
+              "distance": 186,
+              "par": 3,
+              "strokeIndex": 10
+            },
+            {
+              "number": 7,
+              "distance": 498,
+              "par": 5,
+              "strokeIndex": 8
+            },
+            {
+              "number": 8,
+              "distance": 117,
+              "par": 3,
+              "strokeIndex": 17
+            },
+            {
+              "number": 9,
+              "distance": 372,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 10,
+              "distance": 460,
+              "par": 5,
+              "strokeIndex": 14
+            },
+            {
+              "number": 11,
+              "distance": 371,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 12,
+              "distance": 186,
+              "par": 3,
+              "strokeIndex": 11
+            },
+            {
+              "number": 13,
+              "distance": 498,
+              "par": 5,
+              "strokeIndex": 9
+            },
+            {
+              "number": 14,
+              "distance": 117,
+              "par": 3,
+              "strokeIndex": 18
+            },
+            {
+              "number": 15,
+              "distance": 372,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 16,
+              "distance": 460,
+              "par": 5,
+              "strokeIndex": 15
+            },
+            {
+              "number": 17,
+              "distance": 371,
+              "par": 4,
+              "strokeIndex": 6
+            },
+            {
+              "number": 18,
+              "distance": 186,
+              "par": 3,
+              "strokeIndex": 12
+            }
+          ]
+        },
+        {
+          "slug": "red-unspecified",
+          "name": "Red",
+          "colour": "red",
+          "ratingCategory": "unspecified",
+          "par": 72,
+          "courseRating": null,
+          "slopeRating": null,
+          "totalDistance": 5391,
+          "distanceUnit": "m",
+          "sourceUrl": "https://www.grangegolfclub.ie/academy_course_a4",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 398,
+              "par": 5,
+              "strokeIndex": 7
+            },
+            {
+              "number": 2,
+              "distance": 113,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 3,
+              "distance": 359,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 4,
+              "distance": 406,
+              "par": 5,
+              "strokeIndex": 10
+            },
+            {
+              "number": 5,
+              "distance": 347,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 6,
+              "distance": 174,
+              "par": 3,
+              "strokeIndex": 13
+            },
+            {
+              "number": 7,
+              "distance": 398,
+              "par": 5,
+              "strokeIndex": 8
+            },
+            {
+              "number": 8,
+              "distance": 113,
+              "par": 3,
+              "strokeIndex": 17
+            },
+            {
+              "number": 9,
+              "distance": 359,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 10,
+              "distance": 406,
+              "par": 5,
+              "strokeIndex": 11
+            },
+            {
+              "number": 11,
+              "distance": 347,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 12,
+              "distance": 174,
+              "par": 3,
+              "strokeIndex": 14
+            },
+            {
+              "number": 13,
+              "distance": 398,
+              "par": 5,
+              "strokeIndex": 9
+            },
+            {
+              "number": 14,
+              "distance": 113,
+              "par": 3,
+              "strokeIndex": 18
+            },
+            {
+              "number": 15,
+              "distance": 359,
+              "par": 4,
+              "strokeIndex": 3
+            },
+            {
+              "number": 16,
+              "distance": 406,
+              "par": 5,
+              "strokeIndex": 12
+            },
+            {
+              "number": 17,
+              "distance": 347,
+              "par": 4,
+              "strokeIndex": 6
+            },
+            {
+              "number": 18,
+              "distance": 174,
+              "par": 3,
+              "strokeIndex": 15
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "milltown-main",
+      "clubName": "Milltown Golf Club",
+      "name": "Milltown Golf Club",
+      "location": "Dublin, Ireland",
+      "sourceUrl": "https://www.milltowngolfclub.ie/hole_9",
+      "reviewedOn": "2026-11-03",
+      "tees": [
+        {
+          "slug": "blue-men",
+          "name": "Blue",
+          "colour": "blue",
+          "ratingCategory": "men",
+          "par": 71,
+          "courseRating": 70.6,
+          "slopeRating": 121,
+          "totalDistance": 6230,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/milltown-golf-club/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 253,
+              "par": 4,
+              "strokeIndex": 18
+            },
+            {
+              "number": 2,
+              "distance": 337,
+              "par": 4,
+              "strokeIndex": 10
+            },
+            {
+              "number": 3,
+              "distance": 349,
+              "par": 4,
+              "strokeIndex": 6
+            },
+            {
+              "number": 4,
+              "distance": 131,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 5,
+              "distance": 503,
+              "par": 5,
+              "strokeIndex": 12
+            },
+            {
+              "number": 6,
+              "distance": 363,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 7,
+              "distance": 352,
+              "par": 4,
+              "strokeIndex": 8
+            },
+            {
+              "number": 8,
+              "distance": 401,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 9,
+              "distance": 348,
+              "par": 4,
+              "strokeIndex": 14
+            },
+            {
+              "number": 10,
+              "distance": 413,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 11,
+              "distance": 330,
+              "par": 4,
+              "strokeIndex": 13
+            },
+            {
+              "number": 12,
+              "distance": 150,
+              "par": 3,
+              "strokeIndex": 15
+            },
+            {
+              "number": 13,
+              "distance": 377,
+              "par": 4,
+              "strokeIndex": 7
+            },
+            {
+              "number": 14,
+              "distance": 470,
+              "par": 5,
+              "strokeIndex": 17
+            },
+            {
+              "number": 15,
+              "distance": 358,
+              "par": 4,
+              "strokeIndex": 9
+            },
+            {
+              "number": 16,
+              "distance": 197,
+              "par": 3,
+              "strokeIndex": 11
+            },
+            {
+              "number": 17,
+              "distance": 454,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 18,
+              "distance": 444,
+              "par": 4,
+              "strokeIndex": 3
+            }
+          ]
+        },
+        {
+          "slug": "yellow-men",
+          "name": "Yellow",
+          "colour": "yellow",
+          "ratingCategory": "men",
+          "par": 71,
+          "courseRating": 69,
+          "slopeRating": 119,
+          "totalDistance": 5951,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/milltown-golf-club/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 240,
+              "par": 4,
+              "strokeIndex": 18
+            },
+            {
+              "number": 2,
+              "distance": 323,
+              "par": 4,
+              "strokeIndex": 10
+            },
+            {
+              "number": 3,
+              "distance": 337,
+              "par": 4,
+              "strokeIndex": 6
+            },
+            {
+              "number": 4,
+              "distance": 120,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 5,
+              "distance": 481,
+              "par": 5,
+              "strokeIndex": 12
+            },
+            {
+              "number": 6,
+              "distance": 352,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 7,
+              "distance": 330,
+              "par": 4,
+              "strokeIndex": 8
+            },
+            {
+              "number": 8,
+              "distance": 364,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 9,
+              "distance": 329,
+              "par": 4,
+              "strokeIndex": 14
+            },
+            {
+              "number": 10,
+              "distance": 401,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 11,
+              "distance": 318,
+              "par": 4,
+              "strokeIndex": 13
+            },
+            {
+              "number": 12,
+              "distance": 137,
+              "par": 3,
+              "strokeIndex": 15
+            },
+            {
+              "number": 13,
+              "distance": 370,
+              "par": 4,
+              "strokeIndex": 7
+            },
+            {
+              "number": 14,
+              "distance": 465,
+              "par": 5,
+              "strokeIndex": 17
+            },
+            {
+              "number": 15,
+              "distance": 350,
+              "par": 4,
+              "strokeIndex": 9
+            },
+            {
+              "number": 16,
+              "distance": 186,
+              "par": 3,
+              "strokeIndex": 11
+            },
+            {
+              "number": 17,
+              "distance": 429,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 18,
+              "distance": 419,
+              "par": 4,
+              "strokeIndex": 3
+            }
+          ]
+        },
+        {
+          "slug": "red-men",
+          "name": "Red",
+          "colour": "red",
+          "ratingCategory": "men",
+          "par": 71,
+          "courseRating": 67.8,
+          "slopeRating": 117,
+          "totalDistance": 5684,
+          "distanceUnit": "m",
+          "sourceUrl": "https://golfhandicapcalculator.co/courses/milltown-golf-club/",
+          "reviewedOn": "2026-11-03",
+          "holes": [
+            {
+              "number": 1,
+              "distance": 224,
+              "par": 4,
+              "strokeIndex": 18
+            },
+            {
+              "number": 2,
+              "distance": 291,
+              "par": 4,
+              "strokeIndex": 10
+            },
+            {
+              "number": 3,
+              "distance": 327,
+              "par": 4,
+              "strokeIndex": 6
+            },
+            {
+              "number": 4,
+              "distance": 116,
+              "par": 3,
+              "strokeIndex": 16
+            },
+            {
+              "number": 5,
+              "distance": 449,
+              "par": 5,
+              "strokeIndex": 12
+            },
+            {
+              "number": 6,
+              "distance": 344,
+              "par": 4,
+              "strokeIndex": 4
+            },
+            {
+              "number": 7,
+              "distance": 330,
+              "par": 4,
+              "strokeIndex": 8
+            },
+            {
+              "number": 8,
+              "distance": 332,
+              "par": 4,
+              "strokeIndex": 2
+            },
+            {
+              "number": 9,
+              "distance": 279,
+              "par": 4,
+              "strokeIndex": 14
+            },
+            {
+              "number": 10,
+              "distance": 370,
+              "par": 4,
+              "strokeIndex": 5
+            },
+            {
+              "number": 11,
+              "distance": 304,
+              "par": 4,
+              "strokeIndex": 13
+            },
+            {
+              "number": 12,
+              "distance": 126,
+              "par": 3,
+              "strokeIndex": 15
+            },
+            {
+              "number": 13,
+              "distance": 363,
+              "par": 4,
+              "strokeIndex": 7
+            },
+            {
+              "number": 14,
+              "distance": 451,
+              "par": 5,
+              "strokeIndex": 17
+            },
+            {
+              "number": 15,
+              "distance": 337,
+              "par": 4,
+              "strokeIndex": 9
+            },
+            {
+              "number": 16,
+              "distance": 166,
+              "par": 3,
+              "strokeIndex": 11
+            },
+            {
+              "number": 17,
+              "distance": 442,
+              "par": 4,
+              "strokeIndex": 1
+            },
+            {
+              "number": 18,
+              "distance": 433,
+              "par": 4,
+              "strokeIndex": 3
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

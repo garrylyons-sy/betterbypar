@@ -13,3 +13,7 @@ coverage
 .pnpm-store/
 
 .local-demo/
+
+# Reproducible clean Supabase installation, generated with npm run db:prepare.
+supabase/install.generated.sql
+.env*

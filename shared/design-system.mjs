@@ -8,11 +8,12 @@ export function foregroundFor(colour){const c=valid(colour,'#061F3E');return con
 // Semantic tokens are consumed by both React DOM and React Native.
 export const designTokens=Object.freeze({
  spacing:Object.freeze({xs:4,sm:8,md:12,lg:16,xl:20,xxl:24}),
- radius:Object.freeze({small:10,button:14,hero:18,card:24,pill:99}),
+ radius:Object.freeze({small:4,button:6,hero:8,card:8,pill:99}),
  type:Object.freeze({caption:10,small:12,body:15,section:16,title:28,index:60,lowIndex:26,score:27}),
  minTouchTarget:48
 });
 export function designCssVariables(){return {
+ '--bbp-radius-small':`${designTokens.radius.small}px`,'--radius-sm':`${designTokens.radius.small}px`,'--radius-md':`${designTokens.radius.button}px`,'--radius-lg':`${designTokens.radius.card}px`,
  '--bbp-radius-card':`${designTokens.radius.card}px`,'--bbp-radius-hero':`${designTokens.radius.hero}px`,
  '--bbp-radius-button':`${designTokens.radius.button}px`,'--bbp-space-panel':`${designTokens.spacing.xl}px`,
  '--bbp-index-size':`${designTokens.type.index}px`,'--bbp-section-size':`${designTokens.type.section}px`,
@@ -21,9 +22,12 @@ export function designCssVariables(){return {
 export function buildBrandTheme(primary,accent){
  const p=valid(primary,'#061F3E'),a=valid(accent,'#0878E8');
  const on=foregroundFor(p),onAccent=foregroundFor(a),text=mixColour(p,'#000000',.8),muted=mixColour(text,'#FFFFFF',.26);
- const page=mixColour(p,'#FFFFFF',.97),surface='#FFFFFF',soft=mixColour(p,'#FFFFFF',.92),border=mixColour(p,'#FFFFFF',.78);
- const hover=mixColour(p,on==='#FFFFFF'?'#000000':'#FFFFFF',.15),accentSoft=mixColour(a,'#FFFFFF',.85);
+ // Lift dark club colours before tinting so navy produces blue, rather than grey, surfaces.
+ const channels=rgb(p),lift=Math.max(1,Math.min(3,180/Math.max(1,...channels)));
+ const primaryLift=hex(channels.map(v=>Math.min(255,v*lift)));
+ const page=mixColour(primaryLift,'#FFFFFF',.95),surface='#FFFFFF',soft=mixColour(primaryLift,'#FFFFFF',.88),border=mixColour(primaryLift,'#FFFFFF',.73);
+ const hover=mixColour(p,on==='#FFFFFF'?'#000000':'#FFFFFF',.15),accentSoft=mixColour(a,'#FFFFFF',.8);
  const baseText=mixColour(p,'#000000',.5),primaryText=contrastRatio(baseText,soft)>=4.5?baseText:mixColour(p,'#000000',.65);
- return {primary:p,primaryHover:hover,onPrimary:on,accent:a,onAccent,page,surface,soft,border,text,muted,accentSoft,
+ return {primary:p,primaryLift,primaryHover:hover,onPrimary:on,accent:a,onAccent,page,surface,soft,border,text,muted,accentSoft,
  accentText:mixColour(a,'#000000',.6),primaryText,focus:mixColour(p,'#000000',.4)};
 }

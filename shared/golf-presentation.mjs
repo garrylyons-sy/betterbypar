@@ -19,3 +19,6 @@ export function golfSummaryView(summary){
  movementLabel:movement===null?null:movement>0?`${movement.toFixed(1)} better`:movement<0?`${Math.abs(movement).toFixed(1)} higher`:'Unchanged',
  hasUnknownCounting:rounds.some(r=>r.counting==null),trend:trendPoints(summary?.history)};
 }
+
+// Round status is semantic and remains independent of club branding.
+export const countingSignalColours=Object.freeze({green:'#22C55E',red:'#F04452',unknown:'#94A3B8',inactive:'#243246',housing:'#10233F'});

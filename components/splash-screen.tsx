@@ -1,7 +1,7 @@
 /** Shared startup screen. AuthGateway removes it once the session is ready. */
 export function SplashScreen({ preview = false }: { preview?: boolean }) {
   return (
-    <div role="status" aria-label="Loading Better By Par" className={`${preview ? 'relative min-h-[480px] rounded-[28px]' : 'fixed inset-0 z-50 min-h-[100svh]'} golf-splash isolate grid place-items-center overflow-hidden bg-white text-[#061f3e]`}>
+    <div role="status" aria-label="Loading Better By Par" className={`${preview ? 'relative min-h-[480px] rounded-2xl' : 'fixed inset-0 z-50 min-h-[100svh]'} golf-splash isolate grid place-items-center overflow-hidden bg-white text-[#061f3e]`}>
       <div className="golf-splash-light pointer-events-none absolute inset-0" />
       <svg aria-hidden="true" className="pointer-events-none absolute bottom-0 left-0 h-full w-full" viewBox="0 0 900 1000" preserveAspectRatio="xMidYMax slice" fill="none">
         {[0,1,2,3,4].map(i => <path key={i} d={`M-150 ${850+i*38} C80 ${630+i*38} 280 ${1050+i*16} 540 ${810+i*28} S900 ${620+i*32} 1080 ${790+i*38}`} stroke="#0878e8" strokeOpacity={.04+i*.015} strokeWidth="1" />)}

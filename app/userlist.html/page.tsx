@@ -46,7 +46,7 @@ export default async function UserListPage() {
 
   return (
     <main className="min-h-screen bg-[#f6f4f8] px-4 py-6 text-[#071426]">
-      <section className="mx-auto grid w-full max-w-xl gap-5 rounded-[18px] border border-[#e3dfea] bg-white p-5 shadow-card">
+      <section className="mx-auto grid w-full max-w-xl gap-5 rounded-2xl border border-[#e3dfea] bg-white p-5 shadow-card">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-[#1b8a72]">Test access</p>
           <h1 className="mt-1 text-3xl font-extrabold leading-tight">Select a user</h1>

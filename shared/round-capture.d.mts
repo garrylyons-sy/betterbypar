@@ -1,0 +1,16 @@
+import type {RoundInput,RoundHole} from '../lib/golf-rounds.mjs';
+export type CoursePreset={slug:string;name:string;location:string;pars:string;strokeIndexes?:string;yards:string;teeName:string;aliases?:string[]};
+export type CaptureShot={mode:'full'|'putt';club?:string;outcomeKey:string;position?:string;note?:string};
+export const coursePresets:CoursePreset[];
+export function coursePresetFor(name:string):CoursePreset|undefined;
+export function applyCoursePreset(round:RoundInput,slug:string):RoundInput;
+export const captureClubs:string[];
+export const capturePositions:string[];
+export const captureOutcomes:{label:string;key:string;putt?:boolean;holed?:boolean;penalty?:boolean}[];
+export function captureEntryMode(round:RoundInput):'shot_tracking'|'score_only';
+export function captureShotMode(hole:RoundHole):'full'|'putt';
+export function captureClub(hole:RoundHole):string;
+export function adjustHoleScore(hole:RoundHole,delta:number):RoundHole;
+export function pickUpHole(hole:RoundHole):RoundHole;
+export function appendCaptureShot(hole:RoundHole,input:CaptureShot,options?:{readOnlyScore?:boolean}):RoundHole;
+export function undoCaptureShot(hole:RoundHole,options?:{readOnlyScore?:boolean}):RoundHole;

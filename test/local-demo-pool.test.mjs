@@ -9,7 +9,7 @@ test('local demo serializes database connections and reuses its pool across modu
  vm.runInContext(`(function(){${source}})()`,context);const first=context.exports.getPool();assert.equal(first.options.max,1);
  context.exports={};vm.runInContext(`(function(){${source}})()`,context);assert.equal(context.exports.getPool(),first);assert.equal(created.length,1);
 });
-test('normal Postgres configuration retains its regular connection pool',()=>{
+test('normal Postgres configuration bounds its connection pool for Supabase session limits',()=>{
  const context=vm.createContext({exports:{},process:{env:{NODE_ENV:'production',DATABASE_URL:'postgresql://database/app'}},require:()=>({Pool:class{constructor(options){this.options=options;}}})});
- vm.runInContext(`(function(){${source}})()`,context);assert.equal(context.exports.getPool().options.max,undefined);
+ vm.runInContext(`(function(){${source}})()`,context);assert.equal(context.exports.getPool().options.max,4);
 });

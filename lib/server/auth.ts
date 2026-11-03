@@ -1243,6 +1243,7 @@ export async function loadSessionPayload(user: AppUser) {
 
   return {
     authenticated: true,
+    platformAdmin: isAppOperator,
     user,
     contexts,
     standings,

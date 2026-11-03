@@ -757,7 +757,7 @@ function AdminLayout({
         </div>
       </header>
       <section className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-10">
-        <aside className="flex min-w-0 gap-2 overflow-x-auto rounded-[18px] bg-white p-2 shadow-card lg:sticky lg:top-4 lg:block lg:self-start lg:overflow-visible">
+        <aside className="flex min-w-0 gap-2 overflow-x-auto rounded-2xl bg-white p-2 shadow-card lg:sticky lg:top-4 lg:block lg:self-start lg:overflow-visible">
           {navItems.map((item) => {
             const Icon = item.icon;
             const className = `flex min-h-11 shrink-0 items-center gap-3 rounded-lg px-4 text-sm font-bold lg:w-full ${tab === item.id ? "bg-[#10233f] text-white" : "text-[#25002b]"}`;
@@ -2601,7 +2601,7 @@ function ConfirmDeleteCompetitionModal({
 }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Delete competition">
-      <div className="w-full max-w-md rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
+      <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Confirm delete</p>
@@ -3783,7 +3783,7 @@ function EditPersonModal({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Edit person">
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Edit person</p>
@@ -3935,7 +3935,7 @@ function ConfirmDeletePersonModal({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-[#071426]/55 p-4" role="dialog" aria-modal="true" aria-label="Delete user">
-      <div className="w-full max-w-md rounded-[18px] bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
+      <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-elevated ring-1 ring-[#eeeaf2]">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase text-[#6c5a73]">Confirm delete</p>
@@ -5070,7 +5070,7 @@ function AppearancePhonePreview({ role, panels }: { role: AppRole; panels: Appea
           <Badge variant="cyan">{role}</Badge>
         </CardHeader>
         <CardContent>
-          <div className="relative mx-auto h-[720px] w-[320px] overflow-hidden rounded-[32px] border-8 border-[#10233f] bg-[#f7f5fa] shadow-elevated">
+          <div className="relative mx-auto h-[720px] w-[320px] overflow-hidden rounded-2xl border-8 border-[#10233f] bg-[#f7f5fa] shadow-elevated">
             <div className="bg-[#10233f] p-4 text-white">
               <div className="flex items-center justify-between">
                 <div>

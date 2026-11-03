@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {newRoundCard,resizeRoundCard,roundSourceLabel,importModeMessage,roundSaveInput,roundHoleLabel,roundFeedbackVisible,clampRoundHole} from '../shared/round-presentation.mjs';
+test('nine hole draft has independent blank holes and Dublin date',()=>{const r=newRoundCard('Club',9,new Date('2026-06-30T23:30:00Z'));assert.equal(r.playedOn,'2026-07-01');assert.equal(r.holes.length,9);r.holes[0].comment='First';assert.equal(r.holes[1].comment,'');assert.equal(r.holes[0].strokes,null);});
+test('resizing preserves played front nine and expands independent blank back nine',()=>{const r=newRoundCard('Club',9);r.holes[0].strokes=4;r.holes[0].status='played';const full=resizeRoundCard(r,18);assert.equal(full.holes[0].strokes,4);assert.equal(full.holes[17].number,18);assert.equal(resizeRoundCard(full,9).holes.length,9);});
+test('import and feedback labels distinguish demo and unavailable',()=>{assert.equal(roundSourceLabel({source:'demo_golf_ireland'}),'Sample import');assert.match(importModeMessage('demo'),/not connected/);assert.match(importModeMessage('unavailable'),/unavailable/i);assert.match(importModeMessage('live'),/private copy/);});
+test('save validation uses authoritative scoring rules and permits imported incomplete cards',()=>{const r=newRoundCard('Club',9);assert.throws(()=>roundSaveInput(r,'completed',false),/at least one/);assert.equal(roundSaveInput(r,'completed',true).status,'completed');r.holes[0]={...r.holes[0],status:'played',strokes:4,putts:5};assert.throws(()=>roundSaveInput(r,'draft',false),/cannot exceed/);});
+
+test('feedback is hidden until the edited card is saved',()=>{assert.equal(roundFeedbackVisible({feedback:{summary:'old'}},true),false);assert.equal(roundFeedbackVisible({feedback:{summary:'saved'}},false),true);assert.equal(roundFeedbackVisible({feedback:null},false),false);});
+test('live imported card positions never imply physical hole numbers',()=>{assert.equal(roundHoleLabel('golf_ireland',10),'Card hole 10');assert.equal(roundHoleLabel('manual',10),'Hole 10');});
+test('selected hole remains valid after resizing',()=>{assert.equal(clampRoundHole(18,9),9);assert.equal(clampRoundHole(4,9),4);assert.equal(clampRoundHole(0,18),1);});

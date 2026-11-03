@@ -1,7 +1,6 @@
 import { Pool, PoolClient, QueryResultRow } from "pg";
 
-let pool: Pool | null = null;
-const localRuntime=globalThis as typeof globalThis & {betterByParDemoPool?:Pool};
+const runtime=globalThis as typeof globalThis & {betterByParDatabasePool?:{connectionString:string;pool:Pool}};
 
 export function getDatabaseUrl() {
   return process.env.DATABASE_URL || "";
@@ -15,20 +14,21 @@ export function getPool() {
     throw new Error("DATABASE_URL is required for app-managed auth.");
   }
 
-  if(localDemo&&localRuntime.betterByParDemoPool)return localRuntime.betterByParDemoPool;
-  if (!pool) {
-    pool = new Pool({
-      connectionString,
-      // PGlite multiplexes a single PostgreSQL session. Serialize queries and
-      // retain the pool across Next development reloads to avoid protocol races.
-      ...(localDemo?{max:1}:{}),
-      ssl: connectionString.includes("localhost") || connectionString.includes("127.0.0.1")
-        ? false
-        : { rejectUnauthorized: false }
-    });
-    if(localDemo)localRuntime.betterByParDemoPool=pool;
-  }
-
+  const cached=runtime.betterByParDatabasePool;
+  if(cached?.connectionString===connectionString)return cached.pool;
+  // Route bundles and Next development reloads share one bounded pool per process.
+  // Supabase session pooling has a small client limit; serialize the PGlite demo.
+  const pool=new Pool({
+    connectionString,
+    max:localDemo?1:4,
+    connectionTimeoutMillis:10000,
+    idleTimeoutMillis:10000,
+    ssl: connectionString.includes("localhost") || connectionString.includes("127.0.0.1")
+      ? false
+      : {rejectUnauthorized:false}
+  });
+  runtime.betterByParDatabasePool={connectionString,pool};
+  if(cached)void cached.pool.end().catch(()=>{});
   return pool;
 }
 

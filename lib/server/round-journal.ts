@@ -1,3 +1,4 @@
+import {resolveRoundCourseDetails} from '@/lib/server/course-catalogue';
 import type {PoolClient} from 'pg';
 import {withTransaction} from '@/lib/server/db';
 import {golfAccess,AccessError,requirePlayerAccess} from '@/lib/server/golf-access';
@@ -52,7 +53,7 @@ export async function saveRoundJournal(request:Request,body:Record<string,unknow
  const {user}=await golfAccess(request);
  if(body.action==='create')return withTransaction(async client=>{
   const {selected}=await context(client,user.personId,body.clubId,body.playerId);if(!selected)throw new AccessError('A registered player is required.');
-  const data=normalize(body.data);
+  const data=await resolveRoundCourseDetails(client,normalize(body.data));
   const row=(await client.query<Row>(`insert into golf_round(club_id,player_person_id,created_by,source,data) values($1,$2,$3,'manual',$4::jsonb) returning *`,[selected.clubId,selected.playerId,user.personId,JSON.stringify(data)])).rows[0];
   return {round:view(row)};
  });
@@ -71,7 +72,7 @@ export async function saveRoundJournal(request:Request,body:Record<string,unknow
  if(body.action==='save')return withTransaction(async client=>{
   const row=await owned(client,user.personId,body.roundId);
   if(row.revision!==body.revision)throw new AccessError('This round changed elsewhere. Reload it before saving.',409);
-  const data=normalize(body.data,row.source!=='manual');
+  const data=await resolveRoundCourseDetails(client,normalize(body.data,row.source!=='manual'),row.data,row.source!=='manual');
   if(row.source!=='manual'){
    const scoreFields=(r:RoundInput)=>({courseName:r.courseName,teeName:r.teeName,playedOn:r.playedOn,holeCount:r.holeCount,format:r.format,status:r.status,handicapIndex:r.handicapIndex,playingHandicap:r.playingHandicap,holes:r.holes.map(h=>({number:h.number,par:h.par,strokes:h.strokes,status:h.status}))});
    if(JSON.stringify(scoreFields(data))!==JSON.stringify(scoreFields(row.data)))throw new AccessError('Imported scores are read-only. Add commentary, putts, penalties or shot observations instead.',400);
