@@ -38,3 +38,19 @@
 .stages button[aria-current]{background:var(--club-primary);color:var(--club-on-primary);box-shadow:0 3px 10px color-mix(in srgb,var(--club-primary) 18%,transparent)}
 .holeHeader,.reviewHeader{background:radial-gradient(ellipse at top right,color-mix(in srgb,var(--club-primary-lift) 75%,transparent),transparent 75%),var(--club-primary);box-shadow:0 8px 24px color-mix(in srgb,var(--club-primary) 16%,transparent)}
 .choice[aria-pressed=true]{border-color:var(--club-accent);box-shadow:inset 0 3px 0 var(--club-accent)}
+
+/* Setup controls share baselines and wrap their information rather than clipping it. */
+.setupHeading{display:grid;gap:6px}.setupHeading .title{font-size:24px}
+.toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px;border:1px solid var(--club-border);border-radius:var(--bbp-radius-card);background:var(--club-surface)}
+.toolbarActions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.toolbarActions button{min-height:44px;line-height:1.4}
+.saveStatus{display:inline-flex;align-items:center;min-height:44px;font-size:12px;line-height:1.5;font-weight:650;color:var(--club-muted-text)}
+.textButton{min-height:44px;padding:6px 0;font-size:12px;font-weight:750;line-height:1.5;color:var(--club-primary-text);text-decoration:underline;text-underline-offset:4px}
+.catalogue .row{align-items:center}.catalogue .fields>label:only-child{grid-column:1/-1}
+.teeField{grid-column:1/-1;min-width:0;margin:0;padding:0;border:0}.teeField legend{margin-bottom:10px;font-size:12px;font-weight:750;color:var(--club-muted-text)}
+.teeGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px}
+.teeChoice{display:grid;align-content:start;gap:5px;min-width:0;min-height:108px;padding:14px;text-align:left;border:1px solid var(--club-border);border-radius:var(--bbp-radius-button);background:var(--club-surface);line-height:1.5;color:var(--club-text);overflow-wrap:anywhere}
+.teeChoice[aria-pressed=true]{border-color:var(--club-primary-lift);background:var(--club-accent-soft);box-shadow:inset 0 0 0 1px var(--club-primary-lift)}
+.teeTitle{display:flex;align-items:center;justify-content:space-between;gap:12px}.teeTitle strong{font-size:16px}.teeTitle>span{color:var(--club-primary-text);font-weight:800}
+.teeCategory{font-size:12px;color:var(--club-muted-text)}.teeMetrics{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;margin-top:4px}.teeMetrics>span{white-space:nowrap}.teeField>.hint{margin-top:9px}
+.sourceDetails{font-size:12px;min-width:0}.sourceDetails>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;color:var(--club-primary-text);font-weight:700}.sourceDetails>summary:before{content:'+';font-size:18px}.sourceDetails[open]>summary:before{content:'−'}
+@media(max-width:560px){.fields{grid-template-columns:minmax(0,1fr)}.teeGrid{grid-template-columns:minmax(0,1fr)}.toolbar{align-items:stretch;flex-direction:column}.toolbarActions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.toolbarActions button{padding:8px 10px;font-size:12px}.saveStatus{min-height:0;font-size:11px}.panel{padding:16px;gap:16px}.catalogue{padding:14px;gap:12px}.teeChoice{min-height:0;padding:12px}.stages button{font-size:11px;gap:5px}}

@@ -14,7 +14,7 @@ test('complete clean installation has golf features and course references withou
  const db=await PGlite.create({extensions:{pgcrypto,btree_gist}});
  try{
   await db.exec("create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as 'select null::uuid';create function auth.jwt() returns jsonb language sql as 'select null::jsonb';");
-  const sql=buildSupabaseInstall();assert.equal(supabaseInstallFiles.length,17);await db.exec(sql);
+  const sql=buildSupabaseInstall();assert.equal(supabaseInstallFiles.length,18);await db.exec(sql);
   for(const table of ['person','club','user_account','app_operator'])assert.equal((await db.query(`select count(*)::int as n from ${table}`)).rows[0].n,0);
   assert.equal((await db.query('select count(*)::int as n from golf_course')).rows[0].n,5);
   assert.equal((await db.query('select count(*)::int as n from golf_course_tee')).rows[0].n,17);

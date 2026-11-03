@@ -6,3 +6,5 @@ export function apiRequestOptions(body,method=body===undefined?'GET':'POST'){
  if(method==='GET'&&body!==undefined)throw new Error('GET requests cannot send a body.');
  return {method,...(body===undefined?{}:{body:JSON.stringify(body)})};
 }
+
+export function defaultApiOrigin(configured,development=false){return apiOrigin(configured?.trim()||'https://www.betterbypar.com',development);}

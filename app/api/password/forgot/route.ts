@@ -8,6 +8,7 @@ import { hashSecretToken } from "@/lib/server/tokens";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  if(!process.env.RESEND_API_KEY?.trim()||!(process.env.INVITE_FROM_EMAIL?.trim()||process.env.EMAIL_FROM?.trim()))return NextResponse.json({error:'Password reset emails are not configured yet. Please contact your club administrator.'},{status:503,headers:{'Cache-Control':'no-store'}});
   const body = await request.json().catch(() => ({}));
   const identifier = String(body.identifier ?? "").trim().toLowerCase();
 
@@ -52,5 +53,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, message: "If an account exists for those details, a reset email has been sent." });
+  return NextResponse.json({ ok: true, message: "If an account exists for those details, you will receive a password reset email." });
 }

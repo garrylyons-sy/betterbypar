@@ -88,6 +88,7 @@ export function AuthGateway() {
       const sessionUrl = testUser ? `/api/session?testUser=${encodeURIComponent(testUser)}` : "/api/session";
       const payload = await authJsonFetch<SessionPayload>(sessionUrl);
       setSession(payload);
+      window.dispatchEvent(new Event('bbp:session-changed'));
       setMessage(payload.error ?? "");
     } catch (error) {
       setSession({ authenticated: false });

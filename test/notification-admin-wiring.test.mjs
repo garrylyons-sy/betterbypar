@@ -33,10 +33,10 @@ test('scheduled notification worker requires secret and is registered', () => {
   assert.ok(JSON.parse(file('vercel.json')).crons.some(job => job.path === '/api/cron/notifications'));
 });
 
-test('notification schedules retain Hobby-compatible daily jobs and secured after-response dispatch', () => {
+test('notification schedules process reminders every five minutes and retain secured after-response dispatch', () => {
   const jobs=JSON.parse(file('vercel.json')).crons.filter(job=>job.path==='/api/cron/notifications');
-  assert.equal(jobs.length,24);
-  assert.ok(jobs.every(job=>/^35 \d+ \* \* \*$/.test(job.schedule)));
+  assert.equal(jobs.length,1);
+  assert.equal(jobs[0].schedule,'*/5 * * * *');
   assert.match(file('lib/server/notification-dispatch.ts'),/after\(async/);
   assert.match(file('components/auth-gateway.tsx'),/await disconnectNotificationDevice\(\)/);
 });

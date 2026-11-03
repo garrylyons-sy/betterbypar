@@ -785,19 +785,14 @@ function Header({
       <div className="mx-auto grid w-full max-w-[1440px] gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white p-1.5 shadow-[0_6px_16px_rgba(0,0,0,0.16)] ring-1 ring-white/25">
-              <img src="/icons/icon-192.png" alt="Better By Par" className="h-full w-full rounded-lg object-contain" />
+            <div className={cn("grid shrink-0 place-items-center rounded-lg bg-white p-1.5 shadow-[0_6px_16px_rgba(0,0,0,0.16)] ring-1 ring-white/25",isGolfRole(activeTeam.role)?"h-16 w-16":"h-11 w-11")}>
+              <img src={isGolfRole(activeTeam.role)?activeTeam.logoPath:"/icons/icon-192.png"} alt={isGolfRole(activeTeam.role)?`${activeTeam.club} crest`:"Better By Par"} className="h-full w-full object-contain" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-xs font-bold uppercase tracking-wide text-white/75">
-                Better By Par
-              </p>
-              <h1 className="truncate text-lg font-extrabold leading-tight">{isClubOnlyRole(activeTeam.role) ? activeTeam.club.replace(" Golf Club", "") : activeTeam.season}</h1>
-              {userLabel ? (
-                <p className="truncate text-xs font-bold text-white/70 sm:hidden">
-                  {userLabel}
-                </p>
-              ) : null}
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/65">{isGolfRole(activeTeam.role)?"Your club":"Better By Par"}</p>
+              <h1 className="break-words text-xl font-extrabold leading-tight">{isGolfRole(activeTeam.role)?activeTeam.club:isClubOnlyRole(activeTeam.role)?activeTeam.club.replace(" Golf Club", ""):activeTeam.season}</h1>
+              {isGolfRole(activeTeam.role)?<p className="mt-1 text-[10px] font-semibold text-white/70">Powered by Better By Par</p>:null}
+              {userLabel&&!isGolfRole(activeTeam.role)?<p className="truncate text-xs font-bold text-white/70 sm:hidden">{userLabel}</p>:null}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -849,7 +844,7 @@ function AccountMenu({
       <button
         type="button"
         onClick={() => setAccountOpen((open) => !open)}
-        className="flex min-h-10 items-center gap-2 rounded-xl bg-white/10 px-2.5 text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6] sm:min-h-11 sm:px-3"
+        className="flex h-11 min-h-11 items-center justify-center gap-2 rounded-xl bg-white/10 px-2.5 py-0 leading-none text-white transition-colors hover:bg-white/15 focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#7bc7d6] sm:px-3"
         aria-haspopup="menu"
         aria-expanded={accountOpen}
         aria-label="Account menu"

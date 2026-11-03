@@ -11,6 +11,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/?auth=google-not-configured", request.url));
   }
 
+  // OAuth cookies must be set on the same host as the configured callback.
+  const redirectUri=await googleRedirectUri();
+  const callbackOrigin=new URL(redirectUri).origin;
+  if(new URL(request.url).origin!==callbackOrigin){const canonical=new URL(request.nextUrl.pathname+request.nextUrl.search,callbackOrigin);return NextResponse.redirect(canonical);}
   const state = createToken(24);
   const nextPath = request.nextUrl.searchParams.get("next") || "/";
   const maintenance = await loadMaintenanceMode();
@@ -25,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   const params = new URLSearchParams({
     client_id: clientId,
-    redirect_uri: await googleRedirectUri(),
+    redirect_uri: redirectUri,
     response_type: "code",
     scope: "openid email profile",
     state,

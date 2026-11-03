@@ -9,7 +9,7 @@ export async function GET(request:Request){
   const access=await golfAccess(request),params=new URL(request.url).searchParams;
   const clubName=params.get('club')??'',requestedPlayer=params.get('playerId');
   const club=(await dbQuery<{id:string;name:string}>(`select c.id,c.name from club c where c.active and ($1='' or c.name=$1)
-   and exists(select 1 from club_membership where club_id=c.id and person_id=$2 and active) order by c.name limit 1`,[clubName,access.user.personId])).rows[0];
+   and ($3::uuid is null or c.id=$3) and exists(select 1 from club_membership where club_id=c.id and person_id=$2 and active) order by c.name limit 1`,[clubName,access.user.personId,access.user.actingAs?.clubId??null])).rows[0];
   if(!club)throw new AccessError('Club access is required to view this golf summary.');
   const players=(await dbQuery<{id:string;name:string;golf_ireland_number:string}>(`select p.id,concat_ws(' ',p.first_name,p.last_name) as name,p.golf_ireland_number from person p
    where public.is_golf_player(p.id,$2) and (p.id=$1 or exists(select 1 from dependants where guardian_person_id=$1 and dependant_person_id=p.id and club_id=$2 and active))

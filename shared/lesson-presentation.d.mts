@@ -12,3 +12,9 @@ export function lessonBookingLists(bookings:LessonBooking[],now?:number):{upcomi
 export function lessonBookingTarget(bookingId:string|undefined,consumedId:string|undefined):string|undefined;
 export function lessonPlayerChangeNeedsConfirmation(currentId:string,nextId:string,goals:string,reminder:number):boolean;
 export function lessonBookingWriteResolved(succeeded:boolean,input:{slotId:string;playerId:string},bookings:LessonBooking[]):boolean;
+
+export function lessonBookingStatus(booking:LessonBooking,now?:number):string;
+export function lessonResourceLinks(text?:string|null):string[];
+export function lessonSlotGroups(slots:LessonSlot[]):LessonSlot[][];
+
+export function lessonSlotsForProfessional<T extends {professional_person_id?:string|null;professional_name?:string}>(slots:T[],professional:string):T[];

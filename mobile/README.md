@@ -29,11 +29,11 @@ The workspace keeps the website and native React versions separate in a single l
 
 Apply `supabase/mobile_sessions.sql` to the same database as the website before native sign-in. Local demo startup applies it automatically; restart the demo if it was already running when the migration was added. The local HTTP verifier also applies it idempotently.
 
-For simulator development, the API defaults to `http://127.0.0.1:3500` on iOS and `http://10.0.2.2:3500` on Android. The website/demo backend must be running. The sign-in screen allows changing the backend origin in development only. You can also copy `.env.example` to `.env.local` and set `EXPO_PUBLIC_API_URL`, then restart Metro. Do not copy the example unchanged for Android: its loopback address is different.
+Both platforms default to `https://www.betterbypar.com`, including simulator development and builds without an environment file. You can explicitly override `EXPO_PUBLIC_API_URL` in `mobile/.env.local` for development: use `http://127.0.0.1:3500` on the iOS simulator, `http://10.0.2.2:3500` on the Android emulator, or a trusted LAN address on a physical phone. The sign-in screen also allows changing the backend in development. Fully reload the app after changing its configured origin.
 
 `pnpm mobile:ios` needs an installed iOS simulator runtime; `pnpm mobile:android` needs an Android emulator/toolchain. The same SDK-compatible Expo Go or a development build can run on a physical device, but it needs a reachable backend. The existing demo binds to loopback for safety. A phone's localhost is the phone, not the development computer; use an approved HTTPS development backend or deliberately configure trusted LAN access. Do not expose the unauthenticated local demo role picker to a public network.
 
-The default Metro command also binds to localhost. Change network access deliberately when testing physical devices. Native app IDs are initially `com.betterbypar.mobile`; configure your final identifiers and signing accounts before distribution. Production builds require an HTTPS `EXPO_PUBLIC_API_URL`.
+The default Metro command also binds to localhost. Change network access deliberately when testing physical devices. Native app IDs are initially `com.betterbypar.mobile`; configure your final identifiers and signing accounts before distribution. Production builds use the live HTTPS default; any configured override must also use HTTPS.
 
 ### Testing on your own iPhone
 
@@ -58,6 +58,19 @@ Keep the phone and Mac on the same Wi-Fi. Allow local network access on the phon
 
 Local demo credentials are listed in the root README. The native sign-in limit is eight attempts per normalized identifier per 15-minute window, and applies to demo accounts too.
 
+## Standalone iPhone testing
+
+A Release build bundles the app code, so opening it does not require Metro, a development-server URL or the Mac to remain online. The API default remains `https://www.betterbypar.com`; this is the shared website backend, not the source of the native JavaScript bundle.
+
+With this project's existing iOS workspace and Pods installed, connect and unlock the iPhone, then build and install:
+
+```sh
+cd mobile
+EXPO_PUBLIC_API_URL=https://www.betterbypar.com pnpm exec expo run:ios --configuration Release --device --no-bundler --no-install
+```
+
+`--no-install` reuses the installed native dependencies; omit it when dependencies need updating and CocoaPods is available. This is a locally signed device build, not an App Store or TestFlight release. Native interface changes require a new standalone build until an OTA update service is configured. Backend changes are available through the live API without rebuilding the app.
+
 ## Verification
 
 ```sh
@@ -74,3 +87,15 @@ The HTTP verifiers run only against the local demo and clean up their disposable
 ## Shared design and feature parity
 
 Home, My Golf and Lessons use shared semantic branding, visual scales, API contracts and presentation rules. See [the shared design architecture](../docs/architecture/shared-web-native-design.md). Club branding refreshes on return to the app and Home pull-to-refresh. Native Home includes low index, movement, trend, detailed recent rounds, counting icons/legend and expandable source details. My Golf and Lessons perform their core customer actions against the website backend, with draft guards and server-side access, capacity, revision and duplicate checks.
+
+### Default live backend
+
+Both platforms default to `https://www.betterbypar.com`. A local server is used only when explicitly configured with `EXPO_PUBLIC_API_URL` in development. Changing backend origin clears the previous saved session and requires sign-in; passwords/tokens are not transferred between servers. Reload the development app to load a new JavaScript bundle; an already installed standalone build needs an updated build or configured OTA update.
+
+### Shared inbox and phone alerts
+
+The app and website use the same authenticated `/api/notifications` inbox and per-event preferences. Open Inbox on Home or under More to read announcements, open lesson bookings and practice assignments, mark read, remove items, and choose inbox/push/email channels. Unread counts refresh on foreground, pull-to-refresh and every 30 seconds while active. Website-only destinations open in the browser with its separate sign-in.
+
+Background iPhone alerts currently use Safari’s Home Screen website, as in Interclub Snooker: open `https://www.betterbypar.com` in Safari, Share → Add to Home Screen, launch that icon, then enable device notifications in Inbox settings. This does not need an Apple Developer subscription. The React Native binary has the inbox but no APNs registration/background push. Configuring those later requires signing entitlements and a native push provider.
+
+Web delivery uses dedicated VAPID credentials. Notification workers run every five minutes; the existing quiet hours and source-access checks still apply. Email requires `RESEND_API_KEY` and a verified `INVITE_FROM_EMAIL` sender. Saving preferences does not grant device permission or make an unconfigured email provider ready.

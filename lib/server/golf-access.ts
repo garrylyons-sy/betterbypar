@@ -1,3 +1,5 @@
+import {requestRoleView} from '@/lib/server/role-view';
+import {roleViewScopeAllowed} from '@/shared/admin-role-view.mjs';
 import type { PoolClient } from 'pg';
 import { currentUser } from '@/lib/server/auth';
 import { dbQuery } from '@/lib/server/db';
@@ -12,10 +14,15 @@ export async function golfAccess(request?: Request) {
     dbQuery<{club_id:string;role:string}>(`select cm.club_id,cm.role from public.club_membership cm join public.club c on c.id=cm.club_id and c.active where cm.person_id=$1 and cm.active`,[user.personId])
   ]);
   const clubScope = request ? new URL(request.url).searchParams.get('scope') === 'club' : false;
+  if(user.actingAs){
+    const view=user.actingAs;
+    return {user,platform:false,adminClubIds:view.role==='Club Admin'?[view.clubId]:[],assignments:memberships.rows.filter(r=>r.club_id===view.clubId).map(r=>({clubId:r.club_id,role:view.role==='Player'?'Club Member':view.role,active:true}))};
+  }
   const adminClubIds = admins.rows.map(r=>r.club_id);
   return {user, platform:Boolean(operator.rowCount) && !clubScope, adminClubIds, assignments:memberships.rows.filter(r=>!clubScope || adminClubIds.includes(r.club_id)).map(r=>({clubId:r.club_id,role:r.role,active:true}))};
 }
 export type GolfAccess = Awaited<ReturnType<typeof golfAccess>>;
+export function requireWorkingCoach(access:GolfAccess,clubId:string){if(!roleViewScopeAllowed(access.user.actingAs,clubId,'coach'))throw new AccessError('Switch to the professional role for this club first.');}
 export function requireClubAdmin(access: GolfAccess, clubId: string) {
   if (!access.platform && !access.adminClubIds.includes(clubId)) throw new AccessError('Club administrator access required.');
 }
@@ -23,6 +30,7 @@ export function requireLessonsManager(access: GolfAccess, clubId: string) {
   if (!canManageLessons(access.platform,access.adminClubIds,access.assignments,clubId)) throw new AccessError('Professional or club administrator access required.');
 }
 export async function requirePlayerAccess(client: PoolClient, actorId: string, playerId: string, clubId: string) {
+  if(!roleViewScopeAllowed(await requestRoleView(),clubId,'player'))throw new AccessError('Switch to the player role for this club first.');
   // Lock the grant and memberships so revocation cannot race a booking.
   const members = await client.query(`select cm.person_id from public.club_membership cm join public.person p on p.id=cm.person_id and p.active
     join public.club c on c.id=cm.club_id and c.active where cm.club_id=$1 and cm.person_id=any($2::uuid[]) and cm.active for share of cm,p,c`,[clubId,[actorId,playerId]]);

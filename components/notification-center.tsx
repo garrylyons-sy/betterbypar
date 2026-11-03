@@ -25,9 +25,11 @@ export function useNotificationCenter(authenticated: boolean) {
   const [panel, setPanel] = useState<"inbox" | "settings" | "message" | null>(null);
   const [messageId,setMessageId] = useState<string|null>(null);
   const [error, setError] = useState("");
+  const [loading,setLoading]=useState(authenticated);
   const refresh = useCallback(async () => {
     if (!authenticated) return;
     const revision = inboxRevision.current;
+    setLoading(true);
     try {
       const response = await fetch("/api/notifications", { credentials: "same-origin", cache: "no-store" });
       if (revision !== inboxRevision.current) return;
@@ -44,10 +46,10 @@ export function useNotificationCenter(authenticated: boolean) {
       if (payload.eligible && !openedInboxLink.current && new URLSearchParams(window.location.search).get("notifications") === "1") {
         openedInboxLink.current = true;
         const target=notificationDestination(window.location.pathname+window.location.search);
-        setMessageId(target.messageId);setPanel(target.messageId ? "message" : "inbox");
+        setMessageId(target.messageId);setPanel(target.messageId ? "message" : new URLSearchParams(window.location.search).get("notificationSettings")==="1"?"settings":"inbox");
       }
       setError("");
-    } catch (failure) { if (revision === inboxRevision.current) setError(failure instanceof Error ? failure.message : "Notifications are unavailable."); }
+    } catch (failure) { if (revision === inboxRevision.current) setError(failure instanceof Error ? failure.message : "Notifications are unavailable."); } finally {if(revision===inboxRevision.current)setLoading(false);}
   }, [authenticated]);
   useEffect(() => {
     if (!state.items.length) return;
@@ -113,18 +115,19 @@ export function useNotificationCenter(authenticated: boolean) {
       return { ...previous, items: previous.items.filter(item => !removedIds.has(item.id)), unreadCount: Math.max(0, previous.unreadCount - removedUnread) };
     });
   }, []);
-  return { state, setState, panel, setPanel, messageId, refresh, receiptSaved, dismissLocally, error, setError };
+  return { loading, state, setState, panel, setPanel, messageId, setMessageId, refresh, receiptSaved, dismissLocally, error, setError };
 }
 
 type Center = ReturnType<typeof useNotificationCenter>;
 
 export function NotificationBell({ center }: { center: Center }) {
   if (!center.state.eligible) return null;
-  return <button type="button" onClick={() => { center.setPanel("inbox"); void center.refresh(); }} aria-label={`Notifications${center.state.unreadCount ? `, ${center.state.unreadCount} unread` : ""}`} className="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 text-white hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"><Bell className="h-5 w-5" />{center.state.unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-[#00ff85] px-1 text-center text-[11px] font-black text-[#10233f]">{center.state.unreadCount > 99 ? "99+" : center.state.unreadCount}</span> : null}</button>;
+  return <a href="/inbox" aria-label={`Notifications${center.state.unreadCount ? `, ${center.state.unreadCount} unread` : ""}`} className="relative grid h-11 min-h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/10 p-0 leading-none text-white hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"><Bell className="h-5 w-5" />{center.state.unreadCount > 0 ? <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-[#00ff85] px-1 text-center text-[11px] font-black text-[#10233f]">{center.state.unreadCount > 99 ? "99+" : center.state.unreadCount}</span> : null}</a>;
 }
 
-export function NotificationCenter({ center }: { center: Center }) {
-  const { state, panel, setPanel, error, setError, refresh } = center;
+export function NotificationCenter({ center,inline=false }: { center: Center;inline?:boolean }) {
+  const { state, panel:requestedPanel, setPanel, error, setError, refresh } = center;
+  const panel=inline?(requestedPanel??"inbox"):requestedPanel;
   const dialog = useRef<HTMLDialogElement>(null);
   const scrollContent = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
@@ -136,7 +139,7 @@ export function NotificationCenter({ center }: { center: Center }) {
   const pendingDeletes = useRef(new Set<string>());
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  const isOpen = state.eligible && panel !== null;
+  const isOpen = !inline && state.eligible && panel !== null;
   useEffect(() => {
     if (!isOpen) return;
     // Native modal dialogs do not lock page scrolling, particularly on iOS.
@@ -185,9 +188,10 @@ export function NotificationCenter({ center }: { center: Center }) {
     };
   }, [isOpen]);
   useEffect(() => {
+    if(inline)return;
     if (state.eligible && panel) dialog.current?.showModal();
     else dialog.current?.close();
-  }, [state.eligible, panel]);
+  }, [state.eligible, panel,inline]);
   useEffect(() => {
     if (panel !== "settings" || !state.eligible) return;
     setDraft(state.preferences ?? null);
@@ -310,21 +314,25 @@ export function NotificationCenter({ center }: { center: Center }) {
     } catch (failure) { setPushMessage(failure instanceof Error ? failure.message : "Test notification could not be queued."); }
     finally { setSaving(false); }
   }
+  function itemHref(href:string){const target=notificationDestination(href);return inline&&target.messageId?`/inbox?notifications=1&message=${target.messageId}`:target.href;}
+  function openItem(href:string){const target=notificationDestination(href);if(inline&&target.messageId){center.setMessageId(target.messageId);setPanel('message');}else openNotificationHref(href);}
   function toggleType(key: "inboxTypes" | "pushTypes" | "emailTypes", type: NotificationType) {
     setDraft((previous) => previous ? { ...previous, [key]: previous[key].includes(type) ? previous[key].filter((value) => value !== type) : [...previous[key], type] } : previous);
   }
   if (!state.eligible) return null;
-  return <dialog ref={dialog} aria-labelledby="notification-heading" onCancel={() => setPanel(null)} onClose={() => setPanel(null)} className="m-auto max-h-[85dvh] w-[calc(100%_-_2rem)] max-w-lg flex-col overflow-hidden rounded-2xl bg-white p-0 text-[#10233f] shadow-2xl backdrop:bg-[#10233f]/60 open:flex">
-    <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b bg-white p-4"><h2 id="notification-heading" className="text-lg font-extrabold">{panel === "settings" ? "Notification settings" : panel === "message" ? "Message" : "Notifications"}</h2><button type="button" autoFocus aria-label="Close notifications" onClick={() => setPanel(null)} className="grid h-11 w-11 place-items-center rounded-xl hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
+  const content=<>
+
+    <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b bg-white p-4"><h2 id="notification-heading" className="text-lg font-extrabold">{panel === "settings" ? "Notification settings" : panel === "message" ? "Message" : inline?"Inbox":"Notifications"}</h2>{!inline&&<button type="button" autoFocus aria-label="Close notifications" onClick={() => setPanel(null)} className="grid h-11 w-11 place-items-center rounded-xl hover:bg-slate-100"><X className="h-5 w-5" /></button>}</div>
+    {inline&&<nav aria-label="Inbox sections" className="flex gap-2 border-b p-4"><Button size="sm" variant={panel==='inbox'?'default':'outline'} onClick={()=>setPanel('inbox')}>Inbox</Button><Button size="sm" variant={panel==='settings'?'default':'outline'} onClick={()=>setPanel('settings')}>Settings</Button></nav>}
     <div ref={scrollContent} className="min-h-0 overflow-y-auto overscroll-contain space-y-4 p-4 pb-[max(env(safe-area-inset-bottom),1rem)]">
       {error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
       {panel === "message" && center.messageId ? <>
-        <Button type="button" size="sm" variant="outline" onClick={()=>openNotificationHref('/?notifications=1')}>Back to inbox</Button>
+        {!inline&&<Button type="button" size="sm" variant="outline" onClick={()=>openNotificationHref('/?notifications=1')}>Back to inbox</Button>}
         <NotificationMessage key={center.messageId} announcementId={center.messageId} onOpened={()=>void center.receiptSaved()}/>
       </> : panel === "inbox" ? <>
-        <div className="flex flex-wrap justify-between gap-2"><Button size="sm" variant="secondary" onClick={() => setPanel("settings")}><Settings className="h-4 w-4" />Settings</Button><Button size="sm" variant="secondary" disabled={!state.unreadCount || saving || deletingIds.includes("all-read")} onClick={async () => { setSaving(true); try { await markRead(); } catch (failure) { setError((failure as Error).message); } finally { setSaving(false); } }}><CheckCheck className="h-4 w-4" />Mark all read</Button></div>
+        <div className="flex flex-wrap justify-between gap-2">{!inline&&<Button size="sm" variant="secondary" onClick={() => setPanel("settings")}><Settings className="h-4 w-4" />Settings</Button>}<Button size="sm" variant="secondary" disabled={!state.unreadCount || saving || deletingIds.includes("all-read")} onClick={async () => { setSaving(true); try { await markRead(); } catch (failure) { setError((failure as Error).message); } finally { setSaving(false); } }}><CheckCheck className="h-4 w-4" />Mark all read</Button></div>
         <Button size="sm" variant="ghost" aria-label="Delete all read notifications" disabled={!state.items.length || deletingIds.length > 0 || readingIds.length > 0 || saving} onClick={() => void deleteAllRead()}><Trash2 className="h-4 w-4" />{deletingIds.includes("all-read") ? "Deleting…" : "Delete all read"}</Button>
-        {!state.items.length ? <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">You’re all caught up. New notifications will appear here.</p> : <ul className="space-y-2">{state.items.map((item) => <li key={item.id} className={`relative rounded-xl border p-3 pr-14 ${item.readAt ? "border-slate-100" : "border-teal-200 bg-teal-50/60"}`}><button type="button" aria-label={`Delete notification: ${item.title}`} title="Delete notification" disabled={deletingIds.includes(item.id)} aria-busy={deletingIds.includes(item.id)} onClick={() => void deleteNotification(item.id)} className="absolute right-1 top-1 grid h-11 w-11 touch-manipulation place-items-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>{item.type === "cup_draw" ? <><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><CupDrawInboxMessage body={item.body} onOpen={() => { if (!item.readAt) void markRead(item.id).catch(() => {}); }}/><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></> : <a href={safeNotificationHref(item.href)} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); if (!item.readAt && item.type !== "announcement") void markRead(item.id).catch(() => {}); openNotificationHref(item.href); }} className="block rounded focus-visible:outline focus-visible:outline-2"><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{item.body}</p><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></a>}{!item.readAt ? <button type="button" className="mt-2 inline-flex min-h-11 touch-manipulation items-center rounded-lg px-3 text-sm font-bold text-teal-800 underline disabled:opacity-60" disabled={readingIds.includes(item.id) || readingIds.includes("all") || deletingIds.includes("all-read")} aria-busy={readingIds.includes(item.id) || readingIds.includes("all")} onClick={() => void markRead(item.id).catch((failure) => setError(failure.message))}>{readingIds.includes(item.id) || readingIds.includes("all") ? "Marking…" : "Mark read"}</button> : null}</li>)}</ul>}
+        {!state.items.length ? <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-600">You’re all caught up. New notifications will appear here.</p> : <ul className="space-y-2">{state.items.map((item) => <li key={item.id} className={`relative rounded-xl border p-3 pr-14 ${item.readAt ? "border-slate-100" : "border-teal-200 bg-teal-50/60"}`}><button type="button" aria-label={`Delete notification: ${item.title}`} title="Delete notification" disabled={deletingIds.includes(item.id)} aria-busy={deletingIds.includes(item.id)} onClick={() => void deleteNotification(item.id)} className="absolute right-1 top-1 grid h-11 w-11 touch-manipulation place-items-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>{item.type === "cup_draw" ? <><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><CupDrawInboxMessage body={item.body} onOpen={() => { if (!item.readAt) void markRead(item.id).catch(() => {}); }}/><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></> : <a href={inline?itemHref(item.href):safeNotificationHref(item.href)} onClick={(event) => { if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return; event.preventDefault(); if (!item.readAt && item.type !== "announcement") void markRead(item.id).catch(() => {}); openItem(item.href); }} className="block rounded focus-visible:outline focus-visible:outline-2"><p className="font-extrabold">{!item.readAt ? <span className="sr-only">Unread: </span> : null}{item.title}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">{item.body}</p><time dateTime={item.createdAt} className="mt-2 block text-xs text-slate-500">{new Date(item.createdAt).toLocaleString("en-IE", { dateStyle: "medium", timeStyle: "short" })}</time></a>}{!item.readAt ? <button type="button" className="mt-2 inline-flex min-h-11 touch-manipulation items-center rounded-lg px-3 text-sm font-bold text-teal-800 underline disabled:opacity-60" disabled={readingIds.includes(item.id) || readingIds.includes("all") || deletingIds.includes("all-read")} aria-busy={readingIds.includes(item.id) || readingIds.includes("all")} onClick={() => void markRead(item.id).catch((failure) => setError(failure.message))}>{readingIds.includes(item.id) || readingIds.includes("all") ? "Marking…" : "Mark read"}</button> : null}</li>)}</ul>}
       </> : draft ? <>
         <p className="text-sm text-slate-600">Choose how each event reaches you: inbox, mobile notification, email, or a combination. Leave all channels unchecked for an event to receive no alerts. Phone push and email also need their account switch enabled.</p>
         <fieldset className="space-y-2"><legend className="mb-2 font-extrabold">Inbox</legend>{categories.map(({ type, label }) => <label key={type} className="flex min-h-10 items-center gap-3 text-sm"><input type="checkbox" checked={draft.inboxTypes.includes(type)} onChange={() => toggleType("inboxTypes", type)} className="h-4 w-4" />{label}</label>)}</fieldset>
@@ -334,7 +342,8 @@ export function NotificationCenter({ center }: { center: Center }) {
         <Button disabled={saving} onClick={() => void savePreferences()}>{saving ? "Saving…" : "Save preferences"}</Button>
       </> : <p>Loading preferences…</p>}
     </div>
-  </dialog>;
+  </>;
+  return inline?<section aria-labelledby="notification-heading" className="overflow-hidden rounded-lg border border-[var(--club-border)] bg-white text-[#10233f]">{content}</section>:<dialog ref={dialog} aria-labelledby="notification-heading" onCancel={() => setPanel(null)} onClose={() => setPanel(null)} className="m-auto max-h-[85dvh] w-[calc(100%_-_2rem)] max-w-lg flex-col overflow-hidden rounded-2xl bg-white p-0 text-[#10233f] shadow-2xl backdrop:bg-[#10233f]/60 open:flex">{content}</dialog>;
 }
 
 // Stop this browser receiving the previous account’s pushes on a shared device.

@@ -11,7 +11,8 @@ export async function GET() {
   try {
     const user=await currentUser();
     if(!user) return NextResponse.json({authenticated:false,administrator:false,error:'Sign in to manage your club.'},{status:401});
-    const clubs=await listClubBranding(getPool(),user.personId);
+    const rows=await listClubBranding(getPool(),user.personId);
+    const clubs=user.actingAs?rows.filter(c=>c.id===user.actingAs!.clubId&&user.actingAs!.role==='Club Admin'):rows;
     if(!clubs.length) return NextResponse.json({authenticated:true,administrator:false,error:'An active club administrator appointment is required.'},{status:403});
     return NextResponse.json({authenticated:true,administrator:true,adminMode:'club',clubs,user:{name:user.name}},{headers:{'Cache-Control':'no-store'}});
   } catch(error) {
@@ -26,6 +27,7 @@ export async function PATCH(request:Request) {
     const body=await request.json();
     const id=String(body.id??'').trim();
     if(!id) throw new Error('Select a club.');
+    if(user.actingAs&&(user.actingAs.role!=='Club Admin'||id!==user.actingAs.clubId))throw Object.assign(new Error('Select your current club administrator role.'),{status:403});
     const branding=normalizeClubBrandingInput(body);
     const club=await withTransaction(client=>saveClubBranding(client,user.personId,id,branding));
     return NextResponse.json({club});

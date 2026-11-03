@@ -12,13 +12,15 @@ import {dateLabel} from '../../../shared/golf-presentation.mjs';
 import type {PracticeAssignment,PracticeData,PracticeKind} from '../../../shared/practice-contracts';
 import type {ChallengeDefinition,DrillDefinition} from '../../../lib/practice-policy.mjs';
 
-export function NativePractice({clubId,playerId,onDirtyChange}:{clubId:string;playerId?:string;onDirtyChange?:(dirty:boolean)=>void}){
+export function NativePractice({clubId,playerId,onDirtyChange,assignmentId}:{clubId:string;playerId?:string;assignmentId?:string;onDirtyChange?:(dirty:boolean)=>void}){
  const result=useResource<PracticeData>(`/api/practice?clubId=${encodeURIComponent(clubId)}${playerId?`&playerId=${encodeURIComponent(playerId)}`:''}`),{request}=useSession(),theme=useTheme();
  const [formDirty,setFormDirty]=useState(false);
  useEffect(()=>{onDirtyChange?.(formDirty);return()=>onDirtyChange?.(false);},[formDirty,onDirtyChange]);
  function leave(action:()=>void){if(busy)return;if(formDirty)Alert.alert('Discard practice details?','Your unfinished practice entry will be cleared.',[{text:'Keep editing',style:'cancel'},{text:'Discard',style:'destructive',onPress:action}]);else action();}
  const [kind,setKind]=useState<PracticeKind>('challenge'),[expanded,setExpanded]=useState(''),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
  const writing=useRef(false),keys=useRef(new Map<string,string>());
+ const openedAssignment=useRef('');
+ useEffect(()=>{const target=result.data?.assignments.find(a=>a.id===assignmentId);if(!target||openedAssignment.current===target.id)return;let active=true;void Promise.resolve().then(()=>{if(active){openedAssignment.current=target.id;setKind(target.kind);setExpanded(target.id);}});return()=>{active=false;};},[assignmentId,result.data]);
  const data=result.data,items=data?.assignments.filter(a=>a.kind===kind)??[];
  async function mutate(body:Record<string,unknown>){
   if(writing.current)return false;writing.current=true;setBusy(true);setMessage('');

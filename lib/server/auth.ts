@@ -1,3 +1,4 @@
+import {effectiveWebUser} from '@/lib/server/role-view';
 import {mobileSessionUser} from '@/lib/server/mobile-auth';
 import crypto from "node:crypto";
 import { cookies, headers } from "next/headers";
@@ -38,6 +39,7 @@ type AccountRow = {
 };
 
 export type AppUser = {
+  actingAs?: {actorPersonId:string;actorName:string;clubId:string;clubName:string;role:string};
   accountId: string;
   personId: string;
   username: string;
@@ -93,6 +95,7 @@ export async function setSessionCookie(accountId: string) {
   );
 
   const cookieStore = await cookies();
+  cookieStore.delete('bbp_role_view');
   cookieStore.set(sessionCookieName, sessionId, {
     httpOnly: true,
     sameSite: "lax",
@@ -116,6 +119,7 @@ export async function clearSessionCookie() {
     await dbQuery("delete from public.app_session where id = $1", [sessionId]).catch(() => {});
   }
   cookieStore.delete(sessionCookieName);
+  cookieStore.delete('bbp_role_view');
 }
 
 export async function setOAuthCookies(state: string, nextPath: string, invitationCode?: string | null) {
@@ -163,7 +167,7 @@ export async function clearOAuthCookies() {
   cookieStore.delete(oauthInviteCookieName);
 }
 
-export async function currentUser() {
+export async function authenticatedUser() {
   const authorization=(await headers()).get("authorization");
   if(authorization!==null)return mobileSessionUser(authorization);
   const sessionId = (await cookies()).get(sessionCookieName)?.value;
@@ -203,6 +207,12 @@ export async function currentUser() {
     name: `${account.first_name} ${account.last_name}`.trim(),
     profileImage: account.profile_image ?? ""
   } satisfies AppUser;
+}
+
+export async function currentUser():Promise<AppUser|null> {
+ const user=await authenticatedUser();if(!user)return null;
+ if((await headers()).get('authorization')!==null)return user;
+ return effectiveWebUser(user,(await cookies()).get(sessionCookieName)?.value??'');
 }
 
 export async function testUserFromEmail(email: string | null | undefined) {
@@ -965,7 +975,7 @@ export async function loadSessionPayload(user: AppUser) {
     ...operatorTeamContexts,
     ...operatorClubContexts
   ];
-  const contexts: TeamContext[] = baseContexts.length
+  let contexts: TeamContext[] = baseContexts.length
     ? baseContexts.map((context) => ({
       ...context,
       hasPublisherAccess,
@@ -975,6 +985,11 @@ export async function loadSessionPayload(user: AppUser) {
       hasLiveScoringAccess: leagueChairMemberships.length > 0 || isAppOperator
     }))
     : [...baseContexts, ...leagueChairFallbackContexts, ...(hasPublisherAccess && !leagueChairFallbackContexts.length ? [publisherContext] : []), ...(!hasPublisherAccess && hasVideoAccess && !leagueChairFallbackContexts.length ? [videoContext] : []), ...(!hasPublisherAccess && !hasVideoAccess && hasViewingAccess && !leagueChairFallbackContexts.length ? [viewerContext] : [])].map(context=>({...context,hasPublisherAccess,hasVideoAccess,hasViewingAccess}));
+  if(user.actingAs){
+    const view=user.actingAs;
+    const role=view.role==='Player'?'Club Member':view.role;
+    contexts=contexts.filter(context=>context.club===view.clubName&&context.role===role);
+  }
   const standings = (await dbQuery<{
     position: number;
     team_name: string;

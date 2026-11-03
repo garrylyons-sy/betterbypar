@@ -55,6 +55,7 @@ function rowSettings(row: ClubRow): ClubSettings {
 async function requireClubAdminAccess() {
   const user = await currentUser();
   if (!user) return { user: null, mode: null, clubIds: [] as string[] };
+  if(user.actingAs)return {user,mode:user.actingAs.role==='Club Admin'?'club' as const:null,clubIds:user.actingAs.role==='Club Admin'?[user.actingAs.clubId]:[]};
   const [operator, clubs] = await Promise.all([
     dbQuery("select 1 from public.app_operator where person_id = $1 and active = true limit 1", [user.personId]),
     dbQuery<{ club_id: string }>(

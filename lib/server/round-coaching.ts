@@ -1,10 +1,12 @@
+import {requestRoleView} from '@/lib/server/role-view';
+import {roleViewScopeAllowed} from '@/shared/admin-role-view.mjs';
 import type {PoolClient} from 'pg';
 import {withTransaction} from '@/lib/server/db';
 import {golfAccess,AccessError,requirePlayerAccess} from '@/lib/server/golf-access';
 import {createNotification} from '@/lib/server/notifications';
 import type {CoachPlayer,ReviewedRound,RoundComment} from '@/lib/round-coaching-types';
 const id=(v:unknown)=>{if(typeof v!=='string'||! /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v))throw new AccessError('Choose a valid round or player.',400);return v;};
-async function coachFor(c:PoolClient,actor:string,club:string,player:string){return Boolean((await c.query('select public.is_round_coach($1,$2,$3) ok',[actor,club,player])).rows[0].ok);}
+async function coachFor(c:PoolClient,actor:string,club:string,player:string){if(!roleViewScopeAllowed(await requestRoleView(),club,'coach'))return false;return Boolean((await c.query('select public.is_round_coach($1,$2,$3) ok',[actor,club,player])).rows[0].ok);}
 async function roundAccess(c:PoolClient,actor:string,rid:unknown,coachOnly=false){
  const row=(await c.query('select * from golf_round where id=$1 for share',[id(rid)])).rows[0];if(!row)throw new AccessError('Round not found.',404);
  if(row.data.status!=='completed')throw new AccessError('Only completed rounds are available for coaching.');
@@ -17,7 +19,7 @@ export async function getRoundCoaching(request:Request){
  const {user}=await golfAccess(request),params=new URL(request.url).searchParams,coach=params.get('view')==='coach';
  return withTransaction(async c=>{
   if(!coach){const {row}=await roundAccess(c,user.personId,params.get('roundId'));await requirePlayerAccess(c,user.personId,row.player_person_id,row.club_id);return {coach:false,options:[],selected:null,rounds:[],hasMore:false,round:detail(row),comments:await comments(c,row.id)};}
-  const options=(await c.query<CoachPlayer>(`select cl.id as "clubId",cl.name as "clubName",p.id as "playerId",concat_ws(' ',p.first_name,p.last_name) as name from club cl join person p on public.is_round_coach($1,cl.id,p.id) order by cl.name,p.first_name,p.last_name,p.id`,[user.personId])).rows;
+  const options=(await c.query<CoachPlayer>(`select cl.id as "clubId",cl.name as "clubName",p.id as "playerId",concat_ws(' ',p.first_name,p.last_name) as name from club cl join person p on public.is_round_coach($1,cl.id,p.id) order by cl.name,p.first_name,p.last_name,p.id`,[user.personId])).rows.filter(option=>roleViewScopeAllowed(user.actingAs,option.clubId,'coach'));
   if(!options.length){if(params.has('roundId')||params.has('playerId')||params.has('clubId'))throw new AccessError('You can review rounds only for players you currently coach.');return {coach:true,options,selected:null,rounds:[],hasMore:false,round:null,comments:[]};}
   const explicit=params.has('roundId')?await roundAccess(c,user.personId,params.get('roundId'),true):null;
   const club=params.get('clubId')??explicit?.row.club_id,player=params.get('playerId')??explicit?.row.player_person_id;

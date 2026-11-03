@@ -8,7 +8,7 @@ export function DraftGuardProvider({children}:{children:ReactNode}){
  const run=useCallback((action:()=>void)=>{
   if(!drafts.current.size){action();return;}
   if(prompting.current)return;prompting.current=true;
-  Alert.alert('Unsaved changes','Changing club will discard your unfinished round or lesson details.',[
+  Alert.alert('Unsaved changes','Continuing will discard your unsaved golf or notification details.',[
    {text:'Keep editing',style:'cancel',onPress:()=>{prompting.current=false;}},
    {text:'Discard changes',style:'destructive',onPress:()=>{prompting.current=false;drafts.current.clear();action();}}
   ],{cancelable:true,onDismiss:()=>{prompting.current=false;}});

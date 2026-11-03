@@ -17,7 +17,7 @@ test('session identifies a standalone platform administrator without inventing m
   const api={},deps={
    '@/lib/server/db':{dbQuery:(...args)=>db.query(...args),withTransaction:fn=>db.transaction(fn)},
    '@/lib/server/appearance':{loadAppearanceConfig:async()=>({})},
-   '@/lib/server/mobile-auth':{},'@/lib/server/tokens':{},'next/headers':{}
+   '@/lib/server/role-view':{},'@/lib/server/mobile-auth':{},'@/lib/server/tokens':{},'next/headers':{}
   };
   new Function('require','exports',ts.transpileModule(readFileSync('lib/server/auth.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText)(name=>deps[name]??require(name),api);
   const user={accountId:'test-account',personId:person,name:'Test Administrator',email:'admin@example.test',username:'testadmin',profileImage:''};

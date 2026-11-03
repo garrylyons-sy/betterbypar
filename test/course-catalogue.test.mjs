@@ -50,3 +50,11 @@ test('database constraints and server snapshot resolution preserve history and r
  assert.equal((await db.query("select count(*)::int as count from pg_class where relname in ('golf_course','golf_course_tee','golf_course_hole') and relrowsecurity")).rows[0].count,3);
  }finally{await db.close();}
 });
+
+test('course setup auto-selects only an unambiguous single layout and leaves multiple layouts explicit',async()=>{
+ const {soleCourseAtClub}=await import('../shared/course-catalogue.mjs');
+ assert.equal(soleCourseAtClub([], 'Castle'),null);
+ assert.equal(soleCourseAtClub([course],'Other club'),null);
+ assert.equal(soleCourseAtClub([course],course.clubName),course);
+ assert.equal(soleCourseAtClub([course,{...course,id:'other',name:'Second course'}],course.clubName),null);
+});

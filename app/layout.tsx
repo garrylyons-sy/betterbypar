@@ -1,3 +1,4 @@
+import {AdminRoleSwitcher} from '@/components/admin-role-switcher';
 import {designCssVariables} from '@/shared/design-system.mjs';
 import type {CSSProperties} from 'react';
 import {CustomerNavigation} from '@/components/customer-navigation';
@@ -41,7 +42,7 @@ export default function RootLayout({
     <html lang="en" style={designCssVariables() as CSSProperties}>
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">
         {localDemoEnabled() ? <aside className="bg-amber-100 px-4 py-2 text-center text-sm font-semibold text-amber-950">Local demo · sample data · <a className="underline" href="/demo">Switch demo user</a></aside> : null}
-        <ClubThemeProvider><SystemSettingsProvider><CustomerNavigation>{children}</CustomerNavigation></SystemSettingsProvider></ClubThemeProvider>
+        <ClubThemeProvider><SystemSettingsProvider><AdminRoleSwitcher/><CustomerNavigation>{children}</CustomerNavigation></SystemSettingsProvider></ClubThemeProvider>
         <PwaRegister deploymentVersion={deploymentVersion} />
       </body>
     </html>

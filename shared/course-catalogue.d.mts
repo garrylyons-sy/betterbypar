@@ -5,3 +5,6 @@ export function catalogueCourseName(course:Pick<CatalogueCourse,'clubName'|'name
 export function catalogueSnapshot(course:CatalogueCourse,tee:CatalogueTee):CourseDetails;
 export function normalizeCourseDetails(value:unknown):CourseDetails|null;
 export function applyCatalogueTee<T extends RoundInput>(round:T,course:CatalogueCourse,tee:CatalogueTee):T;
+
+export function soleCourseAtClub(courses:CatalogueCourse[],clubName:string):CatalogueCourse|null;
+export function teeRatingLabel(category:CatalogueTee['ratingCategory']):string;

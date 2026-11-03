@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {nativeNotificationDestination as destination,golfNotificationCategories} from '../shared/notification-presentation.mjs';
+const id='d288c903-9c2f-4c7b-893b-f076348cfaf2';
+test('lesson alerts open the booked lesson in native app',()=>assert.deepEqual(destination(`/lessons?booking=${id}#booking-${id}`),{kind:'native',pathname:'/lessons',params:{booking:id}}));
+test('announcement links open an authenticated message reader',()=>assert.deepEqual(destination(`/?notifications=1&message=${id}`),{kind:'message',id}));
+test('practice links preserve validated club, player and assignment context',()=>assert.deepEqual(destination(`/practice?clubId=${id}&playerId=${id}&assignment=${id}`),{kind:'native',pathname:'/my-golf',params:{section:'practice',clubId:id,playerId:id,assignment:id}}));
+test('malformed identifiers are not propagated into native navigation',()=>assert.deepEqual(destination('/lessons?booking=invalid'),{kind:'native',pathname:'/lessons',params:{}}));
+test('external and protocol-relative links cannot leave the trusted origin',()=>{for(const href of ['https://evil.example/a','//evil.example/a','javascript:alert(1)'])assert.deepEqual(destination(href),{kind:'web',href:'/'});});
+test('all golf events have independent channel preferences',()=>assert.deepEqual(golfNotificationCategories.map(c=>c.type),['lesson_booking','lesson_reminder','lesson_cancelled','lesson_feedback','announcement']));

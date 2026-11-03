@@ -1,0 +1,3 @@
+'use client';
+import {NotificationCenter,useNotificationCenter} from '@/components/notification-center';
+export function InboxPage(){const center=useNotificationCenter(true);return center.state.eligible?<NotificationCenter center={center} inline/>:<section className="grid gap-4 rounded-lg border border-[var(--club-border)] bg-[var(--club-surface)] p-5"><h1 className="text-2xl font-extrabold">Inbox</h1><p role={center.error?'alert':'status'}>{center.error||(center.loading?'Loading your inbox…':'Notifications are unavailable for this account.')}</p><button disabled={center.loading} onClick={()=>void center.refresh()} className="min-h-11 rounded-md border border-[var(--club-border)] px-4 font-bold disabled:opacity-50">Refresh inbox</button></section>;}

@@ -1,3 +1,4 @@
+import {googleAttemptFromNext,mobileGoogleReturn,authorizeMobileGoogle} from '@/lib/server/mobile-google';
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -25,6 +26,7 @@ type GoogleUserInfo = {
   email: string;
   name?: string;
   picture?: string;
+  email_verified?: boolean;
 };
 
 export async function GET(request: NextRequest) {
@@ -32,29 +34,30 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const returnedState = request.nextUrl.searchParams.get("state");
   const oauthCookies = await readOAuthCookies();
+  const nativeAttempt=googleAttemptFromNext(oauthCookies.next);
+  async function failure(reason:string){await clearOAuthCookies();return NextResponse.redirect(nativeAttempt?mobileGoogleReturn(nativeAttempt,reason):new URL(`/?auth=${encodeURIComponent(reason)}`,origin));}
   const maintenance = await loadMaintenanceMode();
   const adminIntent = oauthCookies.next === "/admin";
 
   if (maintenance.enabled && !adminIntent) {
-    await clearOAuthCookies();
-    return NextResponse.redirect(new URL("/maintenance", origin));
+    return failure("Better By Par is down for maintenance.");
   }
 
-  if (!code) return NextResponse.redirect(new URL("/?auth=missing-code", origin));
+  if (!code) return failure(request.nextUrl.searchParams.get("error")==="access_denied"?"Google sign-in was cancelled.":"missing-code");
   if (!oauthCookies.state || oauthCookies.state !== returnedState) {
-    clearOAuthCookies();
-    return NextResponse.redirect(new URL("/?auth=bad-state", origin));
+    return failure("bad-state");
   }
 
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    clearOAuthCookies();
-    return NextResponse.redirect(new URL("/?auth=google-not-configured", origin));
+    return failure("Google sign-in is not configured yet.");
   }
 
+  try {
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
+    signal:AbortSignal.timeout(20000),
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       code,
@@ -64,24 +67,21 @@ export async function GET(request: NextRequest) {
       grant_type: "authorization_code"
     })
   });
-  const token = await tokenResponse.json() as GoogleTokenResponse;
+  const token = await tokenResponse.json().catch(()=>({})) as GoogleTokenResponse;
 
   if (!tokenResponse.ok || !token.access_token) {
-    clearOAuthCookies();
-    return NextResponse.redirect(new URL(`/?auth=${encodeURIComponent(token.error || "token-failed")}`, origin));
+    return failure(token.error || "token-failed");
   }
 
   const userResponse = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-    headers: { authorization: `Bearer ${token.access_token}` }
+    headers: { authorization: `Bearer ${token.access_token}` },signal:AbortSignal.timeout(20000)
   });
-  const googleUser = await userResponse.json() as GoogleUserInfo;
+  const googleUser = await userResponse.json().catch(()=>({})) as GoogleUserInfo;
 
-  if (!userResponse.ok || !googleUser.email || !googleUser.sub) {
-    clearOAuthCookies();
-    return NextResponse.redirect(new URL("/?auth=userinfo-failed", origin));
+  if (!userResponse.ok || !googleUser.email || !googleUser.sub || googleUser.email_verified!==true) {
+    return failure("Google could not verify your email address.");
   }
 
-  try {
     const user = !maintenance.enabled && oauthCookies.invitationCode
       ? await claimInvitationForAccount({
         email: googleUser.email,
@@ -101,18 +101,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/maintenance", origin));
     }
 
+    if(nativeAttempt){const href=await authorizeMobileGoogle(nativeAttempt,user.accountId);await clearOAuthCookies();return NextResponse.redirect(href);}
     await setSessionCookie(user.accountId);
     await recordLogin(user, "google", (await headers()).get("user-agent") ?? "");
     if (oauthCookies.invitationCode) {
       sendWelcomeEmail(user, request.url).catch(() => undefined);
     }
-    clearOAuthCookies();
+    await clearOAuthCookies();
 
-    const nextPath = oauthCookies.next && oauthCookies.next.startsWith("/") ? oauthCookies.next : "/";
+    const nextPath = oauthCookies.next && oauthCookies.next.startsWith("/") && !oauthCookies.next.startsWith("//") && !oauthCookies.next.includes("\\") ? oauthCookies.next : "/";
     return NextResponse.redirect(new URL(nextPath, origin));
   } catch (error) {
-    clearOAuthCookies();
     const reason = error instanceof Error ? error.message : "google-login-failed";
-    return NextResponse.redirect(new URL(`/?auth=${encodeURIComponent(reason)}`, origin));
+    return failure(reason);
   }
 }

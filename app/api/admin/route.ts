@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 async function requireAdminAccess() {
   const user = await currentUser();
   if (!user) return { user: null, administrator: false, platformAdmin: false, clubAdminClubIds: [] as string[] };
+  if(user.actingAs)return {user,administrator:user.actingAs.role==='Club Admin',platformAdmin:false,clubAdminClubIds:user.actingAs.role==='Club Admin'?[user.actingAs.clubId]:[]};
   const [operatorResult, clubAdminResult] = await Promise.all([
     dbQuery(
     "select 1 from public.app_operator where person_id = $1 and active = true limit 1",

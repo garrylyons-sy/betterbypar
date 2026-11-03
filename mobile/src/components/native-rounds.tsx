@@ -5,14 +5,14 @@ import type {RoundJournalData} from '../../../shared/round-contracts';
 import {importModeMessage,newRoundCard,roundSaveInput,roundSourceLabel,roundHoleLabel,roundFeedbackVisible} from '../../../shared/round-presentation.mjs';
 import {useSession} from '../lib/session';
 import {useTheme} from '../lib/theme';
-import {Action,Card,Choice,Copy,Status} from './ui';
+import {Action,Card,Choice,Copy,Status,usePageScrollToTop} from './ui';
 import {NativeRoundCapture} from './native-round-capture';
 import {NativeRoundDiscussion} from './round-discussion';
 const clone=<T,>(value:T):T=>JSON.parse(JSON.stringify(value));
 const date=(value:string)=>new Date(value.slice(0,10)+'T12:00:00Z').toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Dublin'});
-type Props={clubId:string;playerId?:string;onDirtyChange?:(dirty:boolean)=>void};
-export function NativeRoundsPanel({clubId,playerId,onDirtyChange}:Props){
- const {request}=useSession(),theme=useTheme();
+type Props={clubId:string;playerId?:string;onDirtyChange?:(dirty:boolean)=>void;startNew?:boolean;newRequest?:string};
+export function NativeRoundsPanel({clubId,playerId,onDirtyChange,startNew=false,newRequest='initial'}:Props){
+ const {request}=useSession(),theme=useTheme(),scrollToTop=usePageScrollToTop();
  const [chosenPlayer,setChosenPlayer]=useState(playerId??''),[data,setData]=useState<RoundJournalData|null>(null),[draft,setDraft]=useState<RoundInput|null>(null),[saved,setSaved]=useState<SavedRound|null>(null),[dirty,setDirty]=useState(false),[discussionDirty,setDiscussionDirty]=useState(false),[pendingDirty,setPendingDirty]=useState(false),[captureVersion,setCaptureVersion]=useState(0),[discussionVersion,setDiscussionVersion]=useState(0),[captureStage,setCaptureStage]=useState('review'),[holeNumber,setHoleNumber]=useState(1),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState(''),[imports,setImports]=useState(false),[uncertain,setUncertain]=useState(false);
  const scope=`${clubId}:${playerId??chosenPlayer}`,scopeRef=useRef(scope),generation=useRef(0),mounted=useRef(true),lock=useRef(false);
  useLayoutEffect(()=>{scopeRef.current=scope;},[scope]);
@@ -25,6 +25,9 @@ export function NativeRoundsPanel({clubId,playerId,onDirtyChange}:Props){
   const next=await request<RoundJournalData>(`/api/rounds?${params}`);if(mounted.current&&scopeRef.current===key&&version===generation.current)setData(current=>offset&&current?{...next,rounds:[...new Map([...current.rounds,...next.rounds].map(r=>[r.id,r])).values()]}:next);return next;
  },[request]);
  useEffect(()=>{let active=true;void Promise.resolve().then(()=>{if(!active)return;setData(null);setDraft(null);setSaved(null);setDirty(false);setDiscussionDirty(false);setPendingDirty(false);setImports(false);setError('');setMessage('');setBusy(false);lock.current=false;setUncertain(false);setLoading(true);void load().catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});});return()=>{active=false;invalidate();};},[scope,load,invalidate]);
+ const startedScope=useRef('');
+ useEffect(()=>{let active=true;const key=`${scope}:${newRequest}`;if(!startNew||loading||busy||!data?.selected||data.selected.clubId!==clubId||startedScope.current===key)return;const course=data.selected.clubName;void Promise.resolve().then(()=>{if(!active)return;startedScope.current=key;scrollToTop?.();if(dirty||discussionDirty||pendingDirty||uncertain){setMessage('Continue your unfinished round, or return to round history to start another.');return;}setDraft({...newRoundCard(course),entryMode:'shot_tracking'});setSaved(null);setHoleNumber(1);setCaptureStage('setup');setDirty(false);setImports(false);});return()=>{active=false;};},[startNew,newRequest,loading,busy,data,scope,clubId,dirty,discussionDirty,pendingDirty,uncertain,scrollToTop]);
+
  function leave(action:()=>void){if(busy)return;if(dirty||discussionDirty||pendingDirty)Alert.alert('Discard unsaved changes?','Your round edits, pending shot details or unsent comment have not been saved.',[{text:'Keep editing',style:'cancel'},{text:'Discard changes',style:'destructive',onPress:action}]);else action();}
  function edit(round:SavedRound){setCaptureVersion(v=>v+1);setSaved(round);setDraft(clone(round));setDirty(false);setDiscussionDirty(false);setPendingDirty(false);setHoleNumber(1);setCaptureStage('review');setMessage('');setError('');setImports(false);setUncertain(false);}
  function change(patch:Partial<RoundInput>){if(busy)return;setDraft(current=>current?{...current,...patch}:current);setDirty(true);}
@@ -60,7 +63,7 @@ export function NativeRoundsPanel({clubId,playerId,onDirtyChange}:Props){
  {imported?<Action label="Save observations" disabled={busy||uncertain||!dirty} onPress={()=>void save(draft.status)}/>:<><Action label="Save draft" secondary disabled={busy||uncertain||discussionDirty} onPress={()=>void save('draft')}/><Action label="Finish & save round" disabled={busy||uncertain||captureStage!=='review'} onPress={()=>void save('completed')}/></>}
  {saved?.status==='completed'&&<Card><Copy bold>Coaching review</Copy>{data.aiMode==='off'?<Copy>Round feedback is unavailable right now. You can still discuss the round with your professional.</Copy>:<><Copy>{data.aiMode==='demo'?'Rules-based coaching preview, not an AI assessment.':'Get AI coaching feedback using this saved round and up to three earlier rounds.'}</Copy>{dirty&&<Copy>Save your changes before requesting feedback.</Copy>}<Action label={saved.feedback?'Show saved review':'Get feedback'} disabled={busy||dirty} onPress={()=>void run(async current=>{const result=await request<{round:SavedRound}>('/api/rounds',{action:'feedback',roundId:saved.id,consent:true});if(current()){setSaved(result.round);setDraft(clone(result.round));}})}/></>}{roundFeedbackVisible(saved,dirty)&&saved.feedback&&<><Copy>{saved.feedback.notice}</Copy><Copy bold>{saved.feedback.summary}</Copy><Copy bold>Strengths</Copy>{saved.feedback.strengths.map((s,i)=><Copy key={i}>• {s}</Copy>)}<Copy bold>Focus for next time</Copy>{saved.feedback.focus.map((s,i)=><Copy key={i}>• {s}</Copy>)}{saved.feedback.thoughts.map((thought,i)=><View key={i} style={{gap:6}}><Copy bold>{thought.title}</Copy><Copy>{thought.reason}</Copy><Copy>{thought.action}</Copy></View>)}{saved.feedback.holes.map(item=><View key={item.number} style={{gap:6}}><Copy bold>{roundHoleLabel(saved.source,item.number)}</Copy><Copy>{item.observation}</Copy>{!!item.question&&<Copy>{item.question}</Copy>}</View>)}</>}</Card>}
  {saved?.status==='completed'&&<NativeRoundDiscussion key={`${saved.id}:${discussionVersion}`} roundId={saved.id} revision={saved.revision} holeCount={saved.holeCount} source={saved.source} onReload={refreshDiscussionRound} disabled={busy} onDirtyChange={discussionChange}/>}
- <Card><Copy bold>Rounds menu</Copy><Action label="Round history" secondary disabled={busy} onPress={()=>leave(history)}/>{(dirty||pendingDirty)&&<Action label="Discard & reload" secondary disabled={busy} onPress={()=>leave(()=>void reloadSaved())}/>}</Card>
+ <Card><Action label="Round history" secondary disabled={busy} onPress={()=>leave(history)}/>{(dirty||pendingDirty)&&<Action label={saved?"Reload saved round":"Discard changes"} secondary disabled={busy} onPress={()=>leave(()=>void reloadSaved())}/>}</Card>
  </>}
  </View>;
 }

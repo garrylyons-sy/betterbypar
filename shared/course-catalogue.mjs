@@ -21,3 +21,6 @@ export function applyCatalogueTee(round,course,tee){
  const courseDetails=catalogueSnapshot(course,tee);
  return {...round,courseName:catalogueCourseName(course),teeName:tee.name,courseDetails,holes:round.holes.map(h=>({...h,par:courseDetails.holes.find(c=>c.number===h.number)?.par??null}))};
 }
+
+export function soleCourseAtClub(courses,clubName){const layouts=courses.filter(course=>course.clubName===clubName);return layouts.length===1?layouts[0]:null;}
+export const teeRatingLabel=category=>category==='men'?"Men’s rating":category==='women'?"Women’s rating":category==='unisex'?'Unisex rating':'Category unconfirmed';

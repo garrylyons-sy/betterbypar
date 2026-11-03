@@ -33,7 +33,7 @@ export async function getPractice(request:Request){
   let options:PracticeOption[]=[],selected:PracticeOption|null=null,clubId='';
   if(manager){clubId=params.get('clubId')??clubs[0].id;if(!clubs.some(club=>club.id===clubId))throw new AccessError('Club access required.');options=(await c.query<PracticeOption>(`select c.id as "clubId",c.name as "clubName",p.id as "playerId",concat_ws(' ',p.first_name,p.last_name) as name from club c join person p on public.is_golf_player(p.id,c.id) where c.id=$1 order by p.first_name,p.last_name`,[clubId])).rows;}
   else{
-   options=await playerOptions(c,a.user.personId);const requestedPlayer=params.get('playerId'),requestedClub=params.get('clubId');
+   options=(await playerOptions(c,a.user.personId)).filter(p=>!a.user.actingAs||(a.user.actingAs.role==='Player'&&p.clubId===a.user.actingAs.clubId));const requestedPlayer=params.get('playerId'),requestedClub=params.get('clubId');
    selected=options.find(p=>(!requestedPlayer||p.playerId===requestedPlayer)&&(!requestedClub||p.clubId===requestedClub))??null;
    if(!selected&&(requestedPlayer||requestedClub))throw new AccessError('Player access required.');
    if(selected){clubId=selected.clubId;await requirePlayerAccess(c,a.user.personId,selected.playerId,selected.clubId);}

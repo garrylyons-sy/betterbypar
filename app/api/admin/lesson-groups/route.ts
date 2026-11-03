@@ -3,7 +3,7 @@ import {scheduleNotificationPush} from '@/lib/server/notification-dispatch';
 import {NextResponse} from 'next/server';
 import type {PoolClient} from 'pg';
 import {dbQuery,withTransaction} from '@/lib/server/db';
-import {golfAccess,golfError,golfAudit,AccessError,type GolfAccess} from '@/lib/server/golf-access';
+import {golfAccess,golfError,golfAudit,AccessError,requireWorkingCoach,type GolfAccess} from '@/lib/server/golf-access';
 import {requireActiveCoach} from '@/lib/server/lesson-diary';
 import {bookLessonForMember} from '@/lib/server/lesson-booking';
 import {lessonText} from '@/lib/lesson-diary.mjs';
@@ -14,6 +14,7 @@ async function ownGroup(client:PoolClient,a:GolfAccess,id:string){
  const found=await client.query('select * from lesson_group where id=$1 and active for update',[id]);
  const group=found.rows[0];if(!group)throw new Error('Coaching group not found.');
  if(group.professional_person_id!==a.user.personId)throw new AccessError('Only this group’s professional can change it.');
+ requireWorkingCoach(a,group.club_id);
  await requireActiveCoach(client,group.club_id,a.user.personId);return group;
 }
 async function rosterIds(client:PoolClient,groupId:string,clubId:string){
@@ -56,6 +57,7 @@ export async function POST(request:Request){
    if(b.action==='create'){
     const clubId=String(b.clubId??''),name=lessonText(b.name,120,'Group name');if(!name)throw new Error('Give your coaching group a name.');
     if(!['Open','Roster'].includes(b.mode))throw new Error('Choose open booking or a fixed roster.');
+    requireWorkingCoach(a,clubId);
     await requireActiveCoach(client,clubId,a.user.personId);
     const group=(await client.query('insert into lesson_group(club_id,professional_person_id,name,mode,capacity,created_by) values($1,$2,$3,$4,$5,$2) returning *',[clubId,a.user.personId,name,b.mode,groupCapacity(b.capacity)])).rows[0];
     await golfAudit(client,a.user.personId,'Coaching group created',{groupId:group.id,name,mode:b.mode});return {group};

@@ -345,8 +345,9 @@ a.rounded-full {
 .golf-counting-icon { display:inline-flex; flex-shrink:0; color:var(--club-muted-text); }
 
 
-.golf-counting-legend { display:flex; flex-wrap:wrap; gap:8px 16px; padding:12px 2px 0; color:var(--club-muted-text); font-size:10px; }
-.golf-counting-legend > span { display:flex; align-items:center; gap:5px; }
+.golf-counting-legend { display:flex; flex-wrap:wrap; gap:4px 10px; padding:5px 2px 0; color:var(--club-muted-text); font-size:10px; }
+.golf-counting-legend > span { display:flex; align-items:center; gap:4px; }
+.golf-counting-legend .golf-counting-icon svg { width:13px; height:25px; }
 .golf-data-details { margin:0 16px; border-top:1px solid var(--club-border); font-size:11px; color:var(--club-muted-text); }
 .golf-data-details summary { cursor:pointer; padding:12px 0; min-height:40px; }
 .golf-data-details > div { display:grid; gap:5px; padding:0 0 14px; line-height:1.6; }

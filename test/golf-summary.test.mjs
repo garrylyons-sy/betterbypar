@@ -42,3 +42,11 @@ test('golf summary access is limited to registered self/active dependants in an 
   actor=null;assert.equal((await get()).status,401);
  }finally{await db.close();}
 });
+
+test('Garry sample profile shows 14.1 with three improved illustrative rounds',()=>{
+ const summary=provider.demoGolfSummary({...request,golfIrelandNumber:'31712744'},new Date('2031-06-02T12:00Z'));
+ assert.equal(summary.mode,'demo');assert.equal(summary.handicapIndex,14.1);assert.equal(summary.handicapDisplay,'14.1');
+ assert.deepEqual(summary.recentRounds.map(r=>r.grossScore),[83,85,84]);
+ assert.deepEqual(summary.recentRounds.map(r=>r.stablefordPoints),[39,37,38]);
+ assert.equal(summary.lowHandicapIndex,13.5);assert.match(summary.notice,/illustrative/);
+});

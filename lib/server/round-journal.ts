@@ -17,8 +17,8 @@ async function optionsFor(client:PoolClient,actor:string){
  where c.active and (p.id=$1 or exists(select 1 from dependants d where d.club_id=c.id and d.guardian_person_id=$1 and d.dependant_person_id=p.id and d.active))
  group by c.id,c.name,p.id order by (p.id=$1) desc,c.name,p.first_name,p.last_name,p.id`,[actor])).rows;
 }
-async function context(client:PoolClient,actor:string,clubId?:unknown,playerId?:unknown){
- const options=await optionsFor(client,actor);
+async function context(client:PoolClient,actor:string,clubId?:unknown,playerId?:unknown,working?:{clubId:string;role:string}){
+ const options=(await optionsFor(client,actor)).filter(p=>!working||(working.role==='Player'&&p.clubId===working.clubId));
  if((clubId&&!uuid(clubId))||(playerId&&!uuid(playerId)))throw new AccessError('Choose a valid club and player.',400);
  const selected=options.find(p=>(!clubId||p.clubId===clubId)&&(!playerId||p.playerId===playerId));
  if(!selected&&(clubId||playerId))throw new AccessError('Choose your own player profile or an active dependant.');
@@ -36,7 +36,7 @@ export async function getRoundJournal(request:Request){
  const {user}=await golfAccess(request),params=new URL(request.url).searchParams;
  const offset=Number(params.get('offset')??0);if(!Number.isInteger(offset)||offset<0||offset>100000)throw new AccessError('Invalid history page.',400);
  const result=await withTransaction(async client=>{
-  const {options,selected}=await context(client,user.personId,params.get('clubId'),params.get('playerId'));
+  const {options,selected}=await context(client,user.personId,params.get('clubId'),params.get('playerId'),user.actingAs);
   let rows:Row[]=[];
   if(params.has('roundId')){const row=await owned(client,user.personId,params.get('roundId'));if(!selected||row.club_id!==selected.clubId||row.player_person_id!==selected.playerId)throw new AccessError('This round belongs to a different player or club.');rows=[row];}
   else if(selected)rows=(await client.query<Row>(`select * from golf_round where club_id=$1 and player_person_id=$2 order by data->>'playedOn' desc,updated_at desc,id desc limit 51 offset $3`,[selected.clubId,selected.playerId,offset])).rows;
@@ -52,14 +52,14 @@ export async function getRoundJournal(request:Request){
 export async function saveRoundJournal(request:Request,body:Record<string,unknown>){
  const {user}=await golfAccess(request);
  if(body.action==='create')return withTransaction(async client=>{
-  const {selected}=await context(client,user.personId,body.clubId,body.playerId);if(!selected)throw new AccessError('A registered player is required.');
+  const {selected}=await context(client,user.personId,body.clubId,body.playerId,user.actingAs);if(!selected)throw new AccessError('A registered player is required.');
   const data=await resolveRoundCourseDetails(client,normalize(body.data));
   const row=(await client.query<Row>(`insert into golf_round(club_id,player_person_id,created_by,source,data) values($1,$2,$3,'manual',$4::jsonb) returning *`,[selected.clubId,selected.playerId,user.personId,JSON.stringify(data)])).rows[0];
   return {round:view(row)};
  });
  if(body.action==='import'){
   if(typeof body.scoreUID!=='string'||body.scoreUID.length>100)throw new AccessError('Choose an importable round.',400);
-  const selected=await withTransaction(async client=>(await context(client,user.personId,body.clubId,body.playerId)).selected);if(!selected)throw new AccessError('A registered player is required.');
+  const selected=await withTransaction(async client=>(await context(client,user.personId,body.clubId,body.playerId,user.actingAs)).selected);if(!selected)throw new AccessError('A registered player is required.');
   const imported=await importGolfRound(requestFor(selected),body.scoreUID);const data=normalize(imported.data,true);
   return withTransaction(async client=>{
    await requirePlayerAccess(client,user.personId,selected.playerId,selected.clubId);
