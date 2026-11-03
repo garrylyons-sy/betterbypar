@@ -1,0 +1,41 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';import {pgcrypto} from '@electric-sql/pglite/contrib/pgcrypto';import {btree_gist} from '@electric-sql/pglite/contrib/btree_gist';import {initializeLocalDemo} from '../scripts/local-demo-database.mjs';
+test('players have one home club and lesson locations belong to the session club',async()=>{
+ const db=await PGlite.create({extensions:{pgcrypto,btree_gist}});try{await initializeLocalDemo(db);await db.exec(readFileSync('supabase/coaching_club_locations.sql','utf8'));
+ const club=(await db.query("select id from club where name='Castle Golf Club'")).rows[0].id,other=(await db.query("select id from club where name='Woodland Golf Club'")).rows[0].id,player=(await db.query("select id,player_club_id from person where email='member@example.test'")).rows[0];
+ assert.equal(player.player_club_id,club);await assert.rejects(db.query("insert into club_membership(club_id,person_id,role) values($1,$2,'Club Member')",[other,player.id]),/one home club/i);
+ assert.equal((await db.query('select is_golf_player($1,$2) as ok',[player.id,other])).rows[0].ok,false);
+ const locations=(await db.query('select id,name from lesson_location where club_id=$1 and active order by sort_order',[club])).rows;assert.deepEqual(locations.map(l=>l.name),['Trackman','Range','Playing','Valley']);
+ const slot=(await db.query('select id from lesson_slot where club_id=$1 limit 1',[club])).rows[0];await db.query('update lesson_slot set location_id=$2 where id=$1',[slot.id,locations[0].id]);
+ const foreign=(await db.query("insert into lesson_location(club_id,name) values($1,'Elsewhere') returning id",[other])).rows[0];await assert.rejects(db.query('update lesson_slot set location_id=$2 where id=$1',[slot.id,foreign.id]),/location.*club/i);
+ const grange=(await db.query("insert into club(name,active) values('Grange Golf Club',false) returning id")).rows[0].id;await db.exec(readFileSync('supabase/coaching_club_locations.sql','utf8'));assert.deepEqual((await db.query('select name from lesson_location where club_id=$1 order by sort_order',[grange])).rows.map(l=>l.name),['Trackman','Range','Playing']);assert.equal((await db.query('select count(*)::int as n from lesson_location where club_id=$1',[club])).rows[0].n,4);
+ }finally{await db.close();}
+});
+
+test('lesson statistics count completed sessions once, exclude cancelled/inactive lessons and scope assistants',async()=>{
+ const {createRequire}=await import('node:module'),require=createRequire(import.meta.url),ts=require('typescript');const load=file=>{const exports={};new Function('require','exports',ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(require,exports);return exports;};
+ const {coachingStatistics}=load('lib/server/coaching-statistics.ts'),{setLessonLocation}=load('lib/server/lesson-location.ts');
+ const db=await PGlite.create({extensions:{pgcrypto,btree_gist}});try{await initializeLocalDemo(db);const query=async(...args)=>{const r=await db.query(...args);return {...r,rowCount:r.rows.length};},client={query};
+ const people=Object.fromEntries((await query('select email,id from person')).rows.map(p=>[p.email,p.id])),pro=people['professional@example.test'],assistant=people['assistant@example.test'],member=people['member@example.test'],parent=people['parent@example.test'];const club=(await query("select id from club where name='Castle Golf Club'")).rows[0].id;
+ const group=(await query("select id from lesson_group where club_id=$1 limit 1",[club])).rows[0].id;
+ async function session(coach,hour,groupId=null){const slot=(await query("insert into lesson_slot(club_id,professional_person_id,title,starts_at,ends_at,created_by,group_id,capacity) values($1,$2,'Stats test',('2035-06-04T'||$3||':00:00Z')::timestamptz,('2035-06-04T'||$3||':30:00Z')::timestamptz,$2,$4,case when $4::uuid is null then 1 else 8 end) returning *",[club,coach,hour,groupId])).rows[0];for(const player of (groupId?[member,parent]:[member]))await query('insert into lesson_booking(slot_id,player_person_id,booked_by,starts_at,ends_at) select id,$2,$3,starts_at,ends_at from lesson_slot where id=$1',[slot.id,player,coach]);return slot;}
+ const own=await session(pro,'09',group),asst=await session(assistant,'10'),cancelled=await session(pro,'11'),inactive=await session(pro,'12'),future=await session(pro,'13');
+ for(const slot of [own,asst,cancelled,inactive])await query("update lesson_slot set starts_at=date_trunc('day',now())-interval '1 hour'+$2::int*interval '1 hour',ends_at=date_trunc('day',now())-interval '30 minutes'+$2::int*interval '1 hour' where id=$1",[slot.id,-[own,asst,cancelled,inactive].indexOf(slot)]);
+ await query("update lesson_booking set status='Cancelled' where slot_id=$1",[cancelled.id]);await query('update lesson_slot set active=false where id=$1',[inactive.id]);
+ const stats=await coachingStatistics(client,club,pro,true);assert.equal(stats.find(s=>s.id===pro).thisYear,1);assert.equal(stats.find(s=>s.id===pro).upcoming,1);assert.equal(stats.find(s=>s.id===assistant).thisYear,1);assert.deepEqual((await coachingStatistics(client,club,assistant,false)).map(s=>s.id),[assistant]);
+ const location=(await query('select id from lesson_location where club_id=$1 and active limit 1',[club])).rows[0];await assert.rejects(setLessonLocation(client,future,location.id),/already has bookings/);
+ const fresh=(await query("insert into lesson_slot(club_id,professional_person_id,title,starts_at,ends_at,created_by) values($1,$2,'Location test','2035-06-05T09:00Z','2035-06-05T09:30Z',$2) returning *",[club,pro])).rows[0];await setLessonLocation(client,fresh,location.id);assert.equal((await query('select location_id from lesson_slot where id=$1',[fresh.id])).rows[0].location_id,location.id);
+ await query('update lesson_location set active=false where id=$1',[location.id]);await assert.rejects(setLessonLocation(client,fresh,location.id),/active location/);
+ }finally{await db.close();}
+});
+
+test('club admins configure only their locations and removed choices retain lesson history',async()=>{
+ const {createRequire}=await import('node:module'),require=createRequire(import.meta.url),ts=require('typescript');const db=await PGlite.create({extensions:{pgcrypto,btree_gist}});
+ try{await initializeLocalDemo(db);const query=async(...args)=>{const r=await db.query(...args);return {...r,rowCount:r.rows.length};};const club=(await query("select id from club where name='Castle Golf Club'")).rows[0].id;let permitted=true;
+ const deps={'next/server':{NextResponse:{json:(body,options)=>({body,status:options?.status??200})}},'@/lib/server/db':{dbQuery:query,withTransaction:fn=>db.transaction(tx=>fn({query:async(...args)=>{const r=await tx.query(...args);return {...r,rowCount:r.rows.length};}}))},'@/lib/server/golf-access':{golfAccess:async()=>({user:{personId:'admin'}}),requireClubAdmin:(_,id)=>{if(!permitted||id!==club)throw Object.assign(Error('Administrator required'),{status:403});},golfAudit:async()=>{},golfError:e=>({error:e.message,status:e.status??400})}};
+ const api={};new Function('require','exports',ts.transpileModule(readFileSync('app/api/admin/lesson-locations/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(id=>deps[id]??require(id),api);
+ const patch=names=>api.PATCH(new Request('http://localhost/api/admin/lesson-locations',{method:'PATCH',body:JSON.stringify({clubId:club,names})}));
+ assert.equal((await patch(['Trackman','Putting green'])).status,200);assert.deepEqual((await query('select name from lesson_location where club_id=$1 and active order by sort_order',[club])).rows.map(l=>l.name),['Trackman','Putting green']);assert.deepEqual((await api.GET(new Request('http://localhost/?clubId='+club))).body.locations.map(l=>l.name),['Trackman','Putting green']);assert.equal((await query("select active from lesson_location where club_id=$1 and name='Valley'",[club])).rows[0].active,false);
+ assert.equal((await patch(['Range','range'])).status,400);permitted=false;assert.equal((await patch(['Other'])).status,403);
+ }finally{await db.close();}
+});

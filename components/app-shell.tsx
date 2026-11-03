@@ -1,6 +1,11 @@
 "use client";
+import {useRouter} from "next/navigation";
 import {ViewportPortal} from '@/components/viewport-portal';
 import {customerRootPage} from '@/lib/customer-navigation.mjs';
+import {isProfessional,professionalMenuItems} from '@/shared/golf-capabilities.mjs';
+import {CustomerDesktopRail,WorkspaceDesktopRail,WorkspaceBottomNavigation,customerWorkspaceItems} from '@/components/workspace-navigation';
+import {ProfessionalDesktopRail} from '@/components/professional-desktop-rail';
+import {ProfessionalHome} from '@/components/professional-home';
 import {GolfHome} from '@/components/golf-home';
 import {MemberLessons} from '@/components/member-lessons';
 import {MyGolf} from '@/components/my-golf';
@@ -171,6 +176,8 @@ function menuEntry(id: AppearanceMenuId) {
   };
 }
 
+function professionalMenuEntry(id:AppearanceMenuId,role:Role){const entry=menuEntry(id);if(!isProfessional([role]))return entry;const item=professionalMenuItems.find(item=>item.section===id);return {...entry,label:item?.label??entry.label,icon:id==='My Golf'?Users:id==='Club'?ClipboardCheck:id==='Lessons'?CalendarDays:entry.icon};}
+
 function withMyClubLast(items: AppearanceMenuId[]) {
   return items.includes("Club") ? [...items.filter((item) => item !== "Club"), "Club" as AppearanceMenuId] : items;
 }
@@ -247,7 +254,8 @@ export function AppShell({
     const params = new URLSearchParams(window.location.search);
     const requestedTeam = params.get("team")?.trim().toLowerCase();
     const requestedRole = params.get("role")?.trim().toLowerCase();
-    const requestedClub = params.get("club")?.trim().toLowerCase();
+    const requestedClubId=params.get("clubId")?.trim();
+    const requestedClub = requestedClubId?themeClubs.find(club=>club.id===requestedClubId)?.name.toLowerCase():params.get("club")?.trim().toLowerCase();
     const requestedLeague = params.get("league")?.trim().toLowerCase();
     const requestedSeason = params.get("season")?.trim().toLowerCase();
     if (!requestedTeam && !requestedRole && !requestedClub && !requestedLeague && !requestedSeason) return availableContexts[0]?.id ?? teamContexts[0].id;
@@ -257,7 +265,7 @@ export function AppShell({
       const clubMatches = requestedClub ? team.club.toLowerCase() === requestedClub : true;
       return teamMatches && roleMatches && clubMatches && (!requestedLeague || team.league.toLowerCase() === requestedLeague) && (!requestedSeason || team.season.toLowerCase() === requestedSeason);
     })?.id ?? availableContexts[0]?.id ?? teamContexts[0].id;
-  }, [appContexts, contexts]);
+  }, [appContexts, contexts, themeClubs]);
   const preferredContext = useMemo(
     () => appContexts.find((team) => team.id === preferredContextId) ?? appContexts[0] ?? contexts[0] ?? teamContexts[0],
     [appContexts, contexts, preferredContextId]
@@ -323,11 +331,12 @@ export function AppShell({
     if (typeof window === "undefined") return;
     if (hasAppliedUrlContext.current) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.has("team") || params.has("role") || params.has("season") || params.has("club") || params.has("league")) {
+    if(params.has("clubId")&&!themeClubs.length)return;
+    if (params.has("team") || params.has("role") || params.has("season") || params.has("club") || params.has("clubId") || params.has("league")) {
       hasAppliedUrlContext.current = true;
       setSelectedId(preferredContextId);
     }
-  }, [preferredContextId]);
+  }, [preferredContextId,themeClubs]);
 
   const realActiveTeam = useMemo(
     () => appContexts.find((team) => team.id === selectedId) ?? appContexts[0] ?? contexts[0] ?? teamContexts[0],
@@ -424,7 +433,7 @@ export function AppShell({
     };
   }, []);
   const activeMenuItems = useMemo(() => {
-    const items = isGolfRole(activeTeam.role)?golfMenuItems:applyLeagueChairAccess(fixedMenuItemsForRole(activeTeam.role, enteredCompetitionCount), activeTeam);
+    const items = isProfessional([activeTeam.role])?professionalMenuItems.filter(item=>item.section!=='Menu').map(item=>item.section as AppearanceMenuId):isGolfRole(activeTeam.role)?golfMenuItems:applyLeagueChairAccess(fixedMenuItemsForRole(activeTeam.role, enteredCompetitionCount), activeTeam);
     return lastManStandingAvailable === true ? items : items.filter((item) => item !== "Last Man Standing");
   }, [activeTeam, activeTeam.role, enteredCompetitionCount, lastManStandingAvailable]);
   useEffect(() => {
@@ -458,7 +467,10 @@ export function AppShell({
   const allMatchResults = matchResults ?? [];
   const clubOnlyView = isClubOnlyRole(activeTeam.role);
   const showLeaguePanels = !clubOnlyView && activePage === "Home" && pagesWithLeagueAside.includes(activePage);
+  const appRouter=useRouter();
   const navigateToPage = (page: AppPage) => {
+    if(isProfessional([activeTeam.role])){const item=professionalMenuItems.find(item=>item.section===page);if(item&&item.href!=='/'&&page!=='Menu'){appRouter.push(item.href+(activeThemeClubId?`?clubId=${encodeURIComponent(activeThemeClubId)}`:''));return;}}
+
     setSelectedStreamId(null);
     if (page !== "Match") setSelectedFixtureId("");
     setActivePage(page);
@@ -595,25 +607,20 @@ function buildSimulatedContext(baseTeam: TeamContext, role: Role, clubName: stri
 }
 
 function SponsorBanner({ ad }: { ad: SponsorAd }) {
+  const [failedImage, setFailedImage] = useState<string | null>(null);
   function recordAdvertClick() {
-    const testUser = new URLSearchParams(window.location.search).get("testUser")?.trim() ?? "";
-    const clickUrl = testUser ? `/api/ad-click?testUser=${encodeURIComponent(testUser)}` : "/api/ad-click";
-    fetch(clickUrl, {
+    fetch("/api/ad-click", {
       method: "POST",
       credentials: "same-origin",
       keepalive: true,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        adId: ad.id,
-        adName: ad.name,
-        linkUrl: ad.linkUrl,
-        placement: ad.placement,
-        audience: ad.audience,
-        userAgent: window.navigator.userAgent
+        adId: ad.id
       })
     }).catch(() => {});
   }
 
+  if (failedImage === ad.imagePath) return null;
   return (
     <a
       href={ad.linkUrl}
@@ -625,7 +632,8 @@ function SponsorBanner({ ad }: { ad: SponsorAd }) {
     >
       <img
         src={ad.imagePath}
-        alt={ad.altText}
+        alt={ad.altText || ad.name}
+        onError={() => setFailedImage(ad.imagePath)}
         className="h-auto w-full object-cover"
         loading="lazy"
       />
@@ -674,6 +682,7 @@ function PageContent({
   onDataRefresh?: () => void;
   onTeamSummaryUpdate?: (teamId: string, summary: TeamSummaryUpdate) => void;
 }) {
+  if(isProfessional([activeTeam.role]))return <ProfessionalHome clubName={activeTeam.club} more={activePage==='Menu'}/>;
   if(isGolfRole(activeTeam.role)){
     if(activePage==='Lessons'||activePage==='Bookings')return <MemberLessons key="lessons" embedded/>;
     if(activePage==='My Golf')return <MyGolf/>;
@@ -917,7 +926,7 @@ function ContextSwitcher({
   });
   const embeddedDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("embed") === "1";
   const hasMultipleRoles = new Set(uniqueContexts.map((context) => context.role)).size > 1;
-  const canSwitchContext = embeddedDemo ? uniqueContexts.length > 1 : hasMultipleRoles;
+  const canSwitchContext = embeddedDemo || isGolfRole(activeTeam.role) ? uniqueContexts.length > 1 : hasMultipleRoles;
 
   if (!canSwitchContext) {
     return (
@@ -1080,32 +1089,10 @@ function PwaPullToRefresh({ onRefresh }: { onRefresh: () => void }) {
 }
 
 function DesktopRail({ activeTeam, activePage, onNavigate, menuItems }: { activeTeam: TeamContext; activePage: AppPage; onNavigate: (page: AppPage) => void; menuItems: AppearanceMenuId[] }) {
-  const items = [...menuItems.map(menuEntry),...(isGolfRole(activeTeam.role)?[{label:"More",page:"Menu" as AppPage,icon:MenuIcon,description:"Account and coaching"}]:[])];
-
-  return (
-    <aside className="hidden self-start rounded-2xl p-4 text-white shadow-card lg:sticky lg:top-24 lg:block" style={clubPanelStyle(activeTeam.primaryColor, activeTeam.accentColor)}>
-      <p className="text-xs font-bold uppercase text-white/60">{isClubOnlyRole(activeTeam.role) ? "Club" : "Competition"}</p>
-      <h2 className="mt-1 text-2xl font-extrabold">{isClubOnlyRole(activeTeam.role) ? activeTeam.club.replace(" Golf Club", "") : activeTeam.league}</h2>
-      <div className="mt-5 space-y-1.5">
-        {items.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.label}
-              onClick={() => onNavigate(item.page)}
-              className={cn(
-                "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-bold text-white/80 transition-colors hover:bg-white/10",
-                activePage === item.page && "bg-white text-[#10233f]"
-              )}
-            >
-              <Icon className="h-5 w-5" />
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
-    </aside>
-  );
+  if(isProfessional([activeTeam.role]))return <ProfessionalDesktopRail clubName={activeTeam.club} activeSection={activePage} underHeader onNavigate={section=>onNavigate(section as AppPage)}/>;
+  if(isGolfRole(activeTeam.role))return <CustomerDesktopRail clubName={activeTeam.club} roles={[activeTeam.role]} activeSection={activePage} underHeader onSelect={section=>onNavigate(section as AppPage)}/>;
+  const items=menuItems.map(id=>{const entry=professionalMenuEntry(id,activeTeam.role);return {id:entry.page,label:entry.label,icon:entry.icon};});
+  return <WorkspaceDesktopRail title={isClubOnlyRole(activeTeam.role)?activeTeam.club.replace(' Golf Club',''):activeTeam.league} kicker={isClubOnlyRole(activeTeam.role)?'Club':'Competition'} items={items} activeSection={activePage} underHeader onSelect={section=>onNavigate(section as AppPage)}/>;
 }
 
 function MatchdayHero({ activeTeam, userLabel, leagueTeamCount, interclubView = false, activeMatchCount = 0 }: { activeTeam: TeamContext; userLabel?: string; leagueTeamCount: number; interclubView?: boolean; activeMatchCount?: number }) {
@@ -1190,7 +1177,7 @@ function ClubMemberHero({ activeTeam, userLabel }: { activeTeam: TeamContext; us
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="cyan">{activeTeam.role}</Badge>
               <Badge variant="muted">{isGolfRole(activeTeam.role)?"Lessons":"Tables"}</Badge>
-              <Badge variant="muted">{isGolfRole(activeTeam.role)?"My Golf":activeTeam.role === "Club Admin" ? "Admin" : "Competitions"}</Badge>
+              <Badge variant="muted">{isProfessional([activeTeam.role])?"Coaching":isGolfRole(activeTeam.role)?"My Golf":activeTeam.role === "Club Admin" ? "Admin" : "Competitions"}</Badge>
             </div>
             <p className="mt-5 text-xs font-bold uppercase tracking-wide text-white/70">{activeTeam.role === "Club Admin" ? "Club admin home" : "Club home"}</p>
             <h2 className="mt-1 break-words text-3xl font-extrabold leading-tight sm:text-4xl xl:text-5xl">{activeTeam.club}</h2>
@@ -3999,7 +3986,7 @@ function MoreMenu({
   menuItems: AppearanceMenuId[];
   onNavigate: (page: AppPage) => void;
 }) {
-  const configured = menuItems.map(menuEntry);
+  const configured = menuItems.map(id=>professionalMenuEntry(id,activeTeam.role));
   const overflowItems = configured.length > 5 ? configured.slice(4) : configured;
   const items = overflowItems.filter((item) => item.page !== "Home" && item.page !== "Club");
 
@@ -8136,7 +8123,7 @@ function MiniStat({ label, value, dark = false }: { label: string; value: string
 }
 
 function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePage: AppPage; activeTeam: TeamContext; onNavigate: (page: AppPage) => void; menuItems: AppearanceMenuId[] }) {
-  const configured = menuItems.map(menuEntry);
+  const configured = menuItems.map(id=>professionalMenuEntry(id,activeTeam.role));
   const myClubItem = configured.find((item) => item.page === "Club");
   const nonClubItems = myClubItem ? configured.filter((item) => item.page !== "Club") : configured;
   const hasOverflow = isGolfRole(activeTeam.role) || (myClubItem ? nonClubItems.length > 4 : configured.length > 5);
@@ -8155,32 +8142,6 @@ function BottomNav({ activePage, activeTeam, onNavigate, menuItems }: { activePa
     : [...primaryItems, ...(myClubItem ? [myClubItem] : [])];
   const morePages: AppPage[] = ["Menu", ...overflowItems.map((item) => item.page), ...(activeTeam.hasLeagueChairAccess ? ["Shop" as AppPage] : [])];
 
-  return (
-    <ViewportPortal><nav aria-label="App menu" data-mobile-app-menu className="mobile-app-menu border-t border-[#eeeaf2] bg-white px-1.5 pt-1.5 shadow-elevated lg:hidden">
-      <div className={cn("mx-auto grid max-w-md gap-1", items.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
-        {items.map((item) => {
-          const Icon = item.icon;
-          const active = item.page === "Menu"
-            ? morePages.includes(activePage)
-            : activePage === item.page || (item.page === "Club" && activePage === "Ladder");
-
-          return (
-            <button
-              key={item.label}
-              onClick={() => onNavigate(item.page)}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 text-[10px] font-bold leading-tight text-[#6c5a73]",
-                item.page === "Menu" && "order-last",
-                active && "bg-[#10233f] text-white shadow-card"
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              <span className="max-w-full truncate">{item.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </nav></ViewportPortal>
-  );
+  const activeSection=morePages.includes(activePage)?'Menu':activePage==='Ladder'&&myClubItem?'Club':activePage;
+  return <WorkspaceBottomNavigation items={isGolfRole(activeTeam.role)?customerWorkspaceItems([activeTeam.role]):items.map(item=>({id:item.page,label:item.label,icon:item.icon}))} activeSection={activeSection} onSelect={section=>onNavigate(section as AppPage)}/>;
 }

@@ -29,15 +29,20 @@ export async function initializeLocalDemo(db){
   if(!(await db.query("select to_regclass('public.notification_email_delivery') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/notification_email.sql',import.meta.url),'utf8'));
   if(!(await db.query("select to_regclass('public.golf_round') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/golf_rounds.sql',import.meta.url),'utf8'));
   if(!(await db.query("select to_regclass('public.golf_practice_assignment') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/coaching_practice.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/practice_coach_reviews.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/pro_shop.sql',import.meta.url),'utf8'));
   if(!(await db.query("select to_regclass('public.golf_round_comment') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/round_coaching.sql',import.meta.url),'utf8'));
   if(!(await db.query("select to_regclass('public.mobile_session') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/mobile_sessions.sql',import.meta.url),'utf8'));
   if(!(await db.query("select to_regclass('public.mobile_google_attempt') as ready")).rows[0].ready)await db.exec(await readFile(new URL('../supabase/mobile_google.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/golf_course_catalogue.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/golf_course_catalogue_seed.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/coaching_club_locations.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/shared_lesson_groups.sql',import.meta.url),'utf8'));
   await updateDemoClubNames(db);
   if((await db.query("select 1 from public.person where email='admin@example.test'")).rows.length){
     if(!playerRegistrationReady)await seedDemoPlayerRegistration(db);
-    await refreshDemoLessons(db);
+    await db.exec(await readFile(new URL('../supabase/coaching_club_locations.sql',import.meta.url),'utf8'));
+  await refreshDemoLessons(db);
     await seedDemoDiaryDefaults(db);
     await seedDemoGroups(db);
     await db.query("update lesson_slot s set diary_managed=true where ends_at=starts_at+interval '30 minutes' and title in ('Short game coaching','Swing fundamentals','Junior golf lesson') and not exists(select 1 from lesson_booking where slot_id=s.id and status='Booked')");
@@ -68,6 +73,7 @@ export async function initializeLocalDemo(db){
     await tx.query("insert into public.season(name,starts_on,ends_on,active) values('2026/27','2026-09-01','2027-08-31',true)");
     await tx.query("insert into public.league(name,playing_day) values('A League','Thursday'),('B League','Thursday'),('C League','Monday') on conflict(name) do nothing");
   });
+  await db.exec(await readFile(new URL('../supabase/coaching_club_locations.sql',import.meta.url),'utf8'));
   await refreshDemoLessons(db);
     await seedDemoDiaryDefaults(db);
     await seedDemoGroups(db);

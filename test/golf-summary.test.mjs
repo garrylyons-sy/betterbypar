@@ -30,7 +30,7 @@ test('golf summary access is limited to registered self/active dependants in an 
   const junior=(await db.query("select id from person where first_name='Casey' and last_name='Parker'")).rows[0].id;
   let actor=people['member@example.test'],providerFails=false;
   class AccessError extends Error{constructor(message,status=403){super(message);this.status=status;}}
-  const route=load('app/api/golf-summary/route.ts',{'next/server':{NextResponse:{json:(body,options)=>({body,status:options?.status??200,headers:options?.headers})}},'@/lib/server/db':{dbQuery:(...args)=>db.query(...args)},'@/lib/server/golf-access':{golfAccess:async()=>{if(!actor)throw new AccessError('Sign in',401);return {user:{personId:actor},platform:true};},AccessError,golfError:error=>({error:error.message,status:error.status??400})},'@/lib/server/golf-ireland':{getGolfSummary:r=>{if(providerFails)throw new Error('Upstream unavailable');return provider.demoGolfSummary(r);}}});
+  const route=load('app/api/golf-summary/route.ts',{'next/server':{NextResponse:{json:(body,options)=>({body,status:options?.status??200,headers:options?.headers})}},'@/shared/golf-capabilities.mjs':await import('../shared/golf-capabilities.mjs'),'@/lib/server/db':{dbQuery:(...args)=>db.query(...args)},'@/lib/server/golf-access':{golfAccess:async()=>{if(!actor)throw new AccessError('Sign in',401);return {user:{personId:actor},platform:true,assignments:(await db.query('select club_id,role from club_membership where person_id=$1 and active',[actor])).rows.map(r=>({clubId:r.club_id,role:r.role}))};},AccessError,golfError:error=>({error:error.message,status:error.status??400})},'@/lib/server/golf-ireland':{getGolfSummary:r=>{if(providerFails)throw new Error('Upstream unavailable');return provider.demoGolfSummary(r);}}});
   const get=(playerId,club='Castle Golf Club')=>route.GET(new Request(`http://localhost/api/golf-summary?club=${encodeURIComponent(club)}${playerId?'&playerId='+playerId:''}`));
   const own=await get();assert.equal(own.status,200);assert.equal(own.body.summary.player.id,actor);assert.equal(own.headers['Cache-Control'],'no-store');
   assert.equal((await get(junior)).status,403);
@@ -38,7 +38,7 @@ test('golf summary access is limited to registered self/active dependants in an 
   providerFails=true;const unavailable=await get();assert.equal(unavailable.status,503);assert.ok(unavailable.body.players.some(p=>p.id===junior));assert.equal(unavailable.body.summary,null);providerFails=false;assert.equal((await get(junior)).status,200);
   assert.equal((await get(people['member@example.test'])).status,403);assert.equal((await get(junior,'Woodland Golf Club')).status,403);
   await db.query('update dependants set active=false where guardian_person_id=$1',[actor]);assert.equal((await get(junior)).status,403);
-  for(const email of ['professional@example.test','assistant@example.test']){actor=people[email];const staff=await get();assert.equal(staff.status,200);assert.equal(staff.body.summary,null);assert.equal(staff.body.players.length,0);}
+  for(const email of ['professional@example.test','assistant@example.test']){actor=people[email];const staff=await get();assert.equal(staff.status,403);}
   actor=null;assert.equal((await get()).status,401);
  }finally{await db.close();}
 });

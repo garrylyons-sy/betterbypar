@@ -2,15 +2,15 @@
 import {createContext,useCallback,useContext,useEffect,useMemo,useRef,useState} from 'react';
 import {usePathname} from 'next/navigation';
 import {buildClubTheme} from '@/lib/club-theme.mjs';
-type Club={id:string;name:string;primaryColor:string|null;accentColor:string|null};
-type ThemeContext={clubs:Club[];clubId:string;setClubId:(id:string)=>void;refresh:()=>Promise<void>;preview:(primary:string,accent:string)=>void;clearPreview:()=>void};
-const Theme=createContext<ThemeContext>({clubs:[],clubId:'',setClubId:()=>{},refresh:async()=>{},preview:()=>{},clearPreview:()=>{}});
+type Club={roles?:string[];id:string;name:string;primaryColor:string|null;accentColor:string|null};
+type ThemeContext={ready?:boolean;clubs:Club[];clubId:string;setClubId:(id:string)=>void;refresh:()=>Promise<void>;preview:(primary:string,accent:string)=>void;clearPreview:()=>void};
+const Theme=createContext<ThemeContext>({ready:false,clubs:[],clubId:'',setClubId:()=>{},refresh:async()=>{},preview:()=>{},clearPreview:()=>{}});
 export const useClubTheme=()=>useContext(Theme);
 const storageKey='better-by-par:active-club';
 export function ClubThemeProvider({children}:{children:React.ReactNode}){
  const pathname=usePathname();
  const [clubs,setClubs]=useState<Club[]>([]),[clubId,setSelected]=useState(''),[draft,setDraft]=useState<{primary:string;accent:string}|null>(null);
- const requestRevision=useRef(0);
+ const requestRevision=useRef(0),[ready,setReady]=useState(false);
  const refresh=useCallback(async()=>{
   const revision=++requestRevision.current;
   try{
@@ -19,8 +19,9 @@ export function ClubThemeProvider({children}:{children:React.ReactNode}){
    const data=await response.json();if(revision!==requestRevision.current)return;
    const rows:Club[]=response.status===401?[]:data.clubs??[];setClubs(rows);
    let saved='';try{saved=sessionStorage.getItem(storageKey)??'';}catch{}
-   setSelected(current=>rows.some(c=>c.id===current)?current:rows.some(c=>c.id===saved)?saved:rows[0]?.id??'');
-  }catch{/* Keep the last confirmed theme during transient connection failures. */}
+   const requested=new URLSearchParams(window.location.search).get('clubId');
+   setSelected(current=>rows.some(c=>c.id===requested)?requested!:rows.some(c=>c.id===current)?current:rows.some(c=>c.id===saved)?saved:rows[0]?.id??'');
+  }catch{/* Keep the last confirmed theme during transient connection failures. */}finally{if(revision===requestRevision.current)setReady(true);}
  },[]);
  const setClubId=useCallback((id:string)=>{if(id)setSelected(id);},[]);
  const preview=useCallback((primary:string,accent:string)=>setDraft(current=>current?.primary===primary&&current?.accent===accent?current:{primary,accent}),[]);
@@ -42,6 +43,6 @@ export function ClubThemeProvider({children}:{children:React.ReactNode}){
   if(club)try{sessionStorage.setItem(storageKey,club.id);}catch{}
   const meta=document.querySelector('meta[name="theme-color"]');meta?.setAttribute('content',values['--club-primary']);
  },[club,draft,platformAdmin]);
- const value=useMemo(()=>({clubs,clubId:club?.id??'',setClubId,refresh,preview,clearPreview}),[clubs,club,refresh,setClubId,preview,clearPreview]);
+ const value=useMemo(()=>({ready,clubs,clubId:club?.id??'',setClubId,refresh,preview,clearPreview}),[ready,clubs,club,refresh,setClubId,preview,clearPreview]);
  return <Theme.Provider value={value}>{children}</Theme.Provider>;
 }

@@ -9,3 +9,12 @@ export async function notifyPracticeProgress(client:PoolClient,assignmentId:stri
  const row=(await client.query(`select a.*,concat_ws(' ',p.first_name,p.last_name) as player_name from golf_practice_assignment a join person p on p.id=a.player_person_id where a.id=$1 and a.status='active'`,[assignmentId])).rows[0];if(!row)return;
  await createNotification(client,row.coach_person_id,{type:'coaching_progress',title:kind==='drill'?'Practice session completed':'Challenge result recorded',body:`${row.player_name} recorded ${kind==='drill'?'a practice session':'a result'} for ${row.definition.title}. Open the plan to review progress.`,href:`/practice/manage?clubId=${row.club_id}&assignment=${assignmentId}`,eventKey:`practice-progress:${kind}:${assignmentId}:${progressId}`});
 }
+
+export async function notifyPracticeReview(client:PoolClient,assignmentId:string,reviewId:string){
+ const row=(await client.query(`select a.*,concat_ws(' ',p.first_name,p.last_name) as player_name from golf_practice_assignment a join person p on p.id=a.player_person_id and p.active join club cl on cl.id=a.club_id and cl.active where a.id=$1 and public.is_golf_player(p.id,a.club_id)`,[assignmentId])).rows[0];if(!row)return;
+ const recipients=(await client.query<{id:string}>(`select distinct p.id from person p join user_account ua on ua.person_id=p.id and ua.active join club_membership cm on cm.person_id=p.id and cm.club_id=$1 and cm.active where p.active and (p.id=$2 or exists(select 1 from dependants d where d.guardian_person_id=p.id and d.dependant_person_id=$2 and d.club_id=$1 and d.active))`,[row.club_id,row.player_person_id])).rows;
+ for(const recipient of recipients){
+  if(recipient.id!==row.player_person_id&&!(await client.query('select id from dependants where guardian_person_id=$1 and dependant_person_id=$2 and club_id=$3 and active for share',[recipient.id,row.player_person_id,row.club_id])).rowCount)continue;
+  await createNotification(client,recipient.id,{type:'lesson_feedback',title:'Practice feedback ready',body:`Your professional reviewed progress for ${row.definition.title}. Open the practice plan to read the feedback.`,href:`/practice?clubId=${row.club_id}&playerId=${row.player_person_id}&assignment=${assignmentId}`,eventKey:`practice-review:${reviewId}`});
+ }
+}

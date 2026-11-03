@@ -1,4 +1,6 @@
 "use client";
+import {AdminWorkspaceNavigation} from "@/components/admin-workspace-navigation";
+import {ProShopAdmin} from '@/components/pro-shop-admin';
 import {CoachPractice} from '@/components/coach-practice';
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
@@ -25,7 +27,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "dependants" | "lessons" | "drills" | "challenges" | "notifications" | "system" | "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
+type AdminTab = "shop" | "dependants" | "lessons" | "drills" | "challenges" | "notifications" | "system" | "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type MaintenanceModeState = { enabled: boolean; updatedAt: string | null };
 type TeamRole = "Player" | "Manager";
@@ -42,6 +44,7 @@ type ClubOption = {
   clubName: string;
 };
 type PersonOption = {
+  playerClubId?:string|null;
   isGolfPlayer: boolean;
   golfIrelandNumber: string | null;
   isCoachingStaff: boolean;
@@ -309,7 +312,7 @@ const inviteRoles: InviteRole[] = ["Club Member", "Golf Professional", "Assistan
 const rolesWithClubMember: AppRole[] = ["Player", "Manager", "Club Member", "Club Admin", "League Chair", "Golf Professional", "Assistant Professional"];
 const clubLevelInviteRoles: InviteRole[] = ["Club Member", "Club Admin", "League Chair", "Golf Professional", "Assistant Professional"];
 const clubPortalTabs: AdminTab[] = [...clubPortalTabIds];
-const clubAdminTabs: AdminTab[] = ["dependants", "lessons", "challenges", "drills", "clubs", "ladders", "people", "competitions", "matches"];
+const clubAdminTabs: AdminTab[] = ["shop","dependants", "lessons", "challenges", "drills", "clubs", "ladders", "people", "competitions", "matches"];
 const ADMIN_SESSION_CACHE_KEY = "interclub:admin-session-data:v1";
 const ADMIN_SESSION_TAB_KEY = "interclub:admin-session-tab:v1";
 const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPanelTop }> = [
@@ -328,6 +331,7 @@ const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPan
   { id: "people" as const, label: "People", icon: UserPlus },
   { id: "permissions" as const, label: "Permissions", icon: Users },
   { id: "appearance" as const, label: "Appearance", icon: LayoutPanelTop },
+  { id: "shop", label: "Pro shop", icon: Building2 },
   { id: "adverts" as const, label: "Adverts", icon: Megaphone },
   { id: "notifications" as const, label: "Notifications", icon: Mail },
   { id: "system" as const, label: "System", icon: ShieldCheck },
@@ -567,6 +571,7 @@ export function AdminConsole({ clubPortal = false }: { clubPortal?: boolean }) {
         email: person.email ?? "",
         phone: person.phone ?? "",
         isGolfPlayer: Boolean(person.is_golf_player),
+        playerClubId: person.player_club_id??null,
         golfIrelandNumber: person.golf_ireland_number ?? null,
         isCoachingStaff: Boolean(person.is_coaching_staff),
         accountId: person.account_id ?? null,
@@ -725,9 +730,9 @@ function AdminLayout({
 }) {
   const navItems = adminNavItems.filter((item) => clubPortal ? clubPortalTabs.includes(item.id) : adminMode === "platform" || clubAdminTabs.includes(item.id));
   return (
-    <main className="min-h-screen bg-[#f7f5fa] text-[#25002b]">
-      <header className="bg-[#10233f] px-4 py-5 text-white shadow-elevated sm:px-6 lg:px-10">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4">
+    <main className="min-h-screen bg-background pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-foreground lg:pb-0">
+      <header className="sticky top-0 z-40 bg-[#10233f] px-4 py-5 text-white shadow-elevated sm:px-6 lg:px-10">
+        <div className="mx-auto grid max-w-[1440px] gap-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
           <div className="flex min-w-0 items-center gap-3">
             {<img
               src="/admin-icon.png"
@@ -739,7 +744,7 @@ function AdminLayout({
               <h1 className="truncate text-2xl font-extrabold leading-tight">{clubPortal ? "Club administration" : "Admin console"}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 sm:justify-end">
             {!clubPortal ? <a href="/clubadmin" className="text-sm font-bold underline">Club administration</a> : <a href="/" className="text-sm font-bold underline">Back to app</a>}
             <div className="hidden flex-col items-end gap-1 sm:flex">
               <Badge variant="cyan">{adminMode === "platform" ? "Administrator" : "Club admin"}</Badge>
@@ -756,23 +761,9 @@ function AdminLayout({
           </div>
         </div>
       </header>
-      <section className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-10">
-        <aside className="flex min-w-0 gap-2 overflow-x-auto rounded-2xl bg-white p-2 shadow-card lg:sticky lg:top-4 lg:block lg:self-start lg:overflow-visible">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const className = `flex min-h-11 shrink-0 items-center gap-3 rounded-lg px-4 text-sm font-bold lg:w-full ${tab === item.id ? "bg-[#10233f] text-white" : "text-[#25002b]"}`;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setTab(item.id)}
-                className={className}
-              >
-                <Icon className="h-5 w-5" />
-                {clubPortal && item.id === "clubs" ? "Branding" : item.label}
-              </button>
-            );
-          })}
-        </aside>
+      <section className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-4 px-4 py-4 sm:px-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-6 lg:px-8 xl:grid-cols-[230px_minmax(0,1fr)] xl:px-10">
+        <AdminWorkspaceNavigation clubPortal={clubPortal} activeSection={tab} onSelect={id=>setTab(id as AdminTab)} items={navItems.map(item=>({id:item.id,label:clubPortal&&item.id==='clubs'?'Branding':item.label,icon:item.icon}))}/>
+
         <div className="grid min-w-0 self-start content-start gap-4">
           {message ? <div className="rounded-xl bg-[#00ff85] px-4 py-3 text-sm font-bold text-[#25002b]">{message}</div> : null}
           {children}
@@ -810,6 +801,7 @@ function AdminTabPanel(props: {
   if (props.tab === "system") return <AdminSystem onMessage={props.onMessage} />;
   if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} featureStats={props.featureStats} maintenanceMode={props.maintenanceMode} onMaintenanceChange={props.onMaintenanceChange} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "dependants") return <AdminDependants clubScope={clubPortal} />;
+  if (props.tab === "shop") return <ProShopAdmin clubScope={clubPortal}/>;
   if (props.tab === "lessons") return <AdminLessons clubScope={clubPortal} />;
   if (props.tab === "challenges") return <CoachPractice key="challenges" initialKind="challenge" hideKindSwitch clubScope={clubPortal}/>;
   if (props.tab === "drills") return <CoachPractice key="drills" initialKind="drill" hideKindSwitch clubScope={clubPortal}/>;
@@ -3041,7 +3033,7 @@ function PeoplePanel({
     }
   }
 
-  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; isGolfPlayer: boolean; golfIrelandNumber: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean; video?: boolean }) {
+  async function updatePersonDetails(details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; isGolfPlayer: boolean; golfIrelandNumber: string; playerClubId?:string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean; video?: boolean }) {
     if (demo) {
       onMessage("Person details updated.");
       setEditTarget(null);
@@ -3709,7 +3701,7 @@ function EditPersonModal({
   canManageLeagueChair: boolean;
   busy: boolean;
   onCancel: () => void;
-  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; isGolfPlayer: boolean; golfIrelandNumber: string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean; video?: boolean }) => void;
+  onConfirm: (details: { personId: string; firstName: string; lastName: string; email: string; phone: string; handicap: string; isGolfPlayer: boolean; golfIrelandNumber: string; playerClubId?:string; roles: Array<{ role: TeamRole; teamId: string }>; leagueChair: boolean; publisher?: boolean; viewing?: boolean; video?: boolean }) => void;
   onSetLoginAccess: (loginActive: boolean) => void;
 }) {
   const firstHandicap = person.clubHandicaps?.find((item) => item.handicap !== null && item.handicap !== undefined)?.handicap;
@@ -3735,6 +3727,7 @@ function EditPersonModal({
   const [email, setEmail] = useState(person.email ?? "");
   const [phone, setPhone] = useState(person.phone ?? "");
   const [isGolfPlayer, setIsGolfPlayer] = useState(isRegisteredGolfPlayer(person));
+  const [playerClubId,setPlayerClubId]=useState(person.playerClubId??person.clubHandicaps?.[0]?.club_id??'');
   const [golfIrelandNumber, setGolfIrelandNumber] = useState(person.golfIrelandNumber ?? "");
   const [handicap, setHandicap] = useState(firstHandicap === null || firstHandicap === undefined ? "" : String(firstHandicap));
   const [roleRows, setRoleRows] = useState<EditRoleRow[]>(initialRoles);
@@ -3824,7 +3817,8 @@ function EditPersonModal({
           <AdminInput label="Club handicap" value={handicap} onChange={setHandicap} type="number" placeholder="Blank" />
         </div>
         <div className="mt-4 grid gap-3">
-          <AdminCheckbox label="Registered player" checked={isGolfPlayer && !person.isCoachingStaff} disabled={person.isCoachingStaff} onChange={(checked) => {
+          {isGolfPlayer&&!person.isCoachingStaff&&<label className="grid gap-1 text-sm font-bold">Player’s home club<select className="min-h-11 rounded-md border border-border bg-card px-3" value={playerClubId} onChange={e=>setPlayerClubId(e.target.value)}>{Array.from(new Map(person.clubHandicaps?.map(c=>[c.club_id,c])??[]).values()).map(c=><option key={c.club_id} value={c.club_id}>{c.club_name}</option>)}</select><span className="text-xs font-normal text-muted-foreground">The player appears in this club’s player list only.</span></label>}
+        <AdminCheckbox label="Registered player" checked={isGolfPlayer && !person.isCoachingStaff} disabled={person.isCoachingStaff} onChange={(checked) => {
             setIsGolfPlayer(checked);
             if (!checked) setRoleRows((rows) => rows.filter((row) => row.role !== "Player"));
           }} description={person.isCoachingStaff ? "Professionals and assistant professionals are coaching staff and do not appear in player lists." : "Players require a Golf Ireland number. Non-playing guardians and administrators can remain unregistered."} />
@@ -3900,6 +3894,7 @@ function EditPersonModal({
               handicap: handicap.trim(),
               isGolfPlayer: isGolfPlayer && !person.isCoachingStaff,
               golfIrelandNumber: golfIrelandNumber.trim(),
+              playerClubId: isGolfPlayer&&!person.isCoachingStaff&&playerClubId&&playerClubId!==person.playerClubId?playerClubId:undefined,
               leagueChair,
               publisher: canManageLeagueChair ? publisher : undefined,
               video: canManageLeagueChair ? video : undefined,
@@ -4687,11 +4682,22 @@ function AdvertsPanel({
     linkUrl: "",
     affiliateCode: "",
     altText: "",
+    startsAt: "",
+    endsAt: "",
     sortOrder: "100",
     active: true
   });
   const [editing, setEditing] = useState<Record<string, AdminAdRow>>({});
   const [busyId, setBusyId] = useState("");
+
+  function dateValue(value?: string | null) {
+    if (!value) return "";
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+  }
+  function dateFromInput(value: string) {
+    return value ? new Date(value).toISOString() : "";
+  }
 
   async function createAdvert() {
     if (demo) {
@@ -4707,7 +4713,7 @@ function AdvertsPanel({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Could not create advert.");
-      setDraft({ name: "", audience: "Everyone", imagePath: "", linkUrl: "", affiliateCode: "", altText: "", sortOrder: "100", active: true });
+      setDraft({ name: "", audience: "Everyone", imagePath: "", linkUrl: "", affiliateCode: "", altText: "", startsAt: "", endsAt: "", sortOrder: "100", active: true });
       onMessage("Advert created.");
       onRefresh();
     } catch (error) {
@@ -4734,6 +4740,8 @@ function AdvertsPanel({
           linkUrl: ad.linkUrl,
           affiliateCode: ad.affiliateCode ?? "",
           altText: ad.altText,
+          startsAt: ad.startsAt ?? null,
+          endsAt: ad.endsAt ?? null,
           sortOrder: ad.sortOrder,
           active: ad.active
         })
@@ -4798,12 +4806,14 @@ function AdvertsPanel({
         <CardContent className="grid gap-3">
           <div className="grid gap-3 md:grid-cols-2">
             <AdminInput label="Name" value={draft.name} onChange={(value) => setDraft((current) => ({ ...current, name: value }))} />
-            <AdminSelect label="Audience" value={draft.audience} onChange={(value) => setDraft((current) => ({ ...current, audience: value as SponsorAd["audience"] }))} options={[{ value: "Everyone", label: "Everyone" }, { value: "League Chair", label: "League Chair(s)" }]} />
+            <AdminSelect label="Audience" value={draft.audience} onChange={(value) => setDraft((current) => ({ ...current, audience: value as SponsorAd["audience"] }))} options={[{ value: "Everyone", label: "Everyone" }, { value: "League Chair", label: "League chairs (legacy)" }]} />
             <AdvertImageInput label="Advert image" value={draft.imagePath} onChange={(value) => setDraft((current) => ({ ...current, imagePath: value }))} onError={onMessage} />
             <AdminInput label="Link URL" value={draft.linkUrl} onChange={(value) => setDraft((current) => ({ ...current, linkUrl: value }))} placeholder="https://example.com/" />
             <AdminInput label="Amazon affiliate code" value={draft.affiliateCode} onChange={(value) => setDraft((current) => ({ ...current, affiliateCode: value }))} placeholder="yourtag-21" />
             <AdminInput label="Alt text" value={draft.altText} onChange={(value) => setDraft((current) => ({ ...current, altText: value }))} />
             <AdminInput label="Sort order" value={draft.sortOrder} onChange={(value) => setDraft((current) => ({ ...current, sortOrder: value }))} type="number" />
+            <AdminInput label="Starts at (local time, optional)" value={dateValue(draft.startsAt)} onChange={(value) => setDraft((current) => ({ ...current, startsAt: dateFromInput(value) }))} type="datetime-local" />
+            <AdminInput label="Ends at (local time, optional)" value={dateValue(draft.endsAt)} onChange={(value) => setDraft((current) => ({ ...current, endsAt: dateFromInput(value) }))} type="datetime-local" />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <AdminCheckbox label="Active" checked={draft.active} onChange={(checked) => setDraft((current) => ({ ...current, active: checked }))} />
@@ -4829,12 +4839,14 @@ function AdvertsPanel({
                 </a>
                 <div className="grid gap-2 md:grid-cols-2">
                   <AdminInput label="Name" value={ad.name} onChange={(value) => updateEditing(ad.id, { name: value })} />
-                  <AdminSelect label="Audience" value={ad.audience} onChange={(value) => updateEditing(ad.id, { audience: value as SponsorAd["audience"] })} options={[{ value: "Everyone", label: "Everyone" }, { value: "League Chair", label: "League Chair(s)" }]} />
+                  <AdminSelect label="Audience" value={ad.audience} onChange={(value) => updateEditing(ad.id, { audience: value as SponsorAd["audience"] })} options={[{ value: "Everyone", label: "Everyone" }, { value: "League Chair", label: "League chairs (legacy)" }]} />
                   <AdminInput label="Link URL" value={ad.linkUrl} onChange={(value) => updateEditing(ad.id, { linkUrl: value })} />
                   <AdminInput label="Amazon affiliate code" value={ad.affiliateCode ?? ""} onChange={(value) => updateEditing(ad.id, { affiliateCode: value })} />
                   <AdvertImageInput label="Advert image" value={ad.imagePath} onChange={(value) => updateEditing(ad.id, { imagePath: value })} onError={onMessage} />
                   <AdminInput label="Alt text" value={ad.altText} onChange={(value) => updateEditing(ad.id, { altText: value })} />
                   <AdminInput label="Sort order" value={String(ad.sortOrder)} onChange={(value) => updateEditing(ad.id, { sortOrder: Number(value) || 100 })} type="number" />
+                  <AdminInput label="Starts at (local time, optional)" value={dateValue(ad.startsAt)} onChange={(value) => updateEditing(ad.id, { startsAt: dateFromInput(value) || null })} type="datetime-local" />
+                  <AdminInput label="Ends at (local time, optional)" value={dateValue(ad.endsAt)} onChange={(value) => updateEditing(ad.id, { endsAt: dateFromInput(value) || null })} type="datetime-local" />
                 </div>
                 <div className="grid gap-2">
                   <AdminCheckbox label="Active" checked={ad.active} onChange={(checked) => updateEditing(ad.id, { active: checked })} />

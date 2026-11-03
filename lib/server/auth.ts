@@ -5,9 +5,10 @@ import { cookies, headers } from "next/headers";
 import { PoolClient } from "pg";
 
 import { loadAppearanceConfig } from "@/lib/server/appearance";
+import { loadSponsorAdverts } from "@/lib/server/adverts";
 import { dbQuery, withTransaction } from "@/lib/server/db";
 import { hashSecretToken } from "@/lib/server/tokens";
-import type { PlayerBreakStat, PlayerGameResult, Role, SponsorAd, Standing, TeamContext } from "@/lib/types";
+import type { PlayerBreakStat, PlayerGameResult, Role, Standing, TeamContext } from "@/lib/types";
 
 export const sessionCookieName = "is_session";
 const knownDeviceCookieName = "is_known_device";
@@ -738,6 +739,7 @@ export async function loadSessionPayload(user: AppUser) {
      join public.club c on c.id = cm.club_id and c.active = true
      where cm.person_id = $1
        and cm.active = true
+       and not exists(select 1 from public.person player_home where player_home.id=cm.person_id and player_home.is_golf_player and player_home.player_club_id is not null and player_home.player_club_id<>cm.club_id and cm.role not in ('Golf Professional','Assistant Professional'))
        and (cm.role in ('Golf Professional','Assistant Professional') or not exists (
          select 1
          from public.person_team_role ptr
@@ -897,9 +899,9 @@ export async function loadSessionPayload(user: AppUser) {
              ('Manager')
          ) as roles(role)
          left join public.league_table_view ltv on ltv.team_id = t.id
-         where t.active = true
+         where t.active = true and (roles.role<>'Player' or public.is_golf_player($1,t.club_id))
            and coalesce(s.active, false) = true
-         order by c.name, l.name, t.name, roles.role`
+         order by c.name, l.name, t.name, roles.role`,[user.personId]
       )).rows.map((row) => ({
         id: `operator:${row.role.toLowerCase().replace(/\s+/g, "-")}:${row.team_id}`,
         personId: user.personId,
@@ -944,8 +946,8 @@ export async function loadSessionPayload(user: AppUser) {
              ('Club Member'),
              ('Club Admin')
          ) as roles(role)
-         where c.active = true
-         order by c.name, roles.role`
+         where c.active = true and (roles.role<>'Club Member' or public.is_golf_player($1,c.id))
+         order by c.name, roles.role`,[user.personId]
       )).rows.map((row) => ({
         id: `operator:${row.role.toLowerCase().replace(/\s+/g, "-")}:${row.club_id}`,
         personId: user.personId,
@@ -968,9 +970,11 @@ export async function loadSessionPayload(user: AppUser) {
   const videoContext: TeamContext = {id:`video:${user.personId}`,personId:user.personId,name:"Better By Par",club:"Better By Par",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Video",leaguePosition:0,hasVideoAccess:true};
   const viewerContext: TeamContext = {id:`viewer:${user.personId}`,personId:user.personId,name:"Better By Par",club:"Better By Par",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Viewer",leaguePosition:0,hasViewingAccess:true};
   const publisherContext: TeamContext = {id:`publisher:${user.personId}`,personId:user.personId,name:"Better By Par",club:"Better By Par",logoPath:"/icons/icon-192.png",primaryColor:"#10233f",accentColor:"#1b8a72",league:"A League",season:activeSeasonName,role:"Publisher",leaguePosition:0,hasPublisherAccess:true};
+  // An inherited member/team role must not override a coaching appointment.
+  const professionalClubs = new Set(clubContexts.filter(context => context.role === "Golf Professional" || context.role === "Assistant Professional").map(context => context.club));
   const baseContexts: TeamContext[] = [
-    ...teamContexts,
-    ...clubContexts,
+    ...teamContexts.filter(context => !professionalClubs.has(context.club)),
+    ...clubContexts.filter(context => !professionalClubs.has(context.club) || context.role === "Golf Professional" || context.role === "Assistant Professional"),
     ...clubAdminContexts,
     ...operatorTeamContexts,
     ...operatorClubContexts
@@ -1225,36 +1229,7 @@ export async function loadSessionPayload(user: AppUser) {
   )).rows[0]?.count ?? 0);
 
   const appearance = await loadAppearanceConfig();
-  const hasLeagueChairAccess = contexts.some((context) => context.hasLeagueChairAccess || context.role === "League Chair");
-  const sponsorAds = (await dbQuery<{
-    id: string;
-    name: string;
-    placement: SponsorAd["placement"];
-    audience: SponsorAd["audience"];
-    image_path: string;
-    link_url: string;
-    affiliate_code: string | null;
-    alt_text: string;
-  }>(
-    `select id::text, name, placement, audience, image_path, link_url, affiliate_code, alt_text
-     from public.ads
-     where active = true
-       and placement = 'league-chair-banner'
-       and (audience = 'Everyone' or ($1::boolean = true and audience = 'League Chair'))
-       and (starts_at is null or starts_at <= now())
-       and (ends_at is null or ends_at > now())
-     order by sort_order, name
-     limit 1`
-  , [hasLeagueChairAccess])).rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    placement: row.placement,
-    audience: row.audience,
-    imagePath: row.image_path,
-    linkUrl: row.link_url,
-    affiliateCode: row.affiliate_code,
-    altText: row.alt_text
-  }));
+  const sponsorAds = await loadSponsorAdverts(user.personId);
 
   return {
     authenticated: true,

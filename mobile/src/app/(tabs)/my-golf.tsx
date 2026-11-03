@@ -1,3 +1,5 @@
+import {golfCapabilities} from '../../../../shared/golf-capabilities.mjs';
+import {NativeCoachWorkspace} from '../../components/native-coach-workspace';
 import {useEffect,useRef,useState} from 'react';
 import {Alert,ScrollView,View} from 'react-native';
 import {useLocalSearchParams} from 'expo-router';
@@ -10,7 +12,8 @@ import {useSession} from '../../lib/session';
 import {useDraftRegistration} from '../../lib/draft-guard';
 import type {RoundJournalData} from '../../../../shared/round-contracts';
 type Section='rounds'|'practice'|'lessons';
-export default function MyGolf(){const {notificationRequest}=useLocalSearchParams<{notificationRequest?:string}>();return <MyGolfContent key={notificationRequest??'default'}/>;}
+export default function MyGolf(){const {club}=useSession();return golfCapabilities(club?.roles).professional?<NativeCoachWorkspace key={club?.id} section="players"/>:<PlayerGolf/>;}
+function PlayerGolf(){const {notificationRequest}=useLocalSearchParams<{notificationRequest?:string}>();return <MyGolfContent key={notificationRequest??'default'}/>;}
 function MyGolfContent(){
  const {club,session}=useSession(),params=useLocalSearchParams<{playerId?:string;clubId?:string;section?:string;intent?:string;assignment?:string}>();
  const [view,setView]=useState<Section>(params.section==='practice'?'practice':params.section==='lessons'?'lessons':'rounds'),[chosen,setChosen]=useState<{club:string;player:string}|null>(null),[roundDirty,setRoundDirty]=useState(false),[practiceDirty,setPracticeDirty]=useState(false),[lessonDirty,setLessonDirty]=useState(false),[reload,setReload]=useState(0);

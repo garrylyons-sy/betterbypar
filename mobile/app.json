@@ -31,6 +31,14 @@
           "imageWidth": 280,
           "backgroundColor": "#FFFFFF"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choose a photo for your Better By Par profile.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
       ]
     ],
     "scheme": "betterbypar"

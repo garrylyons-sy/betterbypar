@@ -18,3 +18,6 @@ export function lessonResourceLinks(text?:string|null):string[];
 export function lessonSlotGroups(slots:LessonSlot[]):LessonSlot[][];
 
 export function lessonSlotsForProfessional<T extends {professional_person_id?:string|null;professional_name?:string}>(slots:T[],professional:string):T[];
+export function upcomingHomeLessons(bookings:(LessonBooking&{active?:boolean})[],clubId:string,now?:number):LessonBooking[];
+export function lessonRelativeDay(value:string,now?:number):string;
+export function compareLessonProfessionals(a:{role?:string|null;professional_role?:string|null;name?:string|null;professional_name?:string|null},b:{role?:string|null;professional_role?:string|null;name?:string|null;professional_name?:string|null}):number;

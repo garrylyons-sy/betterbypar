@@ -25,3 +25,17 @@ export function lessonSlotGroups(slots){const groups=new Map();for(const slot of
 
 /** No availability is shown until a coach is explicitly selected. */
 export const lessonSlotsForProfessional=(slots,professional)=>professional?slots.filter(slot=>lessonCoachKey(slot)===professional):[];
+
+export function upcomingHomeLessons(bookings,clubId,now=Date.now()){
+ return bookings.filter(b=>b.club_id===clubId&&b.status==='Booked'&&b.active!==false&&Date.parse(b.ends_at)>now).sort((a,b)=>a.starts_at.localeCompare(b.starts_at)).slice(0,3);
+}
+export function lessonRelativeDay(value,now=Date.now()){
+ const day=lessonDay(value),today=lessonDay(new Date(now).toISOString()),tomorrow=new Date(Date.parse(`${today}T12:00:00Z`)+86400000).toISOString().slice(0,10);
+ return day===today?'Today':day===tomorrow?'Tomorrow':new Date(value).toLocaleDateString('en-IE',{weekday:'short',timeZone:'Europe/Dublin'});
+}
+
+// Keep coaching seniority consistent, regardless of name or first available time.
+export function compareLessonProfessionals(a,b){
+ const rank=role=>role==='Assistant Professional'?1:0;
+ return rank(a.role??a.professional_role)-rank(b.role??b.professional_role)||String(a.name??a.professional_name??'').localeCompare(String(b.name??b.professional_name??''),'en');
+}

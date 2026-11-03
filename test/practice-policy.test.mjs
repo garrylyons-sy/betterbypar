@@ -31,3 +31,18 @@ test('known gross failure cannot be overridden through missing-score attestation
 });
 
 test('imported adjusted gross cannot establish a pass with a picked-up hole',()=>{const picked={...round,importedGross:80,holes:holes.map((h,i)=>({...h,strokes:i===17?null:4,status:i===17?'picked_up':'played'}))};assert.equal(evaluateChallenge({rule:'gross_max',targetValue:89},picked).outcome,'needs_attestation');});
+
+test('per-hole maximum and par-three challenges use actual complete evidence',()=>{
+ const card={...round,holes:holes.map((h,i)=>({...h,par:i===0?3:4,strokes:i===0?3:5}))};
+ assert.equal(evaluateChallenge({rule:'par_all_par_threes'},card).outcome,'passed');
+ assert.equal(evaluateChallenge({rule:'par_all_par_threes'},round).outcome,'ineligible');
+ assert.equal(evaluateChallenge({rule:'par_all_par_threes'},{...card,holes:card.holes.map((h,i)=>i===1?{...h,par:null}:h)}).outcome,'needs_attestation');
+ assert.equal(evaluateChallenge({rule:'par_all_par_threes'},{...card,holes:card.holes.map((h,i)=>i===0?{...h,strokes:4}:h)}).outcome,'not_met');
+ assert.equal(evaluateChallenge({rule:'par_all_par_threes'},{...card,holes:card.holes.map((h,i)=>i===0?{...h,status:'picked_up',strokes:null}:h)}).outcome,'needs_attestation');
+ assert.equal(evaluateChallenge({rule:'hole_score_max',targetValue:5},card).outcome,'passed');
+ assert.equal(evaluateChallenge({rule:'hole_score_max',targetValue:4},card).outcome,'not_met');
+ assert.equal(evaluateChallenge({rule:'hole_score_max',targetValue:5},{...card,holes:card.holes.map((h,i)=>i===0?{...h,status:'picked_up'}:h)}).outcome,'needs_attestation');
+ assert.equal(evaluateChallenge({rule:'hole_score_max',targetValue:5},{...card,holes:card.holes.map((h,i)=>i===0?{...h,strokes:null}:h)}).outcome,'needs_attestation');
+ for(const targetValue of [0,21,2.5,null])assert.throws(()=>normalizeChallenge({title:'Score cap',rule:'hole_score_max',targetValue}));
+ assert.equal(normalizeChallenge({title:'Score cap',rule:'hole_score_max',targetValue:5}).targetValue,5);
+});

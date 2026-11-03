@@ -8,7 +8,7 @@ export const supabaseInstallFiles=Object.freeze([
  'lesson_diary.sql','notifications.sql','lesson_booking_notifications.sql',
  'lesson_groups.sql','lesson_booking_privacy.sql','golf_players.sql','notification_email.sql',
  'golf_rounds.sql','coaching_practice.sql','round_coaching.sql','mobile_sessions.sql',
- 'golf_course_catalogue.sql','golf_course_catalogue_seed.sql','mobile_google.sql'
+ 'golf_course_catalogue.sql','golf_course_catalogue_seed.sql','mobile_google.sql','practice_coach_reviews.sql','pro_shop.sql','coaching_club_locations.sql','shared_lesson_groups.sql'
 ]);
 export function buildSupabaseInstall(){
  return '-- Better By Par: NEW, EMPTY Supabase project only.\n'+

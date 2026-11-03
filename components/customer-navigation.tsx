@@ -1,16 +1,11 @@
 'use client';
-import {ViewportPortal} from '@/components/viewport-portal';
 import type {ReactNode} from 'react';
 import {usePathname} from 'next/navigation';
-import {Home,UserCircle,CalendarPlus,Menu} from 'lucide-react';
-import {customerMenuItems,customerSection} from '@/lib/customer-navigation.mjs';
-const icons={Home,'My Golf':UserCircle,Lessons:CalendarPlus,Club:CalendarPlus,Menu};
+import {CustomerDesktopRail,WorkspaceBottomNavigation,customerWorkspaceItems} from '@/components/workspace-navigation';
+import {customerSection} from '@/lib/customer-navigation.mjs';
+import {useClubTheme} from '@/components/club-theme-provider';
 export function CustomerNavigation({children}:{children:ReactNode}){
- const section=customerSection(usePathname());if(!section)return <>{children}</>;
- const items=customerMenuItems.map(item=>{const Icon=icons[item.section],active=section===item.section;return <a key={item.section} href={item.href} aria-current={active?'page':undefined} className={`flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold lg:flex-row lg:gap-2 lg:text-sm ${active?'bg-[var(--club-primary)] text-[var(--club-on-primary)]':'text-[var(--club-muted-text)]'}`}><Icon aria-hidden="true" className="h-4 w-4"/><span>{item.label}</span></a>;});
- return <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0">
-  <nav aria-label="App menu" className="sticky top-0 z-40 hidden border-b border-[var(--club-border)] bg-[var(--club-surface)] p-3 lg:block"><div className="mx-auto grid max-w-xl grid-cols-5 gap-1">{items}</div></nav>
-  {children}
-  <ViewportPortal><nav aria-label="App menu" data-mobile-app-menu className="mobile-app-menu border-t border-[var(--club-border)] bg-[var(--club-surface)] px-2 pt-2 shadow-elevated lg:hidden"><div className="mx-auto grid max-w-xl grid-cols-5 gap-1">{items}</div></nav></ViewportPortal>
- </div>;
+ const {ready,clubs,clubId}=useClubTheme(),club=clubs.find(club=>club.id===clubId),roles=club?.roles??[];
+ const section=customerSection(usePathname(),roles);if(ready===false||!section)return <>{children}</>;
+ return <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0"><div className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start lg:gap-6 lg:px-8 lg:pb-8 lg:pt-4 xl:grid-cols-[230px_minmax(0,1fr)] xl:px-10"><CustomerDesktopRail clubName={club?.name??'Your club'} clubId={clubId} roles={roles} activeSection={section}/><div className="min-w-0 w-full lg:[&>main]:m-0 lg:[&>main]:max-w-none lg:[&>main]:p-0">{children}</div></div><WorkspaceBottomNavigation items={customerWorkspaceItems(roles,clubId)} activeSection={section}/></div>;
 }

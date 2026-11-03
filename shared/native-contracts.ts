@@ -6,3 +6,5 @@ export type {GolfSummaryResponse} from './golf-summary';
 export type {RoundJournalData as NativeRounds} from './round-contracts';
 export type {PracticeData as NativePractice} from './practice-contracts';
 export type {MemberLessonData as NativeLessons} from './lesson-contracts';
+
+export type NativeProfile={name:string;profileImage:string;isGolfPlayer:boolean;golfIrelandNumber:string;coaching:boolean};

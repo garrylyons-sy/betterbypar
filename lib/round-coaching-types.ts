@@ -1,4 +1,4 @@
-import type {RoundInput,RoundFeedback,SavedRound} from '@/lib/golf-rounds.mjs';
+import type {RoundInput,RoundFeedback,SavedRound} from './golf-rounds.mjs';
 export type CoachPlayer={clubId:string;clubName:string;playerId:string;name:string};
 export type ReviewedRound={id:string;clubId:string;playerId:string;revision:number;source:SavedRound['source'];data:RoundInput;importedGross:number|null;importedPoints:number|null;feedback:RoundFeedback|null};
 export type RoundComment={id:string;authorId:string;authorName:string;coach:boolean;holeNumber:number|null;body:string;revision:number;createdAt:string};

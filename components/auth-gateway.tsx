@@ -7,6 +7,7 @@ import { AppShell, currentAppSeason } from "@/components/app-shell";
 import { AuthSelectField, AuthSignInForm, AuthTextAreaField, AuthTextField, GoogleAuthButton, authJsonFetch } from "@/components/auth-controls";
 import { PasswordChecklist } from "@/components/password-checklist";
 import { disconnectNotificationDevice } from "@/components/notification-center";
+import {SessionLoading} from "@/components/session-loading";
 import { SplashScreen } from "@/components/splash-screen";
 import { AuthWelcome } from "@/components/auth-welcome";
 import welcomeStyles from "@/components/auth-welcome.module.css";
@@ -247,7 +248,7 @@ export function AuthGateway() {
     await refreshSession();
   }
 
-  if (loading) return <SplashScreen />;
+  if (loading) return <SessionLoading />;
 
   if (session?.authenticated) {
     const contexts = embeddedTestContexts(session.contexts ?? [], teamOptions, session.standings ?? []);

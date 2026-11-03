@@ -12,5 +12,5 @@ export async function POST(request:Request){try{
  let size=0;const chunks:Uint8Array[]=[];try{while(true){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>50000)throw new AccessError('Practice data is too large.',413);chunks.push(part.value);}}finally{await reader.cancel();}
  let body;try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new AccessError('Invalid practice data.',400);}
  if(!body||typeof body!=='object'||Array.isArray(body))throw new AccessError('Invalid practice data.',400);
- const result=await savePractice(request,body);if(['assign','log','check','attest'].includes(body.action))scheduleNotificationPush();return NextResponse.json(result,{headers});
+ const result=await savePractice(request,body);if(['assign','log','check','attest','review'].includes(body.action))scheduleNotificationPush();return NextResponse.json(result,{headers});
  }catch(error){return failure(error);}}

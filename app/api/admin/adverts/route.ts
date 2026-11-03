@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { applyAffiliateCodeToAdvertUrl } from "@/lib/ads";
+import { safeAdvertImage, safeAdvertLink } from "@/shared/advert-policy.mjs";
 import { currentUser } from "@/lib/server/auth";
 import { dbQuery } from "@/lib/server/db";
 
@@ -17,7 +18,8 @@ async function requirePlatformAdmin() {
 }
 
 function normalizeAudience(value: unknown): AdAudience {
-  return value === "Everyone" ? "Everyone" : "League Chair";
+  if (value === "Everyone" || value === "League Chair") return value;
+  throw new Error("Choose a valid advert audience.");
 }
 
 function normalizeAdBody(body: Record<string, unknown>) {
@@ -35,8 +37,12 @@ function normalizeAdBody(body: Record<string, unknown>) {
 
   if (!name) throw new Error("Advert name is required.");
   if (!imagePath) throw new Error("Advert image is required.");
+  if (!safeAdvertImage(imagePath)) throw new Error("Use an image upload, an app image path, or an http(s) image URL.");
   if (!rawLinkUrl) throw new Error("Advert link URL is required.");
-  if (!/^https?:\/\//i.test(rawLinkUrl)) throw new Error("Advert link URL must start with http:// or https://.");
+  if (!safeAdvertLink(rawLinkUrl)) throw new Error("Advert link URL must be a valid http:// or https:// URL.");
+  if (body.active !== undefined && typeof body.active !== 'boolean') throw new Error("Advert active status must be true or false.");
+  for (const value of [startsAt, endsAt]) if (value && !Number.isFinite(Date.parse(value))) throw new Error("Choose a valid advert date.");
+  if (startsAt && endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) throw new Error("Advert end date must be after its start date.");
 
   const linkUrl = applyAffiliateCodeToAdvertUrl(rawLinkUrl, affiliateCode);
 
@@ -101,7 +107,16 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const input = normalizeAdBody(body);
+    const existing = await dbQuery<{starts_at:string|null;ends_at:string|null}>(
+      'select starts_at::text, ends_at::text from public.ads where id=$1', [id]
+    );
+    if (!existing.rowCount) throw new Error("Advert was not found.");
+    // Older administration clients omit scheduling fields when editing details.
+    const input = normalizeAdBody({
+      ...body,
+      startsAt: 'startsAt' in body ? body.startsAt : 'starts_at' in body ? body.starts_at : existing.rows[0].starts_at,
+      endsAt: 'endsAt' in body ? body.endsAt : 'ends_at' in body ? body.ends_at : existing.rows[0].ends_at
+    });
     const result = await dbQuery<ReturnType<typeof adResponse>>(
       `update public.ads
        set name = $2,

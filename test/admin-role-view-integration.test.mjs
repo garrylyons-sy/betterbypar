@@ -7,7 +7,7 @@ test('role view requires a current operator and active target appointment, suppo
  const target=(await db.query("insert into person(first_name,last_name) values('Test','Professional') returning id")).rows[0].id;const club=(await db.query("insert into club(name,active) values('Test Club',false) returning id")).rows[0].id;await db.query("insert into club_membership(person_id,club_id,role) values($1,$2,'Golf Professional')",[target,club]);
  await db.query('insert into club_admin(person_id,club_id) values($1,$2)',[actor,club]);const backup=(await db.query("insert into person(first_name,last_name) values('Backup','Professional') returning id")).rows[0].id;await db.query("insert into club_membership(person_id,club_id,role) values($1,$2,'Golf Professional')",[backup,club]);await db.query('update club set active=true where id=$1',[club]);
  const api={},deps={'next/headers':{},'@/lib/server/db':{dbQuery:async(...args)=>{const result=await db.query(...args);return {...result,rowCount:result.rows.length};}},'./role-view-token.mjs':{readRoleView},'@/shared/admin-role-view.mjs':{clubViewRoles}};
- new Function('require','exports',ts.transpileModule(readFileSync('lib/server/role-view.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>deps[name]??require(name),api);
+ new Function('require','exports',ts.transpileModule(readFileSync('lib/server/role-view.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>deps[name]??(name==='@/lib/server/lesson-group-access'?load('lib/server/lesson-group-access.ts',deps):name==='@/lib/server/lesson-location'?load('lib/server/lesson-location.ts',{}):require(name)),api);
  const user={personId:actor,accountId:'original',name:'Test Admin',username:'test',email:'',profileImage:''};const token=signRoleView({personId:target,clubId:club,role:'Golf Professional'},'session');
  const effective=await api.resolveRoleView(user,'session',token);assert.equal(effective.personId,target);assert.equal(effective.accountId,'');assert.equal(effective.actingAs.actorPersonId,actor);
  await assert.rejects(()=>api.resolveRoleView({...user,personId:target},'session',token),/administrator/);
@@ -16,8 +16,8 @@ test('role view requires a current operator and active target appointment, suppo
  }finally{await db.close();}});
 test('lesson feedback and group mutations reject the wrong working club or role before any write',async()=>{
  const {roleViewScopeAllowed}=await import('../shared/admin-role-view.mjs');
- const load=(file,deps)=>{const api={};new Function('require','exports',ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>deps[name]??require(name),api);return api;};
- const guards=load('lib/server/golf-access.ts',{'@/lib/server/role-view':{},'@/shared/admin-role-view.mjs':{roleViewScopeAllowed},'@/lib/server/auth':{},'@/lib/server/db':{},'@/lib/golf-policy':{}});
+ const load=(file,deps)=>{const api={};new Function('require','exports',ts.transpileModule(readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>deps[name]??(name==='@/lib/server/lesson-group-access'?load('lib/server/lesson-group-access.ts',deps):name==='@/lib/server/lesson-location'?load('lib/server/lesson-location.ts',{}):require(name)),api);return api;};
+ const guards=load('lib/server/golf-access.ts',{'@/shared/golf-capabilities.mjs':await import('../shared/golf-capabilities.mjs'),'@/lib/server/role-view':{},'@/shared/admin-role-view.mjs':{roleViewScopeAllowed},'@/lib/server/auth':{},'@/lib/server/db':{},'@/lib/golf-policy':{}});
  for(const view of [{clubId:'castle',role:'Golf Professional'},{clubId:'other',role:'Player'},{clubId:'other',role:'Club Admin'}]){
   const access={user:{personId:'coach',actingAs:view}};let writes=0;
   const deps={
@@ -39,7 +39,7 @@ test('lesson feedback and group mutations reject the wrong working club or role 
 test('an expired original login can clear its working context without creating a new session',async()=>{
  const policy=await import('../shared/admin-role-view.mjs');let cleared=false;
  const deps={'next/server':{NextResponse:{json:(data,options={})=>({data,status:options.status??200})}},'next/headers':{cookies:async()=>({get:()=>({value:'expired-role-token'}),delete:()=>{cleared=true;}})},'@/lib/server/auth':{authenticatedUser:async()=>null},'@/lib/server/role-view':{roleViewCookie:'bbp_role_view'},'@/lib/server/role-view-token.mjs':{},'@/shared/admin-role-view.mjs':policy,'@/lib/server/db':{dbQuery:()=>{throw new Error('No database write permitted without a login');}}};
- const api={};new Function('require','exports',ts.transpileModule(readFileSync('app/api/admin/role-view/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>deps[name]??require(name),api);
+ const api={};new Function('require','exports',ts.transpileModule(readFileSync('app/api/admin/role-view/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>deps[name]??(name==='@/lib/server/lesson-group-access'?load('lib/server/lesson-group-access.ts',deps):name==='@/lib/server/lesson-location'?load('lib/server/lesson-location.ts',{}):require(name)),api);
  assert.equal((await api.GET()).data.expired,true);
  const result=await api.DELETE(new Request('https://www.betterbypar.com/api/admin/role-view',{method:'DELETE',headers:{origin:'https://www.betterbypar.com'}}));assert.equal(result.status,200);assert.equal(result.data.href,'/');assert.equal(cleared,true);
 });

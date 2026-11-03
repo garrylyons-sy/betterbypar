@@ -1,3 +1,4 @@
+import {isProfessional} from '@/shared/golf-capabilities.mjs';
 import {requestRoleView} from '@/lib/server/role-view';
 import {roleViewScopeAllowed} from '@/shared/admin-role-view.mjs';
 import type { PoolClient } from 'pg';
@@ -32,8 +33,9 @@ export function requireLessonsManager(access: GolfAccess, clubId: string) {
 export async function requirePlayerAccess(client: PoolClient, actorId: string, playerId: string, clubId: string) {
   if(!roleViewScopeAllowed(await requestRoleView(),clubId,'player'))throw new AccessError('Switch to the player role for this club first.');
   // Lock the grant and memberships so revocation cannot race a booking.
-  const members = await client.query(`select cm.person_id from public.club_membership cm join public.person p on p.id=cm.person_id and p.active
+  const members = await client.query(`select cm.person_id,cm.role from public.club_membership cm join public.person p on p.id=cm.person_id and p.active
     join public.club c on c.id=cm.club_id and c.active where cm.club_id=$1 and cm.person_id=any($2::uuid[]) and cm.active for share of cm,p,c`,[clubId,[actorId,playerId]]);
+  if(members.rows.some(r=>r.person_id===actorId&&isProfessional([r.role])))throw new AccessError('Professional accounts use coaching tools. Player round recording and self-booking are unavailable.');
   if (!hasActivePlayers(members.rows.map(r=>r.person_id),actorId,playerId)) throw new AccessError('Active club membership is required for both the player and account holder.');
   if(!(await client.query('select public.is_golf_player($1,$2) as eligible',[playerId,clubId])).rows[0].eligible)throw new AccessError('Choose a registered player with a Golf Ireland number. Professionals and assistants cannot be players.');
   if (actorId===playerId) return;

@@ -1,0 +1,31 @@
+import {useFocusEffect} from 'expo-router';
+import {useCallback,useEffect,useRef,useState} from 'react';
+import {Image,ScrollView,TextInput,View} from 'react-native';
+import * as Linking from 'expo-linking';
+import {Action,Card,Choice,Copy,Page,Status,useResource} from './ui';
+import {useSession} from '../lib/session';
+import {useTheme} from '../lib/theme';
+import {shopMoney,selectedShopVariant,shopPurchaseLabel} from '../../../shared/pro-shop-presentation.mjs';
+import type {ShopProduct,ShopResponse} from '../../../shared/pro-shop-contracts';
+export function NativeProShop(){
+ const {club,session,setClub,origin}=useSession(),theme=useTheme(),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[linkError,setLinkError]=useState('');
+ useEffect(()=>{const timer=setTimeout(()=>setQuery(search.trim()),300);return()=>clearTimeout(timer);},[search]);
+ const result=useResource<ShopResponse>(club?`/api/pro-shop?clubId=${encodeURIComponent(club.id)}&q=${encodeURIComponent(query)}`:null),data=result.data;
+ async function openManagement(){try{await Linking.openURL(`${origin}/pro-shop/manage?clubId=${club?.id}`);}catch{setLinkError('Could not open shop management.');}}
+ return <Page title={data?.settings.title||'Pro shop'} refreshing={result.loading} onRefresh={result.reload}>
+ <Card dark><Copy bold style={{color:theme.onPrimary,fontSize:21}}>{club?.name??'Your club’s pro shop'}</Copy><Copy style={{color:theme.onPrimary}}>{data?.settings.description||'Equipment, essentials and gifts for your game.'}</Copy></Card>
+ {(session?.clubs.length??0)>1&&<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8}}>{session?.clubs.map(c=><Choice key={c.id} label={c.name} selected={club?.id===c.id} onPress={()=>{setClub(c.id);setSearch('');}}/>)}</ScrollView>}
+ <Copy bold>Find something for your game</Copy><TextInput accessibilityLabel="Search pro shop" placeholder="Search products or categories" placeholderTextColor={theme.muted} value={search} onChangeText={setSearch} maxLength={100} returnKeyType="search" style={{minHeight:48,padding:12,borderWidth:1,borderColor:theme.border,borderRadius:6,backgroundColor:theme.surface,color:theme.text}}/>
+ <Status loading={result.loading} error={result.error||linkError}/>{!!result.error&&<Action label="Try again" secondary onPress={result.reload}/>}
+ {!club&&<Card><Copy>A club membership is needed to browse its shop.</Copy></Card>}
+ {data&&<>{data.canManage&&<><Action label="Manage shop on website" secondary onPress={()=>void openManagement()}/><Copy style={{fontSize:12}}>Shop management opens the website using its own sign-in.</Copy></>}{!data.settings.enabled?<Card><Copy bold>Your pro shop is coming soon</Copy><Copy>The professional will publish products here when the shop opens.</Copy></Card>:<>{!!data.notice&&<Card><Copy>{data.notice}</Copy></Card>}{!data.products.length?data.notice?<Action label="Try again" secondary onPress={result.reload}/>:<Card><Copy bold>{query?'No matching products':'No products published yet'}</Copy><Copy>{query?'Try another product name or category.':'Check back soon or visit the professional in the clubhouse.'}</Copy></Card>:data.products.map(product=><Product key={`${club?.id}:${product.id}`} product={product} clubId={data.clubId} provider={data.settings.provider}/>)}{data.hasMore&&<Copy>Showing the first {data.products.length} products. Use search to narrow the selection.</Copy>}</>}</>}
+ </Page>;
+}
+function Product({product,clubId,provider}:{product:ShopProduct;clubId:string;provider:string}){const {request}=useSession(),theme=useTheme(),[choice,setChoice]=useState(''),[imageFailed,setImageFailed]=useState(false),[quantity,setQuantity]=useState(1),[busy,setBusy]=useState(false),[error,setError]=useState(''),lock=useRef(false),active=useRef(true),generation=useRef(0),variant=selectedShopVariant(product,choice),canBuy=!!variant?.available&&(provider==='shopify'||!!product.purchaseUrl);
+ useFocusEffect(useCallback(()=>{active.current=true;generation.current++;if(!lock.current)setBusy(false);return()=>{active.current=false;generation.current++;};},[]));
+ async function buy(){if(lock.current||!variant)return;lock.current=true;const intent=generation.current;setBusy(true);setError('');try{const result=await request<{checkoutUrl:string}>('/api/pro-shop/checkout',{clubId,productId:product.id,variantId:variant.id,quantity});if(active.current&&generation.current===intent)await Linking.openURL(result.checkoutUrl);}catch(reason){if(active.current&&generation.current===intent)setError(reason instanceof Error?reason.message:'Could not open checkout.');}finally{lock.current=false;if(active.current)setBusy(false);}}
+ return <Card>{!!product.imageUrl&&!imageFailed&&<Image source={{uri:product.imageUrl}} onError={()=>setImageFailed(true)} accessibilityLabel={product.title} resizeMode="contain" style={{width:'100%',aspectRatio:4/3,backgroundColor:theme.soft,borderRadius:6}}/>}<Copy style={{fontSize:12}}>{product.category||'Pro shop'}</Copy><Copy bold style={{fontSize:21,color:theme.text}}>{product.title}</Copy>{!!product.description&&<Copy>{product.description}</Copy>}<Copy bold style={{fontSize:25,color:theme.text}}>{variant?shopMoney(variant.price,variant.currency):'Price unavailable'}</Copy>
+ {product.variants.length>1&&<><Copy bold>Choose an option</Copy><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap:8}}>{product.variants.map(v=><Choice key={v.id} label={`${v.title} · ${shopMoney(v.price,v.currency)}${v.available?'':' · sold out'}`} selected={variant?.id===v.id} onPress={()=>{if(!busy){setChoice(v.id);setError('');}}}/>)}</ScrollView></>}
+ {provider==='shopify'&&<><Copy bold>Quantity · {quantity}</Copy><View style={{flexDirection:'row',gap:12}}><Action label="−" secondary disabled={busy||quantity<=1} onPress={()=>setQuantity(n=>n-1)}/><Action label="+" secondary disabled={busy||quantity>=10} onPress={()=>setQuantity(n=>n+1)}/></View></>}
+ <Status loading={busy} error={error}/><Action label={busy?'Opening…':shopPurchaseLabel(provider,product,variant)} disabled={busy||!canBuy} onPress={()=>void buy()}/>{provider==='shopify'&&<Copy style={{fontSize:12}}>Payment, delivery and order confirmation are handled by the shop’s Shopify checkout.</Copy>}</Card>;
+}

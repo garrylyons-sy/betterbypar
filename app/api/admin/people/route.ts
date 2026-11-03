@@ -332,6 +332,13 @@ export async function PATCH(request: NextRequest) {
           }
         }
 
+        if(body.playerClubId!==undefined){
+          const home=String(body.playerClubId??'');
+          const currentHome=(await client.query('select player_club_id from public.person where id=$1 for update',[personId])).rows[0]?.player_club_id;
+          if(currentHome&&currentHome!==home&&!access.platformAdmin&&!editableClubIds.includes(currentHome))throw new Error('The player’s current home club must authorize a club change.');
+          if(!existingClubIds.includes(home)||!editableClubIds.includes(home))throw new Error('Choose an existing club membership that you administer as the player’s home club.');
+          await client.query('update public.person set player_club_id=$2 where id=$1',[personId,home]);
+        }
         if(body.isGolfPlayer!==undefined||body.golfIrelandNumber!==undefined){
           const existing=await client.query('select is_golf_player,golf_ireland_number from public.person where id=$1 for update',[personId]);
           const registration=normalizeGolfRegistration({isGolfPlayer:body.isGolfPlayer??existing.rows[0]?.is_golf_player,golfIrelandNumber:body.golfIrelandNumber??existing.rows[0]?.golf_ireland_number});

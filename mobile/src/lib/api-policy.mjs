@@ -4,7 +4,8 @@ export function apiPath(value){if(typeof value!=='string'||!value.startsWith('/a
 export function apiRequestOptions(body,method=body===undefined?'GET':'POST'){
  if(!['GET','POST','PATCH','DELETE'].includes(method))throw new Error('Unsupported API method.');
  if(method==='GET'&&body!==undefined)throw new Error('GET requests cannot send a body.');
- return {method,...(body===undefined?{}:{body:JSON.stringify(body)})};
+ const multipart=typeof FormData!=='undefined'&&body instanceof FormData;
+ return {method,...(body===undefined?{}:multipart?{body}:{body:JSON.stringify(body),headers:{'Content-Type':'application/json'}})};
 }
 
 export function defaultApiOrigin(configured,development=false){return apiOrigin(configured?.trim()||'https://www.betterbypar.com',development);}

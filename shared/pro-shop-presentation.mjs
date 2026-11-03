@@ -1,0 +1,3 @@
+export function shopMoney(value,currency='EUR'){const amount=Number(value);if(!Number.isFinite(amount)||amount<0)return 'Price unavailable';try{return new Intl.NumberFormat('en-IE',{style:'currency',currency}).format(amount);}catch{return `${amount.toFixed(2)} ${currency}`;}}
+export function selectedShopVariant(product,id){return product.variants.find(v=>v.id===id)??product.variants.find(v=>v.available)??product.variants[0]??null;}
+export function shopPurchaseLabel(provider,product,variant){if(!variant?.available)return 'Out of stock';if(provider==='shopify')return 'Checkout with Shopify';return product.purchaseUrl?'View / buy product':'Available in pro shop';}

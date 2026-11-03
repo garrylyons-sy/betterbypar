@@ -1,6 +1,6 @@
 import {NextResponse} from 'next/server';
 import {currentUser} from '@/lib/server/auth';
-import {withTransaction} from '@/lib/server/db';
+import {dbQuery,withTransaction} from '@/lib/server/db';
 import {processProfilePhoto,parseProfilePhotoUpload} from '@/lib/server/profile-photo';
 import {storeProfilePhoto} from '@/lib/server/profile-photo-store';
 
@@ -14,7 +14,8 @@ const errorResponse=(error:unknown)=>NextResponse.json(
 export async function GET(){
   const user=await currentUser();
   if(!user)return NextResponse.json({error:'Sign in to view your profile.'},{status:401});
-  return NextResponse.json({name:user.name,profileImage:user.profileImage},{headers:{'Cache-Control':'no-store'}});
+  const registration=(await dbQuery('select is_golf_player,golf_ireland_number,public.is_golf_coach(id) as coaching from person where id=$1',[user.personId])).rows[0];
+  return NextResponse.json({name:user.name,profileImage:user.profileImage,isGolfPlayer:!!registration?.is_golf_player,golfIrelandNumber:registration?.golf_ireland_number??'',coaching:!!registration?.coaching},{headers:{'Cache-Control':'no-store'}});
 }
 
 export async function POST(request:Request){

@@ -1,3 +1,4 @@
+import * as advertPolicy from '../shared/advert-policy.mjs';
 // All synthetic assignments, fixtures and listings roll back; no broadcast or push.
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
@@ -12,6 +13,7 @@ const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUna
 const client=await pool.connect();let current=null,dispatches=0;
 const cache=new Map(),db={dbQuery:(sql,args)=>client.query(sql,args),withTransaction:async fn=>{await client.query('savepoint live_test');try{const result=await fn(client);await client.query('release savepoint live_test');return result;}catch(error){await client.query('rollback to savepoint live_test');throw error;}}};
 function load(name){
+ if(name==='shared/advert-policy.mjs')return advertPolicy;
  if(name==='lib/server/notification-push')return {pushReadiness:()=>({ready:true})};
  if(name==='lib/server/notification-dispatch')return {scheduleNotificationPush:()=>dispatches++};
  if(name==='lib/server/db')return db;if(name==='lib/livestream-policy.mjs')return livePolicy;if(cache.has(name))return cache.get(name);

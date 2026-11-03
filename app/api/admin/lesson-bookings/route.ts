@@ -20,7 +20,7 @@ export async function POST(request:Request){
  try{
   const a=await golfAccess(request),b=await request.json(),goals=lessonText(b.goals,2000,'Lesson goals'),reminder=reminderMinutes(b.reminderMinutes);
   const result=await withTransaction(async client=>{
-   return bookLessonForMember(client,a,String(b.slotId??''),String(b.playerId??''),goals,reminder);
+   return bookLessonForMember(client,a,String(b.slotId??''),String(b.playerId??''),goals,reminder,b.locationId);
   });scheduleNotificationPush();return NextResponse.json(result,{status:201});
  }catch(error){const e=golfError(error);return NextResponse.json({error:e.error},{status:e.status});}
 }

@@ -1,3 +1,4 @@
+import * as advertPolicy from '../shared/advert-policy.mjs';
 // Real SQL verification. Synthetic people, assignments, messages and configuration
 // are rolled back. No network push dispatcher is called.
 import fs from 'node:fs';
@@ -17,6 +18,7 @@ let current=null,dispatches=0;
 const db={dbQuery:(sql,args)=>client.query(sql,args),withTransaction:async fn=>{await client.query('savepoint app_transaction');try{const result=await fn(client);await client.query('release savepoint app_transaction');return result;}catch(error){await client.query('rollback to savepoint app_transaction');throw error;}}};
 const cache=new Map();
 function load(name){
+ if(name==='shared/advert-policy.mjs')return advertPolicy;
  if(cache.has(name))return cache.get(name);
  if(name==='lib/notification-policy.mjs')return policy;
  if(name==='lib/announcement-policy.mjs')return announcements;

@@ -1,17 +1,19 @@
+import {requireGroupManager} from '@/lib/server/lesson-group-access';
+import {setLessonLocation} from '@/lib/server/lesson-location';
 import type {PoolClient} from 'pg';
-import {AccessError,golfAudit,requireLessonsManager,type GolfAccess} from '@/lib/server/golf-access';
-import {requireActiveCoach,queueLessonReminder} from '@/lib/server/lesson-diary';
+import {AccessError,golfAudit,type GolfAccess} from '@/lib/server/golf-access';
+import {requireCoachBookingAccess,requireActiveCoach,queueLessonReminder} from '@/lib/server/lesson-diary';
 import {notifyLessonEvent} from '@/lib/server/lesson-notifications';
-export async function bookLessonForMember(client:PoolClient,a:GolfAccess,slotId:string,playerId:string,goals:string,reminder:number){
+export async function bookLessonForMember(client:PoolClient,a:GolfAccess,slotId:string,playerId:string,goals:string,reminder:number,locationId?:unknown){
    const found=await client.query('select * from lesson_slot where id=$1 for update',[slotId]);
    const slot=found.rows[0];if(!slot)throw new Error('Lesson not found.');
-   if(slot.professional_person_id!==a.user.personId)throw new AccessError('Only the appointed lesson professional can book for a member.');
-   requireLessonsManager(a,slot.club_id);
-   await requireActiveCoach(client,slot.club_id,a.user.personId);
+   if(slot.group_id){await requireGroupManager(client,a,slot.club_id);await requireActiveCoach(client,slot.club_id,slot.professional_person_id);}
+   else await requireCoachBookingAccess(client,a,slot.club_id,slot.professional_person_id);
    if(!slot.group_id&&new Date(slot.ends_at).getTime()-new Date(slot.starts_at).getTime()!==1800000)throw new Error('Choose a 30-minute lesson.');
    const player=await client.query(`select p.id,concat_ws(' ',p.first_name,p.last_name) as name from club_membership cm join person p on p.id=cm.person_id and p.active
     where cm.club_id=$1 and cm.person_id=$2 and cm.active and public.is_golf_player(p.id,cm.club_id) for share of cm,p`,[slot.club_id,playerId]);
    if(!player.rowCount)throw new AccessError('Select an active member of this lesson’s club.');
+   await setLessonLocation(client,slot,locationId);
    const recipients=await client.query(`select distinct p.id from person p join user_account ua on ua.person_id=p.id and ua.active
     join club_membership cm on cm.person_id=p.id and cm.club_id=$1 and cm.active
     where p.active and (p.id=$2 or exists(select 1 from dependants d where d.guardian_person_id=p.id and d.dependant_person_id=$2 and d.club_id=$1 and d.active)) order by p.id`,[slot.club_id,playerId]);

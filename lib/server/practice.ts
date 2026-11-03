@@ -4,7 +4,7 @@ import {golfAccess,AccessError,requirePlayerAccess,type GolfAccess} from '@/lib/
 import {normalizeChallenge,normalizeDrill,evaluateChallenge,type ChallengeDefinition} from '@/lib/practice-policy.mjs';
 import type {SavedRound,RoundInput} from '@/lib/golf-rounds.mjs';
 import type {PracticeOption} from '@/lib/practice-types';
-import {notifyPracticeAssignment,notifyPracticeProgress} from '@/lib/server/practice-notifications';
+import {notifyPracticeAssignment,notifyPracticeProgress,notifyPracticeReview} from '@/lib/server/practice-notifications';
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 const id=(v:unknown)=>{if(!uuid(v))throw new AccessError('Choose a valid item.',400);return v;};
 const str=(v:unknown,max=2000)=>{if(v==null)return '';if(typeof v!=='string'||v.length>max)throw new AccessError(`Text must be at most ${max} characters.`,400);return v.trim();};
@@ -38,13 +38,15 @@ export async function getPractice(request:Request){
    if(!selected&&(requestedPlayer||requestedClub))throw new AccessError('Player access required.');
    if(selected){clubId=selected.clubId;await requirePlayerAccess(c,a.user.personId,selected.playerId,selected.clubId);}
   }
-  const coaches=manager?(await c.query(`select distinct p.id,concat_ws(' ',p.first_name,p.last_name) as name from person p join club_membership cm on cm.person_id=p.id where p.active and cm.active and cm.club_id=$1 and cm.role in ('Golf Professional','Assistant Professional') order by name`,[clubId])).rows:[];
+  const administer=a.platform||a.adminClubIds.includes(clubId);
+  const coaches=manager?(await c.query(`select distinct p.id,concat_ws(' ',p.first_name,p.last_name) as name from person p join club_membership cm on cm.person_id=p.id where p.active and cm.active and cm.club_id=$1 and cm.role in ('Golf Professional','Assistant Professional') and ($2::boolean or p.id=$3) order by name`,[clubId,administer,a.user.personId])).rows:[];
   const templates=async(table:string)=>manager?(await c.query(`select id,club_id as "clubId",definition,active from ${table} where active and (club_id is null or club_id=$1) order by definition->>'title'`,[clubId])).rows:[];
   const challenges=await templates('golf_challenge'),drills=await templates('golf_drill');
   const assignments=clubId?(await c.query(`select a.id,a.source_round_id as "sourceRoundId",a.club_id as "clubId",cl.name as "clubName",a.player_person_id as "playerId",concat_ws(' ',p.first_name,p.last_name) as "playerName",a.coach_person_id as "coachId",concat_ws(' ',coach.first_name,coach.last_name) as "coachName",a.kind,a.definition,a.status,a.notes,to_char(a.starts_on,'YYYY-MM-DD') as "startsOn",to_char(a.due_on,'YYYY-MM-DD') as "dueOn",a.target_holes as "targetHoles",a.goal_sessions as "goalSessions",
+   coalesce((select jsonb_agg(jsonb_build_object('id',review.id,'reviewerId',review.reviewer_person_id,'reviewerName',concat_ws(' ',reviewer.first_name,reviewer.last_name),'drillSessionId',review.drill_session_id,'challengeAttemptId',review.challenge_attempt_id,'outcome',review.outcome,'comment',review.comment,'createdAt',review.created_at) order by review.created_at desc,review.id desc) from golf_practice_coach_review review join person reviewer on reviewer.id=review.reviewer_person_id where review.assignment_id=a.id),'[]'::jsonb) as reviews,
    coalesce((select jsonb_agg(jsonb_build_object('id',s.id,'performedOn',to_char(s.performed_on,'YYYY-MM-DD'),'minutes',s.minutes,'note',s.note,'recordedBy',concat_ws(' ',actor.first_name,actor.last_name)) order by s.performed_on desc,s.created_at desc) from golf_drill_session s join person actor on actor.id=s.actor_person_id where s.assignment_id=a.id),'[]'::jsonb) as sessions,
    (select jsonb_build_object('id',at.id,'performedOn',to_char(at.performed_on,'YYYY-MM-DD'),'note',at.note,'attested',at.attested,'result',at.result,'recordedBy',concat_ws(' ',actor.first_name,actor.last_name),'stale',at.round_id is not null and at.round_revision is distinct from r.revision) from golf_challenge_attempt at join person actor on actor.id=at.actor_person_id left join golf_round r on r.id=at.round_id where at.assignment_id=a.id order by at.created_at desc,at.id desc limit 1) as "latestAttempt"
-   from golf_practice_assignment a join club cl on cl.id=a.club_id join person p on p.id=a.player_person_id join person coach on coach.id=a.coach_person_id where a.club_id=$1 and public.is_golf_player(p.id,a.club_id) and ($2::boolean or a.player_person_id=$3) order by a.created_at desc,a.id desc`,[clubId,manager,selected?.playerId??null])).rows:[];
+   from golf_practice_assignment a join club cl on cl.id=a.club_id join person p on p.id=a.player_person_id join person coach on coach.id=a.coach_person_id where a.club_id=$1 and public.is_golf_player(p.id,a.club_id) and ($2::boolean or a.player_person_id=$3) and ($4::boolean or a.coach_person_id=$5) order by a.created_at desc,a.id desc`,[clubId,manager,selected?.playerId??null,!manager||administer,a.user.personId])).rows:[];
   const rounds=!manager&&selected?(await c.query(`select id,data->>'courseName' as "courseName",data->>'playedOn' as "playedOn",source from golf_round where club_id=$1 and player_person_id=$2 and data->>'status'='completed' order by data->>'playedOn' desc,updated_at desc`,[clubId,selected.playerId])).rows:[];
   return {manager,actorId:a.user.personId,clubs,clubId,options,selected,coaches,challenges,drills,assignments,rounds};
  });
@@ -73,6 +75,24 @@ export async function savePractice(request:Request,b:Record<string,unknown>){
    const prior=(await c.query('select * from golf_practice_assignment where created_by=$1 and client_key=$2',[a.user.personId,clientKey])).rows[0];if(prior.source_round_id!==sourceRoundId||prior.club_id!==clubId||prior.player_person_id!==playerId||prior.coach_person_id!==coachId||prior.kind!==kind||(prior.challenge_id??prior.drill_id)!==template.id||isoDay(prior.starts_on)!==starts||(prior.due_on?isoDay(prior.due_on):null)!==due||prior.target_holes!==holes||prior.goal_sessions!==sessions||prior.notes!==str(b.notes))duplicateConflict();return {id:prior.id};
   }
   const row=await assignment(c,b.assignmentId);
+  if(b.action==='review'){
+   await requireManage(c,a,row.club_id);
+   const reviewer=(await c.query(`select p.id,($3::boolean and exists(select 1 from app_operator where person_id=p.id and active)) or ($4::boolean and (exists(select 1 from club_admin where person_id=p.id and club_id=$2 and active) or exists(select 1 from club_membership where person_id=p.id and club_id=$2 and active and is_club_admin))) as administrator from person p where p.id=$1 and p.active for share of p`,[a.user.personId,row.club_id,a.platform,a.adminClubIds.includes(row.club_id)])).rows[0];
+   if(!reviewer||(!reviewer.administrator&&row.coach_person_id!==a.user.personId))throw new AccessError('Only the assigned professional or administrator can review this evidence.');
+   const currentCoach=await c.query(`select cm.id from club_membership cm join person p on p.id=cm.person_id and p.active join club cl on cl.id=cm.club_id and cl.active where cm.club_id=$1 and cm.person_id=$2 and cm.active and cm.role in ('Golf Professional','Assistant Professional') for share of cm,p,cl`,[row.club_id,row.coach_person_id]);
+   if(!currentCoach.rowCount)throw new AccessError('The assigned professional must still be active at this club.');
+   if(!(await c.query('select public.is_golf_player($1,$2) as active',[row.player_person_id,row.club_id])).rows[0].active)throw new AccessError('Player access is no longer active.');
+   const sessionId=b.drillSessionId?id(b.drillSessionId):null,attemptId=b.challengeAttemptId?id(b.challengeAttemptId):null;
+   if((sessionId===null)===(attemptId===null)||(row.kind==='drill')!==(sessionId!==null))throw new AccessError('Choose one recorded session or challenge result for this assignment.',400);
+   const target=await c.query(`select id from ${sessionId?'golf_drill_session':'golf_challenge_attempt'} where id=$1 and assignment_id=$2 for share`,[sessionId??attemptId,row.id]);
+   if(!target.rowCount)throw new AccessError('The evidence does not belong to this assignment.',400);
+   const outcome=b.outcome,comment=str(b.comment,2000),clientKey=id(b.clientKey);
+   if(!['successful','needs_work','acknowledged'].includes(String(outcome))||!comment)throw new AccessError('Choose a review outcome and add feedback.',400);
+   const inserted=await c.query(`insert into golf_practice_coach_review(assignment_id,reviewer_person_id,drill_session_id,challenge_attempt_id,client_key,outcome,comment) values($1,$2,$3,$4,$5,$6,$7) on conflict(reviewer_person_id,client_key) do nothing returning id`,[row.id,a.user.personId,sessionId,attemptId,clientKey,outcome,comment]);
+   if(inserted.rows[0]){await notifyPracticeReview(c,row.id,inserted.rows[0].id);return {id:inserted.rows[0].id};}
+   const prior=(await c.query('select * from golf_practice_coach_review where reviewer_person_id=$1 and client_key=$2',[a.user.personId,clientKey])).rows[0];
+   if(prior.assignment_id!==row.id||prior.drill_session_id!==sessionId||prior.challenge_attempt_id!==attemptId||prior.outcome!==outcome||prior.comment!==comment)duplicateConflict();return {id:prior.id};
+  }
   if(b.action==='cancel'){
    await requireManage(c,a,row.club_id);if(!a.platform&&!a.adminClubIds.includes(row.club_id)&&row.coach_person_id!==a.user.personId)throw new AccessError('Only the assigned professional or administrator can cancel this goal.');
    await c.query("update golf_practice_assignment set status='cancelled',updated_at=now() where id=$1",[row.id]);return {id:row.id};

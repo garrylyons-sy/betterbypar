@@ -1,3 +1,5 @@
+import {requireGroupManager} from '@/lib/server/lesson-group-access';
+import {setLessonLocation} from '@/lib/server/lesson-location';
 import {notifyLessonEvent} from '@/lib/server/lesson-notifications';
 import {scheduleNotificationPush} from '@/lib/server/notification-dispatch';
 import { NextResponse } from 'next/server';
@@ -12,7 +14,7 @@ export async function GET(request:Request) {
   const scope=[...new Set(a.assignments.map(r=>r.clubId))];
   await materializeLessons(scope,a.user.personId);
   const [slots,players,bookings]=await Promise.all([
-   dbQuery(`select s.id,s.club_id,s.title,s.starts_at,s.ends_at,s.professional_person_id,s.group_id,s.capacity,g.name as group_name,g.mode as group_mode,
+   dbQuery(`select s.id,s.club_id,s.title,s.location_id,(select name from lesson_location where id=s.location_id) as location_name,s.starts_at,s.ends_at,s.professional_person_id,s.group_id,s.capacity,g.name as group_name,g.mode as group_mode,
     (select count(*)::int from lesson_booking where slot_id=s.id and status='Booked') as booked_count,eligible.player_ids as eligible_player_ids,
     case when c.show_lesson_attendee_names then coalesce((select jsonb_agg(concat_ws(' ',attendee.first_name,attendee.last_name) order by attendee.last_name,attendee.first_name)
      from lesson_booking attendance join person attendee on attendee.id=attendance.player_person_id and attendee.active
@@ -30,14 +32,15 @@ export async function GET(request:Request) {
     and exists(select 1 from public.club_membership cm where cm.person_id=p.id and cm.club_id=s.club_id and cm.active and cm.role in ('Golf Professional','Assistant Professional')) order by s.starts_at`,[scope,a.user.personId]),
    dbQuery(`select distinct p.id,concat_ws(' ',p.first_name,p.last_name) as name,cm.club_id from public.club_membership cm join public.person p on p.id=cm.person_id and p.active
     where cm.active and public.is_golf_player(p.id,cm.club_id) and cm.club_id=any($2::uuid[]) and (p.id=$1 or exists(select 1 from public.dependants d where d.guardian_person_id=$1 and d.dependant_person_id=p.id and d.club_id=cm.club_id and d.active)) order by name`,[a.user.personId,scope]),
-   dbQuery(`select b.id,b.slot_id,b.player_person_id,s.group_id,g.name as group_name,b.goals,b.reminder_minutes,b.feedback,b.drills,
+   dbQuery(`select b.id,b.slot_id,s.location_id,(select name from lesson_location where id=s.location_id) as location_name,b.player_person_id,s.group_id,g.name as group_name,b.goals,b.reminder_minutes,b.feedback,b.drills,
     (b.status='Booked' and b.reminder_minutes>0 and s.starts_at>now() and s.starts_at<=now()+b.reminder_minutes*interval '1 minute') as reminder_due,s.club_id,s.title,s.starts_at,s.ends_at,s.active,b.status,c.name as club_name,concat_ws(' ',p.first_name,p.last_name) as player_name,
     concat_ws(' ',pro.first_name,pro.last_name) as professional_name from public.lesson_booking b join public.lesson_slot s on s.id=b.slot_id left join lesson_group g on g.id=s.group_id join public.club c on c.id=s.club_id and c.active
     join public.person p on p.id=b.player_person_id and p.active join public.person pro on pro.id=s.professional_person_id
     where s.club_id=any($2::uuid[]) and exists(select 1 from public.club_membership pcm where pcm.club_id=s.club_id and pcm.person_id=b.player_person_id and pcm.active) and (b.player_person_id=$1 or exists(select 1 from public.dependants d where d.guardian_person_id=$1 and d.dependant_person_id=b.player_person_id and d.club_id=s.club_id and d.active)) order by s.starts_at`,[a.user.personId,scope])
   ]);
+  const locations=await dbQuery('select id,name,club_id from lesson_location where club_id=any($1::uuid[]) and active order by sort_order,name',[scope]);
   const canManage=a.platform||a.adminClubIds.length>0||a.assignments.some(r=>['Golf Professional','Assistant Professional'].includes(r.role));
-  return NextResponse.json({slots:slots.rows,players:players.rows,bookings:bookings.rows,canManage,actorId:a.user.personId,reminderEmailReady:Boolean(process.env.RESEND_API_KEY&&(process.env.INVITE_FROM_EMAIL||process.env.EMAIL_FROM))});
+  return NextResponse.json({locations:locations.rows,slots:slots.rows,players:players.rows,bookings:bookings.rows,canManage,actorId:a.user.personId,reminderEmailReady:Boolean(process.env.RESEND_API_KEY&&(process.env.INVITE_FROM_EMAIL||process.env.EMAIL_FROM))});
  } catch(error) {const e=golfError(error);return NextResponse.json({error:e.error},{status:e.status});}
 }
 export async function POST(request:Request) {
@@ -50,6 +53,7 @@ export async function POST(request:Request) {
    if(!slot.rows[0].group_id&&new Date(slot.rows[0].ends_at).getTime()-new Date(slot.rows[0].starts_at).getTime()!==1800000)throw new Error('Choose a 30-minute lesson.');
    const playerId=String(b.playerId??a.user.personId);
    await requirePlayerAccess(client,a.user.personId,playerId,slot.rows[0].club_id);
+   await setLessonLocation(client,slot.rows[0],b.locationId);
    const result=await client.query(`insert into public.lesson_booking(slot_id,player_person_id,booked_by,starts_at,ends_at,goals,reminder_minutes) values($1,$2,$3,$4,$5,$6,$7) returning id`,[slot.rows[0].id,playerId,a.user.personId,slot.rows[0].starts_at,slot.rows[0].ends_at,goals,reminder]);
    await queueLessonReminder(client,result.rows[0].id);
    await notifyLessonEvent(client,result.rows[0].id,'lesson_booking',a.user.personId);
@@ -68,7 +72,7 @@ export async function PATCH(request:Request) {
    const result=await client.query('select * from public.lesson_booking where id=$1 for update',[b.id]);
    const booking=result.rows[0],slot=slots.rows[0];
    if(slot.starts_at<=new Date()) throw new Error('Past lessons cannot be cancelled.');
-   if(b.asManager===true) requireDiaryOwner(a,slot.club_id,slot.professional_person_id);
+   if(b.asManager===true){if(slot.group_id)await requireGroupManager(client,a,slot.club_id);else requireDiaryOwner(a,slot.club_id,slot.professional_person_id);}
    else await requirePlayerAccess(client,a.user.personId,booking.player_person_id,slot.club_id);
    if(b.action==='reminder'){
     await requirePlayerAccess(client,a.user.personId,booking.player_person_id,slot.club_id);

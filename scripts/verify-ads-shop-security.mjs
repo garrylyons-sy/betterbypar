@@ -1,3 +1,4 @@
+import * as advertPolicy from '../shared/advert-policy.mjs';
 // Checks live privileges and real server queries. Test writes are rolled back;
 // no checkout email, payment or other external action is invoked.
 import assert from 'node:assert/strict';
@@ -39,6 +40,7 @@ try{
  const db={dbQuery:(sql,args)=>client.query(sql,args),withTransaction:fn=>fn(client)};
  const cache=new Map();
  function load(name){
+ if(name==='shared/advert-policy.mjs')return advertPolicy;
   if(cache.has(name))return cache.get(name);
   const exports={};cache.set(name,exports);
   const compiled=ts.transpileModule(fs.readFileSync(new URL(`../${name}.ts`,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;

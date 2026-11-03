@@ -223,6 +223,19 @@ export async function notificationSourceIsCurrent(notificationId:string,personId
   const target=/^round-comment:([0-9a-f-]{36})$/i.exec(n.event_key);if(!target)return false;
   return Boolean((await client.query(`select n.id from golf_round_comment n join user_account ua on ua.person_id=$2 and ua.active where n.id=$1 and public.can_discuss_round($2,n.round_id) and public.can_discuss_round(n.author_person_id,n.round_id)`,[target[1],personId])).rows[0]);
  }
+ if(n.type==='lesson_feedback'&&n.event_key.startsWith('practice-review:')){
+  const target=/^practice-review:([0-9a-f-]{36})$/i.exec(n.event_key);if(!target)return false;
+  return Boolean((await client.query(`select review.id from golf_practice_coach_review review join golf_practice_assignment a on a.id=review.assignment_id
+   join club c on c.id=a.club_id and c.active join person recipient on recipient.id=$2 and recipient.active
+   left join golf_challenge_attempt attempt on attempt.id=review.challenge_attempt_id
+   where review.id=$1 and a.status='active' and public.is_golf_player(a.player_person_id,a.club_id)
+   and exists(select 1 from user_account where person_id=$2 and active)
+   and exists(select 1 from club_membership where person_id=$2 and club_id=a.club_id and active)
+   and exists(select 1 from club_membership cm join person coach on coach.id=cm.person_id and coach.active where cm.person_id=a.coach_person_id and cm.club_id=a.club_id and cm.active and cm.role in ('Golf Professional','Assistant Professional'))
+   and exists(select 1 from person reviewer where reviewer.id=review.reviewer_person_id and reviewer.active and (exists(select 1 from app_operator where person_id=reviewer.id and active) or exists(select 1 from club_admin where person_id=reviewer.id and club_id=a.club_id and active) or exists(select 1 from club_membership where person_id=reviewer.id and club_id=a.club_id and active and (is_club_admin or (reviewer.id=a.coach_person_id and role in ('Golf Professional','Assistant Professional'))))))
+   and (attempt.round_id is null or exists(select 1 from golf_round r where r.id=attempt.round_id and r.revision=attempt.round_revision))
+   and ($2=a.player_person_id or exists(select 1 from dependants where guardian_person_id=$2 and dependant_person_id=a.player_person_id and club_id=a.club_id and active))`,[target[1],personId])).rows[0]);
+ }
  if(n.type==='coaching_progress'){
   const target=/^practice-progress:(drill|challenge):([0-9a-f-]{36}):([0-9a-f-]{36})$/i.exec(n.event_key);if(!target)return false;
   const source=target[1]==='drill'?'golf_drill_session':'golf_challenge_attempt';

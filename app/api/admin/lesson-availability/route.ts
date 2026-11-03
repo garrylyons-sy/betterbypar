@@ -1,7 +1,7 @@
 import {NextResponse} from 'next/server';
 import {dbQuery,withTransaction} from '@/lib/server/db';
 import {golfAccess,golfError,AccessError,golfAudit} from '@/lib/server/golf-access';
-import {materializeLessons,requireDiaryOwner,requireActiveCoach} from '@/lib/server/lesson-diary';
+import {materializeLessons,requireDiaryOwner,requireActiveCoach,requireCoachBookingAccess} from '@/lib/server/lesson-diary';
 import {weekStart,addDays,dublinDate,normalizeRanges} from '@/lib/lesson-diary.mjs';
 export const runtime='nodejs';
 export async function GET(request:Request){
@@ -10,25 +10,30 @@ export async function GET(request:Request){
   const scope=[...new Set([...a.adminClubIds,...a.assignments.filter(r=>['Golf Professional','Assistant Professional'].includes(r.role)).map(r=>r.clubId)])];
   if(!a.platform&&!scope.length)throw new AccessError('Professional or administrator access required.');
   const clubs=(await dbQuery(`select id,name from club where active and ($1::boolean or id=any($2::uuid[])) order by name`,[a.platform,scope])).rows;
-  const professionals=(await dbQuery(`select distinct p.id,concat_ws(' ',p.first_name,p.last_name) as name,cm.club_id,cm.role from club_membership cm join person p on p.id=cm.person_id and p.active join club c on c.id=cm.club_id and c.active where cm.active and cm.role in ('Golf Professional','Assistant Professional') and ($1::boolean or cm.club_id=any($2::uuid[])) and ($1::boolean or cm.club_id=any($3::uuid[]) or p.id=$4) order by name`,[a.platform,scope,a.adminClubIds,a.user.personId])).rows;
+  const professionals=(await dbQuery(`select distinct p.id,concat_ws(' ',p.first_name,p.last_name) as name,cm.club_id,cm.role from club_membership cm join person p on p.id=cm.person_id and p.active join club c on c.id=cm.club_id and c.active where cm.active and cm.role in ('Golf Professional','Assistant Professional') and ($1::boolean or cm.club_id=any($2::uuid[])) and ($1::boolean or cm.club_id=any($3::uuid[]) or p.id=$4 or (cm.club_id=any($5::uuid[]) and cm.role='Assistant Professional')) order by cm.role desc,name`,[a.platform,scope,a.adminClubIds,a.user.personId,a.assignments.filter(r=>r.role==='Golf Professional').map(r=>r.clubId)])).rows;
   const clubId=params.get('clubId')||clubs[0]?.id;
   const professionalId=params.get('professionalId')||professionals.find(p=>p.club_id===clubId&&p.id===a.user.personId)?.id||professionals.find(p=>p.club_id===clubId)?.id;
   const week=weekStart(params.get('week')||dublinDate());
   if(week>addDays(weekStart(),49)||week<addDays(weekStart(),-365))throw new Error('Choose a week within the diary range.');
   if(!clubId||!professionalId)return NextResponse.json({clubs,professionals,actorId:a.user.personId,week,defaultRanges:[],weekRanges:[],hasOverride:false,slots:[]});
-  requireDiaryOwner(a,clubId,professionalId);
+  const canEditDiary=a.platform||a.adminClubIds.includes(clubId)||professionalId===a.user.personId;
+  if(canEditDiary)requireDiaryOwner(a,clubId,professionalId);
+  else await withTransaction(client=>requireCoachBookingAccess(client,a,clubId,professionalId));
+  const canBookForMember=professionalId===a.user.personId||a.assignments.some(r=>r.clubId===clubId&&r.role==='Golf Professional')&&professionals.some(p=>p.id===professionalId&&p.club_id===clubId&&p.role==='Assistant Professional');
   await materializeLessons([clubId],a.user.personId);
-  const [defaults,override,slots]=await Promise.all([
+  const [defaults,override,slots,groups]=await Promise.all([
    dbQuery('select ranges from lesson_default_week where club_id=$1 and professional_person_id=$2',[clubId,professionalId]),
    dbQuery('select ranges from lesson_week_override where club_id=$1 and professional_person_id=$2 and week_start=$3',[clubId,professionalId,week]),
-   dbQuery(`select s.*,concat_ws(' ',pro.first_name,pro.last_name) as professional_name,
+   dbQuery(`select s.*,(select name from lesson_location where id=s.location_id) as location_name,concat_ws(' ',pro.first_name,pro.last_name) as professional_name,
     (select role from club_membership where club_id=s.club_id and person_id=s.professional_person_id and active and role in ('Golf Professional','Assistant Professional') order by role desc limit 1) as professional_role,
     g.name as group_name,g.mode as group_mode,(select count(*)::int from lesson_booking where slot_id=s.id and status='Booked') as booked_count,b.id as booking_id,concat_ws(' ',p.first_name,p.last_name) as player_name,b.goals,b.feedback,b.drills,
     concat_ws(' ',actor.first_name,actor.last_name) as booked_by_name from lesson_slot s left join lesson_group g on g.id=s.group_id join person pro on pro.id=s.professional_person_id
     left join lesson_booking b on b.slot_id=s.id and b.status='Booked' and s.group_id is null left join person p on p.id=b.player_person_id left join person actor on actor.id=b.booked_by
-    where s.club_id=$1 and s.professional_person_id=$2 and (s.starts_at at time zone 'Europe/Dublin')::date >=$3::date and (s.starts_at at time zone 'Europe/Dublin')::date<$3::date+7 and s.active order by s.starts_at`,[clubId,professionalId,week])
+    where s.club_id=$1 and s.professional_person_id=$2 and (s.starts_at at time zone 'Europe/Dublin')::date >=$3::date and (s.starts_at at time zone 'Europe/Dublin')::date<$3::date+7 and s.active order by s.starts_at`,[clubId,professionalId,week]),
+   dbQuery(`select g.id,g.name,g.mode,g.capacity,(select count(*)::int from lesson_group_member gm join person p on p.id=gm.person_id and p.active where gm.group_id=g.id and gm.active and public.is_golf_player(p.id,g.club_id)) as roster_count from lesson_group g where g.club_id=$1 and g.active order by g.name`,[clubId])
   ]);
-  return NextResponse.json({clubs,professionals,actorId:a.user.personId,week,defaultRanges:defaults.rows[0]?.ranges??[],weekRanges:override.rows[0]?.ranges??defaults.rows[0]?.ranges??[],hasOverride:!!override.rowCount,slots:slots.rows});
+  const locations=(await dbQuery('select id,name,club_id from lesson_location where club_id=$1 and active order by sort_order,name',[clubId])).rows;
+  return NextResponse.json({locations,clubs,professionals,actorId:a.user.personId,canEditDiary,canBookForMember,groups:groups.rows,week,defaultRanges:defaults.rows[0]?.ranges??[],weekRanges:override.rows[0]?.ranges??defaults.rows[0]?.ranges??[],hasOverride:!!override.rowCount,slots:slots.rows});
  }catch(error){const e=golfError(error);return NextResponse.json({error:e.error},{status:e.status});}
 }
 export async function POST(request:Request){

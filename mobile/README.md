@@ -13,7 +13,9 @@ Native React Native / Expo SDK 58 client for iOS and Android. The production web
 - Structured challenges/drills, dated practice logs, saved-round checks and confirmed player/guardian attestation.
 - Discover and book individual/group lessons, choose goals and reminders, cancel bookings and review professional feedback.
 
-Drill demo links open externally; embedded video, professional administration and native push are not implemented yet. Some entries explicitly open the website, which has an independent browser sign-in. The store stays a coming-soon preview. No offline editing or sync queue is claimed. Golf Ireland and AI use the backend's configured live/demo/off modes.
+Coaches have a native day diary, authorised assistant selection, shared club groups, roster bookings, session capacity/location controls, lesson feedback and player round discussions. Profile photos and dependant contacts also have native screens.
+
+Drill demo links open externally; embedded video, desktop administration and native push are not implemented yet. Some entries explicitly open the website, which has an independent browser sign-in. The store stays a coming-soon preview. No offline editing or sync queue is claimed. Golf Ireland and AI use the backend's configured live/demo/off modes.
 
 ## Install and run
 
@@ -99,3 +101,5 @@ The app and website use the same authenticated `/api/notifications` inbox and pe
 Background iPhone alerts currently use Safari’s Home Screen website, as in Interclub Snooker: open `https://www.betterbypar.com` in Safari, Share → Add to Home Screen, launch that icon, then enable device notifications in Inbox settings. This does not need an Apple Developer subscription. The React Native binary has the inbox but no APNs registration/background push. Configuring those later requires signing entitlements and a native push provider.
 
 Web delivery uses dedicated VAPID credentials. Notification workers run every five minutes; the existing quiet hours and source-access checks still apply. Email requires `RESEND_API_KEY` and a verified `INVITE_FROM_EMAIL` sender. Saving preferences does not grant device permission or make an unconfigured email provider ready.
+
+The iOS autolinking configuration builds Expo core modules and `expo-image-manipulator` from source so their native ABI matches React Native. Preserve that setting when regenerating the iOS project.

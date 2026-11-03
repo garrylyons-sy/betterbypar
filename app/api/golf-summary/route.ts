@@ -1,3 +1,4 @@
+import {isProfessional} from '@/shared/golf-capabilities.mjs';
 import {NextResponse} from 'next/server';
 import {dbQuery} from '@/lib/server/db';
 import {golfAccess,golfError,AccessError} from '@/lib/server/golf-access';
@@ -11,6 +12,7 @@ export async function GET(request:Request){
   const club=(await dbQuery<{id:string;name:string}>(`select c.id,c.name from club c where c.active and ($1='' or c.name=$1)
    and ($3::uuid is null or c.id=$3) and exists(select 1 from club_membership where club_id=c.id and person_id=$2 and active) order by c.name limit 1`,[clubName,access.user.personId,access.user.actingAs?.clubId??null])).rows[0];
   if(!club)throw new AccessError('Club access is required to view this golf summary.');
+  if(isProfessional(access.assignments.filter(a=>a.clubId===club.id).map(a=>a.role)))throw new AccessError('Use the professional workspace to review player progress.');
   const players=(await dbQuery<{id:string;name:string;golf_ireland_number:string}>(`select p.id,concat_ws(' ',p.first_name,p.last_name) as name,p.golf_ireland_number from person p
    where public.is_golf_player(p.id,$2) and (p.id=$1 or exists(select 1 from dependants where guardian_person_id=$1 and dependant_person_id=p.id and club_id=$2 and active))
    order by (p.id=$1) desc,p.first_name,p.last_name,p.id`,[access.user.personId,club.id])).rows;

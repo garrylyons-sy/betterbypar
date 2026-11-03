@@ -6,6 +6,16 @@ export function requireDiaryOwner(a:GolfAccess,clubId:string,professionalId:stri
  requireLessonsManager(a,clubId);
  if(!a.platform&&!a.adminClubIds.includes(clubId)&&a.user.personId!==professionalId)throw new AccessError('You can only change your own lesson diary.');
 }
+/** Booking an assistant is separate from ownership of their hours and coaching notes. */
+export async function requireCoachBookingAccess(client:PoolClient,a:GolfAccess,clubId:string,professionalId:string){
+ requireLessonsManager(a,clubId);
+ await requireActiveCoach(client,clubId,a.user.personId);
+ if(a.user.personId===professionalId)return;
+ if(!a.assignments.some(grant=>grant.clubId===clubId&&grant.role==='Golf Professional'))throw new AccessError('Only a professional can book lessons for an assistant at their club.');
+ await requireActiveCoach(client,clubId,professionalId);
+ const roles=await client.query(`select cm.person_id,cm.role from club_membership cm where cm.club_id=$1 and cm.person_id=any($2::uuid[]) and cm.active for share of cm`,[clubId,[a.user.personId,professionalId]]);
+ if(!roles.rows.some(row=>row.person_id===a.user.personId&&row.role==='Golf Professional')||!roles.rows.some(row=>row.person_id===professionalId&&row.role==='Assistant Professional'))throw new AccessError('Choose your own diary or an active assistant at this club.');
+}
 export async function requireActiveCoach(client:PoolClient,clubId:string,professionalId:string){
  const result=await client.query(`select cm.id from club_membership cm join person p on p.id=cm.person_id and p.active join club c on c.id=cm.club_id and c.active
  where cm.club_id=$1 and cm.person_id=$2 and cm.active and cm.role in ('Golf Professional','Assistant Professional') for share of cm,p,c`,[clubId,professionalId]);
