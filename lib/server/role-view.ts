@@ -1,7 +1,7 @@
 import {cookies} from 'next/headers';
 import {dbQuery} from '@/lib/server/db';
 import {readRoleView} from './role-view-token.mjs';
-import {clubViewRoles} from '@/shared/admin-role-view.mjs';
+import {clubViewRoles,canSwitchRoleView} from '@/shared/admin-role-view.mjs';
 import type {AppUser} from './auth';
 export const roleViewCookie='bbp_role_view';
 export async function roleViewOptions(actorId:string){
@@ -16,7 +16,7 @@ export async function roleViewOptions(actorId:string){
  where c.active
  union select p.id,concat_ws(' ',p.first_name,p.last_name),c.id,'Club Admin' from club_admin ca join person p on p.id=ca.person_id and p.active join club c on c.id=ca.club_id and c.active where ca.active
  order by name,role`)).rows;
- return {clubs,people};
+ return {clubs,people,canSwitchRole:canSwitchRoleView(people)};
 }
 export async function resolveRoleView(actor:AppUser,sessionId:string,token:string){
  const context=readRoleView(token,sessionId);if(!context||!clubViewRoles.includes(context.role))throw new Error('Role session expired. Return to Admin and select a role again.');

@@ -1,4 +1,5 @@
 "use client";
+import {AdminCourseApprovals} from '@/components/admin-course-approvals';
 import {AdminWorkspaceNavigation} from "@/components/admin-workspace-navigation";
 import {ProShopAdmin} from '@/components/pro-shop-admin';
 import {CoachPractice} from '@/components/coach-practice';
@@ -27,7 +28,7 @@ import { clubTeamStructure } from "@/lib/demo-data";
 import type { AppearanceConfig, AppearancePanelId, Role as AppRole, SponsorAd } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type AdminTab = "shop" | "dependants" | "lessons" | "drills" | "challenges" | "notifications" | "system" | "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
+type AdminTab = "courses" | "shop" | "dependants" | "lessons" | "drills" | "challenges" | "notifications" | "system" | "desktop" | "clubs" | "ladders" | "competitions" | "cup-competitions" | "matches" | "last-man-standing" | "live-scoring" | "people" | "invites" | "permissions" | "appearance" | "adverts" | "logs";
 type AdminMode = "platform" | "club";
 type MaintenanceModeState = { enabled: boolean; updatedAt: string | null };
 type TeamRole = "Player" | "Manager";
@@ -319,6 +320,7 @@ const adminNavItems: Array<{ id: AdminTab; label: string; icon: typeof LayoutPan
   { id: "desktop" as const, label: "Dashboard", icon: LayoutPanelTop },
   { id: "clubs" as const, label: "Clubs", icon: Building2 },
   { id: "lessons", label: "Lessons", icon: CalendarDays },
+  { id: "courses", label: "Courses", icon: Building2 },
   { id: "challenges", label: "Challenges", icon: Swords },
   { id: "drills", label: "Drills", icon: Swords },
   { id: "dependants", label: "Dependants", icon: Users },
@@ -802,6 +804,7 @@ function AdminTabPanel(props: {
   if (props.tab === "desktop") return <DesktopAdminPanel adminMode={props.adminMode} teams={props.teams} people={props.people} requests={props.requests} competitions={props.competitions} matchStats={props.matchStats} featureStats={props.featureStats} maintenanceMode={props.maintenanceMode} onMaintenanceChange={props.onMaintenanceChange} onMessage={props.onMessage} onRefresh={props.onRefresh} />;
   if (props.tab === "dependants") return <AdminDependants clubScope={clubPortal} />;
   if (props.tab === "shop") return <ProShopAdmin clubScope={clubPortal}/>;
+  if (props.tab === "courses") return <AdminCourseApprovals/>;
   if (props.tab === "lessons") return <AdminLessons clubScope={clubPortal} />;
   if (props.tab === "challenges") return <CoachPractice key="challenges" initialKind="challenge" hideKindSwitch clubScope={clubPortal}/>;
   if (props.tab === "drills") return <CoachPractice key="drills" initialKind="drill" hideKindSwitch clubScope={clubPortal}/>;

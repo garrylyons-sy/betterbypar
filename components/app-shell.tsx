@@ -850,6 +850,11 @@ function AccountMenu({
 
   return (
     <div className="relative z-[120] shrink-0">
+      <div className="flex h-11 items-center gap-1">
+      <a href="/profile" aria-label="My profile and personal details" className="flex h-11 min-w-11 items-center justify-center gap-2 rounded-lg bg-white/10 px-2.5 text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+        <ProfileAvatar src={profileImage} name={userLabel} className="h-8 w-8"/>
+        <span className="hidden max-w-[180px] truncate text-sm font-bold md:block">{userLabel}</span>
+      </a>
       <button
         type="button"
         onClick={() => setAccountOpen((open) => !open)}
@@ -858,10 +863,9 @@ function AccountMenu({
         aria-expanded={accountOpen}
         aria-label="Account menu"
       >
-        <ProfileAvatar src={profileImage} name={userLabel} className="h-8 w-8"/>
-        <span className="hidden max-w-[180px] truncate text-sm font-bold md:block">{userLabel}</span>
         <ChevronDown className="h-4 w-4 shrink-0 text-white/70" />
       </button>
+      </div>
       {accountOpen ? (
         <div className="absolute right-0 top-[calc(100%+8px)] z-[130] w-64 rounded-xl bg-white p-2 text-[#10233f] shadow-elevated ring-1 ring-[#eeeaf2]" role="menu">
           <div className="px-3 py-2">

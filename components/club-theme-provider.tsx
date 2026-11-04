@@ -1,6 +1,7 @@
 'use client';
 import {createContext,useCallback,useContext,useEffect,useMemo,useRef,useState} from 'react';
 import {usePathname} from 'next/navigation';
+import {selectedClubId} from '@/shared/club-selection.mjs';
 import {buildClubTheme} from '@/lib/club-theme.mjs';
 type Club={roles?:string[];id:string;name:string;primaryColor:string|null;accentColor:string|null};
 type ThemeContext={ready?:boolean;clubs:Club[];clubId:string;setClubId:(id:string)=>void;refresh:()=>Promise<void>;preview:(primary:string,accent:string)=>void;clearPreview:()=>void};
@@ -10,6 +11,7 @@ const storageKey='better-by-par:active-club';
 export function ClubThemeProvider({children}:{children:React.ReactNode}){
  const pathname=usePathname();
  const [clubs,setClubs]=useState<Club[]>([]),[clubId,setSelected]=useState(''),[draft,setDraft]=useState<{primary:string;accent:string}|null>(null);
+ const selectionAccess=useRef<{canSwitchClub:boolean;defaultClubId?:string|null}>({canSwitchClub:false});
  const requestRevision=useRef(0),[ready,setReady]=useState(false);
  const refresh=useCallback(async()=>{
   const revision=++requestRevision.current;
@@ -18,12 +20,13 @@ export function ClubThemeProvider({children}:{children:React.ReactNode}){
    if(!response.ok&&response.status!==401)return;
    const data=await response.json();if(revision!==requestRevision.current)return;
    const rows:Club[]=response.status===401?[]:data.clubs??[];setClubs(rows);
+   selectionAccess.current={canSwitchClub:response.status!==401&&data.canSwitchClub===true,defaultClubId:data.defaultClubId};
    let saved='';try{saved=sessionStorage.getItem(storageKey)??'';}catch{}
    const requested=new URLSearchParams(window.location.search).get('clubId');
-   setSelected(current=>rows.some(c=>c.id===requested)?requested!:rows.some(c=>c.id===current)?current:rows.some(c=>c.id===saved)?saved:rows[0]?.id??'');
+   setSelected(current=>selectedClubId({clubs:rows,...selectionAccess.current},requested&&rows.some(c=>c.id===requested)?requested:current||saved));
   }catch{/* Keep the last confirmed theme during transient connection failures. */}finally{if(revision===requestRevision.current)setReady(true);}
  },[]);
- const setClubId=useCallback((id:string)=>{if(id)setSelected(id);},[]);
+ const setClubId=useCallback((id:string)=>{if(id&&selectionAccess.current.canSwitchClub)setSelected(id);},[]);
  const preview=useCallback((primary:string,accent:string)=>setDraft(current=>current?.primary===primary&&current?.accent===accent?current:{primary,accent}),[]);
  const clearPreview=useCallback(()=>setDraft(null),[]);
  useEffect(()=>{

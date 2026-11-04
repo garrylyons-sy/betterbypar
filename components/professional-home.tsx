@@ -2,7 +2,7 @@
 import {CoachingStatistics} from '@/components/coaching-statistics';
 import Link from 'next/link';
 import {useEffect,useState} from 'react';
-import {CalendarDays,Users,ClipboardCheck,Flag,ArrowRight,UserRound,Clock3,ChevronLeft,ChevronRight,ShoppingBag,ChevronDown} from 'lucide-react';
+import {CalendarDays,Users,ClipboardCheck,Flag,ArrowRight,Clock3,ChevronLeft,ChevronRight,ShoppingBag,ChevronDown} from 'lucide-react';
 import {useClubTheme} from '@/components/club-theme-provider';
 import {golfRequest} from '@/components/golf-ui';
 import {Card,CardHeader,CardTitle,CardContent} from '@/components/ui/card';
@@ -59,7 +59,7 @@ export function ProfessionalHome({clubName,more=false,playersView=false}:{clubNa
   </>}
   <section aria-label="Coaching tools" className="grid gap-3">
    {!more&&<h2 className="mt-2 text-lg font-extrabold">Coaching tools</h2>}
-   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[...actions,...(more?[{label:'My profile',href:'/profile',icon:UserRound,description:'Your photo & account details',tone:'bg-primary/10'}]:[])].map(action=><Link key={action.href} href={href(action.href)} className="group flex min-h-24 min-w-0 items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-primary/5"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-primary ${action.tone}`}><action.icon className="h-5 w-5" aria-hidden="true"/></span><span className="min-w-0 flex-1"><span className="block text-sm font-extrabold">{action.label}</span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{action.description}</span></span><ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true"/></Link>)}</div>
+   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{actions.map(action=><Link key={action.href} href={href(action.href)} className="group flex min-h-24 min-w-0 items-center gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-primary/5"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-primary ${action.tone}`}><action.icon className="h-5 w-5" aria-hidden="true"/></span><span className="min-w-0 flex-1"><span className="block text-sm font-extrabold">{action.label}</span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{action.description}</span></span><ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true"/></Link>)}</div>
   </section>
  </div>;
 }

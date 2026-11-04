@@ -14,7 +14,7 @@ export default function More(){
  function openWebsite(path:string){setError('');void Linking.openURL(origin+path).catch(()=>setError('Could not open the website. Please try again.'));}
  return <Page title="More">
   <Card><View style={{flexDirection:'row',alignItems:'center',gap:12}}><View style={{width:44,height:44,borderRadius:8,backgroundColor:theme.soft,alignItems:'center',justifyContent:'center'}}><Ionicons name="person-circle-outline" size={30} color={theme.primaryText}/></View><View style={{flex:1,gap:3}}><Copy bold style={{color:theme.text}}>{session?.user.name}</Copy><Copy style={{fontSize:12}}>{session?.user.email}</Copy></View></View></Card>
-  {(session?.clubs.length??0)>1&&<Card><Copy bold>Current club</Copy>{session?.clubs.map(c=><Action key={c.id} secondary label={`${c.name}${c.id===club?.id?' · selected':''}`} disabled={busy} onPress={()=>setClub(c.id)}/>)}</Card>}
+  {session?.canSwitchClub&&(session.clubs.length??0)>1&&<Card><Copy bold>Current club</Copy>{session?.clubs.map(c=><Action key={c.id} secondary label={`${c.name}${c.id===club?.id?' · selected':''}`} disabled={busy} onPress={()=>setClub(c.id)}/>)}</Card>}
   <View style={{gap:10}}>
    <Text accessibilityRole="header" style={{fontSize:12,fontWeight:'800',letterSpacing:1,color:theme.muted}}>YOUR CLUB & CONNECTIONS</Text>
    <MenuCard title="Pro shop" description="Equipment, essentials and gifts from your club." icon="bag-handle-outline" accent disabled={busy} onPress={()=>router.navigate('/pro-shop')}/>
@@ -23,7 +23,6 @@ export default function More(){
   </View>
   <View style={{gap:10}}>
    <Text accessibilityRole="header" style={{fontSize:12,fontWeight:'800',letterSpacing:1,color:theme.muted}}>YOUR ACCOUNT</Text>
-   <MenuCard title="My profile" description="Your photo and personal details." icon="person-outline" disabled={busy} onPress={()=>router.navigate('/profile')}/>
    {!golfCapabilities(club?.roles).professional&&<>
     <MenuCard title="My dependants" description="Manage the junior players in your care." icon="people-outline" disabled={busy} onPress={()=>router.navigate('/family')}/>
     <MenuCard title="Second-hand clubs" description="Discover pre-owned clubs. Values are pro shop credit." icon="golf-outline" badge="Coming soon" accent disabled={busy} onPress={()=>openWebsite('/second-hand-clubs')}/>

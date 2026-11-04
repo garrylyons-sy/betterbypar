@@ -12,3 +12,6 @@ export function roleViewMutationAllowed(path,role){
 }
 export function roleViewScopeAllowed(view,clubId,kind){return !view||(view.clubId===clubId&&(kind==='player'?view.role==='Player':kind==='coach'?['Golf Professional','Assistant Professional'].includes(view.role):view.role==='Club Admin'));}
 export function roleViewSameOrigin(origin,url,host){try{return new URL(origin).origin===`${new URL(url).protocol}//${host||new URL(url).host}`;}catch{return false;}}
+// The platform administrator context is always one option; only real active appointments add alternatives.
+export function roleViewRolesForClub(people,clubId){return clubViewRoles.filter(role=>people.some(person=>person.clubId===clubId&&person.role===role));}
+export function canSwitchRoleView(people){return people.some(person=>clubViewRoles.includes(person.role));}

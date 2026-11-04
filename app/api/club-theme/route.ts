@@ -1,3 +1,4 @@
+import {clubSelectionAccess} from '@/lib/server/club-selection';
 import {NextResponse} from 'next/server';
 import {currentUser} from '@/lib/server/auth';
 import {dbQuery} from '@/lib/server/db';
@@ -11,6 +12,6 @@ export async function GET(){
    or exists(select 1 from club_admin where club_id=c.id and person_id=$1 and active)
    or exists(select 1 from app_operator where person_id=$1 and active)
   ) order by c.name`,[user.personId]);
-  return NextResponse.json({clubs:user.actingAs?result.rows.filter(c=>c.id===user.actingAs!.clubId).map(c=>({...c,roles:[user.actingAs!.role]})):result.rows},{headers:{'Cache-Control':'no-store'}});
+  return NextResponse.json({...await clubSelectionAccess(user),clubs:user.actingAs?result.rows.filter(c=>c.id===user.actingAs!.clubId).map(c=>({...c,roles:[user.actingAs!.role]})):result.rows},{headers:{'Cache-Control':'no-store'}});
  }catch{return NextResponse.json({error:'Club colours are unavailable.'},{status:500});}
 }

@@ -13,11 +13,11 @@ export function Card({children,dark=false}:{children:ReactNode;dark?:boolean}){c
 export function Action({label,onPress,disabled=false,secondary=false}:{label:string;onPress:()=>void;disabled?:boolean;secondary?:boolean}){const theme=useTheme();return <Pressable accessibilityRole="button" accessibilityState={{disabled}} disabled={disabled} onPress={onPress} style={({pressed})=>[styles.action,{backgroundColor:secondary?theme.soft:pressed?theme.primaryHover:theme.primary},disabled&&{opacity:.45}]}><Text style={{color:secondary?theme.text:theme.onPrimary,fontWeight:'700',textAlign:'center'}}>{label}</Text></Pressable>;}
 const PageScrollContext=createContext<(()=>void)|null>(null);
 export function usePageScrollToTop(){return useContext(PageScrollContext);}
-export function Page({title,children,onRefresh,refreshing=false}:{title:string;children:ReactNode;onRefresh?:()=>void;refreshing?:boolean}){
+export function Page({title,children,onRefresh,refreshing=false,showProfile=false}:{title:string;children:ReactNode;showProfile?:boolean;onRefresh?:()=>void;refreshing?:boolean}){
  const {club,session,origin}=useSession(),theme=useTheme(),scrollRef=useRef<ComponentRef<typeof ScrollView>>(null);
  const scrollToTop=useCallback(()=>scrollRef.current?.scrollTo({y:0,animated:true}),[]);
  return <PageScrollContext.Provider value={scrollToTop}><SafeAreaView style={[styles.page,{backgroundColor:theme.page}]} edges={['top']}><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" refreshControl={onRefresh?<RefreshControl tintColor={theme.primary} colors={[theme.primary]} refreshing={refreshing} onRefresh={onRefresh}/>:undefined}>
- <ClubHeader club={club} origin={origin} demo={session?.demo}/>
+ <ClubHeader club={club} origin={origin} demo={session?.demo} showProfile={showProfile}/>
  <Title>{title}</Title>{children}</ScrollView></KeyboardAvoidingView></SafeAreaView></PageScrollContext.Provider>;
 }
 export function useResource<T>(path:string|null){

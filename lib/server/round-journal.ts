@@ -1,4 +1,4 @@
-import {resolveRoundCourseDetails} from '@/lib/server/course-catalogue';
+import {resolveRoundCourseDetails,queueManualCourse} from '@/lib/server/course-catalogue';
 import type {PoolClient} from 'pg';
 import {withTransaction} from '@/lib/server/db';
 import {golfAccess,AccessError,requirePlayerAccess} from '@/lib/server/golf-access';
@@ -55,6 +55,7 @@ export async function saveRoundJournal(request:Request,body:Record<string,unknow
   const {selected}=await context(client,user.personId,body.clubId,body.playerId,user.actingAs);if(!selected)throw new AccessError('A registered player is required.');
   const data=await resolveRoundCourseDetails(client,normalize(body.data));
   const row=(await client.query<Row>(`insert into golf_round(club_id,player_person_id,created_by,source,data) values($1,$2,$3,'manual',$4::jsonb) returning *`,[selected.clubId,selected.playerId,user.personId,JSON.stringify(data)])).rows[0];
+  await queueManualCourse(client,row,user.personId);
   return {round:view(row)};
  });
  if(body.action==='import'){
@@ -78,6 +79,7 @@ export async function saveRoundJournal(request:Request,body:Record<string,unknow
    if(JSON.stringify(scoreFields(data))!==JSON.stringify(scoreFields(row.data)))throw new AccessError('Imported scores are read-only. Add commentary, putts, penalties or shot observations instead.',400);
   }
   const updated=(await client.query<Row>(`update golf_round set data=$2::jsonb,revision=revision+1,feedback=null,feedback_revision=null,feedback_generated_at=null,updated_at=now() where id=$1 returning *`,[row.id,JSON.stringify(data)])).rows[0];
+  await queueManualCourse(client,updated,user.personId);
   return {round:view(updated)};
  });
  if(body.action==='feedback'){

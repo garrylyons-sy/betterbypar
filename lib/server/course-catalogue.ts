@@ -27,3 +27,12 @@ export async function resolveRoundCourseDetails(client:Pick<PoolClient,'query'>,
 function withCanonicalPars(data:RoundInput,courseDetails:NonNullable<RoundInput['courseDetails']>):RoundInput{
  return {...data,courseDetails,holes:data.holes.map(h=>({...h,par:courseDetails.holes.find(reference=>reference.number===h.number)?.par??null}))};
 }
+
+/** Called within the round transaction: private round entry never publishes shared reference data. */
+export async function queueManualCourse(client:Pick<PoolClient,'query'>,round:{id:string;club_id:string;source:string;data:RoundInput},actorId:string){
+ const data=round.data;if(round.source!=='manual'||data.courseDetails||!data.courseName.trim())return;
+ await client.query(`insert into public.golf_course_submission(round_id,club_id,submitted_by,course_name,tee_name,snapshot)
+ values($1,$2,$3,$4,$5,$6::jsonb)
+ on conflict(submitted_by,course_key,tee_key) do update set round_id=excluded.round_id,snapshot=excluded.snapshot,updated_at=now()
+ where golf_course_submission.status='pending'`,[round.id,round.club_id,actorId,data.courseName,data.teeName,JSON.stringify({holeCount:data.holeCount,holes:data.holes.map(h=>({number:h.number,par:h.par})),courseName:data.courseName,teeName:data.teeName})]);
+}

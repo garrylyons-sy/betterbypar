@@ -17,7 +17,7 @@ function PlayerHome(){
  const {club,session,refreshSession}=useSession(),theme=useTheme();
  const [lessonRefresh,setLessonRefresh]=useState(0);
  const result=useResource<GolfSummaryResponse>(club?`/api/golf-summary?club=${encodeURIComponent(club.name)}`:null);
- return <Page title={`Hello, ${session?.user.name.split(' ')[0]??'golfer'}`} onRefresh={()=>{setLessonRefresh(n=>n+1);void refreshSession().catch(()=>{}).finally(result.reload);}} refreshing={result.loading}>
+ return <Page showProfile title={`Hello, ${session?.user.name.split(' ')[0]??'golfer'}`} onRefresh={()=>{setLessonRefresh(n=>n+1);void refreshSession().catch(()=>{}).finally(result.reload);}} refreshing={result.loading}>
   <NativeSponsorBanner/>
   <NativeUpcomingLessonPanel key={`lessons:${session?.user.personId}:${club?.id}:${lessonRefresh}`}/>
   <Pressable accessibilityRole="button" accessibilityLabel="Record a round" onPress={()=>router.navigate({pathname:'/record-round',params:{request:Date.now().toString()}})} style={({pressed})=>[s.record,{backgroundColor:theme.primary,opacity:pressed?.85:1}]}><View style={[s.recordIcon,{backgroundColor:theme.accent}]}><Ionicons name="add-outline" size={28} color={theme.onAccent}/></View><Text style={[s.recordLabel,{color:theme.onPrimary}]}>Record a round</Text><Ionicons name="arrow-forward-outline" size={22} color={theme.onPrimary}/></Pressable>
